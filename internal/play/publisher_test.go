@@ -3,6 +3,7 @@ package play
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1374,6 +1375,13 @@ func TestDeployAppRecoveryUsesDeployEndpoint(t *testing.T) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/appRecoveries/7:deploy" {
 			t.Fatalf("path = %q, want deploy endpoint", r.URL.Path)
 		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		if strings.TrimSpace(string(body)) != "{}" {
+			t.Fatalf("body = %q, want empty JSON object", string(body))
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{}`))
 	}))
@@ -1387,6 +1395,29 @@ func TestDeployAppRecoveryUsesDeployEndpoint(t *testing.T) {
 	}
 }
 
+func TestDeployAppRecoveryRejectsDryRunBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	err := publisher.DeployAppRecovery(context.Background(), AppRecoveryMutationOptions{
+		PackageName:   "com.example.app",
+		AppRecoveryID: "7",
+		DryRun:        true,
+	})
+	if err == nil {
+		t.Fatal("expected dry-run rejection")
+	}
+	if !strings.Contains(err.Error(), "--dry-run") {
+		t.Fatalf("error = %v, want dry-run validation", err)
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
 func TestCancelAppRecoveryUsesCancelEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -1394,6 +1425,13 @@ func TestCancelAppRecoveryUsesCancelEndpoint(t *testing.T) {
 		}
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/appRecoveries/7:cancel" {
 			t.Fatalf("path = %q, want cancel endpoint", r.URL.Path)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		if strings.TrimSpace(string(body)) != "{}" {
+			t.Fatalf("body = %q, want empty JSON object", string(body))
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{}`))

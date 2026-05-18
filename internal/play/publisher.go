@@ -531,7 +531,7 @@ func (p GooglePublisher) ListAppRecoveries(ctx context.Context, options AppRecov
 }
 
 func (p GooglePublisher) DeployAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
-	if err := options.Validate(); err != nil {
+	if err := options.ValidateLive(); err != nil {
 		return err
 	}
 	if _, err := p.service.Apprecovery.Deploy(options.PackageName.String(), options.AppRecoveryID.Int64(), &androidpublisher.DeployAppRecoveryRequest{}).
@@ -543,7 +543,7 @@ func (p GooglePublisher) DeployAppRecovery(ctx context.Context, options AppRecov
 }
 
 func (p GooglePublisher) CancelAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
-	if err := options.Validate(); err != nil {
+	if err := options.ValidateLive(); err != nil {
 		return err
 	}
 	if _, err := p.service.Apprecovery.Cancel(options.PackageName.String(), options.AppRecoveryID.Int64(), &androidpublisher.CancelAppRecoveryRequest{}).

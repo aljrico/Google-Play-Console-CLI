@@ -148,6 +148,19 @@ func (o AppRecoveryMutationOptions) Validate() error {
 	return nil
 }
 
+func (o AppRecoveryMutationOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live app recovery mutation cannot run with --dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live app recovery mutation requires --confirm")
+	}
+	return nil
+}
+
 type AppRecoveryMutationPlan struct {
 	Action        string        `json:"action"`
 	PackageName   PackageName   `json:"packageName"`
