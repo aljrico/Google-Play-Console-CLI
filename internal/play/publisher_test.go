@@ -162,6 +162,62 @@ func TestReviewListResultFromAPIMapsPagination(t *testing.T) {
 	}
 }
 
+func TestInAppProductFromAPIMapsCatalogFields(t *testing.T) {
+	product := inAppProductFromAPI(&androidpublisher.InAppProduct{
+		PackageName:     "com.example.app",
+		Sku:             "coins_100",
+		Status:          "active",
+		PurchaseType:    "managedUser",
+		DefaultLanguage: "en-US",
+		DefaultPrice:    &androidpublisher.Price{Currency: "USD", PriceMicros: "1990000"},
+		Prices: map[string]androidpublisher.Price{
+			"US": {Currency: "USD", PriceMicros: "1990000"},
+		},
+		Listings: map[string]androidpublisher.InAppProductListing{
+			"en-US": {Title: "100 coins", Description: "A small pack."},
+		},
+	})
+
+	if product.PackageName != "com.example.app" {
+		t.Fatalf("PackageName = %q, want com.example.app", product.PackageName)
+	}
+	if product.SKU != "coins_100" {
+		t.Fatalf("SKU = %q, want coins_100", product.SKU)
+	}
+	if product.DefaultPrice == nil || product.DefaultPrice.PriceMicros != "1990000" {
+		t.Fatalf("DefaultPrice = %#v, want 1990000 micros", product.DefaultPrice)
+	}
+	if product.Prices["US"].Currency != "USD" {
+		t.Fatalf("US price = %#v, want USD", product.Prices["US"])
+	}
+	if product.Listings["en-US"].Title != "100 coins" {
+		t.Fatalf("listing = %#v, want title", product.Listings["en-US"])
+	}
+}
+
+func TestInAppProductListResultFromAPIMapsPagination(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result := inAppProductListResultFromAPI(InAppProductListOptions{PackageName: packageName}, &androidpublisher.InappproductsListResponse{
+		Inappproduct: []*androidpublisher.InAppProduct{
+			{PackageName: "com.example.app", Sku: "coins_100"},
+		},
+		TokenPagination: &androidpublisher.TokenPagination{
+			NextPageToken: "next",
+		},
+	})
+
+	if len(result.Products) != 1 {
+		t.Fatalf("len(Products) = %d, want 1", len(result.Products))
+	}
+	if result.Pagination == nil || result.Pagination.NextPageToken != "next" {
+		t.Fatalf("Pagination = %#v, want next token", result.Pagination)
+	}
+}
+
 func containsField(fields []string, field string) bool {
 	for _, candidate := range fields {
 		if candidate == field {

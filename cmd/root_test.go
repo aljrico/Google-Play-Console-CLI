@@ -407,3 +407,26 @@ func TestReviewsReplyRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
 		t.Fatal("expected confirmation validation error")
 	}
 }
+
+func TestInAppProductsGetRejectsMissingSKUBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"get",
+		"--package",
+		"com.example.app",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected SKU validation error")
+	}
+	if !strings.Contains(err.Error(), "SKU") {
+		t.Fatalf("error = %v, want SKU validation", err)
+	}
+}

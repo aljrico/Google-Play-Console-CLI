@@ -207,6 +207,26 @@ func (p GooglePublisher) ReplyToReview(ctx context.Context, packageName PackageN
 	}, nil
 }
 
+func (p GooglePublisher) ListInAppProducts(ctx context.Context, options InAppProductListOptions) (InAppProductListResult, error) {
+	call := p.service.Inappproducts.List(options.PackageName.String()).Context(ctx)
+	if options.Token != "" {
+		call.Token(options.Token)
+	}
+	response, err := call.Do()
+	if err != nil {
+		return InAppProductListResult{}, fmt.Errorf("list in-app products for %s: %w", options.PackageName, err)
+	}
+	return inAppProductListResultFromAPI(options, response), nil
+}
+
+func (p GooglePublisher) GetInAppProduct(ctx context.Context, packageName PackageName, sku InAppProductSKU) (InAppProduct, error) {
+	product, err := p.service.Inappproducts.Get(packageName.String(), sku.String()).Context(ctx).Do()
+	if err != nil {
+		return InAppProduct{}, fmt.Errorf("get in-app product %s for %s: %w", sku, packageName, err)
+	}
+	return inAppProductFromAPI(product), nil
+}
+
 func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName PackageName, editID string, trackName TrackName, release TrackRelease) (Track, error) {
 	apiTrack, err := p.service.Edits.Tracks.Get(packageName.String(), editID, trackName.String()).Context(ctx).Do()
 	if err != nil {
@@ -567,6 +587,79 @@ func timestampFromAPI(apiTimestamp *androidpublisher.Timestamp) *Timestamp {
 		return nil
 	}
 	return &Timestamp{Seconds: apiTimestamp.Seconds, Nanos: apiTimestamp.Nanos}
+}
+
+func inAppProductListResultFromAPI(options InAppProductListOptions, response *androidpublisher.InappproductsListResponse) InAppProductListResult {
+	result := InAppProductListResult{
+		PackageName: options.PackageName,
+		Products:    []InAppProduct{},
+		Options:     options,
+	}
+	if response == nil {
+		return result
+	}
+	for _, apiProduct := range response.Inappproduct {
+		result.Products = append(result.Products, inAppProductFromAPI(apiProduct))
+	}
+	if response.TokenPagination != nil {
+		result.Pagination = &InAppProductPagination{
+			NextPageToken:     response.TokenPagination.NextPageToken,
+			PreviousPageToken: response.TokenPagination.PreviousPageToken,
+		}
+	}
+	return result
+}
+
+func inAppProductFromAPI(apiProduct *androidpublisher.InAppProduct) InAppProduct {
+	if apiProduct == nil {
+		return InAppProduct{}
+	}
+	return InAppProduct{
+		PackageName:        PackageName(apiProduct.PackageName),
+		SKU:                InAppProductSKU(apiProduct.Sku),
+		Status:             ProductStatus(apiProduct.Status),
+		PurchaseType:       ProductPurchaseType(apiProduct.PurchaseType),
+		DefaultLanguage:    apiProduct.DefaultLanguage,
+		DefaultPrice:       productPriceFromAPI(apiProduct.DefaultPrice),
+		Prices:             productPricesFromAPI(apiProduct.Prices),
+		Listings:           inAppProductListingsFromAPI(apiProduct.Listings),
+		SubscriptionPeriod: apiProduct.SubscriptionPeriod,
+		TrialPeriod:        apiProduct.TrialPeriod,
+		GracePeriod:        apiProduct.GracePeriod,
+	}
+}
+
+func productPriceFromAPI(apiPrice *androidpublisher.Price) *ProductPrice {
+	if apiPrice == nil {
+		return nil
+	}
+	return &ProductPrice{Currency: apiPrice.Currency, PriceMicros: apiPrice.PriceMicros}
+}
+
+func productPricesFromAPI(apiPrices map[string]androidpublisher.Price) map[string]ProductPrice {
+	if len(apiPrices) == 0 {
+		return nil
+	}
+	prices := make(map[string]ProductPrice, len(apiPrices))
+	for region, apiPrice := range apiPrices {
+		prices[region] = ProductPrice{Currency: apiPrice.Currency, PriceMicros: apiPrice.PriceMicros}
+	}
+	return prices
+}
+
+func inAppProductListingsFromAPI(apiListings map[string]androidpublisher.InAppProductListing) map[string]InAppProductListing {
+	if len(apiListings) == 0 {
+		return nil
+	}
+	listings := make(map[string]InAppProductListing, len(apiListings))
+	for language, apiListing := range apiListings {
+		listings[language] = InAppProductListing{
+			Title:       apiListing.Title,
+			Description: apiListing.Description,
+			Benefits:    apiListing.Benefits,
+		}
+	}
+	return listings
 }
 
 func stringPointer(value string) *string {

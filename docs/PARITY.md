@@ -78,7 +78,7 @@ Sources:
 
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `iap` | `in-app-products` / `one-time-products` | `inappproducts`, `monetization.onetimeproducts` | planned | Prefer modern monetization resources where possible. |
+| `iap` | `in-app-products` / `one-time-products` | `inappproducts`, `monetization.onetimeproducts` | tested | `gpc in-app-products list` and `get` cover read-only legacy catalog inspection. Mutations and modern one-time product resources remain planned. |
 | `subscriptions` | `subscriptions` | `monetization.subscriptions`, `basePlans`, `offers` | planned | Play subscription model is richer and more nested than App Store groups. |
 | `pricing` | `pricing` | `monetization.convertRegionPrices`, product/subscription pricing APIs | planned | App pricing and IAP pricing may need separate commands. |
 | `finance` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |
