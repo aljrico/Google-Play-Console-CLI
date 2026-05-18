@@ -41,6 +41,7 @@ func newRootCommand(out io.Writer) *cobra.Command {
 		newAppRecoveryCommand(out, options),
 		newCapabilitiesCommand(out, options),
 		newDocsCommand(out, options),
+		newDeviceTierConfigsCommand(out, options),
 		newInitCommand(out, options),
 		newStatusCommand(out, options),
 		newTracksCommand(out, options),

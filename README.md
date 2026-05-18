@@ -31,6 +31,8 @@ The service account needs access to the target app in Play Console and the Googl
 gpc tracks list --package com.example.app
 gpc capabilities --status tested
 gpc docs parity --output markdown
+gpc device-tier-configs list --package com.example.app --page-size 25
+gpc device-tier-configs get --package com.example.app --id 7
 gpc status --package com.example.app
 gpc validate --package com.example.app
 gpc releases list --package com.example.app --track internal

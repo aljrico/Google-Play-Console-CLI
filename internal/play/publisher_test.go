@@ -1016,6 +1016,60 @@ func TestConvertRegionPricesUsesPricingEndpoint(t *testing.T) {
 	}
 }
 
+func TestListDeviceTierConfigsUsesApplicationsEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/deviceTierConfigs" {
+			t.Fatalf("path = %q, want device tier configs endpoint", r.URL.Path)
+		}
+		assertQueryValue(t, r.URL.Query(), "pageSize", "25")
+		assertQueryValue(t, r.URL.Query(), "pageToken", "page")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"nextPageToken": "next",
+			"deviceTierConfigs": [{
+				"deviceTierConfigId": "7",
+				"userCountrySets": [{"name": "latam", "countryCodes": ["BR", "MX"]}]
+			}]
+		}`))
+	}))
+
+	result, err := publisher.ListDeviceTierConfigs(context.Background(), DeviceTierConfigListOptions{
+		PackageName: "com.example.app",
+		PageSize:    25,
+		PageToken:   "page",
+	})
+	if err != nil {
+		t.Fatalf("ListDeviceTierConfigs() error = %v", err)
+	}
+	if result.NextPageToken != "next" || len(result.Configs) != 1 {
+		t.Fatalf("result = %#v, want next token and one config", result)
+	}
+	if result.Configs[0].DeviceTierConfigId != 7 {
+		t.Fatalf("DeviceTierConfigId = %d, want 7", result.Configs[0].DeviceTierConfigId)
+	}
+}
+
+func TestGetDeviceTierConfigUsesApplicationsEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/deviceTierConfigs/7" {
+			t.Fatalf("path = %q, want device tier config endpoint", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"deviceTierConfigId": "7"}`))
+	}))
+
+	result, err := publisher.GetDeviceTierConfig(context.Background(), DeviceTierConfigGetOptions{
+		PackageName:        "com.example.app",
+		DeviceTierConfigID: 7,
+	})
+	if err != nil {
+		t.Fatalf("GetDeviceTierConfig() error = %v", err)
+	}
+	if result.Config.DeviceTierConfigId != 7 {
+		t.Fatalf("DeviceTierConfigId = %d, want 7", result.Config.DeviceTierConfigId)
+	}
+}
+
 func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/generatedApks/42" {

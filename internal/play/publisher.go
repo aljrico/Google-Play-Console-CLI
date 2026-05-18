@@ -322,6 +322,32 @@ func (p GooglePublisher) ListUsers(ctx context.Context, options UserListOptions)
 	return userListResultFromAPI(options.Developer, response), nil
 }
 
+func (p GooglePublisher) ListDeviceTierConfigs(ctx context.Context, options DeviceTierConfigListOptions) (DeviceTierConfigListResult, error) {
+	call := p.service.Applications.DeviceTierConfigs.List(options.PackageName.String()).Context(ctx)
+	if options.PageSize != 0 {
+		call.PageSize(options.PageSize)
+	}
+	if options.PageToken != "" {
+		call.PageToken(options.PageToken)
+	}
+	response, err := call.Do()
+	if err != nil {
+		return DeviceTierConfigListResult{}, fmt.Errorf("list device tier configs for %s: %w", options.PackageName, err)
+	}
+	return deviceTierConfigListResultFromAPI(options.PackageName, response), nil
+}
+
+func (p GooglePublisher) GetDeviceTierConfig(ctx context.Context, options DeviceTierConfigGetOptions) (DeviceTierConfigGetResult, error) {
+	apiConfig, err := p.service.Applications.DeviceTierConfigs.Get(options.PackageName.String(), options.DeviceTierConfigID).Context(ctx).Do()
+	if err != nil {
+		return DeviceTierConfigGetResult{}, fmt.Errorf("get device tier config %d for %s: %w", options.DeviceTierConfigID, options.PackageName, err)
+	}
+	return DeviceTierConfigGetResult{
+		PackageName: options.PackageName,
+		Config:      deviceTierConfigFromAPI(apiConfig),
+	}, nil
+}
+
 func (p GooglePublisher) GetOrder(ctx context.Context, options OrderGetOptions) (OrderGetResult, error) {
 	apiOrder, err := p.service.Orders.Get(options.PackageName.String(), options.OrderID.String()).Context(ctx).Do()
 	if err != nil {
@@ -1539,6 +1565,31 @@ func convertedRegionPriceFromAPI(apiPrice androidpublisher.ConvertedRegionPrice)
 		Price:      moneyFromAPI(apiPrice.Price),
 		TaxAmount:  moneyFromAPI(apiPrice.TaxAmount),
 	}
+}
+
+func deviceTierConfigListResultFromAPI(packageName PackageName, response *androidpublisher.ListDeviceTierConfigsResponse) DeviceTierConfigListResult {
+	result := DeviceTierConfigListResult{
+		PackageName: packageName,
+		Configs:     []DeviceTierConfig{},
+	}
+	if response == nil {
+		return result
+	}
+	result.NextPageToken = response.NextPageToken
+	for _, apiConfig := range response.DeviceTierConfigs {
+		if apiConfig == nil {
+			continue
+		}
+		result.Configs = append(result.Configs, deviceTierConfigFromAPI(apiConfig))
+	}
+	return result
+}
+
+func deviceTierConfigFromAPI(apiConfig *androidpublisher.DeviceTierConfig) DeviceTierConfig {
+	if apiConfig == nil {
+		return DeviceTierConfig{}
+	}
+	return *apiConfig
 }
 
 func orderBatchGetResultFromAPI(options OrderBatchGetOptions, response *androidpublisher.BatchGetOrdersResponse) OrderBatchGetResult {
