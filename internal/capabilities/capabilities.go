@@ -110,11 +110,37 @@ func capabilityFromMarkdownRow(section string, row string) (Capability, error) {
 
 func splitMarkdownRow(row string) []string {
 	trimmed := strings.Trim(row, "|")
-	parts := strings.Split(trimmed, "|")
-	columns := make([]string, 0, len(parts))
-	for _, part := range parts {
-		columns = append(columns, strings.TrimSpace(part))
+	var (
+		columns []string
+		current strings.Builder
+		escaped bool
+	)
+	for _, character := range trimmed {
+		if escaped {
+			if character == '|' {
+				current.WriteRune('|')
+			} else {
+				current.WriteRune('\\')
+				current.WriteRune(character)
+			}
+			escaped = false
+			continue
+		}
+		if character == '\\' {
+			escaped = true
+			continue
+		}
+		if character == '|' {
+			columns = append(columns, strings.TrimSpace(current.String()))
+			current.Reset()
+			continue
+		}
+		current.WriteRune(character)
 	}
+	if escaped {
+		current.WriteRune('\\')
+	}
+	columns = append(columns, strings.TrimSpace(current.String()))
 	return columns
 }
 

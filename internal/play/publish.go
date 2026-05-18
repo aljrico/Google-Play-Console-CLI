@@ -30,6 +30,9 @@ func PublishInternal(ctx context.Context, publisher InternalPublisher, options P
 	if options.DryRun {
 		return result, nil
 	}
+	if err := ValidateReadableBundle(options.BundlePath); err != nil {
+		return PublishResult{}, err
+	}
 	if publisher == nil {
 		return PublishResult{}, fmt.Errorf("publisher is required")
 	}

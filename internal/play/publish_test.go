@@ -2,6 +2,8 @@ package play
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -75,6 +77,22 @@ func TestPublishInternalDryRunDoesNotRequirePublisher(t *testing.T) {
 	}
 }
 
+func TestPublishInternalChecksBundleBeforePublisher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = PublishInternal(context.Background(), nil, PublishInternalOptions{
+		PackageName: packageName,
+		BundlePath:  t.TempDir() + "/missing.aab",
+		Status:      ReleaseStatusCompleted,
+	})
+	if err == nil {
+		t.Fatal("expected missing bundle error")
+	}
+}
+
 func TestPublishInternalRejectsNonBundlePath(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -97,10 +115,11 @@ func TestPublishInternalValidatesAndCleansUpWithoutConfirm(t *testing.T) {
 		t.Fatalf("NewPackageName() error = %v", err)
 	}
 	publisher := &fakePublisher{}
+	bundlePath := writeTestBundle(t)
 
 	result, err := PublishInternal(context.Background(), publisher, PublishInternalOptions{
 		PackageName: packageName,
-		BundlePath:  "app-release.aab",
+		BundlePath:  bundlePath,
 		Status:      ReleaseStatusCompleted,
 	})
 	if err != nil {
@@ -122,10 +141,11 @@ func TestPublishInternalCommitsWithConfirm(t *testing.T) {
 		t.Fatalf("NewPackageName() error = %v", err)
 	}
 	publisher := &fakePublisher{}
+	bundlePath := writeTestBundle(t)
 
 	result, err := PublishInternal(context.Background(), publisher, PublishInternalOptions{
 		PackageName: packageName,
-		BundlePath:  "app-release.aab",
+		BundlePath:  bundlePath,
 		Status:      ReleaseStatusCompleted,
 		Confirm:     true,
 	})
@@ -148,10 +168,11 @@ func TestPublishInternalAppendsTrackRelease(t *testing.T) {
 		t.Fatalf("NewPackageName() error = %v", err)
 	}
 	publisher := &fakePublisher{}
+	bundlePath := writeTestBundle(t)
 
 	_, err = PublishInternal(context.Background(), publisher, PublishInternalOptions{
 		PackageName: packageName,
-		BundlePath:  "app-release.aab",
+		BundlePath:  bundlePath,
 		ReleaseName: "1.2.3",
 		Status:      ReleaseStatusCompleted,
 		ReleaseNotes: []ReleaseNote{
@@ -174,6 +195,15 @@ func TestPublishInternalAppendsTrackRelease(t *testing.T) {
 	if len(release.ReleaseNotes) != 1 || release.ReleaseNotes[0].Text != "Bug fixes." {
 		t.Fatalf("release notes = %#v, want bug fixes note", release.ReleaseNotes)
 	}
+}
+
+func writeTestBundle(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "app-release.aab")
+	if err := os.WriteFile(path, []byte("bundle"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	return path
 }
 
 type fakePublisher struct {

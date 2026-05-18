@@ -225,6 +225,34 @@ func TestPublishInternalDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestPublishInternalLiveRejectsMissingBundleBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"publish",
+		"internal",
+		"--package",
+		"com.example.app",
+		"--aab",
+		t.TempDir() + "/missing.aab",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing bundle error")
+	}
+	if !strings.Contains(err.Error(), "open bundle") {
+		t.Fatalf("error = %v, want bundle preflight", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestReleasesUploadRejectsMalformedReleaseNoteBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

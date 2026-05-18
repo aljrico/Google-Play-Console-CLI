@@ -103,6 +103,51 @@ func TestReleaseFromAPIMapsReleaseNotes(t *testing.T) {
 	}
 }
 
+func TestAppendTrackReleaseSendsReleaseNotes(t *testing.T) {
+	var sawUpdate bool
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/edits/edit-123/tracks/internal" {
+			t.Fatalf("path = %q, want internal track endpoint", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method {
+		case http.MethodGet:
+			_, _ = w.Write([]byte(`{"track":"internal","releases":[]}`))
+		case http.MethodPut:
+			sawUpdate = true
+			var apiTrack androidpublisher.Track
+			if err := json.NewDecoder(r.Body).Decode(&apiTrack); err != nil {
+				t.Fatalf("Decode() error = %v", err)
+			}
+			if len(apiTrack.Releases) != 1 || len(apiTrack.Releases[0].ReleaseNotes) != 1 {
+				t.Fatalf("Track body = %#v, want release note", apiTrack)
+			}
+			note := apiTrack.Releases[0].ReleaseNotes[0]
+			if note.Language != "en-US" || note.Text != "Bug fixes." {
+				t.Fatalf("release note = %#v, want en-US bug fixes", note)
+			}
+			_, _ = w.Write([]byte(`{"track":"internal","releases":[]}`))
+		default:
+			t.Fatalf("method = %s, want GET or PUT", r.Method)
+		}
+	}))
+
+	_, err := publisher.AppendTrackRelease(context.Background(), "com.example.app", "edit-123", TrackInternal, TrackRelease{
+		Name:         "1.2.3",
+		Status:       ReleaseStatusCompleted,
+		VersionCodes: []int64{42},
+		ReleaseNotes: []ReleaseNote{
+			{Language: "en-US", Text: "Bug fixes."},
+		},
+	})
+	if err != nil {
+		t.Fatalf("AppendTrackRelease() error = %v", err)
+	}
+	if !sawUpdate {
+		t.Fatal("expected track update")
+	}
+}
+
 func TestListingToAPIForceSendsEmptyChangedField(t *testing.T) {
 	apiListing := listingToAPI(Listing{
 		Language: "en-US",

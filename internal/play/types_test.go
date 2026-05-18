@@ -95,3 +95,9 @@ func TestPublishInternalOptionsRejectsEmptyReleaseNoteText(t *testing.T) {
 		t.Fatal("expected release note text error")
 	}
 }
+
+func TestValidateReadableBundleRejectsMissingBundle(t *testing.T) {
+	if err := ValidateReadableBundle(t.TempDir() + "/missing.aab"); err == nil {
+		t.Fatal("expected missing bundle error")
+	}
+}

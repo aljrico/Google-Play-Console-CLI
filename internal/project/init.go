@@ -47,6 +47,9 @@ func Init(ctx context.Context, options InitOptions) (InitPlan, error) {
 	if err := options.Validate(); err != nil {
 		return InitPlan{}, err
 	}
+	if err := validateInitDirectory(options.targetDirectory()); err != nil {
+		return InitPlan{}, err
+	}
 	plan := InitPlan{
 		Directory: options.targetDirectory(),
 		Force:     options.Force,
@@ -66,6 +69,24 @@ func Init(ctx context.Context, options InitOptions) (InitPlan, error) {
 		plan.Files = append(plan.Files, result)
 	}
 	return plan, nil
+}
+
+func validateInitDirectory(directory string) error {
+	info, err := os.Lstat(directory)
+	switch {
+	case err == nil:
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("init directory cannot be a symlink: %s", directory)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("init directory is not a directory: %s", directory)
+		}
+		return nil
+	case os.IsNotExist(err):
+		return nil
+	default:
+		return fmt.Errorf("inspect %s: %w", directory, err)
+	}
 }
 
 type plannedInitFile struct {
@@ -105,9 +126,12 @@ This directory holds Google Play Console CLI helper files for this repository.
 
 func writeInitFile(file plannedInitFile, options InitOptions) (InitFile, error) {
 	result := InitFile{Path: file.path}
-	_, statErr := os.Stat(file.path)
+	info, statErr := os.Lstat(file.path)
 	switch {
 	case statErr == nil:
+		if info.Mode()&os.ModeSymlink != 0 {
+			return InitFile{}, fmt.Errorf("init file cannot be a symlink: %s", file.path)
+		}
 		result.Exists = true
 	case os.IsNotExist(statErr):
 	default:

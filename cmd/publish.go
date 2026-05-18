@@ -68,6 +68,9 @@ func newPublishInternalCommand(out io.Writer, options *globalOptions) *cobra.Com
 				}
 				return output.Write(out, options.output, options.pretty, result)
 			}
+			if err := play.ValidateReadableBundle(bundlePath); err != nil {
+				return err
+			}
 
 			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
 			if err != nil {

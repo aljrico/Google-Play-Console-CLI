@@ -51,3 +51,21 @@ func TestListRejectsUnsupportedStatus(t *testing.T) {
 		t.Fatal("expected unsupported status error")
 	}
 }
+
+func TestParseHandlesEscapedMarkdownPipes(t *testing.T) {
+	items, err := Parse(`## Test
+
+| ` + "`asc`" + ` family | Closest ` + "`gpc`" + ` family | Google Play API coverage | Status | Notes |
+| --- | --- | --- | --- | --- |
+| ` + "`foo`" + ` | ` + "`bar`" + ` | N/A | planned | Preserves escaped \| pipe. |
+`)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("len(items) = %d, want 1", len(items))
+	}
+	if items[0].Notes != "Preserves escaped | pipe." {
+		t.Fatalf("Notes = %q, want unescaped pipe", items[0].Notes)
+	}
+}
