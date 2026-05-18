@@ -93,15 +93,15 @@ func newImagesUploadCommand(out io.Writer, options *globalOptions, packageName *
 			if err := uploadOptions.Validate(); err != nil {
 				return err
 			}
+			if err := play.ValidateReadableImageFile(path); err != nil {
+				return err
+			}
 			if dryRun {
 				result, err := play.UploadImage(cmd.Context(), nil, uploadOptions)
 				if err != nil {
 					return err
 				}
 				return output.Write(out, options.output, options.pretty, result)
-			}
-			if err := play.ValidateReadableImageFile(path); err != nil {
-				return err
 			}
 			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
 			if err != nil {

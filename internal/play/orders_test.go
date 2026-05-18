@@ -117,6 +117,7 @@ func TestRefundOrderRejectsInvalidOptions(t *testing.T) {
 		{PackageName: "bad", OrderID: "GPA.123", DryRun: true},
 		{PackageName: "com.example.app", DryRun: true},
 		{PackageName: "com.example.app", OrderID: "GPA.123"},
+		{PackageName: "com.example.app", OrderID: "GPA.123", Confirm: true, DryRun: true},
 	}
 	for _, options := range tests {
 		_, err := RefundOrder(context.Background(), nil, options)

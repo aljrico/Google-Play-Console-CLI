@@ -1120,6 +1120,7 @@ func TestImagesListRejectsMissingTypeBeforeAuth(t *testing.T) {
 
 func TestImagesUploadDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	imagePath := writeRootTestFile(t, "feature.png")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1133,7 +1134,7 @@ func TestImagesUploadDryRunDoesNotRequireAuth(t *testing.T) {
 		"--type",
 		"featureGraphic",
 		"--file",
-		"feature.png",
+		imagePath,
 		"--dry-run",
 		"--output",
 		"json",
@@ -1152,11 +1153,44 @@ func TestImagesUploadDryRunDoesNotRequireAuth(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("Unmarshal() error = %v; output = %s", err, buf.String())
 	}
-	if result.Path != "feature.png" || result.Plan.Path != "feature.png" || !result.DryRun {
+	if result.Path != imagePath || result.Plan.Path != imagePath || !result.DryRun {
 		t.Fatalf("result = %#v, want image upload dry-run", result)
 	}
 	if strings.Contains(buf.String(), "no active auth profile") {
 		t.Fatalf("output = %s, did not expect auth", buf.String())
+	}
+}
+
+func TestImagesUploadDryRunRejectsMissingFileBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"images",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--language",
+		"en-US",
+		"--type",
+		"featureGraphic",
+		"--file",
+		t.TempDir() + "/missing.png",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing image error")
+	}
+	if !strings.Contains(err.Error(), "open image") {
+		t.Fatalf("error = %v, want image preflight", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
 	}
 }
 
@@ -1969,6 +2003,36 @@ func TestOrdersRefundRequiresConfirmBeforeAuth(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "--confirm or --dry-run") {
 		t.Fatalf("error = %v, want confirmation validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestOrdersRefundRejectsConfirmDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"orders",
+		"refund",
+		"--package",
+		"com.example.app",
+		"--order-id",
+		"GPA.123",
+		"--confirm",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected conflicting flag validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot be used together") {
+		t.Fatalf("error = %v, want conflicting flag validation", err)
 	}
 	if strings.Contains(err.Error(), "no active auth profile") {
 		t.Fatalf("error = %v, did not expect auth error", err)

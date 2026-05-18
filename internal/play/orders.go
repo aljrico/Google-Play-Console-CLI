@@ -212,6 +212,9 @@ func (o OrderRefundOptions) Validate() error {
 	if err := o.OrderID.Validate(); err != nil {
 		return err
 	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
 	if !o.Confirm && !o.DryRun {
 		return fmt.Errorf("order refund requires --confirm or --dry-run")
 	}

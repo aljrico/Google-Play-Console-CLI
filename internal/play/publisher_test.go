@@ -1106,6 +1106,27 @@ func TestRefundOrderUsesRefundEndpoint(t *testing.T) {
 	}
 }
 
+func TestRefundOrderOmitsRevokeByDefault(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/orders/GPA.123:refund" {
+			t.Fatalf("path = %q, want order refund endpoint", r.URL.Path)
+		}
+		if _, ok := r.URL.Query()["revoke"]; ok {
+			t.Fatalf("query = %q, did not expect revoke", r.URL.RawQuery)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	err := publisher.RefundOrder(context.Background(), OrderRefundOptions{
+		PackageName: "com.example.app",
+		OrderID:     "GPA.123",
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("RefundOrder() error = %v", err)
+	}
+}
+
 func TestConvertRegionPricesUsesPricingEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/pricing:convertRegionPrices" {

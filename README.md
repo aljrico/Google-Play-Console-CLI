@@ -68,6 +68,7 @@ gpc purchases voided list --package com.example.app --max-results 25
 gpc orders get --package com.example.app --order-id GPA.1234-5678-9012-34567
 gpc orders batch-get --package com.example.app --order-id GPA.1234 --order-id GPA.5678
 gpc orders refund --package com.example.app --order-id GPA.1234-5678-9012-34567 --dry-run
+gpc orders refund --package com.example.app --order-id GPA.1234-5678-9012-34567 --revoke --confirm
 gpc pricing convert-region-prices --package com.example.app --currency USD --units 9 --nanos 990000000
 gpc users list --developer 1234567890
 gpc grants create --developer 1234567890 --user-email user@example.com --package com.example.app --permission CAN_VIEW_NON_FINANCIAL_DATA --dry-run
@@ -103,6 +104,6 @@ gpc version --output markdown
 
 ## Status
 
-Early but functional. Auth/profile storage, the command taxonomy, core release workflows, localized listings, app-level details, review reading/replies, read-only monetization catalog commands, purchase checks, and order lookup are in place.
+Early but functional. Auth/profile storage, the command taxonomy, core release workflows, localized listings, app-level details, review reading/replies, read-only monetization catalog commands, purchase checks, order lookup, and guarded order refunds are in place.
 
 See [docs/PARITY.md](docs/PARITY.md) for the working parity map against App Store Connect CLI.

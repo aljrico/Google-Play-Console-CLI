@@ -154,6 +154,9 @@ func (o ImageUploadOptions) Validate() error {
 	if err := o.Type.Validate(); err != nil {
 		return err
 	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
 	if o.Path == "" {
 		return fmt.Errorf("image path is required")
 	}
@@ -320,6 +323,9 @@ func (o ImageDeleteOptions) Validate() error {
 	}
 	if err := o.Type.Validate(); err != nil {
 		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
 	}
 	if o.All {
 		if o.ImageID != "" {

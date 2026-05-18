@@ -13,7 +13,7 @@ func newOrdersCommand(out io.Writer, options *globalOptions) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "orders",
-		Short: "Inspect Google Play orders",
+		Short: "Inspect and refund Google Play orders",
 	}
 	cmd.PersistentFlags().StringVar(&packageName, "package", "", "Android package name, for example com.example.app")
 	cmd.AddCommand(

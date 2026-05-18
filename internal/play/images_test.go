@@ -95,6 +95,7 @@ func TestUploadImageRejectsInvalidOptions(t *testing.T) {
 		{PackageName: "com.example.app", Language: "en-US", Type: "bad", Path: "icon.png", DryRun: true},
 		{PackageName: "com.example.app", Language: "en-US", Type: ImageTypeIcon, DryRun: true},
 		{PackageName: "com.example.app", Language: "en-US", Type: ImageTypeIcon, Path: "icon.gif", DryRun: true},
+		{PackageName: "com.example.app", Language: "en-US", Type: ImageTypeIcon, Path: "icon.png", Confirm: true, DryRun: true},
 	}
 	for _, options := range tests {
 		_, err := UploadImage(context.Background(), nil, options)
@@ -158,6 +159,7 @@ func TestDeleteImagesRejectsInvalidOptions(t *testing.T) {
 		{PackageName: "com.example.app", Language: "en-US", Type: "bad", ImageID: "image-1", DryRun: true},
 		{PackageName: "com.example.app", Language: "en-US", Type: ImageTypeIcon, DryRun: true},
 		{PackageName: "com.example.app", Language: "en-US", Type: ImageTypeIcon, ImageID: "image-1", All: true, DryRun: true},
+		{PackageName: "com.example.app", Language: "en-US", Type: ImageTypeIcon, ImageID: "image-1", Confirm: true, DryRun: true},
 	}
 	for _, options := range tests {
 		_, err := DeleteImages(context.Background(), nil, options)
