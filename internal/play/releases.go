@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func ListTrackReleases(ctx context.Context, publisher Publisher, packageName PackageName, track TrackName) ([]TrackRelease, error) {
+func ListTrackReleases(ctx context.Context, publisher TrackLister, packageName PackageName, track TrackName) ([]TrackRelease, error) {
 	if packageName == "" {
 		return nil, fmt.Errorf("package name is required")
 	}

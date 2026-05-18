@@ -6,7 +6,13 @@ import (
 	"fmt"
 )
 
-func ListTracks(ctx context.Context, publisher Publisher, packageName PackageName) (tracks []Track, err error) {
+type TrackLister interface {
+	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
+	ListTracks(ctx context.Context, packageName PackageName, editID string) ([]Track, error)
+	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
+}
+
+func ListTracks(ctx context.Context, publisher TrackLister, packageName PackageName) (tracks []Track, err error) {
 	if packageName == "" {
 		return nil, fmt.Errorf("package name is required")
 	}

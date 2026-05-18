@@ -6,7 +6,17 @@ import (
 	"fmt"
 )
 
-func PublishInternal(ctx context.Context, publisher Publisher, options PublishInternalOptions) (result PublishResult, err error) {
+type InternalPublisher interface {
+	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
+	UploadBundle(ctx context.Context, packageName PackageName, editID string, bundlePath string) (BundleArtifact, error)
+	ListTracks(ctx context.Context, packageName PackageName, editID string) ([]Track, error)
+	UpdateTrack(ctx context.Context, packageName PackageName, editID string, track Track) (Track, error)
+	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
+	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
+	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
+}
+
+func PublishInternal(ctx context.Context, publisher InternalPublisher, options PublishInternalOptions) (result PublishResult, err error) {
 	plan, err := NewPublishInternalPlan(options)
 	if err != nil {
 		return PublishResult{}, err

@@ -12,17 +12,7 @@ import (
 	"github.com/aljrico/Google-Play-Console-CLI/internal/config"
 )
 
-type Publisher interface {
-	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
-	UploadBundle(ctx context.Context, packageName PackageName, editID string, bundlePath string) (BundleArtifact, error)
-	UpdateTrack(ctx context.Context, packageName PackageName, editID string, track Track) (Track, error)
-	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
-	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
-	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
-	ListTracks(ctx context.Context, packageName PackageName, editID string) ([]Track, error)
-}
-
-func NewPublisherFromActiveProfile(ctx context.Context) (Publisher, error) {
+func NewPublisherFromActiveProfile(ctx context.Context) (*GooglePublisher, error) {
 	store, err := config.Load()
 	if err != nil {
 		return nil, err
@@ -40,7 +30,7 @@ func NewPublisherFromActiveProfile(ctx context.Context) (Publisher, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create Google Play API service: %w", err)
 	}
-	return GooglePublisher{service: service}, nil
+	return &GooglePublisher{service: service}, nil
 }
 
 type GooglePublisher struct {
