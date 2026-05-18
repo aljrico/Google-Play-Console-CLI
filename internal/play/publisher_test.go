@@ -59,3 +59,26 @@ func TestSetReleaseStatusClearsUserFractionWhenCompleted(t *testing.T) {
 		}
 	}
 }
+
+func TestListingToAPIForceSendsEmptyChangedField(t *testing.T) {
+	apiListing := listingToAPI(Listing{
+		Language: "en-US",
+		Video:    stringValue(""),
+	})
+
+	if apiListing.Video != "" {
+		t.Fatalf("Video = %q, want empty string", apiListing.Video)
+	}
+	if !containsField(apiListing.ForceSendFields, "Video") {
+		t.Fatalf("ForceSendFields = %#v, want Video", apiListing.ForceSendFields)
+	}
+}
+
+func containsField(fields []string, field string) bool {
+	for _, candidate := range fields {
+		if candidate == field {
+			return true
+		}
+	}
+	return false
+}

@@ -116,11 +116,11 @@ func (p GooglePublisher) GetListing(ctx context.Context, packageName PackageName
 	return listingFromAPI(listing), nil
 }
 
-func (p GooglePublisher) UpdateListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
+func (p GooglePublisher) PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
 	apiListing := listingToAPI(listing)
-	updatedListing, err := p.service.Edits.Listings.Update(packageName.String(), editID, listing.Language.String(), apiListing).Context(ctx).Do()
+	updatedListing, err := p.service.Edits.Listings.Patch(packageName.String(), editID, listing.Language.String(), apiListing).Context(ctx).Do()
 	if err != nil {
-		return Listing{}, fmt.Errorf("update %s listing for %s: %w", listing.Language, packageName, err)
+		return Listing{}, fmt.Errorf("patch %s listing for %s: %w", listing.Language, packageName, err)
 	}
 	return listingFromAPI(updatedListing), nil
 }
@@ -316,33 +316,40 @@ func listingFromAPI(apiListing *androidpublisher.Listing) Listing {
 	}
 	return Listing{
 		Language:         ListingLanguage(apiListing.Language),
-		Title:            apiListing.Title,
-		ShortDescription: apiListing.ShortDescription,
-		FullDescription:  apiListing.FullDescription,
-		Video:            apiListing.Video,
+		Title:            stringPointer(apiListing.Title),
+		ShortDescription: stringPointer(apiListing.ShortDescription),
+		FullDescription:  stringPointer(apiListing.FullDescription),
+		Video:            stringPointer(apiListing.Video),
 	}
 }
 
 func listingToAPI(listing Listing) *androidpublisher.Listing {
 	apiListing := &androidpublisher.Listing{
-		Language:         listing.Language.String(),
-		Title:            listing.Title,
-		ShortDescription: listing.ShortDescription,
-		FullDescription:  listing.FullDescription,
-		Video:            listing.Video,
+		Language: listing.Language.String(),
 	}
 	apiListing.ForceSendFields = append(apiListing.ForceSendFields, "Language")
-	if listing.Title != "" {
+	if listing.Title != nil {
+		apiListing.Title = *listing.Title
 		apiListing.ForceSendFields = append(apiListing.ForceSendFields, "Title")
 	}
-	if listing.ShortDescription != "" {
+	if listing.ShortDescription != nil {
+		apiListing.ShortDescription = *listing.ShortDescription
 		apiListing.ForceSendFields = append(apiListing.ForceSendFields, "ShortDescription")
 	}
-	if listing.FullDescription != "" {
+	if listing.FullDescription != nil {
+		apiListing.FullDescription = *listing.FullDescription
 		apiListing.ForceSendFields = append(apiListing.ForceSendFields, "FullDescription")
 	}
-	if listing.Video != "" {
+	if listing.Video != nil {
+		apiListing.Video = *listing.Video
 		apiListing.ForceSendFields = append(apiListing.ForceSendFields, "Video")
 	}
 	return apiListing
+}
+
+func stringPointer(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }

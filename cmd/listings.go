@@ -105,14 +105,22 @@ func newListingsUpdateCommand(out io.Writer, options *globalOptions, packageName
 			updateOptions := play.UpdateListingOptions{
 				PackageName: typedPackageName,
 				Listing: play.Listing{
-					Language:         typedLanguage,
-					Title:            title,
-					ShortDescription: shortDescription,
-					FullDescription:  fullDescription,
-					Video:            video,
+					Language: typedLanguage,
 				},
 				Confirm: confirm,
 				DryRun:  dryRun,
+			}
+			if cmd.Flags().Changed("title") {
+				updateOptions.Listing.Title = &title
+			}
+			if cmd.Flags().Changed("short-description") {
+				updateOptions.Listing.ShortDescription = &shortDescription
+			}
+			if cmd.Flags().Changed("full-description") {
+				updateOptions.Listing.FullDescription = &fullDescription
+			}
+			if cmd.Flags().Changed("video") {
+				updateOptions.Listing.Video = &video
 			}
 			if dryRun {
 				result, err := play.UpdateListing(cmd.Context(), nil, updateOptions)

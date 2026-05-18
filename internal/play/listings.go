@@ -21,10 +21,10 @@ func (l ListingLanguage) String() string {
 
 type Listing struct {
 	Language         ListingLanguage `json:"language"`
-	Title            string          `json:"title,omitempty"`
-	ShortDescription string          `json:"shortDescription,omitempty"`
-	FullDescription  string          `json:"fullDescription,omitempty"`
-	Video            string          `json:"video,omitempty"`
+	Title            *string         `json:"title,omitempty"`
+	ShortDescription *string         `json:"shortDescription,omitempty"`
+	FullDescription  *string         `json:"fullDescription,omitempty"`
+	Video            *string         `json:"video,omitempty"`
 }
 
 type ListingReader interface {
@@ -85,7 +85,7 @@ func GetListing(ctx context.Context, reader ListingReader, packageName PackageNa
 
 type ListingUpdater interface {
 	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
-	UpdateListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error)
+	PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error)
 	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
 	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
 	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
@@ -105,7 +105,7 @@ func (o UpdateListingOptions) Validate() error {
 	if _, err := NewListingLanguage(o.Listing.Language.String()); err != nil {
 		return err
 	}
-	if o.Listing.Title == "" && o.Listing.ShortDescription == "" && o.Listing.FullDescription == "" && o.Listing.Video == "" {
+	if o.Listing.Title == nil && o.Listing.ShortDescription == nil && o.Listing.FullDescription == nil && o.Listing.Video == nil {
 		return fmt.Errorf("at least one listing field is required")
 	}
 	return nil
@@ -134,7 +134,7 @@ func NewUpdateListingPlan(options UpdateListingOptions) (UpdateListingPlan, erro
 	}
 	steps := []string{
 		"insert edit",
-		fmt.Sprintf("update %s listing", options.Listing.Language),
+		fmt.Sprintf("patch %s listing", options.Listing.Language),
 		"validate edit",
 	}
 	if options.Confirm {
@@ -188,7 +188,7 @@ func UpdateListing(ctx context.Context, updater ListingUpdater, options UpdateLi
 		}
 	}()
 
-	listing, err := updater.UpdateListing(ctx, options.PackageName, edit.ID, options.Listing)
+	listing, err := updater.PatchListing(ctx, options.PackageName, edit.ID, options.Listing)
 	if err != nil {
 		return UpdateListingResult{}, err
 	}
