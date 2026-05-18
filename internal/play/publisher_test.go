@@ -993,7 +993,11 @@ func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
 					"recoveryStatus": "RECOVERY_STATUS_ACTIVE"
 				}],
 				"generatedUniversalApk": {"downloadId": "universal-download"},
-				"targetingInfo": {"packageName": "com.example.app"}
+				"targetingInfo": {
+					"packageName": "com.example.app",
+					"variant": [{"variantId": 0}],
+					"assetSliceSet": [{"assetModuleMetadata": {"name": "assets"}}]
+				}
 			}]
 		}`))
 	}))
@@ -1011,6 +1015,9 @@ func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
 	signingKey := result.SigningKeys[0]
 	if signingKey.CertificateSHA256Hash != "abc123" || signingKey.TargetingPackageName != "com.example.app" {
 		t.Fatalf("signing key = %#v, want hash and targeting package", signingKey)
+	}
+	if !strings.Contains(string(signingKey.TargetingInfo), `"variant"`) || !strings.Contains(string(signingKey.TargetingInfo), `"assetSliceSet"`) {
+		t.Fatalf("targeting info = %s, want raw variant and assetSliceSet", string(signingKey.TargetingInfo))
 	}
 	if len(signingKey.SplitAPKs) != 1 || signingKey.SplitAPKs[0].DownloadID != "split-download" {
 		t.Fatalf("split APKs = %#v, want split download", signingKey.SplitAPKs)

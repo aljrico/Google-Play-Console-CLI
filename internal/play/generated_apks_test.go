@@ -2,7 +2,9 @@ package play
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -39,6 +41,30 @@ func TestListGeneratedAPKsRejectsInvalidOptions(t *testing.T) {
 		_, err := ListGeneratedAPKs(context.Background(), nil, options)
 		if err == nil {
 			t.Fatalf("ListGeneratedAPKs(%#v) expected validation error", options)
+		}
+	}
+}
+
+func TestGeneratedAPKJSONPreservesZeroIDs(t *testing.T) {
+	payload, err := json.Marshal(GeneratedAPKSigningKey{
+		SplitAPKs: []GeneratedSplitAPK{
+			{DownloadID: "split-download", VariantID: 0},
+		},
+		StandaloneAPKs: []GeneratedStandaloneAPK{
+			{DownloadID: "standalone-download", VariantID: 0},
+		},
+		AssetPackSlices: []GeneratedAssetPackSlice{
+			{DownloadID: "asset-download", Version: 0},
+		},
+		RecoveryModules: []GeneratedRecoveryAPK{},
+	})
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	output := string(payload)
+	for _, want := range []string{`"variantId":0`, `"version":0`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
 		}
 	}
 }

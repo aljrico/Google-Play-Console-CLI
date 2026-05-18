@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 )
 
@@ -28,18 +29,19 @@ type GeneratedAPKSigningKey struct {
 	RecoveryModules       []GeneratedRecoveryAPK    `json:"generatedRecoveryModules"`
 	UniversalAPK          *GeneratedUniversalAPK    `json:"generatedUniversalApk,omitempty"`
 	TargetingPackageName  string                    `json:"targetingPackageName,omitempty"`
+	TargetingInfo         json.RawMessage           `json:"targetingInfo,omitempty"`
 }
 
 type GeneratedSplitAPK struct {
 	DownloadID string `json:"downloadId,omitempty"`
 	ModuleName string `json:"moduleName,omitempty"`
 	SplitID    string `json:"splitId,omitempty"`
-	VariantID  int64  `json:"variantId,omitempty"`
+	VariantID  int64  `json:"variantId"`
 }
 
 type GeneratedStandaloneAPK struct {
 	DownloadID string `json:"downloadId,omitempty"`
-	VariantID  int64  `json:"variantId,omitempty"`
+	VariantID  int64  `json:"variantId"`
 }
 
 type GeneratedUniversalAPK struct {
@@ -50,7 +52,7 @@ type GeneratedAssetPackSlice struct {
 	DownloadID string `json:"downloadId,omitempty"`
 	ModuleName string `json:"moduleName,omitempty"`
 	SliceID    string `json:"sliceId,omitempty"`
-	Version    int64  `json:"version,omitempty"`
+	Version    int64  `json:"version"`
 }
 
 type GeneratedRecoveryAPK struct {

@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -1376,6 +1377,7 @@ func generatedAPKSigningKeyFromAPI(apiSigningKey *androidpublisher.GeneratedApks
 	}
 	if apiSigningKey.TargetingInfo != nil {
 		signingKey.TargetingPackageName = apiSigningKey.TargetingInfo.PackageName
+		signingKey.TargetingInfo = generatedAPKTargetingInfoFromAPI(apiSigningKey.TargetingInfo)
 	}
 	for _, apiAPK := range apiSigningKey.GeneratedSplitApks {
 		if apiAPK == nil {
@@ -1427,6 +1429,17 @@ func generatedUniversalAPKFromAPI(apiAPK *androidpublisher.GeneratedUniversalApk
 		return nil
 	}
 	return &GeneratedUniversalAPK{DownloadID: apiAPK.DownloadId}
+}
+
+func generatedAPKTargetingInfoFromAPI(apiTargetingInfo *androidpublisher.TargetingInfo) json.RawMessage {
+	if apiTargetingInfo == nil {
+		return nil
+	}
+	payload, err := json.Marshal(apiTargetingInfo)
+	if err != nil {
+		return nil
+	}
+	return payload
 }
 
 func orderBatchGetResultFromAPI(options OrderBatchGetOptions, response *androidpublisher.BatchGetOrdersResponse) OrderBatchGetResult {
