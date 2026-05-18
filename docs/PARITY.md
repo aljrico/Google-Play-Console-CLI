@@ -106,7 +106,7 @@ Sources:
 | `users` | `users` | `users` | tested | `gpc users list` covers read-only developer account user inspection with pagination. Mutations remain planned. |
 | `actors` | `users` / `grants` | `users`, `grants` | tested | `gpc users list` exposes account users and embedded per-app grants; direct grant management remains planned. |
 | `agreements` | N/A | N/A | blocked | Play agreement state may not be exposed through public APIs. |
-| `grants` | `grants` | `grants` | planned | Google-specific access grants. |
+| `grants` | `grants` | `grants` | tested | `gpc grants create`, `patch`, and `delete` manage app-level user grants with dry-run/confirm gating. Listing remains covered through `users list`. |
 
 ## Signing And Platform-Specific Apple Features
 

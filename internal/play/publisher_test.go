@@ -1065,6 +1065,93 @@ func TestUpdateDataSafetyUsesApplicationsEndpoint(t *testing.T) {
 	}
 }
 
+func TestCreateGrantUsesGrantEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/developers/123/users/user@example.com/grants" {
+			t.Fatalf("path = %q, want grants endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		var request androidpublisher.Grant
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.PackageName != "com.example.app" || len(request.AppLevelPermissions) != 1 || request.AppLevelPermissions[0] != "CAN_VIEW_NON_FINANCIAL_DATA" {
+			t.Fatalf("request = %#v, want package and permission", request)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"name": "developers/123/users/user@example.com/grants/com.example.app",
+			"packageName": "com.example.app",
+			"appLevelPermissions": ["CAN_VIEW_NON_FINANCIAL_DATA"]
+		}`))
+	}))
+
+	grant, err := publisher.CreateGrant(context.Background(), GrantCreateOptions{
+		Developer:   "123",
+		UserEmail:   "user@example.com",
+		PackageName: "com.example.app",
+		Permissions: []GrantPermission{GrantPermissionViewNonFinancialData},
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("CreateGrant() error = %v", err)
+	}
+	if grant.Name != "developers/123/users/user@example.com/grants/com.example.app" || len(grant.Permissions) != 1 {
+		t.Fatalf("grant = %#v, want mapped grant", grant)
+	}
+}
+
+func TestPatchGrantUsesUpdateMask(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/developers/123/users/user@example.com/grants/com.example.app" {
+			t.Fatalf("path = %q, want grant resource endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodPatch {
+			t.Fatalf("method = %s, want PATCH", r.Method)
+		}
+		assertQueryValue(t, r.URL.Query(), "updateMask", "appLevelPermissions")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"name": "developers/123/users/user@example.com/grants/com.example.app",
+			"packageName": "com.example.app",
+			"appLevelPermissions": ["CAN_REPLY_TO_REVIEWS"]
+		}`))
+	}))
+
+	grant, err := publisher.PatchGrant(context.Background(), GrantPatchOptions{
+		Name:        "developers/123/users/user@example.com/grants/com.example.app",
+		Permissions: []GrantPermission{GrantPermissionReplyToReviews},
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("PatchGrant() error = %v", err)
+	}
+	if len(grant.Permissions) != 1 || grant.Permissions[0] != GrantPermissionReplyToReviews {
+		t.Fatalf("grant = %#v, want reply permission", grant)
+	}
+}
+
+func TestDeleteGrantUsesGrantEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/developers/123/users/user@example.com/grants/com.example.app" {
+			t.Fatalf("path = %q, want grant resource endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("method = %s, want DELETE", r.Method)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	if err := publisher.DeleteGrant(context.Background(), GrantDeleteOptions{
+		Name:    "developers/123/users/user@example.com/grants/com.example.app",
+		Confirm: true,
+	}); err != nil {
+		t.Fatalf("DeleteGrant() error = %v", err)
+	}
+}
+
 func TestListDeviceTierConfigsUsesApplicationsEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/deviceTierConfigs" {
