@@ -31,6 +31,13 @@ func (t TrackName) String() string {
 	return string(t)
 }
 
+func NewTrackName(value string) (TrackName, error) {
+	if value == "" {
+		return "", fmt.Errorf("track name is required")
+	}
+	return TrackName(value), nil
+}
+
 type ReleaseStatus string
 
 const (

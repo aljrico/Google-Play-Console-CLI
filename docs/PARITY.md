@@ -33,7 +33,7 @@ Sources:
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `apps` | `apps` | Limited; most Play APIs require package name | planned | Google Play has no broad app list equivalent in the Android Publisher API. |
-| `versions` | `releases` | `applications.tracks.releases`, `edits.tracks` | planned | Play releases live under tracks, not standalone app versions. |
+| `versions` | `releases` | `applications.tracks.releases`, `edits.tracks` | implemented | `gpc releases list` reads releases for a track through `edits.tracks`; mutation workflows are still planned. |
 | `builds` | `artifacts` / `releases upload` | `edits.apks`, `edits.bundles`, `generatedapks` | planned | First vertical slice should upload AAB/APK through an edit. |
 | `build-bundles` | `bundles` | `edits.bundles`, `generatedapks` | planned | Android App Bundles are first-class in Play. |
 | `release` | `release` | `edits`, `edits.tracks`, `applications.tracks.releases` | planned | High-level workflow should insert edit, upload artifact, update track, validate or commit. |
