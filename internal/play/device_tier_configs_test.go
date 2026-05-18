@@ -10,7 +10,7 @@ func TestListDeviceTierConfigsPassesOptionsToLister(t *testing.T) {
 	lister := &fakeDeviceTierConfigLister{result: DeviceTierConfigListResult{
 		PackageName: "com.example.app",
 		Configs: []DeviceTierConfig{
-			{DeviceTierConfigId: 7},
+			{ID: "7"},
 		},
 	}}
 	options := DeviceTierConfigListOptions{
@@ -34,7 +34,7 @@ func TestListDeviceTierConfigsPassesOptionsToLister(t *testing.T) {
 func TestGetDeviceTierConfigPassesOptionsToGetter(t *testing.T) {
 	getter := &fakeDeviceTierConfigGetter{result: DeviceTierConfigGetResult{
 		PackageName: "com.example.app",
-		Config:      DeviceTierConfig{DeviceTierConfigId: 7},
+		Config:      DeviceTierConfig{ID: "7"},
 	}}
 	options := DeviceTierConfigGetOptions{PackageName: "com.example.app", DeviceTierConfigID: 7}
 
@@ -42,8 +42,8 @@ func TestGetDeviceTierConfigPassesOptionsToGetter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetDeviceTierConfig() error = %v", err)
 	}
-	if result.Config.DeviceTierConfigId != 7 {
-		t.Fatalf("DeviceTierConfigId = %d, want 7", result.Config.DeviceTierConfigId)
+	if result.Config.ID != "7" {
+		t.Fatalf("ID = %q, want 7", result.Config.ID)
 	}
 	if !reflect.DeepEqual(getter.options, options) {
 		t.Fatalf("options = %#v, want %#v", getter.options, options)

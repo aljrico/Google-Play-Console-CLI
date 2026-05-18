@@ -2,12 +2,35 @@ package play
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-
-	"google.golang.org/api/androidpublisher/v3"
 )
 
-type DeviceTierConfig = androidpublisher.DeviceTierConfig
+type DeviceTierConfig struct {
+	ID              string                 `json:"deviceTierConfigId,omitempty"`
+	DeviceGroups    []DeviceGroup          `json:"deviceGroups"`
+	DeviceTierSet   *DeviceTierSet         `json:"deviceTierSet,omitempty"`
+	UserCountrySets []DeviceUserCountrySet `json:"userCountrySets"`
+}
+
+type DeviceGroup struct {
+	Name            string            `json:"name,omitempty"`
+	DeviceSelectors []json.RawMessage `json:"deviceSelectors"`
+}
+
+type DeviceTierSet struct {
+	DeviceTiers []DeviceTier `json:"deviceTiers"`
+}
+
+type DeviceTier struct {
+	Level            int64    `json:"level"`
+	DeviceGroupNames []string `json:"deviceGroupNames,omitempty"`
+}
+
+type DeviceUserCountrySet struct {
+	Name         string   `json:"name,omitempty"`
+	CountryCodes []string `json:"countryCodes,omitempty"`
+}
 
 type DeviceTierConfigListOptions struct {
 	PackageName PackageName `json:"packageName"`

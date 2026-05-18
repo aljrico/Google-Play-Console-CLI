@@ -1053,6 +1053,11 @@ func TestListDeviceTierConfigsUsesApplicationsEndpoint(t *testing.T) {
 			"nextPageToken": "next",
 			"deviceTierConfigs": [{
 				"deviceTierConfigId": "7",
+				"deviceGroups": [{
+					"name": "premium",
+					"deviceSelectors": [{"includedDeviceIds": [{"buildBrand": "google", "buildDevice": "panther"}]}]
+				}],
+				"deviceTierSet": {"deviceTiers": [{"level": 1, "deviceGroupNames": ["premium"]}]},
 				"userCountrySets": [{"name": "latam", "countryCodes": ["BR", "MX"]}]
 			}]
 		}`))
@@ -1069,8 +1074,17 @@ func TestListDeviceTierConfigsUsesApplicationsEndpoint(t *testing.T) {
 	if result.NextPageToken != "next" || len(result.Configs) != 1 {
 		t.Fatalf("result = %#v, want next token and one config", result)
 	}
-	if result.Configs[0].DeviceTierConfigId != 7 {
-		t.Fatalf("DeviceTierConfigId = %d, want 7", result.Configs[0].DeviceTierConfigId)
+	if result.Configs[0].ID != "7" {
+		t.Fatalf("ID = %q, want 7", result.Configs[0].ID)
+	}
+	if len(result.Configs[0].DeviceGroups) != 1 || !strings.Contains(string(result.Configs[0].DeviceGroups[0].DeviceSelectors[0]), `"includedDeviceIds"`) {
+		t.Fatalf("device groups = %#v, want selector payload", result.Configs[0].DeviceGroups)
+	}
+	if result.Configs[0].DeviceTierSet == nil || result.Configs[0].DeviceTierSet.DeviceTiers[0].Level != 1 {
+		t.Fatalf("device tier set = %#v, want level 1", result.Configs[0].DeviceTierSet)
+	}
+	if len(result.Configs[0].UserCountrySets) != 1 || result.Configs[0].UserCountrySets[0].Name != "latam" {
+		t.Fatalf("user country sets = %#v, want latam", result.Configs[0].UserCountrySets)
 	}
 }
 
@@ -1090,8 +1104,8 @@ func TestGetDeviceTierConfigUsesApplicationsEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetDeviceTierConfig() error = %v", err)
 	}
-	if result.Config.DeviceTierConfigId != 7 {
-		t.Fatalf("DeviceTierConfigId = %d, want 7", result.Config.DeviceTierConfigId)
+	if result.Config.ID != "7" {
+		t.Fatalf("ID = %q, want 7", result.Config.ID)
 	}
 }
 
