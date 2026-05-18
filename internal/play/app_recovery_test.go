@@ -63,6 +63,60 @@ func TestAppRecoveryActionJSONUsesGoogleFieldName(t *testing.T) {
 	}
 }
 
+func TestDeployAppRecoveryDryRunDoesNotCallMutator(t *testing.T) {
+	result, err := DeployAppRecovery(context.Background(), nil, AppRecoveryMutationOptions{
+		PackageName:   "com.example.app",
+		AppRecoveryID: "7",
+		DryRun:        true,
+	})
+	if err != nil {
+		t.Fatalf("DeployAppRecovery() error = %v", err)
+	}
+	if result.Applied {
+		t.Fatalf("Applied = true, want false")
+	}
+	if result.Action != "deploy" || result.Plan.Action != "deploy" {
+		t.Fatalf("result = %#v, want deploy action", result)
+	}
+}
+
+func TestCancelAppRecoveryPassesOptionsToMutator(t *testing.T) {
+	mutator := &fakeAppRecoveryMutator{}
+	options := AppRecoveryMutationOptions{
+		PackageName:   "com.example.app",
+		AppRecoveryID: "7",
+		Confirm:       true,
+	}
+
+	result, err := CancelAppRecovery(context.Background(), mutator, options)
+	if err != nil {
+		t.Fatalf("CancelAppRecovery() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatalf("Applied = false, want true")
+	}
+	if mutator.cancelOptions != options {
+		t.Fatalf("cancelOptions = %#v, want %#v", mutator.cancelOptions, options)
+	}
+}
+
+func TestAppRecoveryMutationRejectsInvalidOptions(t *testing.T) {
+	tests := []AppRecoveryMutationOptions{
+		{},
+		{PackageName: "bad", AppRecoveryID: "7", DryRun: true},
+		{PackageName: "com.example.app", DryRun: true},
+		{PackageName: "com.example.app", AppRecoveryID: "0", DryRun: true},
+		{PackageName: "com.example.app", AppRecoveryID: "abc", DryRun: true},
+		{PackageName: "com.example.app", AppRecoveryID: "7"},
+		{PackageName: "com.example.app", AppRecoveryID: "7", Confirm: true, DryRun: true},
+	}
+	for _, options := range tests {
+		if _, err := DeployAppRecovery(context.Background(), nil, options); err == nil {
+			t.Fatalf("DeployAppRecovery(%#v) expected validation error", options)
+		}
+	}
+}
+
 type fakeAppRecoveryLister struct {
 	options AppRecoveryListOptions
 	result  AppRecoveryListResult
@@ -71,4 +125,19 @@ type fakeAppRecoveryLister struct {
 func (l *fakeAppRecoveryLister) ListAppRecoveries(ctx context.Context, options AppRecoveryListOptions) (AppRecoveryListResult, error) {
 	l.options = options
 	return l.result, nil
+}
+
+type fakeAppRecoveryMutator struct {
+	deployOptions AppRecoveryMutationOptions
+	cancelOptions AppRecoveryMutationOptions
+}
+
+func (m *fakeAppRecoveryMutator) DeployAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
+	m.deployOptions = options
+	return nil
+}
+
+func (m *fakeAppRecoveryMutator) CancelAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
+	m.cancelOptions = options
+	return nil
 }

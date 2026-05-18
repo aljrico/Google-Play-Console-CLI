@@ -529,6 +529,30 @@ func (p GooglePublisher) ListAppRecoveries(ctx context.Context, options AppRecov
 	return appRecoveryListResultFromAPI(options, response), nil
 }
 
+func (p GooglePublisher) DeployAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
+	if err := options.Validate(); err != nil {
+		return err
+	}
+	if _, err := p.service.Apprecovery.Deploy(options.PackageName.String(), options.AppRecoveryID.Int64(), &androidpublisher.DeployAppRecoveryRequest{}).
+		Context(ctx).
+		Do(); err != nil {
+		return fmt.Errorf("deploy app recovery %s for %s: %w", options.AppRecoveryID, options.PackageName, err)
+	}
+	return nil
+}
+
+func (p GooglePublisher) CancelAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
+	if err := options.Validate(); err != nil {
+		return err
+	}
+	if _, err := p.service.Apprecovery.Cancel(options.PackageName.String(), options.AppRecoveryID.Int64(), &androidpublisher.CancelAppRecoveryRequest{}).
+		Context(ctx).
+		Do(); err != nil {
+		return fmt.Errorf("cancel app recovery %s for %s: %w", options.AppRecoveryID, options.PackageName, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) ListGeneratedAPKs(ctx context.Context, options GeneratedAPKListOptions) (GeneratedAPKListResult, error) {
 	response, err := p.service.Generatedapks.List(options.PackageName.String(), options.VersionCode).
 		Context(ctx).

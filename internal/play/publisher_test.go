@@ -1366,6 +1366,48 @@ func TestGetDeviceTierConfigUsesApplicationsEndpoint(t *testing.T) {
 	}
 }
 
+func TestDeployAppRecoveryUsesDeployEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/appRecoveries/7:deploy" {
+			t.Fatalf("path = %q, want deploy endpoint", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+
+	if err := publisher.DeployAppRecovery(context.Background(), AppRecoveryMutationOptions{
+		PackageName:   "com.example.app",
+		AppRecoveryID: "7",
+		Confirm:       true,
+	}); err != nil {
+		t.Fatalf("DeployAppRecovery() error = %v", err)
+	}
+}
+
+func TestCancelAppRecoveryUsesCancelEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/appRecoveries/7:cancel" {
+			t.Fatalf("path = %q, want cancel endpoint", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+
+	if err := publisher.CancelAppRecovery(context.Background(), AppRecoveryMutationOptions{
+		PackageName:   "com.example.app",
+		AppRecoveryID: "7",
+		Confirm:       true,
+	}); err != nil {
+		t.Fatalf("CancelAppRecovery() error = %v", err)
+	}
+}
+
 func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/generatedApks/42" {

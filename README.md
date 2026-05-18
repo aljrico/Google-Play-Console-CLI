@@ -43,6 +43,8 @@ gpc releases halt --package com.example.app --track production --version-code 12
 gpc releases resume --package com.example.app --track production --version-code 123 --status inProgress --user-fraction 0.25 --dry-run
 gpc internal-sharing upload --package com.example.app --aab ./app-release.aab --dry-run
 gpc app-recovery list --package com.example.app --version-code 123
+gpc app-recovery deploy --package com.example.app --id 7 --dry-run
+gpc app-recovery cancel --package com.example.app --id 7 --dry-run
 gpc generated-apks list --package com.example.app --version-code 123
 gpc generated-apks download --package com.example.app --version-code 123 --download-id split-download --file ./split.apk --dry-run
 gpc system-apks variants list --package com.example.app --version-code 123

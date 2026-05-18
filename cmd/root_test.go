@@ -464,6 +464,65 @@ func TestAppRecoveryListRejectsMissingVersionCodeBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestAppRecoveryDeployDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"app-recovery",
+		"deploy",
+		"--package",
+		"com.example.app",
+		"--id",
+		"7",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{`"action":"deploy"`, `"dryRun":true`, `"applied":false`, `"appRecoveryId":"7"`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestAppRecoveryCancelRejectsMissingConfirmBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"app-recovery",
+		"cancel",
+		"--package",
+		"com.example.app",
+		"--id",
+		"7",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm validation error")
+	}
+	if !strings.Contains(err.Error(), "--confirm") {
+		t.Fatalf("error = %v, want confirm validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestGeneratedAPKsListRejectsMissingVersionCodeBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
@@ -13,10 +14,14 @@ func newAppRecoveryCommand(out io.Writer, options *globalOptions) *cobra.Command
 
 	cmd := &cobra.Command{
 		Use:   "app-recovery",
-		Short: "Inspect Google Play app recovery actions",
+		Short: "Inspect and manage Google Play app recovery actions",
 	}
 	cmd.PersistentFlags().StringVar(&packageName, "package", "", "Android package name, for example com.example.app")
-	cmd.AddCommand(newAppRecoveryListCommand(out, options, &packageName))
+	cmd.AddCommand(
+		newAppRecoveryListCommand(out, options, &packageName),
+		newAppRecoveryDeployCommand(out, options, &packageName),
+		newAppRecoveryCancelCommand(out, options, &packageName),
+	)
 	return cmd
 }
 
@@ -52,4 +57,80 @@ func newAppRecoveryListCommand(out io.Writer, options *globalOptions, packageNam
 	}
 	cmd.Flags().Int64Var(&versionCode, "version-code", 0, "Version code targeted by recovery actions")
 	return cmd
+}
+
+func newAppRecoveryDeployCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	return newAppRecoveryMutationCommand(out, options, packageName, "deploy", "Deploy a draft app recovery action")
+}
+
+func newAppRecoveryCancelCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	return newAppRecoveryMutationCommand(out, options, packageName, "cancel", "Cancel an app recovery action")
+}
+
+func newAppRecoveryMutationCommand(out io.Writer, options *globalOptions, packageName *string, action string, short string) *cobra.Command {
+	var (
+		appRecoveryID string
+		confirm       bool
+		dryRun        bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   action,
+		Short: short,
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedAppRecoveryID, err := play.NewAppRecoveryID(appRecoveryID)
+			if err != nil {
+				return err
+			}
+			mutationOptions := play.AppRecoveryMutationOptions{
+				PackageName:   typedPackageName,
+				AppRecoveryID: typedAppRecoveryID,
+				Confirm:       confirm,
+				DryRun:        dryRun,
+			}
+			if err := mutationOptions.Validate(); err != nil {
+				return err
+			}
+			if dryRun {
+				return runAppRecoveryMutationDryRun(cmd, out, options, mutationOptions, action)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return runAppRecoveryMutation(cmd, out, options, publisher, mutationOptions, action)
+		},
+	}
+	cmd.Flags().StringVar(&appRecoveryID, "id", "", "App recovery action ID")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the app recovery mutation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned app recovery mutation without calling Google Play")
+	return cmd
+}
+
+func runAppRecoveryMutationDryRun(cmd *cobra.Command, out io.Writer, options *globalOptions, mutationOptions play.AppRecoveryMutationOptions, action string) error {
+	return runAppRecoveryMutation(cmd, out, options, nil, mutationOptions, action)
+}
+
+func runAppRecoveryMutation(cmd *cobra.Command, out io.Writer, options *globalOptions, mutator play.AppRecoveryMutator, mutationOptions play.AppRecoveryMutationOptions, action string) error {
+	var (
+		result play.AppRecoveryMutationResult
+		err    error
+	)
+	switch action {
+	case "deploy":
+		result, err = play.DeployAppRecovery(cmd.Context(), mutator, mutationOptions)
+	case "cancel":
+		result, err = play.CancelAppRecovery(cmd.Context(), mutator, mutationOptions)
+	default:
+		err = fmt.Errorf("unsupported app recovery action %q", action)
+	}
+	if err != nil {
+		return err
+	}
+	return output.Write(out, options.output, options.pretty, result)
 }
