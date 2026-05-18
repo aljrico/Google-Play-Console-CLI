@@ -110,3 +110,30 @@ func TestReleasesUploadDryRunUsesRequestedTrack(t *testing.T) {
 		t.Fatalf("release upload dry-run output = %s", buf.String())
 	}
 }
+
+func TestReleasesPromoteDryRun(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"releases",
+		"promote",
+		"--package",
+		"com.example.app",
+		"--from",
+		"internal",
+		"--to",
+		"production",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(buf.String(), `"toTrack":"production"`) {
+		t.Fatalf("release promote dry-run output = %s", buf.String())
+	}
+}

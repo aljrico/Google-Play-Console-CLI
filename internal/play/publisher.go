@@ -123,6 +123,32 @@ func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName Pac
 	return trackFromAPI(updatedTrack), nil
 }
 
+func (p GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, releaseName string) (TrackRelease, error) {
+	source, err := p.service.Edits.Tracks.Get(packageName.String(), editID, sourceTrack.String()).Context(ctx).Do()
+	if err != nil {
+		return TrackRelease{}, fmt.Errorf("get %s track for %s: %w", sourceTrack, packageName, err)
+	}
+	apiRelease, err := selectRelease(source, releaseName)
+	if err != nil {
+		return TrackRelease{}, err
+	}
+
+	target, err := p.service.Edits.Tracks.Get(packageName.String(), editID, targetTrack.String()).Context(ctx).Do()
+	if err != nil {
+		return TrackRelease{}, fmt.Errorf("get %s track for %s: %w", targetTrack, packageName, err)
+	}
+	if target == nil {
+		target = &androidpublisher.Track{Track: targetTrack.String()}
+	}
+	target.Track = targetTrack.String()
+	target.Releases = append(target.Releases, apiRelease)
+
+	if _, err := p.service.Edits.Tracks.Update(packageName.String(), editID, targetTrack.String(), target).Context(ctx).Do(); err != nil {
+		return TrackRelease{}, fmt.Errorf("promote release from %s to %s for %s: %w", sourceTrack, targetTrack, packageName, err)
+	}
+	return releaseFromAPI(apiRelease), nil
+}
+
 func trackFromAPI(apiTrack *androidpublisher.Track) Track {
 	if apiTrack == nil {
 		return Track{}
@@ -157,6 +183,21 @@ func releaseToAPI(release TrackRelease) *androidpublisher.TrackRelease {
 		apiRelease.ForceSendFields = append(apiRelease.ForceSendFields, "UserFraction")
 	}
 	return apiRelease
+}
+
+func selectRelease(track *androidpublisher.Track, releaseName string) (*androidpublisher.TrackRelease, error) {
+	if track == nil || len(track.Releases) == 0 {
+		return nil, fmt.Errorf("source track has no releases")
+	}
+	if releaseName == "" {
+		return track.Releases[len(track.Releases)-1], nil
+	}
+	for _, release := range track.Releases {
+		if release.Name == releaseName {
+			return release, nil
+		}
+	}
+	return nil, fmt.Errorf("release %q not found in source track", releaseName)
 }
 
 func releaseFromAPI(apiRelease *androidpublisher.TrackRelease) TrackRelease {

@@ -16,6 +16,8 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 		releaseName  string
 		status       string
 		userFraction float64
+		fromTrack    string
+		toTrack      string
 		confirm      bool
 		dryRun       bool
 	)
@@ -108,6 +110,58 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	uploadCommand.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
 	uploadCommand.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned release upload workflow without calling Google Play")
 	cmd.AddCommand(uploadCommand)
+
+	promoteCommand := &cobra.Command{
+		Use:   "promote",
+		Short: "Promote a release from one track to another",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(packageName)
+			if err != nil {
+				return err
+			}
+			typedFromTrack, err := play.NewTrackName(fromTrack)
+			if err != nil {
+				return err
+			}
+			typedToTrack, err := play.NewTrackName(toTrack)
+			if err != nil {
+				return err
+			}
+
+			promoteOptions := play.PromoteReleaseOptions{
+				PackageName: typedPackageName,
+				FromTrack:   typedFromTrack,
+				ToTrack:     typedToTrack,
+				ReleaseName: releaseName,
+				Confirm:     confirm,
+				DryRun:      dryRun,
+			}
+			if dryRun {
+				result, err := play.PromoteRelease(cmd.Context(), nil, promoteOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.PromoteRelease(cmd.Context(), publisher, promoteOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	promoteCommand.Flags().StringVar(&fromTrack, "from", play.TrackInternal.String(), "Source track name")
+	promoteCommand.Flags().StringVar(&toTrack, "to", play.TrackProduction.String(), "Target track name")
+	promoteCommand.Flags().StringVar(&releaseName, "release-name", "", "Release name to promote; defaults to the latest release in the source track")
+	promoteCommand.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
+	promoteCommand.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned promotion workflow without calling Google Play")
+	cmd.AddCommand(promoteCommand)
 
 	return cmd
 }

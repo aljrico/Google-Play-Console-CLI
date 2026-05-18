@@ -30,7 +30,7 @@ The service account needs access to the target app in Play Console and the Googl
 gpc tracks list --package com.example.app
 gpc releases list --package com.example.app --track internal
 gpc releases upload --package com.example.app --track internal --aab ./app-release.aab --dry-run
-gpc releases promote --package com.example.app --from internal --to production
+gpc releases promote --package com.example.app --from internal --to production --dry-run
 ```
 
 ### First Publish Flow
