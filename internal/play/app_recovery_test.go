@@ -2,7 +2,9 @@ package play
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -14,7 +16,7 @@ func TestListAppRecoveriesPassesOptionsToLister(t *testing.T) {
 	lister := &fakeAppRecoveryLister{result: AppRecoveryListResult{
 		PackageName: packageName,
 		VersionCode: 42,
-		Actions:     []AppRecoveryAction{{ID: 7, Status: "RECOVERY_STATUS_ACTIVE"}},
+		Actions:     []AppRecoveryAction{{AppRecoveryID: "7", Status: "RECOVERY_STATUS_ACTIVE"}},
 	}}
 	options := AppRecoveryListOptions{PackageName: packageName, VersionCode: 42}
 
@@ -44,6 +46,20 @@ func TestListAppRecoveriesRejectsInvalidOptions(t *testing.T) {
 		if _, err := ListAppRecoveries(context.Background(), nil, options); err == nil {
 			t.Fatalf("ListAppRecoveries(%#v) expected validation error", options)
 		}
+	}
+}
+
+func TestAppRecoveryActionJSONUsesGoogleFieldName(t *testing.T) {
+	payload, err := json.Marshal(AppRecoveryAction{AppRecoveryID: "7"})
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	output := string(payload)
+	if !strings.Contains(output, `"appRecoveryId":"7"`) {
+		t.Fatalf("output = %s, want appRecoveryId", output)
+	}
+	if strings.Contains(output, `"id"`) {
+		t.Fatalf("output = %s, did not expect legacy id field", output)
 	}
 }
 

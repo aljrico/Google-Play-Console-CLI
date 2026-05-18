@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 )
@@ -317,6 +318,38 @@ func TestInternalSharingUploadRejectsMissingArtifactBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestInternalSharingUploadRejectsDirectoryArtifactBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	artifactPath := t.TempDir() + "/directory.apk"
+	if err := os.Mkdir(artifactPath, 0o755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"internal-sharing",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--apk",
+		artifactPath,
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected directory artifact error")
+	}
+	if !strings.Contains(err.Error(), "regular file") {
+		t.Fatalf("error = %v, want regular file validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestAppRecoveryListRejectsMissingVersionCodeBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
@@ -398,6 +431,37 @@ func TestPublishInternalLiveRejectsMissingBundleBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestPublishInternalLiveRejectsInvalidUserFractionBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bundlePath := writeRootTestFile(t, "app-release.aab")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"publish",
+		"internal",
+		"--package",
+		"com.example.app",
+		"--aab",
+		bundlePath,
+		"--user-fraction",
+		"0.25",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected user fraction validation error")
+	}
+	if !strings.Contains(err.Error(), "user fraction can only be set") {
+		t.Fatalf("error = %v, want user fraction validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestReleasesUploadRejectsMalformedReleaseNoteBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
@@ -453,6 +517,37 @@ func TestReleasesUploadDryRunUsesRequestedTrack(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), `"status":"completed"`) {
 		t.Fatalf("release upload dry-run output = %s", buf.String())
+	}
+}
+
+func TestReleasesUploadLiveRejectsInvalidUserFractionBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bundlePath := writeRootTestFile(t, "app-release.aab")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"releases",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--aab",
+		bundlePath,
+		"--user-fraction",
+		"0.25",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected user fraction validation error")
+	}
+	if !strings.Contains(err.Error(), "user fraction can only be set") {
+		t.Fatalf("error = %v, want user fraction validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
 	}
 }
 
@@ -1112,4 +1207,13 @@ func TestPurchasesSubscriptionRejectsMissingTokenBeforeAuth(t *testing.T) {
 	if !strings.Contains(err.Error(), "purchase token") {
 		t.Fatalf("error = %v, want token validation", err)
 	}
+}
+
+func writeRootTestFile(t *testing.T, name string) string {
+	t.Helper()
+	path := t.TempDir() + "/" + name
+	if err := os.WriteFile(path, []byte("artifact"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	return path
 }

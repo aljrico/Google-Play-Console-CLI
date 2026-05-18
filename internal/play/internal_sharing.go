@@ -109,6 +109,16 @@ func UploadInternalSharingArtifact(ctx context.Context, uploader InternalSharing
 }
 
 func ValidateReadableFile(path string) error {
+	fileInfo, err := os.Lstat(path)
+	if err != nil {
+		return fmt.Errorf("open file %s: %w", path, err)
+	}
+	if fileInfo.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("file %s must be a regular file, not a symlink", path)
+	}
+	if !fileInfo.Mode().IsRegular() {
+		return fmt.Errorf("file %s must be a regular file", path)
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open file %s: %w", path, err)

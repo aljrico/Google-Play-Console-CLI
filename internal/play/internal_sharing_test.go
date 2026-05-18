@@ -85,6 +85,29 @@ func TestUploadInternalSharingArtifactChecksFileBeforeUploader(t *testing.T) {
 	}
 }
 
+func TestValidateReadableFileRejectsDirectory(t *testing.T) {
+	directoryPath := filepath.Join(t.TempDir(), "app.apk")
+	if err := os.Mkdir(directoryPath, 0o755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+
+	if err := ValidateReadableFile(directoryPath); err == nil {
+		t.Fatal("expected directory rejection")
+	}
+}
+
+func TestValidateReadableFileRejectsSymlink(t *testing.T) {
+	targetPath := writeTestFile(t, "app.apk")
+	linkPath := filepath.Join(t.TempDir(), "linked.apk")
+	if err := os.Symlink(targetPath, linkPath); err != nil {
+		t.Skipf("Symlink() error = %v", err)
+	}
+
+	if err := ValidateReadableFile(linkPath); err == nil {
+		t.Fatal("expected symlink rejection")
+	}
+}
+
 type fakeInternalSharingUploader struct {
 	apkPath    string
 	bundlePath string

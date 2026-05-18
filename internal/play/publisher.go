@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 
 	"google.golang.org/api/androidpublisher/v3"
 	"google.golang.org/api/googleapi"
@@ -1231,15 +1232,86 @@ func appRecoveryListResultFromAPI(options AppRecoveryListOptions, response *andr
 			continue
 		}
 		result.Actions = append(result.Actions, AppRecoveryAction{
-			ID:             apiAction.AppRecoveryId,
-			Status:         apiAction.Status,
-			CreateTime:     apiAction.CreateTime,
-			DeployTime:     apiAction.DeployTime,
-			CancelTime:     apiAction.CancelTime,
-			LastUpdateTime: apiAction.LastUpdateTime,
+			AppRecoveryID:         strconv.FormatInt(apiAction.AppRecoveryId, 10),
+			Status:                apiAction.Status,
+			CreateTime:            apiAction.CreateTime,
+			DeployTime:            apiAction.DeployTime,
+			CancelTime:            apiAction.CancelTime,
+			LastUpdateTime:        apiAction.LastUpdateTime,
+			Targeting:             appRecoveryTargetingFromAPI(apiAction.Targeting),
+			RemoteInAppUpdateData: appRecoveryRemoteInAppUpdateDataFromAPI(apiAction.RemoteInAppUpdateData),
 		})
 	}
 	return result
+}
+
+func appRecoveryTargetingFromAPI(apiTargeting *androidpublisher.Targeting) *AppRecoveryTargeting {
+	if apiTargeting == nil {
+		return nil
+	}
+	return &AppRecoveryTargeting{
+		AllUsers:     appRecoveryAllUsersFromAPI(apiTargeting.AllUsers),
+		AndroidSDKs:  appRecoveryAndroidSDKsFromAPI(apiTargeting.AndroidSdks),
+		Regions:      appRecoveryRegionsFromAPI(apiTargeting.Regions),
+		VersionList:  appRecoveryVersionListFromAPI(apiTargeting.VersionList),
+		VersionRange: appRecoveryVersionRangeFromAPI(apiTargeting.VersionRange),
+	}
+}
+
+func appRecoveryAllUsersFromAPI(apiAllUsers *androidpublisher.AllUsers) *AppRecoveryAllUsers {
+	if apiAllUsers == nil {
+		return nil
+	}
+	return &AppRecoveryAllUsers{IsAllUsersRequested: apiAllUsers.IsAllUsersRequested}
+}
+
+func appRecoveryAndroidSDKsFromAPI(apiAndroidSDKs *androidpublisher.AndroidSdks) *AppRecoveryAndroidSDKs {
+	if apiAndroidSDKs == nil {
+		return nil
+	}
+	return &AppRecoveryAndroidSDKs{SDKLevels: append([]int64(nil), apiAndroidSDKs.SdkLevels...)}
+}
+
+func appRecoveryRegionsFromAPI(apiRegions *androidpublisher.Regions) *AppRecoveryRegions {
+	if apiRegions == nil {
+		return nil
+	}
+	return &AppRecoveryRegions{RegionCodes: append([]string(nil), apiRegions.RegionCode...)}
+}
+
+func appRecoveryVersionListFromAPI(apiVersionList *androidpublisher.AppVersionList) *AppRecoveryVersionList {
+	if apiVersionList == nil {
+		return nil
+	}
+	return &AppRecoveryVersionList{VersionCodes: append([]int64(nil), apiVersionList.VersionCodes...)}
+}
+
+func appRecoveryVersionRangeFromAPI(apiVersionRange *androidpublisher.AppVersionRange) *AppRecoveryVersionRange {
+	if apiVersionRange == nil {
+		return nil
+	}
+	return &AppRecoveryVersionRange{
+		VersionCodeStart: strconv.FormatInt(apiVersionRange.VersionCodeStart, 10),
+		VersionCodeEnd:   strconv.FormatInt(apiVersionRange.VersionCodeEnd, 10),
+	}
+}
+
+func appRecoveryRemoteInAppUpdateDataFromAPI(apiData *androidpublisher.RemoteInAppUpdateData) *AppRecoveryRemoteInAppUpdateData {
+	if apiData == nil {
+		return nil
+	}
+	perBundle := make([]AppRecoveryRemoteInAppUpdateDataPerBundle, 0, len(apiData.RemoteAppUpdateDataPerBundle))
+	for _, apiBundle := range apiData.RemoteAppUpdateDataPerBundle {
+		if apiBundle == nil {
+			continue
+		}
+		perBundle = append(perBundle, AppRecoveryRemoteInAppUpdateDataPerBundle{
+			VersionCode:          strconv.FormatInt(apiBundle.VersionCode, 10),
+			RecoveredDeviceCount: strconv.FormatInt(apiBundle.RecoveredDeviceCount, 10),
+			TotalDeviceCount:     strconv.FormatInt(apiBundle.TotalDeviceCount, 10),
+		})
+	}
+	return &AppRecoveryRemoteInAppUpdateData{PerBundle: perBundle}
 }
 
 func userFromAPI(apiUser *androidpublisher.User) User {

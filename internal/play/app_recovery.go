@@ -21,12 +21,53 @@ func (o AppRecoveryListOptions) Validate() error {
 }
 
 type AppRecoveryAction struct {
-	ID             int64  `json:"id"`
-	Status         string `json:"status,omitempty"`
-	CreateTime     string `json:"createTime,omitempty"`
-	DeployTime     string `json:"deployTime,omitempty"`
-	CancelTime     string `json:"cancelTime,omitempty"`
-	LastUpdateTime string `json:"lastUpdateTime,omitempty"`
+	AppRecoveryID         string                            `json:"appRecoveryId,omitempty"`
+	Status                string                            `json:"status,omitempty"`
+	CreateTime            string                            `json:"createTime,omitempty"`
+	DeployTime            string                            `json:"deployTime,omitempty"`
+	CancelTime            string                            `json:"cancelTime,omitempty"`
+	LastUpdateTime        string                            `json:"lastUpdateTime,omitempty"`
+	Targeting             *AppRecoveryTargeting             `json:"targeting,omitempty"`
+	RemoteInAppUpdateData *AppRecoveryRemoteInAppUpdateData `json:"remoteInAppUpdateData,omitempty"`
+}
+
+type AppRecoveryTargeting struct {
+	AllUsers     *AppRecoveryAllUsers     `json:"allUsers,omitempty"`
+	AndroidSDKs  *AppRecoveryAndroidSDKs  `json:"androidSdks,omitempty"`
+	Regions      *AppRecoveryRegions      `json:"regions,omitempty"`
+	VersionList  *AppRecoveryVersionList  `json:"versionList,omitempty"`
+	VersionRange *AppRecoveryVersionRange `json:"versionRange,omitempty"`
+}
+
+type AppRecoveryAllUsers struct {
+	IsAllUsersRequested bool `json:"isAllUsersRequested"`
+}
+
+type AppRecoveryAndroidSDKs struct {
+	SDKLevels []int64 `json:"sdkLevels,omitempty"`
+}
+
+type AppRecoveryRegions struct {
+	RegionCodes []string `json:"regionCode,omitempty"`
+}
+
+type AppRecoveryVersionList struct {
+	VersionCodes []int64 `json:"versionCodes,omitempty"`
+}
+
+type AppRecoveryVersionRange struct {
+	VersionCodeStart string `json:"versionCodeStart,omitempty"`
+	VersionCodeEnd   string `json:"versionCodeEnd,omitempty"`
+}
+
+type AppRecoveryRemoteInAppUpdateData struct {
+	PerBundle []AppRecoveryRemoteInAppUpdateDataPerBundle `json:"remoteAppUpdateDataPerBundle,omitempty"`
+}
+
+type AppRecoveryRemoteInAppUpdateDataPerBundle struct {
+	VersionCode          string `json:"versionCode,omitempty"`
+	RecoveredDeviceCount string `json:"recoveredDeviceCount,omitempty"`
+	TotalDeviceCount     string `json:"totalDeviceCount,omitempty"`
 }
 
 type AppRecoveryListResult struct {

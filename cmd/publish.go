@@ -61,6 +61,9 @@ func newPublishInternalCommand(out io.Writer, options *globalOptions) *cobra.Com
 			if cmd.Flags().Changed("user-fraction") {
 				publishOptions.UserFraction = &userFraction
 			}
+			if err := publishOptions.Validate(); err != nil {
+				return err
+			}
 			if dryRun {
 				result, err := play.PublishInternal(cmd.Context(), nil, publishOptions)
 				if err != nil {

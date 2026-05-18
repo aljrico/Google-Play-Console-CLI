@@ -801,7 +801,18 @@ func TestListAppRecoveriesSendsVersionCode(t *testing.T) {
 					"appRecoveryId": "7",
 					"status": "RECOVERY_STATUS_ACTIVE",
 					"createTime": "2026-05-18T10:00:00Z",
-					"lastUpdateTime": "2026-05-18T11:00:00Z"
+					"lastUpdateTime": "2026-05-18T11:00:00Z",
+					"targeting": {
+						"regions": {"regionCode": ["US", "ES"]},
+						"versionRange": {"versionCodeStart": "40", "versionCodeEnd": "42"}
+					},
+					"remoteInAppUpdateData": {
+						"remoteAppUpdateDataPerBundle": [{
+							"versionCode": "42",
+							"recoveredDeviceCount": "12",
+							"totalDeviceCount": "30"
+						}]
+					}
 				}
 			]
 		}`))
@@ -817,8 +828,20 @@ func TestListAppRecoveriesSendsVersionCode(t *testing.T) {
 	if len(result.Actions) != 1 {
 		t.Fatalf("len(Actions) = %d, want 1", len(result.Actions))
 	}
-	if result.Actions[0].ID != 7 || result.Actions[0].Status != "RECOVERY_STATUS_ACTIVE" {
+	if result.Actions[0].AppRecoveryID != "7" || result.Actions[0].Status != "RECOVERY_STATUS_ACTIVE" {
 		t.Fatalf("action = %#v, want active ID 7", result.Actions[0])
+	}
+	if result.Actions[0].Targeting == nil || result.Actions[0].Targeting.Regions == nil || len(result.Actions[0].Targeting.Regions.RegionCodes) != 2 {
+		t.Fatalf("targeting = %#v, want region targeting", result.Actions[0].Targeting)
+	}
+	if result.Actions[0].Targeting.VersionRange == nil || result.Actions[0].Targeting.VersionRange.VersionCodeStart != "40" || result.Actions[0].Targeting.VersionRange.VersionCodeEnd != "42" {
+		t.Fatalf("version range = %#v, want 40-42", result.Actions[0].Targeting.VersionRange)
+	}
+	if result.Actions[0].RemoteInAppUpdateData == nil || len(result.Actions[0].RemoteInAppUpdateData.PerBundle) != 1 {
+		t.Fatalf("remote in-app update data = %#v, want one bundle", result.Actions[0].RemoteInAppUpdateData)
+	}
+	if result.Actions[0].RemoteInAppUpdateData.PerBundle[0].RecoveredDeviceCount != "12" {
+		t.Fatalf("remote in-app update data = %#v, want recovered device count", result.Actions[0].RemoteInAppUpdateData)
 	}
 }
 
