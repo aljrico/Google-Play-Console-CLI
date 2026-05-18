@@ -83,3 +83,30 @@ func TestPublishInternalDryRunDoesNotRequireAuth(t *testing.T) {
 		t.Fatalf("publish dry-run output = %s", buf.String())
 	}
 }
+
+func TestReleasesUploadDryRunUsesRequestedTrack(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"releases",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--track",
+		"beta",
+		"--aab",
+		"app-release.aab",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(buf.String(), `"track":"beta"`) {
+		t.Fatalf("release upload dry-run output = %s", buf.String())
+	}
+}

@@ -22,7 +22,7 @@ func PublishInternal(ctx context.Context, publisher InternalPublisher, options P
 	}
 	result = PublishResult{
 		PackageName: options.PackageName,
-		Track:       TrackInternal,
+		Track:       plan.Track,
 		DryRun:      options.DryRun,
 		Committed:   false,
 		Plan:        plan,
@@ -64,7 +64,7 @@ func PublishInternal(ctx context.Context, publisher InternalPublisher, options P
 		VersionCodes: []int64{bundle.VersionCode},
 	}
 
-	if _, err := publisher.AppendTrackRelease(ctx, options.PackageName, edit.ID, TrackInternal, release); err != nil {
+	if _, err := publisher.AppendTrackRelease(ctx, options.PackageName, edit.ID, plan.Track, release); err != nil {
 		return PublishResult{}, err
 	}
 	if err := publisher.ValidateEdit(ctx, options.PackageName, edit.ID); err != nil {

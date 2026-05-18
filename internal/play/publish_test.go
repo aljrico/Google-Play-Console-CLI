@@ -31,6 +31,27 @@ func TestNewPublishInternalPlan(t *testing.T) {
 	}
 }
 
+func TestNewPublishInternalPlanSupportsCustomTrack(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	plan, err := NewPublishInternalPlan(PublishInternalOptions{
+		PackageName: packageName,
+		Track:       TrackBeta,
+		BundlePath:  "app-release.aab",
+		Status:      ReleaseStatusCompleted,
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("NewPublishInternalPlan() error = %v", err)
+	}
+	if plan.Track != TrackBeta {
+		t.Fatalf("Track = %q, want %q", plan.Track, TrackBeta)
+	}
+}
+
 func TestPublishInternalDryRunDoesNotRequirePublisher(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {

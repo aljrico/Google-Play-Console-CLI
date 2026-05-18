@@ -128,6 +128,7 @@ type Track struct {
 
 type PublishInternalOptions struct {
 	PackageName  PackageName   `json:"packageName"`
+	Track        TrackName     `json:"track"`
 	BundlePath   string        `json:"bundlePath"`
 	ReleaseName  string        `json:"releaseName"`
 	Status       ReleaseStatus `json:"status"`
@@ -138,6 +139,9 @@ type PublishInternalOptions struct {
 
 func (o PublishInternalOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewTrackName(targetTrackName(o).String()); err != nil {
 		return err
 	}
 	if o.BundlePath == "" {
@@ -181,11 +185,12 @@ func NewPublishInternalPlan(options PublishInternalOptions) (PublishPlan, error)
 	if err := options.Validate(); err != nil {
 		return PublishPlan{}, err
 	}
+	trackName := targetTrackName(options)
 
 	steps := []string{
 		"insert edit",
 		"upload Android App Bundle",
-		"append release to internal track",
+		fmt.Sprintf("append release to %s track", trackName),
 		"validate edit",
 	}
 	if options.Confirm {
@@ -196,7 +201,7 @@ func NewPublishInternalPlan(options PublishInternalOptions) (PublishPlan, error)
 
 	return PublishPlan{
 		PackageName:  options.PackageName,
-		Track:        TrackInternal,
+		Track:        trackName,
 		Artifact:     ArtifactKindBundle,
 		BundlePath:   options.BundlePath,
 		ReleaseName:  options.ReleaseName,
@@ -205,6 +210,13 @@ func NewPublishInternalPlan(options PublishInternalOptions) (PublishPlan, error)
 		Confirm:      options.Confirm,
 		Steps:        steps,
 	}, nil
+}
+
+func targetTrackName(options PublishInternalOptions) TrackName {
+	if options.Track == "" {
+		return TrackInternal
+	}
+	return options.Track
 }
 
 type PublishResult struct {

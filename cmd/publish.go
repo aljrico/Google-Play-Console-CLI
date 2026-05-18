@@ -45,6 +45,7 @@ func newPublishInternalCommand(out io.Writer, options *globalOptions) *cobra.Com
 
 			publishOptions := play.PublishInternalOptions{
 				PackageName: typedPackageName,
+				Track:       play.TrackInternal,
 				BundlePath:  bundlePath,
 				ReleaseName: releaseName,
 				Status:      typedStatus,
