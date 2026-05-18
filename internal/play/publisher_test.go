@@ -1066,6 +1066,49 @@ func TestListUsersSendsExpectedQueryParams(t *testing.T) {
 	}
 }
 
+func TestListUsersValidatesOptionsBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	_, err := publisher.ListUsers(context.Background(), UserListOptions{Developer: "1234567890", PageSize: -2})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
+func TestCreateUserCanonicalizesDeveloperResource(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/developers/1234567890/users" {
+			t.Fatalf("path = %q, want canonical users endpoint", r.URL.Path)
+		}
+		var request androidpublisher.User
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.Name != "developers/1234567890/users/user@example.com" {
+			t.Fatalf("request name = %q, want canonical user resource", request.Name)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name":"developers/1234567890/users/user@example.com","email":"user@example.com"}`))
+	}))
+
+	_, err := publisher.CreateUser(context.Background(), UserCreateOptions{
+		Developer:   "developers/1234567890",
+		UserEmail:   "user@example.com",
+		Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal},
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("CreateUser() error = %v", err)
+	}
+}
+
 func TestCreateUserUsesUsersEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

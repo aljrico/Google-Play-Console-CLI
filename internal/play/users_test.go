@@ -18,6 +18,13 @@ func TestNewDeveloperAccountAcceptsIDAndResource(t *testing.T) {
 	}
 }
 
+func TestDeveloperAccountResourceNameCanonicalizesResource(t *testing.T) {
+	account := DeveloperAccount("developers/1234567890")
+	if account.ResourceName() != "developers/1234567890" {
+		t.Fatalf("ResourceName() = %q, want canonical resource", account.ResourceName())
+	}
+}
+
 func TestListUsersPassesOptionsToLister(t *testing.T) {
 	lister := &fakeUserLister{result: UserListResult{
 		Developer:     "1234567890",
@@ -128,6 +135,8 @@ func TestCreateUserRejectsInvalidOptions(t *testing.T) {
 		{Developer: "1234567890", Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal}, DryRun: true},
 		{Developer: "1234567890", UserEmail: "user@example.com", DryRun: true},
 		{Developer: "1234567890", UserEmail: "user@example.com", Permissions: []UserPermission{"NOPE"}, DryRun: true},
+		{Developer: "1234567890", UserEmail: "user@example.com", Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal}, ExpirationTime: "tomorrow", DryRun: true},
+		{Developer: "1234567890", UserEmail: "user@example.com", Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal}, ExpirationTime: "2020-01-02T03:04:05Z", DryRun: true},
 		{Developer: "1234567890", UserEmail: "user@example.com", Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal}},
 		{Developer: "1234567890", UserEmail: "user@example.com", Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal}, Confirm: true, DryRun: true},
 	}
@@ -180,6 +189,8 @@ func TestPatchUserRejectsInvalidOptions(t *testing.T) {
 		{},
 		{Name: "developers/1234567890/users/user@example.com", DryRun: true},
 		{Name: "developers/1234567890/users/user@example.com", Permissions: []UserPermission{"NOPE"}, DryRun: true},
+		{Name: "developers/1234567890/users/user@example.com", ExpirationTime: "tomorrow", DryRun: true},
+		{Name: "developers/1234567890/users/user@example.com", ExpirationTime: "2020-01-02T03:04:05Z", DryRun: true},
 		{Name: "developers/1234567890/users/user@example.com", Permissions: []UserPermission{UserPermissionReplyToReviewsGlobal}},
 		{Name: "developers/1234567890/users/user@example.com", Permissions: []UserPermission{UserPermissionReplyToReviewsGlobal}, Confirm: true, DryRun: true},
 	}

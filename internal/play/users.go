@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type DeveloperAccount string
@@ -26,7 +27,11 @@ func (d DeveloperAccount) String() string {
 }
 
 func (d DeveloperAccount) ResourceName() string {
-	return "developers/" + d.String()
+	account, err := NewDeveloperAccount(d.String())
+	if err != nil {
+		return "developers/" + d.String()
+	}
+	return "developers/" + account.String()
 }
 
 func (d DeveloperAccount) Validate() error {
@@ -211,6 +216,9 @@ func (o UserCreateOptions) Validate() error {
 	if err := validateUserPermissions(o.Permissions); err != nil {
 		return err
 	}
+	if err := validateUserExpirationTime(o.ExpirationTime); err != nil {
+		return err
+	}
 	if o.Confirm && o.DryRun {
 		return fmt.Errorf("--confirm and --dry-run cannot be used together")
 	}
@@ -313,6 +321,9 @@ func (o UserPatchOptions) Validate() error {
 		if err := validateUserPermissions(o.Permissions); err != nil {
 			return err
 		}
+	}
+	if err := validateUserExpirationTime(o.ExpirationTime); err != nil {
+		return err
 	}
 	if o.Confirm && o.DryRun {
 		return fmt.Errorf("--confirm and --dry-run cannot be used together")
@@ -469,6 +480,20 @@ func validateUserPermissions(permissions []UserPermission) error {
 			return fmt.Errorf("user permission %q is duplicated", permission)
 		}
 		seen[permission] = struct{}{}
+	}
+	return nil
+}
+
+func validateUserExpirationTime(value string) error {
+	if value == "" {
+		return nil
+	}
+	expirationTime, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return fmt.Errorf("expiration time must be RFC3339: %w", err)
+	}
+	if !expirationTime.After(time.Now()) {
+		return fmt.Errorf("expiration time must be in the future")
 	}
 	return nil
 }

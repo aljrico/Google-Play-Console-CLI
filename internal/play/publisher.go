@@ -388,6 +388,9 @@ func (p GooglePublisher) ListSubscriptionOffers(ctx context.Context, options Sub
 }
 
 func (p GooglePublisher) ListUsers(ctx context.Context, options UserListOptions) (UserListResult, error) {
+	if err := options.Validate(); err != nil {
+		return UserListResult{}, err
+	}
 	call := p.service.Users.List(options.Developer.ResourceName()).Context(ctx)
 	if options.PageSize != 0 {
 		call.PageSize(options.PageSize)
