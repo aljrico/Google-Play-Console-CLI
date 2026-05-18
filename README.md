@@ -36,6 +36,9 @@ gpc releases resume --package com.example.app --track production --version-code 
 gpc listings update --package com.example.app --language en-US --title "Example" --dry-run
 gpc listings delete --package com.example.app --language en-US --dry-run
 gpc details update --package com.example.app --contact-email support@example.com --dry-run
+gpc reviews list --package com.example.app --max-results 25
+gpc reviews get --package com.example.app --review-id review-123
+gpc reviews reply --package com.example.app --review-id review-123 --text "Thanks for the feedback." --dry-run
 ```
 
 ### First Publish Flow
@@ -64,6 +67,6 @@ gpc version --output markdown
 
 ## Status
 
-Early but functional. Auth/profile storage, the command taxonomy, core release workflows, localized listings, and app-level details are in place.
+Early but functional. Auth/profile storage, the command taxonomy, core release workflows, localized listings, app-level details, and review reading/replies are in place.
 
 See [docs/PARITY.md](docs/PARITY.md) for the working parity map against App Store Connect CLI.

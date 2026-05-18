@@ -329,3 +329,56 @@ func TestDetailsUpdateDryRun(t *testing.T) {
 		t.Fatalf("details update dry-run output = %s", buf.String())
 	}
 }
+
+func TestReviewsReplyDryRun(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"reviews",
+		"reply",
+		"--package",
+		"com.example.app",
+		"--review-id",
+		"review-123",
+		"--text",
+		"Thanks for trying the app.",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(buf.String(), `"reviewId":"review-123"`) {
+		t.Fatalf("reviews reply dry-run output = %s", buf.String())
+	}
+	if !strings.Contains(buf.String(), `"dryRun":true`) {
+		t.Fatalf("reviews reply dry-run output = %s", buf.String())
+	}
+}
+
+func TestReviewsReplyRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"reviews",
+		"reply",
+		"--package",
+		"com.example.app",
+		"--review-id",
+		"review-123",
+		"--text",
+		"Thanks.",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected confirmation validation error")
+	}
+}

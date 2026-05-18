@@ -85,6 +85,48 @@ func TestAppDetailsToAPIForceSendsEmptyChangedField(t *testing.T) {
 	}
 }
 
+func TestReviewFromAPIMapsUserAndDeveloperComments(t *testing.T) {
+	review := reviewFromAPI(&androidpublisher.Review{
+		ReviewId:   "review-123",
+		AuthorName: "A User",
+		Comments: []*androidpublisher.Comment{
+			{
+				UserComment: &androidpublisher.UserComment{
+					Text:             "Useful app.",
+					StarRating:       5,
+					ReviewerLanguage: "en",
+					LastModified:     &androidpublisher.Timestamp{Seconds: 123},
+				},
+			},
+			{
+				DeveloperComment: &androidpublisher.DeveloperComment{
+					Text:         "Thanks!",
+					LastModified: &androidpublisher.Timestamp{Seconds: 456},
+				},
+			},
+		},
+	})
+
+	if review.ReviewID != "review-123" {
+		t.Fatalf("ReviewID = %q, want review-123", review.ReviewID)
+	}
+	if len(review.Comments) != 2 {
+		t.Fatalf("len(Comments) = %d, want 2", len(review.Comments))
+	}
+	if review.Comments[0].Kind != ReviewCommentKindUser {
+		t.Fatalf("first comment kind = %q, want user", review.Comments[0].Kind)
+	}
+	if review.Comments[0].User == nil || review.Comments[0].User.StarRating != 5 {
+		t.Fatalf("first comment user = %#v, want 5-star user comment", review.Comments[0].User)
+	}
+	if review.Comments[1].Kind != ReviewCommentKindDeveloper {
+		t.Fatalf("second comment kind = %q, want developer", review.Comments[1].Kind)
+	}
+	if review.Comments[1].Developer == nil || review.Comments[1].Developer.LastEdited.Seconds != 456 {
+		t.Fatalf("second comment developer = %#v, want timestamp 456", review.Comments[1].Developer)
+	}
+}
+
 func containsField(fields []string, field string) bool {
 	for _, candidate := range fields {
 		if candidate == field {
