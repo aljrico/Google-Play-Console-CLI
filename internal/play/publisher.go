@@ -482,6 +482,16 @@ func (p GooglePublisher) ListGeneratedAPKs(ctx context.Context, options Generate
 	return generatedAPKListResultFromAPI(options, response), nil
 }
 
+func (p GooglePublisher) ListSystemAPKVariants(ctx context.Context, options SystemAPKVariantListOptions) (SystemAPKVariantListResult, error) {
+	response, err := p.service.Systemapks.Variants.List(options.PackageName.String(), options.VersionCode).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return SystemAPKVariantListResult{}, fmt.Errorf("list system APK variants for %s version code %d: %w", options.PackageName, options.VersionCode, err)
+	}
+	return systemAPKVariantListResultFromAPI(options, response), nil
+}
+
 func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName PackageName, productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, offerID SubscriptionOfferID) (SubscriptionOffer, error) {
 	offer, err := p.service.Monetization.Subscriptions.BasePlans.Offers.Get(
 		packageName.String(),
@@ -1501,6 +1511,28 @@ func generatedAPKListResultFromAPI(options GeneratedAPKListOptions, response *an
 			continue
 		}
 		result.SigningKeys = append(result.SigningKeys, generatedAPKSigningKeyFromAPI(apiSigningKey))
+	}
+	return result
+}
+
+func systemAPKVariantListResultFromAPI(options SystemAPKVariantListOptions, response *androidpublisher.SystemApksListResponse) SystemAPKVariantListResult {
+	result := SystemAPKVariantListResult{
+		PackageName: options.PackageName,
+		VersionCode: options.VersionCode,
+		Variants:    []SystemAPKVariant{},
+	}
+	if response == nil {
+		return result
+	}
+	for _, apiVariant := range response.Variants {
+		if apiVariant == nil {
+			continue
+		}
+		result.Variants = append(result.Variants, SystemAPKVariant{
+			VariantID:  apiVariant.VariantId,
+			DeviceSpec: generatedAPKRawJSONFromAPI(apiVariant.DeviceSpec),
+			Options:    generatedAPKRawJSONFromAPI(apiVariant.Options),
+		})
 	}
 	return result
 }

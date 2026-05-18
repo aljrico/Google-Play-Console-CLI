@@ -1346,6 +1346,39 @@ func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
 	}
 }
 
+func TestListSystemAPKVariantsUsesVersionCodeEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/systemApks/42/variants" {
+			t.Fatalf("path = %q, want system APK variants endpoint", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"variants": [{
+				"variantId": 7,
+				"deviceSpec": {"supportedAbis": ["arm64-v8a"]},
+				"options": {"rotated": true}
+			}]
+		}`))
+	}))
+
+	result, err := publisher.ListSystemAPKVariants(context.Background(), SystemAPKVariantListOptions{
+		PackageName: "com.example.app",
+		VersionCode: 42,
+	})
+	if err != nil {
+		t.Fatalf("ListSystemAPKVariants() error = %v", err)
+	}
+	if len(result.Variants) != 1 || result.Variants[0].VariantID != 7 {
+		t.Fatalf("variants = %#v, want variant 7", result.Variants)
+	}
+	if !strings.Contains(string(result.Variants[0].DeviceSpec), "arm64-v8a") {
+		t.Fatalf("device spec = %s, want ABI preserved", result.Variants[0].DeviceSpec)
+	}
+	if !strings.Contains(string(result.Variants[0].Options), "rotated") {
+		t.Fatalf("options = %s, want options preserved", result.Variants[0].Options)
+	}
+}
+
 func TestVoidedPurchaseListResultFromAPIMapsPurchasesAndPagination(t *testing.T) {
 	result := voidedPurchaseListResultFromAPI(VoidedPurchaseListOptions{
 		PackageName:                       "com.example.app",
