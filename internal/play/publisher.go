@@ -489,6 +489,17 @@ func (p GooglePublisher) BatchGetOrders(ctx context.Context, options OrderBatchG
 	return orderBatchGetResultFromAPI(options, response), nil
 }
 
+func (p GooglePublisher) RefundOrder(ctx context.Context, options OrderRefundOptions) error {
+	call := p.service.Orders.Refund(options.PackageName.String(), options.OrderID.String()).Context(ctx)
+	if options.Revoke {
+		call.Revoke(true)
+	}
+	if err := call.Do(); err != nil {
+		return fmt.Errorf("refund order %s for %s: %w", options.OrderID, options.PackageName, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) ConvertRegionPrices(ctx context.Context, options RegionPriceConversionOptions) (RegionPriceConversionResult, error) {
 	request := &androidpublisher.ConvertRegionPricesRequest{
 		Price: &androidpublisher.Money{

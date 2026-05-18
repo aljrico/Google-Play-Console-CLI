@@ -86,7 +86,7 @@ Sources:
 | `finance` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |
 | `analytics` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |
 | `insights` | `insights` | Built from reports | planned | Derived command, not a direct API mapping. |
-| `orders` | `orders` | `orders` | tested | `gpc orders get` and `batch-get` inspect order details by ID. Refunds remain planned and should require explicit confirmation. |
+| `orders` | `orders` | `orders` | tested | `gpc orders get` and `batch-get` inspect order details by ID; `refund` applies guarded refunds only with `--confirm`, with optional revoke and dry-run planning. |
 | `purchases` | `purchases` | `purchases.productsv2`, `purchases.subscriptionsv2`, `voidedpurchases` | tested | `gpc purchases product` and `subscription` cover read-only purchase-token status, and `gpc purchases voided list` covers voided purchase reporting. Acknowledge, consume, cancel, and refund remain planned. |
 
 ## Review, Quality, And Feedback

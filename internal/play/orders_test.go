@@ -78,6 +78,54 @@ func TestBatchGetOrdersRejectsInvalidOptions(t *testing.T) {
 	}
 }
 
+func TestRefundOrderDryRunDoesNotRequireRefunder(t *testing.T) {
+	result, err := RefundOrder(context.Background(), nil, OrderRefundOptions{
+		PackageName: "com.example.app",
+		OrderID:     "GPA.123",
+		Revoke:      true,
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("RefundOrder() error = %v", err)
+	}
+	if !result.DryRun || result.Applied {
+		t.Fatalf("result = %#v, want dry-run not applied", result)
+	}
+	if !result.Plan.Revoke || len(result.Plan.Steps) != 2 {
+		t.Fatalf("plan = %#v, want refund and revoke steps", result.Plan)
+	}
+}
+
+func TestRefundOrderAppliesWithConfirm(t *testing.T) {
+	refunder := &fakeOrderRefunder{}
+	result, err := RefundOrder(context.Background(), refunder, OrderRefundOptions{
+		PackageName: "com.example.app",
+		OrderID:     "GPA.123",
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("RefundOrder() error = %v", err)
+	}
+	if !result.Applied || refunder.options.OrderID != "GPA.123" {
+		t.Fatalf("result = %#v options = %#v, want applied refund", result, refunder.options)
+	}
+}
+
+func TestRefundOrderRejectsInvalidOptions(t *testing.T) {
+	tests := []OrderRefundOptions{
+		{},
+		{PackageName: "bad", OrderID: "GPA.123", DryRun: true},
+		{PackageName: "com.example.app", DryRun: true},
+		{PackageName: "com.example.app", OrderID: "GPA.123"},
+	}
+	for _, options := range tests {
+		_, err := RefundOrder(context.Background(), nil, options)
+		if err == nil {
+			t.Fatalf("RefundOrder(%#v) expected validation error", options)
+		}
+	}
+}
+
 type fakeOrderGetter struct {
 	options OrderGetOptions
 	result  OrderGetResult
@@ -96,4 +144,13 @@ type fakeOrderBatchGetter struct {
 func (g *fakeOrderBatchGetter) BatchGetOrders(ctx context.Context, options OrderBatchGetOptions) (OrderBatchGetResult, error) {
 	g.options = options
 	return g.result, nil
+}
+
+type fakeOrderRefunder struct {
+	options OrderRefundOptions
+}
+
+func (r *fakeOrderRefunder) RefundOrder(ctx context.Context, options OrderRefundOptions) error {
+	r.options = options
+	return nil
 }

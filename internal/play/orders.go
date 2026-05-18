@@ -173,6 +173,10 @@ type OrderBatchGetter interface {
 	BatchGetOrders(ctx context.Context, options OrderBatchGetOptions) (OrderBatchGetResult, error)
 }
 
+type OrderRefunder interface {
+	RefundOrder(ctx context.Context, options OrderRefundOptions) error
+}
+
 func GetOrder(ctx context.Context, getter OrderGetter, options OrderGetOptions) (OrderGetResult, error) {
 	if err := options.Validate(); err != nil {
 		return OrderGetResult{}, err
@@ -191,4 +195,85 @@ func BatchGetOrders(ctx context.Context, getter OrderBatchGetter, options OrderB
 		return OrderBatchGetResult{}, fmt.Errorf("order batch getter is required")
 	}
 	return getter.BatchGetOrders(ctx, options)
+}
+
+type OrderRefundOptions struct {
+	PackageName PackageName `json:"packageName"`
+	OrderID     OrderID     `json:"orderId"`
+	Revoke      bool        `json:"revoke"`
+	Confirm     bool        `json:"confirm"`
+	DryRun      bool        `json:"dryRun"`
+}
+
+func (o OrderRefundOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if err := o.OrderID.Validate(); err != nil {
+		return err
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("order refund requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+type OrderRefundPlan struct {
+	PackageName PackageName `json:"packageName"`
+	OrderID     OrderID     `json:"orderId"`
+	Revoke      bool        `json:"revoke"`
+	Confirm     bool        `json:"confirm"`
+	Steps       []string    `json:"steps"`
+}
+
+type OrderRefundResult struct {
+	PackageName PackageName     `json:"packageName"`
+	OrderID     OrderID         `json:"orderId"`
+	Revoke      bool            `json:"revoke"`
+	DryRun      bool            `json:"dryRun"`
+	Applied     bool            `json:"applied"`
+	Plan        OrderRefundPlan `json:"plan"`
+}
+
+func NewOrderRefundPlan(options OrderRefundOptions) (OrderRefundPlan, error) {
+	if err := options.Validate(); err != nil {
+		return OrderRefundPlan{}, err
+	}
+	steps := []string{"refund order"}
+	if options.Revoke {
+		steps = append(steps, "revoke purchased item")
+	}
+	return OrderRefundPlan{
+		PackageName: options.PackageName,
+		OrderID:     options.OrderID,
+		Revoke:      options.Revoke,
+		Confirm:     options.Confirm,
+		Steps:       steps,
+	}, nil
+}
+
+func RefundOrder(ctx context.Context, refunder OrderRefunder, options OrderRefundOptions) (OrderRefundResult, error) {
+	plan, err := NewOrderRefundPlan(options)
+	if err != nil {
+		return OrderRefundResult{}, err
+	}
+	result := OrderRefundResult{
+		PackageName: options.PackageName,
+		OrderID:     options.OrderID,
+		Revoke:      options.Revoke,
+		DryRun:      options.DryRun,
+		Applied:     false,
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if refunder == nil {
+		return OrderRefundResult{}, fmt.Errorf("order refunder is required")
+	}
+	if err := refunder.RefundOrder(ctx, options); err != nil {
+		return OrderRefundResult{}, err
+	}
+	result.Applied = true
+	return result, nil
 }
