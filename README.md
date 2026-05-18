@@ -32,6 +32,20 @@ gpc releases upload --package com.example.app --aab ./app-release.aab --track in
 gpc releases promote --package com.example.app --from internal --to production
 ```
 
+### First Publish Flow
+
+```sh
+gpc publish internal \
+  --package com.example.app \
+  --aab ./app-release.aab \
+  --release-name "1.2.3" \
+  --dry-run \
+  --output json \
+  --pretty
+```
+
+Remove `--dry-run` to validate the edit against Google Play. Add `--confirm` to commit the edit after validation.
+
 ## Output
 
 `gpc` defaults to table output in an interactive terminal and JSON when stdout is piped. Override it with:

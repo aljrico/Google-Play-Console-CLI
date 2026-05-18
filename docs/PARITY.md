@@ -37,7 +37,7 @@ Sources:
 | `builds` | `artifacts` / `releases upload` | `edits.apks`, `edits.bundles`, `generatedapks` | planned | First vertical slice should upload AAB/APK through an edit. |
 | `build-bundles` | `bundles` | `edits.bundles`, `generatedapks` | planned | Android App Bundles are first-class in Play. |
 | `release` | `release` | `edits`, `edits.tracks`, `applications.tracks.releases` | planned | High-level workflow should insert edit, upload artifact, update track, validate or commit. |
-| `publish` | `publish` | `edits`, `edits.tracks` | planned | Canonical CI command for upload-and-track assignment. |
+| `publish` | `publish` | `edits`, `edits.tracks` | implemented | `gpc publish internal` supports AAB upload planning and live validate/commit flow. |
 | `status` | `status` | `applications.tracks.releases`, `edits.tracks` | planned | Should summarize active releases by track. |
 | `submit` | `publish` / `release` | `edits.commit`, `edits.validate` | planned | Play submission is mainly committing an edit and release track changes. |
 | `validate` | `validate` | `edits.validate` | planned | Should dry-run an edit before commit. |

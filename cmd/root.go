@@ -41,6 +41,7 @@ func newRootCommand(out io.Writer) *cobra.Command {
 		newAppsCommand(out),
 		newTracksCommand(out),
 		newReleasesCommand(out),
+		newPublishCommand(out),
 	)
 
 	return cmd
