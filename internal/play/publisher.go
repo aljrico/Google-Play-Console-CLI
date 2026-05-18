@@ -272,6 +272,21 @@ func (p GooglePublisher) ListSubscriptionOffers(ctx context.Context, options Sub
 	return subscriptionOfferListResultFromAPI(options, response), nil
 }
 
+func (p GooglePublisher) ListUsers(ctx context.Context, options UserListOptions) (UserListResult, error) {
+	call := p.service.Users.List(options.Developer.ResourceName()).Context(ctx)
+	if options.PageSize != 0 {
+		call.PageSize(options.PageSize)
+	}
+	if options.PageToken != "" {
+		call.PageToken(options.PageToken)
+	}
+	response, err := call.Do()
+	if err != nil {
+		return UserListResult{}, fmt.Errorf("list users for %s: %w", options.Developer.ResourceName(), err)
+	}
+	return userListResultFromAPI(options.Developer, response), nil
+}
+
 func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName PackageName, productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, offerID SubscriptionOfferID) (SubscriptionOffer, error) {
 	offer, err := p.service.Monetization.Subscriptions.BasePlans.Offers.Get(
 		packageName.String(),
@@ -1129,6 +1144,51 @@ func subscriptionOfferTargetingScopeFromAPI(apiScope *androidpublisher.Targeting
 		ThisSubscription:          apiScope.ThisSubscription != nil,
 		SpecificSubscriptionInApp: apiScope.SpecificSubscriptionInApp,
 	}
+}
+
+func userListResultFromAPI(developer DeveloperAccount, response *androidpublisher.ListUsersResponse) UserListResult {
+	result := UserListResult{Developer: developer, Users: []User{}}
+	if response == nil {
+		return result
+	}
+	result.NextPageToken = response.NextPageToken
+	for _, apiUser := range response.Users {
+		if apiUser == nil {
+			continue
+		}
+		result.Users = append(result.Users, userFromAPI(apiUser))
+	}
+	return result
+}
+
+func userFromAPI(apiUser *androidpublisher.User) User {
+	if apiUser == nil {
+		return User{Grants: []UserGrant{}}
+	}
+	return User{
+		Name:                        apiUser.Name,
+		Email:                       apiUser.Email,
+		AccessState:                 apiUser.AccessState,
+		ExpirationTime:              apiUser.ExpirationTime,
+		DeveloperAccountPermissions: apiUser.DeveloperAccountPermissions,
+		Partial:                     apiUser.Partial,
+		Grants:                      userGrantsFromAPI(apiUser.Grants),
+	}
+}
+
+func userGrantsFromAPI(apiGrants []*androidpublisher.Grant) []UserGrant {
+	grants := make([]UserGrant, 0, len(apiGrants))
+	for _, apiGrant := range apiGrants {
+		if apiGrant == nil {
+			continue
+		}
+		grants = append(grants, UserGrant{
+			Name:                apiGrant.Name,
+			PackageName:         apiGrant.PackageName,
+			AppLevelPermissions: apiGrant.AppLevelPermissions,
+		})
+	}
+	return grants
 }
 
 func productPurchaseFromAPI(options ProductPurchaseOptions, apiPurchase *androidpublisher.ProductPurchaseV2) ProductPurchase {

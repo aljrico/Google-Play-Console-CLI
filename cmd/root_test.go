@@ -217,6 +217,52 @@ func TestValidateRejectsInvalidPackageBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestUsersListRejectsMissingDeveloperBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"users",
+		"list",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected developer validation error")
+	}
+	if !strings.Contains(err.Error(), "developer account") {
+		t.Fatalf("error = %v, want developer validation", err)
+	}
+}
+
+func TestUsersListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"users",
+		"list",
+		"--developer",
+		"1234567890",
+		"--page-size",
+		"-2",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected page size validation error")
+	}
+	if !strings.Contains(err.Error(), "page size") {
+		t.Fatalf("error = %v, want page size validation", err)
+	}
+}
+
 func TestPublishInternalDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

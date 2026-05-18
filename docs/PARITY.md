@@ -103,8 +103,8 @@ Sources:
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `account` | `account` | Partial | planned | Account health is likely a mix of API-backed checks and local auth checks. |
-| `users` | `users` | `users` | planned | Play supports user management. |
-| `actors` | `users` / `grants` | `users`, `grants` | planned | API keys and users differ from App Store Connect actors. |
+| `users` | `users` | `users` | tested | `gpc users list` covers read-only developer account user inspection with pagination. Mutations remain planned. |
+| `actors` | `users` / `grants` | `users`, `grants` | tested | `gpc users list` exposes account users and embedded per-app grants; direct grant management remains planned. |
 | `agreements` | N/A | N/A | blocked | Play agreement state may not be exposed through public APIs. |
 | `grants` | `grants` | `grants` | planned | Google-specific access grants. |
 

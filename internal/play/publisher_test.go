@@ -714,6 +714,59 @@ func TestListVoidedPurchasesSendsExpectedQueryParams(t *testing.T) {
 	}
 }
 
+func TestListUsersSendsExpectedQueryParams(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/developers/1234567890/users" {
+			t.Fatalf("path = %q, want users endpoint", r.URL.Path)
+		}
+		query := r.URL.Query()
+		assertQueryValue(t, query, "pageSize", "25")
+		assertQueryValue(t, query, "pageToken", "page")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"nextPageToken": "next",
+			"users": [
+				{
+					"name": "developers/1234567890/users/user@example.com",
+					"email": "user@example.com",
+					"accessState": "ACCESS_GRANTED",
+					"developerAccountPermissions": ["CAN_VIEW_NON_FINANCIAL_DATA_GLOBAL"],
+					"partial": true,
+					"grants": [
+						{
+							"name": "developers/1234567890/users/user@example.com/grants/com.example.app",
+							"packageName": "com.example.app",
+							"appLevelPermissions": ["CAN_REPLY_TO_REVIEWS"]
+						}
+					]
+				}
+			]
+		}`))
+	}))
+
+	result, err := publisher.ListUsers(context.Background(), UserListOptions{
+		Developer: "1234567890",
+		PageSize:  25,
+		PageToken: "page",
+	})
+	if err != nil {
+		t.Fatalf("ListUsers() error = %v", err)
+	}
+	if result.NextPageToken != "next" {
+		t.Fatalf("NextPageToken = %q, want next", result.NextPageToken)
+	}
+	if len(result.Users) != 1 {
+		t.Fatalf("len(Users) = %d, want 1", len(result.Users))
+	}
+	user := result.Users[0]
+	if user.Email != "user@example.com" || !user.Partial {
+		t.Fatalf("user = %#v, want partial user@example.com", user)
+	}
+	if len(user.Grants) != 1 || user.Grants[0].PackageName != "com.example.app" {
+		t.Fatalf("grants = %#v, want com.example.app grant", user.Grants)
+	}
+}
+
 func TestVoidedPurchaseListResultFromAPIMapsPurchasesAndPagination(t *testing.T) {
 	result := voidedPurchaseListResultFromAPI(VoidedPurchaseListOptions{
 		PackageName:                       "com.example.app",

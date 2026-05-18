@@ -53,6 +53,7 @@ gpc subscription-offers get --package com.example.app --product-id premium_month
 gpc purchases product --package com.example.app --token PURCHASE_TOKEN
 gpc purchases subscription --package com.example.app --token PURCHASE_TOKEN
 gpc purchases voided list --package com.example.app --max-results 25
+gpc users list --developer 1234567890
 ```
 
 Review APIs follow Google Play's limits: list responses are recent reviews with comments, reply text is capped at 350 characters, and live replies require a service account with review-reply access.

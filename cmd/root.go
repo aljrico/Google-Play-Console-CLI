@@ -53,6 +53,7 @@ func newRootCommand(out io.Writer) *cobra.Command {
 		newSubscriptionsCommand(out, options),
 		newSubscriptionOffersCommand(out, options),
 		newPurchasesCommand(out, options),
+		newUsersCommand(out, options),
 	)
 
 	return cmd
