@@ -51,6 +51,40 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSaveUsesPrivatePermissions(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "nested", "config.json")
+	t.Setenv("GPC_CONFIG", configPath)
+
+	store := Store{
+		ActiveProfile: "default",
+		Profiles: map[string]Profile{
+			"default": {
+				Name:               "default",
+				ServiceAccountFile: "/tmp/service-account.json",
+			},
+		},
+	}
+	if err := Save(store); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	dirInfo, err := os.Stat(filepath.Dir(configPath))
+	if err != nil {
+		t.Fatalf("Stat(config dir) error = %v", err)
+	}
+	if got := dirInfo.Mode().Perm(); got != 0o700 {
+		t.Fatalf("config dir perm = %o, want 700", got)
+	}
+
+	fileInfo, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatalf("Stat(config file) error = %v", err)
+	}
+	if got := fileInfo.Mode().Perm(); got != 0o600 {
+		t.Fatalf("config file perm = %o, want 600", got)
+	}
+}
+
 func TestLoadCorruptConfigIncludesPath(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	t.Setenv("GPC_CONFIG", configPath)
