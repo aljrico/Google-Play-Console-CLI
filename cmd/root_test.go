@@ -908,7 +908,6 @@ func TestDataSafetyUpdateDryRunDoesNotRequireAuth(t *testing.T) {
 
 func TestDataSafetyUpdateRequiresConfirmBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
-	csvPath := writeRootTestFile(t, "data-safety.csv")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -918,7 +917,7 @@ func TestDataSafetyUpdateRequiresConfirmBeforeAuth(t *testing.T) {
 		"--package",
 		"com.example.app",
 		"--csv",
-		csvPath,
+		t.TempDir() + "/missing.csv",
 		"--output",
 		"json",
 	})

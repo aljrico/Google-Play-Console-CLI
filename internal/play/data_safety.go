@@ -14,14 +14,21 @@ type DataSafetyUpdateOptions struct {
 }
 
 func (o DataSafetyUpdateOptions) Validate() error {
+	if err := o.ValidateRequest(); err != nil {
+		return err
+	}
+	if o.SafetyLabels == "" {
+		return fmt.Errorf("data safety CSV content is required")
+	}
+	return nil
+}
+
+func (o DataSafetyUpdateOptions) ValidateRequest() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
 	}
 	if o.CSVPath == "" {
 		return fmt.Errorf("data safety CSV path is required")
-	}
-	if o.SafetyLabels == "" {
-		return fmt.Errorf("data safety CSV content is required")
 	}
 	if !o.DryRun && !o.Confirm {
 		return fmt.Errorf("data safety update requires --confirm or --dry-run")

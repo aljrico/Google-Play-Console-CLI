@@ -37,6 +37,15 @@ func newDataSafetyUpdateCommand(out io.Writer, options *globalOptions, packageNa
 			if err != nil {
 				return err
 			}
+			requestOptions := play.DataSafetyUpdateOptions{
+				PackageName: typedPackageName,
+				CSVPath:     csvPath,
+				Confirm:     confirm,
+				DryRun:      dryRun,
+			}
+			if err := requestOptions.ValidateRequest(); err != nil {
+				return err
+			}
 			if err := play.ValidateReadableFile(csvPath); err != nil {
 				return err
 			}
