@@ -748,12 +748,13 @@ func subscriptionFromAPI(apiSubscription *androidpublisher.Subscription) Subscri
 		return Subscription{Listings: []SubscriptionListing{}, BasePlans: []SubscriptionBasePlan{}}
 	}
 	return Subscription{
-		PackageName:         PackageName(apiSubscription.PackageName),
-		ProductID:           SubscriptionProductID(apiSubscription.ProductId),
-		Archived:            apiSubscription.Archived,
-		Listings:            subscriptionListingsFromAPI(apiSubscription.Listings),
-		BasePlans:           subscriptionBasePlansFromAPI(apiSubscription.BasePlans),
-		RestrictedCountries: restrictedCountriesFromAPI(apiSubscription.RestrictedPaymentCountries),
+		PackageName:              PackageName(apiSubscription.PackageName),
+		ProductID:                SubscriptionProductID(apiSubscription.ProductId),
+		Archived:                 apiSubscription.Archived,
+		Listings:                 subscriptionListingsFromAPI(apiSubscription.Listings),
+		BasePlans:                subscriptionBasePlansFromAPI(apiSubscription.BasePlans),
+		RestrictedCountries:      restrictedCountriesFromAPI(apiSubscription.RestrictedPaymentCountries),
+		TaxAndComplianceSettings: subscriptionTaxComplianceSettingsFromAPI(apiSubscription.TaxAndComplianceSettings),
 	}
 }
 
@@ -786,10 +787,11 @@ func subscriptionBasePlansFromAPI(apiBasePlans []*androidpublisher.BasePlan) []S
 
 func subscriptionBasePlanFromAPI(apiBasePlan *androidpublisher.BasePlan) SubscriptionBasePlan {
 	basePlan := SubscriptionBasePlan{
-		BasePlanID:          apiBasePlan.BasePlanId,
-		State:               SubscriptionState(apiBasePlan.State),
-		OfferTags:           offerTagsFromAPI(apiBasePlan.OfferTags),
-		RegionalConfigCount: len(apiBasePlan.RegionalConfigs),
+		BasePlanID:         apiBasePlan.BasePlanId,
+		State:              SubscriptionState(apiBasePlan.State),
+		OfferTags:          offerTagsFromAPI(apiBasePlan.OfferTags),
+		RegionalConfigs:    subscriptionRegionalConfigsFromAPI(apiBasePlan.RegionalConfigs),
+		OtherRegionsConfig: subscriptionOtherRegionsConfigFromAPI(apiBasePlan.OtherRegionsConfig),
 	}
 	switch {
 	case apiBasePlan.AutoRenewingBasePlanType != nil:
@@ -798,16 +800,64 @@ func subscriptionBasePlanFromAPI(apiBasePlan *androidpublisher.BasePlan) Subscri
 		basePlan.GracePeriodDuration = apiBasePlan.AutoRenewingBasePlanType.GracePeriodDuration
 		basePlan.AccountHoldDuration = apiBasePlan.AutoRenewingBasePlanType.AccountHoldDuration
 		basePlan.LegacyCompatible = apiBasePlan.AutoRenewingBasePlanType.LegacyCompatible
+		basePlan.LegacyCompatibleSubscriptionOfferID = apiBasePlan.AutoRenewingBasePlanType.LegacyCompatibleSubscriptionOfferId
+		basePlan.ProrationMode = apiBasePlan.AutoRenewingBasePlanType.ProrationMode
+		basePlan.ResubscribeState = apiBasePlan.AutoRenewingBasePlanType.ResubscribeState
 	case apiBasePlan.PrepaidBasePlanType != nil:
 		basePlan.Type = SubscriptionBasePlanTypePrepaid
 		basePlan.BillingPeriodDuration = apiBasePlan.PrepaidBasePlanType.BillingPeriodDuration
+		basePlan.TimeExtension = apiBasePlan.PrepaidBasePlanType.TimeExtension
 	case apiBasePlan.InstallmentsBasePlanType != nil:
 		basePlan.Type = SubscriptionBasePlanTypeInstallments
 		basePlan.BillingPeriodDuration = apiBasePlan.InstallmentsBasePlanType.BillingPeriodDuration
 		basePlan.GracePeriodDuration = apiBasePlan.InstallmentsBasePlanType.GracePeriodDuration
 		basePlan.AccountHoldDuration = apiBasePlan.InstallmentsBasePlanType.AccountHoldDuration
+		basePlan.CommittedPaymentsCount = apiBasePlan.InstallmentsBasePlanType.CommittedPaymentsCount
+		basePlan.ProrationMode = apiBasePlan.InstallmentsBasePlanType.ProrationMode
+		basePlan.RenewalType = apiBasePlan.InstallmentsBasePlanType.RenewalType
+		basePlan.ResubscribeState = apiBasePlan.InstallmentsBasePlanType.ResubscribeState
 	}
 	return basePlan
+}
+
+func subscriptionRegionalConfigsFromAPI(apiConfigs []*androidpublisher.RegionalBasePlanConfig) []SubscriptionRegionalConfig {
+	if len(apiConfigs) == 0 {
+		return nil
+	}
+	configs := make([]SubscriptionRegionalConfig, 0, len(apiConfigs))
+	for _, apiConfig := range apiConfigs {
+		if apiConfig == nil {
+			continue
+		}
+		configs = append(configs, SubscriptionRegionalConfig{
+			RegionCode:                apiConfig.RegionCode,
+			NewSubscriberAvailability: apiConfig.NewSubscriberAvailability,
+			Price:                     moneyFromAPI(apiConfig.Price),
+		})
+	}
+	return configs
+}
+
+func subscriptionOtherRegionsConfigFromAPI(apiConfig *androidpublisher.OtherRegionsBasePlanConfig) *SubscriptionOtherRegionsConfig {
+	if apiConfig == nil {
+		return nil
+	}
+	return &SubscriptionOtherRegionsConfig{
+		NewSubscriberAvailability: apiConfig.NewSubscriberAvailability,
+		USDPrice:                  moneyFromAPI(apiConfig.UsdPrice),
+		EURPrice:                  moneyFromAPI(apiConfig.EurPrice),
+	}
+}
+
+func moneyFromAPI(apiMoney *androidpublisher.Money) *Money {
+	if apiMoney == nil {
+		return nil
+	}
+	return &Money{
+		CurrencyCode: apiMoney.CurrencyCode,
+		Units:        apiMoney.Units,
+		Nanos:        apiMoney.Nanos,
+	}
 }
 
 func offerTagsFromAPI(apiOfferTags []*androidpublisher.OfferTag) []string {

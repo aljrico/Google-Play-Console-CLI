@@ -67,24 +67,50 @@ type SubscriptionListing struct {
 }
 
 type SubscriptionBasePlan struct {
-	BasePlanID            string                   `json:"basePlanId"`
-	State                 SubscriptionState        `json:"state,omitempty"`
-	Type                  SubscriptionBasePlanType `json:"type,omitempty"`
-	BillingPeriodDuration string                   `json:"billingPeriodDuration,omitempty"`
-	GracePeriodDuration   string                   `json:"gracePeriodDuration,omitempty"`
-	AccountHoldDuration   string                   `json:"accountHoldDuration,omitempty"`
-	LegacyCompatible      bool                     `json:"legacyCompatible,omitempty"`
-	OfferTags             []string                 `json:"offerTags,omitempty"`
-	RegionalConfigCount   int                      `json:"regionalConfigCount,omitempty"`
+	BasePlanID                          string                          `json:"basePlanId"`
+	State                               SubscriptionState               `json:"state,omitempty"`
+	Type                                SubscriptionBasePlanType        `json:"type,omitempty"`
+	BillingPeriodDuration               string                          `json:"billingPeriodDuration,omitempty"`
+	GracePeriodDuration                 string                          `json:"gracePeriodDuration,omitempty"`
+	AccountHoldDuration                 string                          `json:"accountHoldDuration,omitempty"`
+	LegacyCompatible                    bool                            `json:"legacyCompatible,omitempty"`
+	LegacyCompatibleSubscriptionOfferID string                          `json:"legacyCompatibleSubscriptionOfferId,omitempty"`
+	ProrationMode                       string                          `json:"prorationMode,omitempty"`
+	ResubscribeState                    string                          `json:"resubscribeState,omitempty"`
+	TimeExtension                       string                          `json:"timeExtension,omitempty"`
+	CommittedPaymentsCount              int64                           `json:"committedPaymentsCount,omitempty"`
+	RenewalType                         string                          `json:"renewalType,omitempty"`
+	OfferTags                           []string                        `json:"offerTags,omitempty"`
+	RegionalConfigs                     []SubscriptionRegionalConfig    `json:"regionalConfigs,omitempty"`
+	OtherRegionsConfig                  *SubscriptionOtherRegionsConfig `json:"otherRegionsConfig,omitempty"`
+}
+
+type SubscriptionRegionalConfig struct {
+	RegionCode                string `json:"regionCode"`
+	NewSubscriberAvailability bool   `json:"newSubscriberAvailability,omitempty"`
+	Price                     *Money `json:"price,omitempty"`
+}
+
+type SubscriptionOtherRegionsConfig struct {
+	NewSubscriberAvailability bool   `json:"newSubscriberAvailability,omitempty"`
+	USDPrice                  *Money `json:"usdPrice,omitempty"`
+	EURPrice                  *Money `json:"eurPrice,omitempty"`
+}
+
+type Money struct {
+	CurrencyCode string `json:"currencyCode,omitempty"`
+	Units        int64  `json:"units,omitempty"`
+	Nanos        int64  `json:"nanos,omitempty"`
 }
 
 type Subscription struct {
-	PackageName         PackageName            `json:"packageName"`
-	ProductID           SubscriptionProductID  `json:"productId"`
-	Archived            bool                   `json:"archived,omitempty"`
-	Listings            []SubscriptionListing  `json:"listings"`
-	BasePlans           []SubscriptionBasePlan `json:"basePlans"`
-	RestrictedCountries []string               `json:"restrictedCountries,omitempty"`
+	PackageName              PackageName                   `json:"packageName"`
+	ProductID                SubscriptionProductID         `json:"productId"`
+	Archived                 bool                          `json:"archived,omitempty"`
+	Listings                 []SubscriptionListing         `json:"listings"`
+	BasePlans                []SubscriptionBasePlan        `json:"basePlans"`
+	RestrictedCountries      []string                      `json:"restrictedCountries,omitempty"`
+	TaxAndComplianceSettings *ProductTaxComplianceSettings `json:"taxAndComplianceSettings,omitempty"`
 }
 
 type SubscriptionListOptions struct {

@@ -80,7 +80,8 @@ Sources:
 | --- | --- | --- | --- | --- |
 | `iap` | `in-app-products` | `inappproducts` | tested | `gpc in-app-products list` and `get` cover read-only legacy catalog inspection. Mutations remain planned. |
 | `iap` | `one-time-products` | `monetization.onetimeproducts` | planned | Modern one-time product resources have separate endpoints and pagination semantics. |
-| `subscriptions` | `subscriptions` | `monetization.subscriptions`, `basePlans`, `offers` | tested | `gpc subscriptions list` and `get` cover read-only subscriptions and base plans. Offers and mutations remain planned. |
+| `subscriptions` | `subscriptions` | `monetization.subscriptions`, `basePlans` | tested | `gpc subscriptions list` and `get` cover read-only subscriptions and embedded base plans. Mutations remain planned. |
+| `subscriptions` | `subscription-offers` | `monetization.subscriptions.basePlans.offers` | planned | Offers have a separate API surface and are not covered by `gpc subscriptions` yet. |
 | `pricing` | `pricing` | `monetization.convertRegionPrices`, product/subscription pricing APIs | planned | App pricing and IAP pricing may need separate commands. |
 | `finance` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |
 | `analytics` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |

@@ -246,24 +246,49 @@ func TestSubscriptionFromAPIMapsListingsAndBasePlans(t *testing.T) {
 				BasePlanId: "monthly",
 				State:      "ACTIVE",
 				AutoRenewingBasePlanType: &androidpublisher.AutoRenewingBasePlanType{
-					BillingPeriodDuration: "P1M",
-					GracePeriodDuration:   "P7D",
-					AccountHoldDuration:   "P30D",
-					LegacyCompatible:      true,
+					BillingPeriodDuration:               "P1M",
+					GracePeriodDuration:                 "P7D",
+					AccountHoldDuration:                 "P30D",
+					LegacyCompatible:                    true,
+					LegacyCompatibleSubscriptionOfferId: "intro",
+					ProrationMode:                       "SUBSCRIPTION_PRORATION_MODE_CHARGE_ON_NEXT_BILLING_DATE",
+					ResubscribeState:                    "RESUBSCRIBE_STATE_ACTIVE",
 				},
 				OfferTags: []*androidpublisher.OfferTag{{Tag: "public"}},
 				RegionalConfigs: []*androidpublisher.RegionalBasePlanConfig{
-					{RegionCode: "US"},
+					{
+						RegionCode:                "US",
+						NewSubscriberAvailability: true,
+						Price:                     &androidpublisher.Money{CurrencyCode: "USD", Units: 9, Nanos: 990000000},
+					},
+				},
+				OtherRegionsConfig: &androidpublisher.OtherRegionsBasePlanConfig{
+					NewSubscriberAvailability: true,
+					UsdPrice:                  &androidpublisher.Money{CurrencyCode: "USD", Units: 9, Nanos: 990000000},
+					EurPrice:                  &androidpublisher.Money{CurrencyCode: "EUR", Units: 8, Nanos: 990000000},
 				},
 			},
 			{
 				BasePlanId:          "prepaid",
 				State:               "DRAFT",
-				PrepaidBasePlanType: &androidpublisher.PrepaidBasePlanType{BillingPeriodDuration: "P1M"},
+				PrepaidBasePlanType: &androidpublisher.PrepaidBasePlanType{BillingPeriodDuration: "P1M", TimeExtension: "TIME_EXTENSION_ACTIVE"},
+			},
+			{
+				BasePlanId: "installments",
+				State:      "ACTIVE",
+				InstallmentsBasePlanType: &androidpublisher.InstallmentsBasePlanType{
+					BillingPeriodDuration:  "P1M",
+					CommittedPaymentsCount: 12,
+					RenewalType:            "RENEWAL_TYPE_RENEWS_WITHOUT_COMMITMENT",
+				},
 			},
 		},
 		RestrictedPaymentCountries: &androidpublisher.RestrictedPaymentCountries{
 			RegionCodes: []string{"BR", "IN"},
+		},
+		TaxAndComplianceSettings: &androidpublisher.SubscriptionTaxAndComplianceSettings{
+			EeaWithdrawalRightType:  "WITHDRAWAL_RIGHT_SERVICE",
+			IsTokenizedDigitalAsset: true,
 		},
 	})
 
@@ -273,8 +298,8 @@ func TestSubscriptionFromAPIMapsListingsAndBasePlans(t *testing.T) {
 	if len(subscription.Listings) != 1 || subscription.Listings[0].Title != "Premium" {
 		t.Fatalf("Listings = %#v, want Premium listing", subscription.Listings)
 	}
-	if len(subscription.BasePlans) != 2 {
-		t.Fatalf("len(BasePlans) = %d, want 2", len(subscription.BasePlans))
+	if len(subscription.BasePlans) != 3 {
+		t.Fatalf("len(BasePlans) = %d, want 3", len(subscription.BasePlans))
 	}
 	if subscription.BasePlans[0].Type != SubscriptionBasePlanTypeAutoRenewing {
 		t.Fatalf("first base plan type = %q, want autoRenewing", subscription.BasePlans[0].Type)
@@ -285,14 +310,35 @@ func TestSubscriptionFromAPIMapsListingsAndBasePlans(t *testing.T) {
 	if subscription.BasePlans[0].OfferTags[0] != "public" {
 		t.Fatalf("OfferTags = %#v, want public", subscription.BasePlans[0].OfferTags)
 	}
-	if subscription.BasePlans[0].RegionalConfigCount != 1 {
-		t.Fatalf("RegionalConfigCount = %d, want 1", subscription.BasePlans[0].RegionalConfigCount)
+	if len(subscription.BasePlans[0].RegionalConfigs) != 1 {
+		t.Fatalf("RegionalConfigs = %#v, want 1 config", subscription.BasePlans[0].RegionalConfigs)
+	}
+	if subscription.BasePlans[0].RegionalConfigs[0].Price == nil || subscription.BasePlans[0].RegionalConfigs[0].Price.CurrencyCode != "USD" {
+		t.Fatalf("RegionalConfigs = %#v, want USD price", subscription.BasePlans[0].RegionalConfigs)
+	}
+	if subscription.BasePlans[0].OtherRegionsConfig == nil || subscription.BasePlans[0].OtherRegionsConfig.USDPrice.Units != 9 {
+		t.Fatalf("OtherRegionsConfig = %#v, want USD price", subscription.BasePlans[0].OtherRegionsConfig)
+	}
+	if subscription.BasePlans[0].LegacyCompatibleSubscriptionOfferID != "intro" {
+		t.Fatalf("LegacyCompatibleSubscriptionOfferID = %q, want intro", subscription.BasePlans[0].LegacyCompatibleSubscriptionOfferID)
 	}
 	if subscription.BasePlans[1].Type != SubscriptionBasePlanTypePrepaid {
 		t.Fatalf("second base plan type = %q, want prepaid", subscription.BasePlans[1].Type)
 	}
+	if subscription.BasePlans[1].TimeExtension != "TIME_EXTENSION_ACTIVE" {
+		t.Fatalf("TimeExtension = %q, want TIME_EXTENSION_ACTIVE", subscription.BasePlans[1].TimeExtension)
+	}
+	if subscription.BasePlans[2].Type != SubscriptionBasePlanTypeInstallments {
+		t.Fatalf("third base plan type = %q, want installments", subscription.BasePlans[2].Type)
+	}
+	if subscription.BasePlans[2].CommittedPaymentsCount != 12 {
+		t.Fatalf("CommittedPaymentsCount = %d, want 12", subscription.BasePlans[2].CommittedPaymentsCount)
+	}
 	if len(subscription.RestrictedCountries) != 2 {
 		t.Fatalf("RestrictedCountries = %#v, want two countries", subscription.RestrictedCountries)
+	}
+	if subscription.TaxAndComplianceSettings == nil || !subscription.TaxAndComplianceSettings.IsTokenizedDigitalAsset {
+		t.Fatalf("TaxAndComplianceSettings = %#v, want tokenized settings", subscription.TaxAndComplianceSettings)
 	}
 }
 
