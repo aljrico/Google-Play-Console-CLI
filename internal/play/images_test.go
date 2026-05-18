@@ -121,6 +121,9 @@ func TestDeleteImagesDryRunDoesNotRequireDeleter(t *testing.T) {
 	if result.Plan.ImageID != "image-1" || result.Plan.All {
 		t.Fatalf("plan = %#v, want single image deletion", result.Plan)
 	}
+	if result.Deleted == nil || len(result.Deleted) != 0 {
+		t.Fatalf("deleted = %#v, want stable empty list", result.Deleted)
+	}
 }
 
 func TestDeleteAllImagesCommitsWithConfirm(t *testing.T) {

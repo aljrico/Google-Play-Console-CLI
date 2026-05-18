@@ -1090,6 +1090,34 @@ func TestImagesListRejectsInvalidTypeBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestImagesListRejectsMissingTypeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"images",
+		"list",
+		"--package",
+		"com.example.app",
+		"--language",
+		"en-US",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected image type validation error")
+	}
+	if !strings.Contains(err.Error(), "image type is required") {
+		t.Fatalf("error = %v, want missing image type validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestImagesUploadDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

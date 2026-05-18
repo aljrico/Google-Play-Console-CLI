@@ -22,6 +22,9 @@ const (
 )
 
 func NewImageType(value string) (ImageType, error) {
+	if value == "" {
+		return "", fmt.Errorf("image type is required")
+	}
 	imageType := ImageType(value)
 	switch imageType {
 	case ImageTypeFeatureGraphic,
@@ -349,7 +352,7 @@ type ImageDeleteResult struct {
 	DryRun      bool            `json:"dryRun"`
 	Committed   bool            `json:"committed"`
 	Edit        *Edit           `json:"edit,omitempty"`
-	Deleted     []StoreImage    `json:"deleted,omitempty"`
+	Deleted     []StoreImage    `json:"deleted"`
 	Plan        ImageDeletePlan `json:"plan"`
 }
 
@@ -395,6 +398,7 @@ func DeleteImages(ctx context.Context, deleter ImageDeleter, options ImageDelete
 		All:         options.All,
 		DryRun:      options.DryRun,
 		Committed:   false,
+		Deleted:     []StoreImage{},
 		Plan:        plan,
 	}
 	if options.DryRun {

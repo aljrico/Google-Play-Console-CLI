@@ -207,8 +207,8 @@ func (p GooglePublisher) UploadImage(ctx context.Context, packageName PackageNam
 	if err != nil {
 		return StoreImage{}, fmt.Errorf("upload %s image %s for %s %s listing: %w", imageType, path, packageName, language, err)
 	}
-	if response == nil {
-		return StoreImage{}, nil
+	if response == nil || response.Image == nil {
+		return StoreImage{}, fmt.Errorf("upload %s image %s for %s %s listing produced no image; verify the listing language is supported", imageType, path, packageName, language)
 	}
 	return imageFromAPI(response.Image), nil
 }

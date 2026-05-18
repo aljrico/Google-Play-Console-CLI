@@ -254,6 +254,21 @@ func TestUploadImageUsesListingImageUploadEndpoint(t *testing.T) {
 	}
 }
 
+func TestUploadImageRejectsNoOpResponse(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+
+	_, err := publisher.UploadImage(context.Background(), "com.example.app", "edit-123", "en-US", ImageTypeFeatureGraphic, writeTestFile(t, "feature.png"))
+	if err == nil {
+		t.Fatal("expected no-op upload error")
+	}
+	if !strings.Contains(err.Error(), "produced no image") {
+		t.Fatalf("error = %v, want no-op upload context", err)
+	}
+}
+
 func TestDeleteImageUsesListingImageEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/edits/edit-123/listings/en-US/phoneScreenshots/image-1" {
