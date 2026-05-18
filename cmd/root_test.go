@@ -317,6 +317,29 @@ func TestInternalSharingUploadRejectsMissingArtifactBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestAppRecoveryListRejectsMissingVersionCodeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"app-recovery",
+		"list",
+		"--package",
+		"com.example.app",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected version code validation error")
+	}
+	if !strings.Contains(err.Error(), "version code") {
+		t.Fatalf("error = %v, want version code validation", err)
+	}
+}
+
 func TestPublishInternalDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

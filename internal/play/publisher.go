@@ -321,6 +321,17 @@ func (p GooglePublisher) ListUsers(ctx context.Context, options UserListOptions)
 	return userListResultFromAPI(options.Developer, response), nil
 }
 
+func (p GooglePublisher) ListAppRecoveries(ctx context.Context, options AppRecoveryListOptions) (AppRecoveryListResult, error) {
+	response, err := p.service.Apprecovery.List(options.PackageName.String()).
+		VersionCode(options.VersionCode).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return AppRecoveryListResult{}, fmt.Errorf("list app recoveries for %s version code %d: %w", options.PackageName, options.VersionCode, err)
+	}
+	return appRecoveryListResultFromAPI(options, response), nil
+}
+
 func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName PackageName, productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, offerID SubscriptionOfferID) (SubscriptionOffer, error) {
 	offer, err := p.service.Monetization.Subscriptions.BasePlans.Offers.Get(
 		packageName.String(),
@@ -1204,6 +1215,31 @@ func internalSharingArtifactFromAPI(apiArtifact *androidpublisher.InternalAppSha
 		DownloadURL:            apiArtifact.DownloadUrl,
 		SHA256:                 apiArtifact.Sha256,
 	}
+}
+
+func appRecoveryListResultFromAPI(options AppRecoveryListOptions, response *androidpublisher.ListAppRecoveriesResponse) AppRecoveryListResult {
+	result := AppRecoveryListResult{
+		PackageName: options.PackageName,
+		VersionCode: options.VersionCode,
+		Actions:     []AppRecoveryAction{},
+	}
+	if response == nil {
+		return result
+	}
+	for _, apiAction := range response.RecoveryActions {
+		if apiAction == nil {
+			continue
+		}
+		result.Actions = append(result.Actions, AppRecoveryAction{
+			ID:             apiAction.AppRecoveryId,
+			Status:         apiAction.Status,
+			CreateTime:     apiAction.CreateTime,
+			DeployTime:     apiAction.DeployTime,
+			CancelTime:     apiAction.CancelTime,
+			LastUpdateTime: apiAction.LastUpdateTime,
+		})
+	}
+	return result
 }
 
 func userFromAPI(apiUser *androidpublisher.User) User {

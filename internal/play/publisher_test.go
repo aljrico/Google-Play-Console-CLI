@@ -788,6 +788,40 @@ func TestListUsersSendsExpectedQueryParams(t *testing.T) {
 	}
 }
 
+func TestListAppRecoveriesSendsVersionCode(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/appRecoveries" {
+			t.Fatalf("path = %q, want app recoveries endpoint", r.URL.Path)
+		}
+		assertQueryValue(t, r.URL.Query(), "versionCode", "42")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"recoveryActions": [
+				{
+					"appRecoveryId": "7",
+					"status": "RECOVERY_STATUS_ACTIVE",
+					"createTime": "2026-05-18T10:00:00Z",
+					"lastUpdateTime": "2026-05-18T11:00:00Z"
+				}
+			]
+		}`))
+	}))
+
+	result, err := publisher.ListAppRecoveries(context.Background(), AppRecoveryListOptions{
+		PackageName: "com.example.app",
+		VersionCode: 42,
+	})
+	if err != nil {
+		t.Fatalf("ListAppRecoveries() error = %v", err)
+	}
+	if len(result.Actions) != 1 {
+		t.Fatalf("len(Actions) = %d, want 1", len(result.Actions))
+	}
+	if result.Actions[0].ID != 7 || result.Actions[0].Status != "RECOVERY_STATUS_ACTIVE" {
+		t.Fatalf("action = %#v, want active ID 7", result.Actions[0])
+	}
+}
+
 func TestVoidedPurchaseListResultFromAPIMapsPurchasesAndPagination(t *testing.T) {
 	result := voidedPurchaseListResultFromAPI(VoidedPurchaseListOptions{
 		PackageName:                       "com.example.app",

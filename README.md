@@ -39,6 +39,7 @@ gpc releases promote --package com.example.app --from internal --to production -
 gpc releases halt --package com.example.app --track production --version-code 123 --dry-run
 gpc releases resume --package com.example.app --track production --version-code 123 --status inProgress --user-fraction 0.25 --dry-run
 gpc internal-sharing upload --package com.example.app --aab ./app-release.aab --dry-run
+gpc app-recovery list --package com.example.app --version-code 123
 gpc listings update --package com.example.app --language en-US --title "Example" --dry-run
 gpc listings delete --package com.example.app --language en-US --dry-run
 gpc details update --package com.example.app --contact-email support@example.com --dry-run

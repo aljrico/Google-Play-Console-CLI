@@ -52,7 +52,7 @@ Sources:
 | `xcode` | N/A | N/A | not applicable | Local Xcode helpers do not belong in a Play Console CLI. |
 | `xcode-cloud` | N/A | N/A | not applicable | Apple CI service. |
 | `devices` | `device-tier-configs` / `system-apks` | `applications.deviceTierConfigs`, `systemapks.variants` | planned | Android-specific device targeting deserves its own command family. |
-| `apprecovery` | `app-recovery` | `apprecovery` | planned | Google Play has direct app recovery APIs. |
+| `apprecovery` | `app-recovery` | `apprecovery` | tested | `gpc app-recovery list` inspects recovery actions for a package/version code. Create, deploy, cancel, and targeting remain planned. |
 | `internalappsharingartifacts` | `internal-sharing` | `internalappsharingartifacts` | tested | `gpc internal-sharing upload` uploads APKs or AABs to internal app sharing, with dry-run and local file preflight. |
 
 ## Metadata And Store Listing
