@@ -20,9 +20,8 @@ type globalOptions struct {
 	pretty bool
 }
 
-var opts globalOptions
-
 func newRootCommand(out io.Writer) *cobra.Command {
+	options := &globalOptions{}
 	cmd := &cobra.Command{
 		Use:           "gpc",
 		Short:         "Fast, scriptable CLI for the Google Play Developer API",
@@ -30,18 +29,18 @@ func newRootCommand(out io.Writer) *cobra.Command {
 		SilenceErrors: true,
 	}
 
-	cmd.PersistentFlags().VarP(&opts.output, "output", "o", "Output format: json, table, markdown")
-	cmd.PersistentFlags().BoolVar(&opts.pretty, "pretty", false, "Pretty-print JSON output")
+	cmd.PersistentFlags().VarP(&options.output, "output", "o", "Output format: json, table, markdown")
+	cmd.PersistentFlags().BoolVar(&options.pretty, "pretty", false, "Pretty-print JSON output")
 	cmd.SetOut(out)
 	cmd.SetErr(out)
 
 	cmd.AddCommand(
-		newVersionCommand(out),
-		newAuthCommand(out),
+		newVersionCommand(out, options),
+		newAuthCommand(out, options),
 		newAppsCommand(out),
-		newTracksCommand(out),
-		newReleasesCommand(out),
-		newPublishCommand(out),
+		newTracksCommand(out, options),
+		newReleasesCommand(out, options),
+		newPublishCommand(out, options),
 	)
 
 	return cmd

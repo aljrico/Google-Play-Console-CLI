@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -33,8 +34,8 @@ func PublishInternal(ctx context.Context, publisher Publisher, options PublishIn
 	shouldDeleteEdit := true
 	defer func() {
 		if shouldDeleteEdit {
-			if cleanupErr := publisher.DeleteEdit(ctx, options.PackageName, edit.ID); cleanupErr != nil && err == nil {
-				err = cleanupErr
+			if cleanupErr := publisher.DeleteEdit(ctx, options.PackageName, edit.ID); cleanupErr != nil {
+				err = errors.Join(err, cleanupErr)
 			}
 		}
 	}()
@@ -48,9 +49,17 @@ func PublishInternal(ctx context.Context, publisher Publisher, options PublishIn
 	release := TrackRelease{
 		Name:         options.ReleaseName,
 		Status:       options.Status,
+		UserFraction: options.UserFraction,
 		VersionCodes: []int64{bundle.VersionCode},
 	}
-	if _, err := publisher.UpdateTrack(ctx, options.PackageName, edit.ID, TrackInternal, release); err != nil {
+
+	tracks, err := publisher.ListTracks(ctx, options.PackageName, edit.ID)
+	if err != nil {
+		return PublishResult{}, err
+	}
+	releases := append(releasesForTrack(tracks, TrackInternal), release)
+	track := Track{Name: TrackInternal, Releases: releases}
+	if _, err := publisher.UpdateTrack(ctx, options.PackageName, edit.ID, track); err != nil {
 		return PublishResult{}, err
 	}
 	if err := publisher.ValidateEdit(ctx, options.PackageName, edit.ID); err != nil {
@@ -68,4 +77,13 @@ func PublishInternal(ctx context.Context, publisher Publisher, options PublishIn
 	result.Edit = &committedEdit
 	result.Committed = true
 	return result, nil
+}
+
+func releasesForTrack(tracks []Track, trackName TrackName) []TrackRelease {
+	for _, track := range tracks {
+		if track.Name == trackName {
+			return append([]TrackRelease{}, track.Releases...)
+		}
+	}
+	return []TrackRelease{}
 }

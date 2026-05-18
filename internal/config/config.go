@@ -36,12 +36,12 @@ func Load() (Store, error) {
 		return Store{Profiles: map[string]Profile{}}, nil
 	}
 	if err != nil {
-		return Store{}, fmt.Errorf("read config: %w", err)
+		return Store{}, fmt.Errorf("read config %s: %w", path, err)
 	}
 
 	var store Store
 	if err := json.Unmarshal(data, &store); err != nil {
-		return Store{}, fmt.Errorf("parse config: %w", err)
+		return Store{}, fmt.Errorf("parse config %s: %w", path, err)
 	}
 	if store.Profiles == nil {
 		store.Profiles = map[string]Profile{}

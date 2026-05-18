@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newReleasesCommand(out io.Writer) *cobra.Command {
+func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	var (
 		packageName string
 		trackName   string
@@ -25,6 +25,7 @@ func newReleasesCommand(out io.Writer) *cobra.Command {
 	cmd.AddCommand(&cobra.Command{
 		Use:   "list",
 		Short: "List releases for a track",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, err := play.NewPackageName(packageName)
 			if err != nil {
@@ -42,12 +43,13 @@ func newReleasesCommand(out io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return output.Write(out, opts.output, opts.pretty, releases)
+			return output.Write(out, options.output, options.pretty, releases)
 		},
 	})
 	cmd.AddCommand(&cobra.Command{
 		Use:   "upload",
 		Short: "Upload an Android App Bundle to a track",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if packageName == "" {
 				return fmt.Errorf("--package is required")

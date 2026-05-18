@@ -3,6 +3,7 @@ package play
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 )
 
 type PackageName string
@@ -11,11 +12,41 @@ func NewPackageName(value string) (PackageName, error) {
 	if value == "" {
 		return "", fmt.Errorf("package name is required")
 	}
+	if !isValidPackageName(value) {
+		return "", fmt.Errorf("invalid Android package name %q", value)
+	}
 	return PackageName(value), nil
 }
 
 func (p PackageName) String() string {
 	return string(p)
+}
+
+func isValidPackageName(value string) bool {
+	segments := strings.Split(value, ".")
+	if len(segments) < 2 {
+		return false
+	}
+	for _, segment := range segments {
+		if segment == "" || !isASCIIAlpha(segment[0]) {
+			return false
+		}
+		for i := 1; i < len(segment); i++ {
+			character := segment[i]
+			if !isASCIIAlpha(character) && !isASCIIDigit(character) && character != '_' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isASCIIAlpha(character byte) bool {
+	return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z')
+}
+
+func isASCIIDigit(character byte) bool {
+	return character >= '0' && character <= '9'
 }
 
 type TrackName string
@@ -81,6 +112,7 @@ type Edit struct {
 type TrackRelease struct {
 	Name         string        `json:"name"`
 	Status       ReleaseStatus `json:"status"`
+	UserFraction *float64      `json:"userFraction,omitempty"`
 	VersionCodes []int64       `json:"versionCodes"`
 }
 
@@ -90,12 +122,13 @@ type Track struct {
 }
 
 type PublishInternalOptions struct {
-	PackageName PackageName   `json:"packageName"`
-	BundlePath  string        `json:"bundlePath"`
-	ReleaseName string        `json:"releaseName"`
-	Status      ReleaseStatus `json:"status"`
-	Confirm     bool          `json:"confirm"`
-	DryRun      bool          `json:"dryRun"`
+	PackageName  PackageName   `json:"packageName"`
+	BundlePath   string        `json:"bundlePath"`
+	ReleaseName  string        `json:"releaseName"`
+	Status       ReleaseStatus `json:"status"`
+	UserFraction *float64      `json:"userFraction,omitempty"`
+	Confirm      bool          `json:"confirm"`
+	DryRun       bool          `json:"dryRun"`
 }
 
 func (o PublishInternalOptions) Validate() error {
@@ -111,18 +144,32 @@ func (o PublishInternalOptions) Validate() error {
 	if _, err := NewReleaseStatus(o.Status.String()); err != nil {
 		return err
 	}
+	switch o.Status {
+	case ReleaseStatusInProgress, ReleaseStatusHalted:
+		if o.UserFraction == nil {
+			return fmt.Errorf("user fraction is required when status is %s", o.Status)
+		}
+		if *o.UserFraction <= 0 || *o.UserFraction >= 1 {
+			return fmt.Errorf("user fraction must be greater than 0 and less than 1")
+		}
+	case ReleaseStatusCompleted, ReleaseStatusDraft:
+		if o.UserFraction != nil {
+			return fmt.Errorf("user fraction can only be set when status is inProgress or halted")
+		}
+	}
 	return nil
 }
 
 type PublishPlan struct {
-	PackageName PackageName   `json:"packageName"`
-	Track       TrackName     `json:"track"`
-	Artifact    ArtifactKind  `json:"artifact"`
-	BundlePath  string        `json:"bundlePath"`
-	ReleaseName string        `json:"releaseName,omitempty"`
-	Status      ReleaseStatus `json:"status"`
-	Confirm     bool          `json:"confirm"`
-	Steps       []string      `json:"steps"`
+	PackageName  PackageName   `json:"packageName"`
+	Track        TrackName     `json:"track"`
+	Artifact     ArtifactKind  `json:"artifact"`
+	BundlePath   string        `json:"bundlePath"`
+	ReleaseName  string        `json:"releaseName,omitempty"`
+	Status       ReleaseStatus `json:"status"`
+	UserFraction *float64      `json:"userFraction,omitempty"`
+	Confirm      bool          `json:"confirm"`
+	Steps        []string      `json:"steps"`
 }
 
 func NewPublishInternalPlan(options PublishInternalOptions) (PublishPlan, error) {
@@ -133,6 +180,7 @@ func NewPublishInternalPlan(options PublishInternalOptions) (PublishPlan, error)
 	steps := []string{
 		"insert edit",
 		"upload Android App Bundle",
+		"list existing internal track releases",
 		"update internal track release",
 		"validate edit",
 	}
@@ -143,14 +191,15 @@ func NewPublishInternalPlan(options PublishInternalOptions) (PublishPlan, error)
 	}
 
 	return PublishPlan{
-		PackageName: options.PackageName,
-		Track:       TrackInternal,
-		Artifact:    ArtifactKindBundle,
-		BundlePath:  options.BundlePath,
-		ReleaseName: options.ReleaseName,
-		Status:      options.Status,
-		Confirm:     options.Confirm,
-		Steps:       steps,
+		PackageName:  options.PackageName,
+		Track:        TrackInternal,
+		Artifact:     ArtifactKindBundle,
+		BundlePath:   options.BundlePath,
+		ReleaseName:  options.ReleaseName,
+		Status:       options.Status,
+		UserFraction: options.UserFraction,
+		Confirm:      options.Confirm,
+		Steps:        steps,
 	}, nil
 }
 

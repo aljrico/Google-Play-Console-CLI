@@ -30,3 +30,56 @@ func TestUnknownOutputFormat(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestVersionRejectsUnexpectedArgs(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{"version", "stray"})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestPublishInternalDryRunRejectsInvalidPackage(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"publish",
+		"internal",
+		"--package",
+		"bad",
+		"--aab",
+		"app-release.aab",
+		"--dry-run",
+	})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestPublishInternalDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"publish",
+		"internal",
+		"--package",
+		"com.example.app",
+		"--aab",
+		"app-release.aab",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(buf.String(), `"dryRun":true`) {
+		t.Fatalf("publish dry-run output = %s", buf.String())
+	}
+}

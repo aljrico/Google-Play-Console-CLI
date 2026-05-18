@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -19,8 +20,8 @@ func ListTracks(ctx context.Context, publisher Publisher, packageName PackageNam
 	}
 
 	defer func() {
-		if cleanupErr := publisher.DeleteEdit(ctx, packageName, edit.ID); cleanupErr != nil && err == nil {
-			err = cleanupErr
+		if cleanupErr := publisher.DeleteEdit(ctx, packageName, edit.ID); cleanupErr != nil {
+			err = errors.Join(err, cleanupErr)
 		}
 	}()
 

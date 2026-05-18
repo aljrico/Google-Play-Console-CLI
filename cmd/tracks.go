@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newTracksCommand(out io.Writer) *cobra.Command {
+func newTracksCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	var packageName string
 
 	cmd := &cobra.Command{
@@ -20,6 +20,7 @@ func newTracksCommand(out io.Writer) *cobra.Command {
 	cmd.AddCommand(&cobra.Command{
 		Use:   "list",
 		Short: "List release tracks",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, err := play.NewPackageName(packageName)
 			if err != nil {
@@ -33,7 +34,7 @@ func newTracksCommand(out io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return output.Write(out, opts.output, opts.pretty, tracks)
+			return output.Write(out, options.output, options.pretty, tracks)
 		},
 	})
 

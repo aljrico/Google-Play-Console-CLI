@@ -13,12 +13,13 @@ type versionInfo struct {
 	Date    string `json:"date"`
 }
 
-func newVersionCommand(out io.Writer) *cobra.Command {
+func newVersionCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print version information",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return output.Write(out, opts.output, opts.pretty, versionInfo{
+			return output.Write(out, options.output, options.pretty, versionInfo{
 				Version: version,
 				Commit:  commit,
 				Date:    date,

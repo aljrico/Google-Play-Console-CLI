@@ -15,7 +15,7 @@ import (
 type Publisher interface {
 	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
 	UploadBundle(ctx context.Context, packageName PackageName, editID string, bundlePath string) (BundleArtifact, error)
-	UpdateTrack(ctx context.Context, packageName PackageName, editID string, track TrackName, release TrackRelease) (Track, error)
+	UpdateTrack(ctx context.Context, packageName PackageName, editID string, track Track) (Track, error)
 	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
 	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
 	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
@@ -72,22 +72,11 @@ func (p GooglePublisher) UploadBundle(ctx context.Context, packageName PackageNa
 	return BundleArtifact{VersionCode: bundle.VersionCode, SHA1: bundle.Sha1, SHA256: bundle.Sha256}, nil
 }
 
-func (p GooglePublisher) UpdateTrack(ctx context.Context, packageName PackageName, editID string, track TrackName, release TrackRelease) (Track, error) {
-	apiTrack := &androidpublisher.Track{
-		Track: track.String(),
-		Releases: []*androidpublisher.TrackRelease{
-			{
-				Name:            release.Name,
-				Status:          release.Status.String(),
-				VersionCodes:    googleapi.Int64s(release.VersionCodes),
-				ForceSendFields: []string{"Status"},
-			},
-		},
-	}
-
-	updatedTrack, err := p.service.Edits.Tracks.Update(packageName.String(), editID, track.String(), apiTrack).Context(ctx).Do()
+func (p GooglePublisher) UpdateTrack(ctx context.Context, packageName PackageName, editID string, track Track) (Track, error) {
+	apiTrack := trackToAPI(track)
+	updatedTrack, err := p.service.Edits.Tracks.Update(packageName.String(), editID, track.Name.String(), apiTrack).Context(ctx).Do()
 	if err != nil {
-		return Track{}, fmt.Errorf("update %s track for %s: %w", track, packageName, err)
+		return Track{}, fmt.Errorf("update %s track for %s: %w", track.Name, packageName, err)
 	}
 	return trackFromAPI(updatedTrack), nil
 }
@@ -137,6 +126,31 @@ func trackFromAPI(apiTrack *androidpublisher.Track) Track {
 	return Track{Name: TrackName(apiTrack.Track), Releases: releases}
 }
 
+func trackToAPI(track Track) *androidpublisher.Track {
+	apiTrack := &androidpublisher.Track{
+		Track:    track.Name.String(),
+		Releases: make([]*androidpublisher.TrackRelease, 0, len(track.Releases)),
+	}
+	for _, release := range track.Releases {
+		apiTrack.Releases = append(apiTrack.Releases, releaseToAPI(release))
+	}
+	return apiTrack
+}
+
+func releaseToAPI(release TrackRelease) *androidpublisher.TrackRelease {
+	apiRelease := &androidpublisher.TrackRelease{
+		Name:            release.Name,
+		Status:          release.Status.String(),
+		VersionCodes:    googleapi.Int64s(release.VersionCodes),
+		ForceSendFields: []string{"Status"},
+	}
+	if release.UserFraction != nil {
+		apiRelease.UserFraction = *release.UserFraction
+		apiRelease.ForceSendFields = append(apiRelease.ForceSendFields, "UserFraction")
+	}
+	return apiRelease
+}
+
 func releaseFromAPI(apiRelease *androidpublisher.TrackRelease) TrackRelease {
 	if apiRelease == nil {
 		return TrackRelease{}
@@ -144,6 +158,15 @@ func releaseFromAPI(apiRelease *androidpublisher.TrackRelease) TrackRelease {
 	return TrackRelease{
 		Name:         apiRelease.Name,
 		Status:       ReleaseStatus(apiRelease.Status),
+		UserFraction: userFractionFromAPI(apiRelease),
 		VersionCodes: []int64(apiRelease.VersionCodes),
 	}
+}
+
+func userFractionFromAPI(apiRelease *androidpublisher.TrackRelease) *float64 {
+	if apiRelease.UserFraction == 0 {
+		return nil
+	}
+	userFraction := apiRelease.UserFraction
+	return &userFraction
 }
