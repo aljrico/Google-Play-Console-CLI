@@ -253,6 +253,38 @@ func (p GooglePublisher) GetSubscription(ctx context.Context, packageName Packag
 	return subscriptionFromAPI(subscription), nil
 }
 
+func (p GooglePublisher) ListSubscriptionOffers(ctx context.Context, options SubscriptionOfferListOptions) (SubscriptionOfferListResult, error) {
+	call := p.service.Monetization.Subscriptions.BasePlans.Offers.List(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.BasePlanID.String(),
+	).Context(ctx)
+	if options.PageSize > 0 {
+		call.PageSize(options.PageSize)
+	}
+	if options.PageToken != "" {
+		call.PageToken(options.PageToken)
+	}
+	response, err := call.Do()
+	if err != nil {
+		return SubscriptionOfferListResult{}, fmt.Errorf("list subscription offers for %s/%s/%s: %w", options.PackageName, options.ProductID, options.BasePlanID, err)
+	}
+	return subscriptionOfferListResultFromAPI(options, response), nil
+}
+
+func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName PackageName, productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, offerID SubscriptionOfferID) (SubscriptionOffer, error) {
+	offer, err := p.service.Monetization.Subscriptions.BasePlans.Offers.Get(
+		packageName.String(),
+		productID.String(),
+		basePlanID.String(),
+		offerID.String(),
+	).Context(ctx).Do()
+	if err != nil {
+		return SubscriptionOffer{}, fmt.Errorf("get subscription offer %s for %s/%s/%s: %w", offerID, packageName, productID, basePlanID, err)
+	}
+	return subscriptionOfferFromAPI(offer), nil
+}
+
 func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName PackageName, editID string, trackName TrackName, release TrackRelease) (Track, error) {
 	apiTrack, err := p.service.Edits.Tracks.Get(packageName.String(), editID, trackName.String()).Context(ctx).Do()
 	if err != nil {
@@ -879,6 +911,166 @@ func restrictedCountriesFromAPI(apiCountries *androidpublisher.RestrictedPayment
 		return nil
 	}
 	return apiCountries.RegionCodes
+}
+
+func subscriptionOfferListResultFromAPI(options SubscriptionOfferListOptions, response *androidpublisher.ListSubscriptionOffersResponse) SubscriptionOfferListResult {
+	result := SubscriptionOfferListResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		BasePlanID:  options.BasePlanID,
+		Offers:      []SubscriptionOffer{},
+		Options:     options,
+	}
+	if response == nil {
+		return result
+	}
+	result.NextPageToken = response.NextPageToken
+	for _, apiOffer := range response.SubscriptionOffers {
+		result.Offers = append(result.Offers, subscriptionOfferFromAPI(apiOffer))
+	}
+	return result
+}
+
+func subscriptionOfferFromAPI(apiOffer *androidpublisher.SubscriptionOffer) SubscriptionOffer {
+	if apiOffer == nil {
+		return SubscriptionOffer{RegionalConfigs: []SubscriptionOfferRegionalConfig{}, Phases: []SubscriptionOfferPhase{}}
+	}
+	return SubscriptionOffer{
+		PackageName:        PackageName(apiOffer.PackageName),
+		ProductID:          SubscriptionProductID(apiOffer.ProductId),
+		BasePlanID:         SubscriptionBasePlanID(apiOffer.BasePlanId),
+		OfferID:            SubscriptionOfferID(apiOffer.OfferId),
+		State:              SubscriptionOfferState(apiOffer.State),
+		OfferTags:          offerTagsFromAPI(apiOffer.OfferTags),
+		RegionalConfigs:    subscriptionOfferRegionalConfigsFromAPI(apiOffer.RegionalConfigs),
+		OtherRegionsConfig: subscriptionOfferOtherRegionsConfigFromAPI(apiOffer.OtherRegionsConfig),
+		Phases:             subscriptionOfferPhasesFromAPI(apiOffer.Phases),
+		Targeting:          subscriptionOfferTargetingFromAPI(apiOffer.Targeting),
+	}
+}
+
+func subscriptionOfferRegionalConfigsFromAPI(apiConfigs []*androidpublisher.RegionalSubscriptionOfferConfig) []SubscriptionOfferRegionalConfig {
+	if len(apiConfigs) == 0 {
+		return nil
+	}
+	configs := make([]SubscriptionOfferRegionalConfig, 0, len(apiConfigs))
+	for _, apiConfig := range apiConfigs {
+		if apiConfig == nil {
+			continue
+		}
+		configs = append(configs, SubscriptionOfferRegionalConfig{
+			RegionCode:                apiConfig.RegionCode,
+			NewSubscriberAvailability: apiConfig.NewSubscriberAvailability,
+		})
+	}
+	return configs
+}
+
+func subscriptionOfferOtherRegionsConfigFromAPI(apiConfig *androidpublisher.OtherRegionsSubscriptionOfferConfig) *SubscriptionOfferOtherRegionsConfig {
+	if apiConfig == nil {
+		return nil
+	}
+	return &SubscriptionOfferOtherRegionsConfig{NewSubscriberAvailability: apiConfig.OtherRegionsNewSubscriberAvailability}
+}
+
+func subscriptionOfferPhasesFromAPI(apiPhases []*androidpublisher.SubscriptionOfferPhase) []SubscriptionOfferPhase {
+	if len(apiPhases) == 0 {
+		return nil
+	}
+	phases := make([]SubscriptionOfferPhase, 0, len(apiPhases))
+	for _, apiPhase := range apiPhases {
+		if apiPhase == nil {
+			continue
+		}
+		phases = append(phases, SubscriptionOfferPhase{
+			Duration:           apiPhase.Duration,
+			RecurrenceCount:    apiPhase.RecurrenceCount,
+			RegionalConfigs:    subscriptionOfferPhaseRegionalConfigsFromAPI(apiPhase.RegionalConfigs),
+			OtherRegionsConfig: subscriptionOfferPhaseOtherRegionsConfigFromAPI(apiPhase.OtherRegionsConfig),
+		})
+	}
+	return phases
+}
+
+func subscriptionOfferPhaseRegionalConfigsFromAPI(apiConfigs []*androidpublisher.RegionalSubscriptionOfferPhaseConfig) []SubscriptionOfferPhaseRegionalConfig {
+	if len(apiConfigs) == 0 {
+		return nil
+	}
+	configs := make([]SubscriptionOfferPhaseRegionalConfig, 0, len(apiConfigs))
+	for _, apiConfig := range apiConfigs {
+		if apiConfig == nil {
+			continue
+		}
+		configs = append(configs, SubscriptionOfferPhaseRegionalConfig{
+			RegionCode:       apiConfig.RegionCode,
+			Price:            moneyFromAPI(apiConfig.Price),
+			AbsoluteDiscount: moneyFromAPI(apiConfig.AbsoluteDiscount),
+			RelativeDiscount: apiConfig.RelativeDiscount,
+			Free:             apiConfig.Free != nil,
+		})
+	}
+	return configs
+}
+
+func subscriptionOfferPhaseOtherRegionsConfigFromAPI(apiConfig *androidpublisher.OtherRegionsSubscriptionOfferPhaseConfig) *SubscriptionOfferPhaseOtherRegionsConfig {
+	if apiConfig == nil {
+		return nil
+	}
+	return &SubscriptionOfferPhaseOtherRegionsConfig{
+		OtherRegionsPrices: otherRegionsSubscriptionOfferPhasePricesFromAPI(apiConfig.OtherRegionsPrices),
+		AbsoluteDiscounts:  otherRegionsSubscriptionOfferPhasePricesFromAPI(apiConfig.AbsoluteDiscounts),
+		RelativeDiscount:   apiConfig.RelativeDiscount,
+		Free:               apiConfig.Free != nil,
+	}
+}
+
+func otherRegionsSubscriptionOfferPhasePricesFromAPI(apiPrices *androidpublisher.OtherRegionsSubscriptionOfferPhasePrices) *SubscriptionOfferOtherRegionsPrices {
+	if apiPrices == nil {
+		return nil
+	}
+	return &SubscriptionOfferOtherRegionsPrices{
+		USDPrice: moneyFromAPI(apiPrices.UsdPrice),
+		EURPrice: moneyFromAPI(apiPrices.EurPrice),
+	}
+}
+
+func subscriptionOfferTargetingFromAPI(apiTargeting *androidpublisher.SubscriptionOfferTargeting) *SubscriptionOfferTargeting {
+	if apiTargeting == nil {
+		return nil
+	}
+	return &SubscriptionOfferTargeting{
+		Acquisition: subscriptionOfferAcquisitionTargetingFromAPI(apiTargeting.AcquisitionRule),
+		Upgrade:     subscriptionOfferUpgradeTargetingFromAPI(apiTargeting.UpgradeRule),
+	}
+}
+
+func subscriptionOfferAcquisitionTargetingFromAPI(apiRule *androidpublisher.AcquisitionTargetingRule) *SubscriptionOfferAcquisitionTargeting {
+	if apiRule == nil {
+		return nil
+	}
+	return &SubscriptionOfferAcquisitionTargeting{Scope: subscriptionOfferTargetingScopeFromAPI(apiRule.Scope)}
+}
+
+func subscriptionOfferUpgradeTargetingFromAPI(apiRule *androidpublisher.UpgradeTargetingRule) *SubscriptionOfferUpgradeTargeting {
+	if apiRule == nil {
+		return nil
+	}
+	return &SubscriptionOfferUpgradeTargeting{
+		Scope:                 subscriptionOfferTargetingScopeFromAPI(apiRule.Scope),
+		BillingPeriodDuration: apiRule.BillingPeriodDuration,
+		OncePerUser:           apiRule.OncePerUser,
+	}
+}
+
+func subscriptionOfferTargetingScopeFromAPI(apiScope *androidpublisher.TargetingRuleScope) *SubscriptionOfferTargetingScope {
+	if apiScope == nil {
+		return nil
+	}
+	return &SubscriptionOfferTargetingScope{
+		AnySubscriptionInApp:      apiScope.AnySubscriptionInApp != nil,
+		ThisSubscription:          apiScope.ThisSubscription != nil,
+		SpecificSubscriptionInApp: apiScope.SpecificSubscriptionInApp,
+	}
 }
 
 func stringPointer(value string) *string {

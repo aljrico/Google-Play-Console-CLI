@@ -363,6 +363,103 @@ func TestSubscriptionListResultFromAPIMapsNextPageToken(t *testing.T) {
 	}
 }
 
+func TestSubscriptionOfferFromAPIMapsCatalogFields(t *testing.T) {
+	offer := subscriptionOfferFromAPI(&androidpublisher.SubscriptionOffer{
+		PackageName: "com.example.app",
+		ProductId:   "premium",
+		BasePlanId:  "monthly",
+		OfferId:     "intro",
+		State:       "ACTIVE",
+		OfferTags:   []*androidpublisher.OfferTag{{Tag: "public"}},
+		RegionalConfigs: []*androidpublisher.RegionalSubscriptionOfferConfig{
+			{RegionCode: "US", NewSubscriberAvailability: true},
+		},
+		OtherRegionsConfig: &androidpublisher.OtherRegionsSubscriptionOfferConfig{OtherRegionsNewSubscriberAvailability: true},
+		Phases: []*androidpublisher.SubscriptionOfferPhase{
+			{
+				Duration:        "P1M",
+				RecurrenceCount: 1,
+				RegionalConfigs: []*androidpublisher.RegionalSubscriptionOfferPhaseConfig{
+					{
+						RegionCode:       "US",
+						AbsoluteDiscount: &androidpublisher.Money{CurrencyCode: "USD", Units: 4, Nanos: 990000000},
+					},
+					{
+						RegionCode: "BR",
+						Free:       &androidpublisher.RegionalSubscriptionOfferPhaseFreePriceOverride{},
+					},
+				},
+				OtherRegionsConfig: &androidpublisher.OtherRegionsSubscriptionOfferPhaseConfig{
+					RelativeDiscount: 0.5,
+				},
+			},
+		},
+		Targeting: &androidpublisher.SubscriptionOfferTargeting{
+			AcquisitionRule: &androidpublisher.AcquisitionTargetingRule{
+				Scope: &androidpublisher.TargetingRuleScope{ThisSubscription: &androidpublisher.TargetingRuleScopeThisSubscription{}},
+			},
+			UpgradeRule: &androidpublisher.UpgradeTargetingRule{
+				BillingPeriodDuration: "P1M",
+				OncePerUser:           true,
+				Scope:                 &androidpublisher.TargetingRuleScope{SpecificSubscriptionInApp: "premium"},
+			},
+		},
+	})
+
+	if offer.OfferID != "intro" {
+		t.Fatalf("OfferID = %q, want intro", offer.OfferID)
+	}
+	if offer.OfferTags[0] != "public" {
+		t.Fatalf("OfferTags = %#v, want public", offer.OfferTags)
+	}
+	if len(offer.RegionalConfigs) != 1 || !offer.RegionalConfigs[0].NewSubscriberAvailability {
+		t.Fatalf("RegionalConfigs = %#v, want available US config", offer.RegionalConfigs)
+	}
+	if offer.OtherRegionsConfig == nil || !offer.OtherRegionsConfig.NewSubscriberAvailability {
+		t.Fatalf("OtherRegionsConfig = %#v, want available other regions", offer.OtherRegionsConfig)
+	}
+	if len(offer.Phases) != 1 || len(offer.Phases[0].RegionalConfigs) != 2 {
+		t.Fatalf("Phases = %#v, want phase configs", offer.Phases)
+	}
+	if offer.Phases[0].RegionalConfigs[0].AbsoluteDiscount == nil || offer.Phases[0].RegionalConfigs[0].AbsoluteDiscount.Units != 4 {
+		t.Fatalf("AbsoluteDiscount = %#v, want four units", offer.Phases[0].RegionalConfigs[0].AbsoluteDiscount)
+	}
+	if !offer.Phases[0].RegionalConfigs[1].Free {
+		t.Fatalf("second regional config = %#v, want free", offer.Phases[0].RegionalConfigs[1])
+	}
+	if offer.Targeting == nil || offer.Targeting.Acquisition.Scope == nil || !offer.Targeting.Acquisition.Scope.ThisSubscription {
+		t.Fatalf("Targeting = %#v, want acquisition this-subscription scope", offer.Targeting)
+	}
+	if offer.Targeting.Upgrade == nil || !offer.Targeting.Upgrade.OncePerUser {
+		t.Fatalf("Upgrade targeting = %#v, want once per user", offer.Targeting.Upgrade)
+	}
+}
+
+func TestSubscriptionOfferListResultFromAPIMapsNextPageToken(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result := subscriptionOfferListResultFromAPI(SubscriptionOfferListOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+	}, &androidpublisher.ListSubscriptionOffersResponse{
+		NextPageToken: "next",
+		SubscriptionOffers: []*androidpublisher.SubscriptionOffer{
+			{PackageName: "com.example.app", ProductId: "premium", BasePlanId: "monthly", OfferId: "intro"},
+		},
+	})
+
+	if len(result.Offers) != 1 {
+		t.Fatalf("len(Offers) = %d, want 1", len(result.Offers))
+	}
+	if result.NextPageToken != "next" {
+		t.Fatalf("NextPageToken = %q, want next", result.NextPageToken)
+	}
+}
+
 func containsField(fields []string, field string) bool {
 	for _, candidate := range fields {
 		if candidate == field {
