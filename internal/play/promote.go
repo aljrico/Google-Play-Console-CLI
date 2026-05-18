@@ -8,19 +8,21 @@ import (
 
 type TrackPromoter interface {
 	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
-	PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, releaseName string) (TrackRelease, error)
+	PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, versionCode int64, status ReleaseStatus, userFraction *float64) (TrackRelease, error)
 	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
 	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
 	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
 }
 
 type PromoteReleaseOptions struct {
-	PackageName PackageName `json:"packageName"`
-	FromTrack   TrackName   `json:"fromTrack"`
-	ToTrack     TrackName   `json:"toTrack"`
-	ReleaseName string      `json:"releaseName,omitempty"`
-	Confirm     bool        `json:"confirm"`
-	DryRun      bool        `json:"dryRun"`
+	PackageName  PackageName   `json:"packageName"`
+	FromTrack    TrackName     `json:"fromTrack"`
+	ToTrack      TrackName     `json:"toTrack"`
+	VersionCode  int64         `json:"versionCode"`
+	Status       ReleaseStatus `json:"status"`
+	UserFraction *float64      `json:"userFraction,omitempty"`
+	Confirm      bool          `json:"confirm"`
+	DryRun       bool          `json:"dryRun"`
 }
 
 func (o PromoteReleaseOptions) Validate() error {
@@ -36,16 +38,37 @@ func (o PromoteReleaseOptions) Validate() error {
 	if o.FromTrack == o.ToTrack {
 		return fmt.Errorf("from track and to track must be different")
 	}
+	if o.VersionCode <= 0 {
+		return fmt.Errorf("version code is required")
+	}
+	if _, err := NewReleaseStatus(o.Status.String()); err != nil {
+		return err
+	}
+	switch o.Status {
+	case ReleaseStatusInProgress, ReleaseStatusHalted:
+		if o.UserFraction == nil {
+			return fmt.Errorf("user fraction is required when status is %s", o.Status)
+		}
+		if *o.UserFraction <= 0 || *o.UserFraction >= 1 {
+			return fmt.Errorf("user fraction must be greater than 0 and less than 1")
+		}
+	case ReleaseStatusCompleted, ReleaseStatusDraft:
+		if o.UserFraction != nil {
+			return fmt.Errorf("user fraction can only be set when status is inProgress or halted")
+		}
+	}
 	return nil
 }
 
 type PromotePlan struct {
-	PackageName PackageName `json:"packageName"`
-	FromTrack   TrackName   `json:"fromTrack"`
-	ToTrack     TrackName   `json:"toTrack"`
-	ReleaseName string      `json:"releaseName,omitempty"`
-	Confirm     bool        `json:"confirm"`
-	Steps       []string    `json:"steps"`
+	PackageName  PackageName   `json:"packageName"`
+	FromTrack    TrackName     `json:"fromTrack"`
+	ToTrack      TrackName     `json:"toTrack"`
+	VersionCode  int64         `json:"versionCode"`
+	Status       ReleaseStatus `json:"status"`
+	UserFraction *float64      `json:"userFraction,omitempty"`
+	Confirm      bool          `json:"confirm"`
+	Steps        []string      `json:"steps"`
 }
 
 func NewPromotePlan(options PromoteReleaseOptions) (PromotePlan, error) {
@@ -56,7 +79,7 @@ func NewPromotePlan(options PromoteReleaseOptions) (PromotePlan, error) {
 	steps := []string{
 		"insert edit",
 		fmt.Sprintf("read %s track", options.FromTrack),
-		fmt.Sprintf("append release to %s track", options.ToTrack),
+		fmt.Sprintf("copy version code %d to %s track as %s", options.VersionCode, options.ToTrack, options.Status),
 		"validate edit",
 	}
 	if options.Confirm {
@@ -66,12 +89,14 @@ func NewPromotePlan(options PromoteReleaseOptions) (PromotePlan, error) {
 	}
 
 	return PromotePlan{
-		PackageName: options.PackageName,
-		FromTrack:   options.FromTrack,
-		ToTrack:     options.ToTrack,
-		ReleaseName: options.ReleaseName,
-		Confirm:     options.Confirm,
-		Steps:       steps,
+		PackageName:  options.PackageName,
+		FromTrack:    options.FromTrack,
+		ToTrack:      options.ToTrack,
+		VersionCode:  options.VersionCode,
+		Status:       options.Status,
+		UserFraction: options.UserFraction,
+		Confirm:      options.Confirm,
+		Steps:        steps,
 	}, nil
 }
 
@@ -123,7 +148,7 @@ func PromoteRelease(ctx context.Context, promoter TrackPromoter, options Promote
 		}
 	}()
 
-	release, err := promoter.PromoteTrackRelease(ctx, options.PackageName, edit.ID, options.FromTrack, options.ToTrack, options.ReleaseName)
+	release, err := promoter.PromoteTrackRelease(ctx, options.PackageName, edit.ID, options.FromTrack, options.ToTrack, options.VersionCode, options.Status, options.UserFraction)
 	if err != nil {
 		return PromoteResult{}, err
 	}

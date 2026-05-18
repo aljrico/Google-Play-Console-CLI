@@ -125,6 +125,8 @@ func TestReleasesPromoteDryRun(t *testing.T) {
 		"internal",
 		"--to",
 		"production",
+		"--version-code",
+		"42",
 		"--dry-run",
 		"--output",
 		"json",

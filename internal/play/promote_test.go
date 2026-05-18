@@ -16,6 +16,8 @@ func TestPromoteReleaseDryRunDoesNotRequirePromoter(t *testing.T) {
 		PackageName: packageName,
 		FromTrack:   TrackInternal,
 		ToTrack:     TrackProduction,
+		VersionCode: 42,
+		Status:      ReleaseStatusDraft,
 		DryRun:      true,
 	})
 	if err != nil {
@@ -36,6 +38,8 @@ func TestPromoteReleaseRejectsSameTrack(t *testing.T) {
 		PackageName: packageName,
 		FromTrack:   TrackInternal,
 		ToTrack:     TrackInternal,
+		VersionCode: 42,
+		Status:      ReleaseStatusDraft,
 	})
 	if err == nil {
 		t.Fatal("expected same-track error")
@@ -53,6 +57,8 @@ func TestPromoteReleaseValidatesAndCleansUpWithoutConfirm(t *testing.T) {
 		PackageName: packageName,
 		FromTrack:   TrackInternal,
 		ToTrack:     TrackProduction,
+		VersionCode: 42,
+		Status:      ReleaseStatusDraft,
 	})
 	if err != nil {
 		t.Fatalf("PromoteRelease() error = %v", err)
@@ -78,6 +84,8 @@ func TestPromoteReleaseCommitsWithConfirm(t *testing.T) {
 		PackageName: packageName,
 		FromTrack:   TrackInternal,
 		ToTrack:     TrackProduction,
+		VersionCode: 42,
+		Status:      ReleaseStatusDraft,
 		Confirm:     true,
 	})
 	if err != nil {
@@ -93,6 +101,41 @@ func TestPromoteReleaseCommitsWithConfirm(t *testing.T) {
 	}
 }
 
+func TestPromoteReleaseRequiresVersionCode(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewPromotePlan(PromoteReleaseOptions{
+		PackageName: packageName,
+		FromTrack:   TrackInternal,
+		ToTrack:     TrackProduction,
+		Status:      ReleaseStatusDraft,
+	})
+	if err == nil {
+		t.Fatal("expected version-code error")
+	}
+}
+
+func TestPromoteReleaseRequiresUserFractionForStagedTarget(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewPromotePlan(PromoteReleaseOptions{
+		PackageName: packageName,
+		FromTrack:   TrackInternal,
+		ToTrack:     TrackProduction,
+		VersionCode: 42,
+		Status:      ReleaseStatusInProgress,
+	})
+	if err == nil {
+		t.Fatal("expected user-fraction error")
+	}
+}
+
 type fakePromoter struct {
 	calls []string
 }
@@ -102,9 +145,9 @@ func (p *fakePromoter) InsertEdit(ctx context.Context, packageName PackageName) 
 	return Edit{ID: "edit-123"}, nil
 }
 
-func (p *fakePromoter) PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, releaseName string) (TrackRelease, error) {
+func (p *fakePromoter) PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, versionCode int64, status ReleaseStatus, userFraction *float64) (TrackRelease, error) {
 	p.calls = append(p.calls, "promote")
-	return TrackRelease{Name: releaseName, Status: ReleaseStatusCompleted, VersionCodes: []int64{42}}, nil
+	return TrackRelease{Status: status, VersionCodes: []int64{versionCode}}, nil
 }
 
 func (p *fakePromoter) ValidateEdit(ctx context.Context, packageName PackageName, editID string) error {

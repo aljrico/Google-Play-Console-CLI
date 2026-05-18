@@ -123,14 +123,24 @@ func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName Pac
 	return trackFromAPI(updatedTrack), nil
 }
 
-func (p GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, releaseName string) (TrackRelease, error) {
+func (p GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, versionCode int64, status ReleaseStatus, userFraction *float64) (TrackRelease, error) {
 	source, err := p.service.Edits.Tracks.Get(packageName.String(), editID, sourceTrack.String()).Context(ctx).Do()
 	if err != nil {
 		return TrackRelease{}, fmt.Errorf("get %s track for %s: %w", sourceTrack, packageName, err)
 	}
-	apiRelease, err := selectRelease(source, releaseName)
+	apiRelease, err := selectReleaseByVersionCode(source, versionCode)
 	if err != nil {
 		return TrackRelease{}, err
+	}
+	apiRelease.Status = status.String()
+	apiRelease.UserFraction = 0
+	apiRelease.ForceSendFields = append(apiRelease.ForceSendFields, "Status")
+	apiRelease.NullFields = removeField(apiRelease.NullFields, "UserFraction")
+	if userFraction == nil {
+		apiRelease.ForceSendFields = removeField(apiRelease.ForceSendFields, "UserFraction")
+	} else {
+		apiRelease.UserFraction = *userFraction
+		apiRelease.ForceSendFields = append(apiRelease.ForceSendFields, "UserFraction")
 	}
 
 	target, err := p.service.Edits.Tracks.Get(packageName.String(), editID, targetTrack.String()).Context(ctx).Do()
@@ -185,19 +195,38 @@ func releaseToAPI(release TrackRelease) *androidpublisher.TrackRelease {
 	return apiRelease
 }
 
-func selectRelease(track *androidpublisher.Track, releaseName string) (*androidpublisher.TrackRelease, error) {
+func selectReleaseByVersionCode(track *androidpublisher.Track, versionCode int64) (*androidpublisher.TrackRelease, error) {
 	if track == nil || len(track.Releases) == 0 {
 		return nil, fmt.Errorf("source track has no releases")
 	}
-	if releaseName == "" {
-		return track.Releases[len(track.Releases)-1], nil
-	}
 	for _, release := range track.Releases {
-		if release.Name == releaseName {
+		if hasVersionCode(release, versionCode) {
 			return release, nil
 		}
 	}
-	return nil, fmt.Errorf("release %q not found in source track", releaseName)
+	return nil, fmt.Errorf("version code %d not found in source track", versionCode)
+}
+
+func hasVersionCode(release *androidpublisher.TrackRelease, versionCode int64) bool {
+	if release == nil {
+		return false
+	}
+	for _, candidate := range release.VersionCodes {
+		if candidate == versionCode {
+			return true
+		}
+	}
+	return false
+}
+
+func removeField(fields []string, field string) []string {
+	result := fields[:0]
+	for _, candidate := range fields {
+		if candidate != field {
+			result = append(result, candidate)
+		}
+	}
+	return result
 }
 
 func releaseFromAPI(apiRelease *androidpublisher.TrackRelease) TrackRelease {

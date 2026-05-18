@@ -18,6 +18,7 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 		userFraction float64
 		fromTrack    string
 		toTrack      string
+		versionCode  int64
 		confirm      bool
 		dryRun       bool
 	)
@@ -28,8 +29,7 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	}
 
 	cmd.PersistentFlags().StringVar(&packageName, "package", "", "Android package name, for example com.example.app")
-	cmd.PersistentFlags().StringVar(&trackName, "track", play.TrackInternal.String(), "Track name, for example internal, alpha, beta, or production")
-	cmd.AddCommand(&cobra.Command{
+	listCommand := &cobra.Command{
 		Use:   "list",
 		Short: "List releases for a track",
 		Args:  cobra.NoArgs,
@@ -52,7 +52,9 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 			}
 			return output.Write(out, options.output, options.pretty, releases)
 		},
-	})
+	}
+	listCommand.Flags().StringVar(&trackName, "track", play.TrackInternal.String(), "Track name, for example internal, alpha, beta, or production")
+	cmd.AddCommand(listCommand)
 	uploadCommand := &cobra.Command{
 		Use:   "upload",
 		Short: "Upload an Android App Bundle to a track",
@@ -104,6 +106,7 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	}
 
 	uploadCommand.Flags().StringVar(&bundlePath, "aab", "", "Path to the Android App Bundle to upload")
+	uploadCommand.Flags().StringVar(&trackName, "track", play.TrackInternal.String(), "Track name, for example internal, alpha, beta, or production")
 	uploadCommand.Flags().StringVar(&releaseName, "release-name", "", "Release name shown in Play Console")
 	uploadCommand.Flags().StringVar(&status, "status", play.ReleaseStatusCompleted.String(), "Release status: completed, draft, halted, inProgress")
 	uploadCommand.Flags().Float64Var(&userFraction, "user-fraction", 0, "Staged rollout fraction for inProgress or halted releases")
@@ -128,14 +131,22 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			typedStatus, err := play.NewReleaseStatus(status)
+			if err != nil {
+				return err
+			}
 
 			promoteOptions := play.PromoteReleaseOptions{
 				PackageName: typedPackageName,
 				FromTrack:   typedFromTrack,
 				ToTrack:     typedToTrack,
-				ReleaseName: releaseName,
+				VersionCode: versionCode,
+				Status:      typedStatus,
 				Confirm:     confirm,
 				DryRun:      dryRun,
+			}
+			if cmd.Flags().Changed("user-fraction") {
+				promoteOptions.UserFraction = &userFraction
 			}
 			if dryRun {
 				result, err := play.PromoteRelease(cmd.Context(), nil, promoteOptions)
@@ -158,7 +169,9 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	}
 	promoteCommand.Flags().StringVar(&fromTrack, "from", play.TrackInternal.String(), "Source track name")
 	promoteCommand.Flags().StringVar(&toTrack, "to", play.TrackProduction.String(), "Target track name")
-	promoteCommand.Flags().StringVar(&releaseName, "release-name", "", "Release name to promote; defaults to the latest release in the source track")
+	promoteCommand.Flags().Int64Var(&versionCode, "version-code", 0, "Version code to promote")
+	promoteCommand.Flags().StringVar(&status, "status", play.ReleaseStatusDraft.String(), "Target release status: completed, draft, halted, inProgress")
+	promoteCommand.Flags().Float64Var(&userFraction, "user-fraction", 0, "Staged rollout fraction for inProgress or halted releases")
 	promoteCommand.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
 	promoteCommand.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned promotion workflow without calling Google Play")
 	cmd.AddCommand(promoteCommand)
