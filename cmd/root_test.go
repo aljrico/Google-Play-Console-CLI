@@ -109,6 +109,9 @@ func TestReleasesUploadDryRunUsesRequestedTrack(t *testing.T) {
 	if !strings.Contains(buf.String(), `"track":"beta"`) {
 		t.Fatalf("release upload dry-run output = %s", buf.String())
 	}
+	if !strings.Contains(buf.String(), `"status":"completed"`) {
+		t.Fatalf("release upload dry-run output = %s", buf.String())
+	}
 }
 
 func TestReleasesPromoteDryRun(t *testing.T) {
@@ -181,6 +184,8 @@ func TestReleasesResumeDryRun(t *testing.T) {
 		"production",
 		"--version-code",
 		"42",
+		"--status",
+		"inProgress",
 		"--user-fraction",
 		"0.25",
 		"--dry-run",

@@ -41,6 +41,7 @@ type RolloutOptions struct {
 	Track        TrackName     `json:"track"`
 	VersionCode  int64         `json:"versionCode"`
 	Action       RolloutAction `json:"action"`
+	Status       ReleaseStatus `json:"status,omitempty"`
 	UserFraction *float64      `json:"userFraction,omitempty"`
 	Confirm      bool          `json:"confirm"`
 	DryRun       bool          `json:"dryRun"`
@@ -58,15 +59,29 @@ func (o RolloutOptions) Validate() error {
 	}
 	switch o.Action {
 	case RolloutActionHalt:
-		if o.UserFraction != nil {
-			return fmt.Errorf("user fraction cannot be set when halting a release")
+		if o.Status != "" && o.Status != ReleaseStatusHalted {
+			return fmt.Errorf("halt status must be %s", ReleaseStatusHalted)
+		}
+		if o.UserFraction != nil && (*o.UserFraction <= 0 || *o.UserFraction >= 1) {
+			return fmt.Errorf("user fraction must be greater than 0 and less than 1")
 		}
 	case RolloutActionResume:
-		if o.UserFraction == nil {
-			return fmt.Errorf("user fraction is required when resuming a release")
-		}
-		if *o.UserFraction <= 0 || *o.UserFraction >= 1 {
-			return fmt.Errorf("user fraction must be greater than 0 and less than 1")
+		switch o.Status {
+		case ReleaseStatusInProgress:
+			if o.UserFraction == nil {
+				return fmt.Errorf("user fraction is required when resuming a release to %s", ReleaseStatusInProgress)
+			}
+			if *o.UserFraction <= 0 || *o.UserFraction >= 1 {
+				return fmt.Errorf("user fraction must be greater than 0 and less than 1")
+			}
+		case ReleaseStatusCompleted:
+			if o.UserFraction != nil {
+				return fmt.Errorf("user fraction can only be set when resuming to %s", ReleaseStatusInProgress)
+			}
+		case "":
+			return fmt.Errorf("status is required when resuming a release")
+		default:
+			return fmt.Errorf("resume status must be %s or %s", ReleaseStatusInProgress, ReleaseStatusCompleted)
 		}
 	default:
 		return fmt.Errorf("unsupported rollout action %q", o.Action)
@@ -78,7 +93,7 @@ func (o RolloutOptions) targetStatus() ReleaseStatus {
 	if o.Action == RolloutActionHalt {
 		return ReleaseStatusHalted
 	}
-	return ReleaseStatusInProgress
+	return o.Status
 }
 
 type RolloutPlan struct {

@@ -154,11 +154,15 @@ func (o PublishInternalOptions) Validate() error {
 		return err
 	}
 	switch o.Status {
-	case ReleaseStatusInProgress, ReleaseStatusHalted:
+	case ReleaseStatusInProgress:
 		if o.UserFraction == nil {
 			return fmt.Errorf("user fraction is required when status is %s", o.Status)
 		}
 		if *o.UserFraction <= 0 || *o.UserFraction >= 1 {
+			return fmt.Errorf("user fraction must be greater than 0 and less than 1")
+		}
+	case ReleaseStatusHalted:
+		if o.UserFraction != nil && (*o.UserFraction <= 0 || *o.UserFraction >= 1) {
 			return fmt.Errorf("user fraction must be greater than 0 and less than 1")
 		}
 	case ReleaseStatusCompleted, ReleaseStatusDraft:

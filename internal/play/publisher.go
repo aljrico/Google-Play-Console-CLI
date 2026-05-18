@@ -121,7 +121,7 @@ func (p GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName Pa
 	}
 	apiRelease, err := selectReleaseByVersionCode(source, versionCode)
 	if err != nil {
-		return TrackRelease{}, err
+		return TrackRelease{}, fmt.Errorf("find version code %d on %s track for %s: %w", versionCode, sourceTrack, packageName, err)
 	}
 	setReleaseStatus(apiRelease, status, userFraction)
 
@@ -148,7 +148,7 @@ func (p GooglePublisher) UpdateTrackReleaseStatus(ctx context.Context, packageNa
 	}
 	apiRelease, err := selectReleaseByVersionCode(apiTrack, versionCode)
 	if err != nil {
-		return TrackRelease{}, err
+		return TrackRelease{}, fmt.Errorf("find version code %d on %s track for %s: %w", versionCode, trackName, packageName, err)
 	}
 	setReleaseStatus(apiRelease, status, userFraction)
 
@@ -185,14 +185,14 @@ func releaseToAPI(release TrackRelease) *androidpublisher.TrackRelease {
 
 func selectReleaseByVersionCode(track *androidpublisher.Track, versionCode int64) (*androidpublisher.TrackRelease, error) {
 	if track == nil || len(track.Releases) == 0 {
-		return nil, fmt.Errorf("source track has no releases")
+		return nil, fmt.Errorf("track has no releases")
 	}
 	for _, release := range track.Releases {
 		if hasVersionCode(release, versionCode) {
 			return release, nil
 		}
 	}
-	return nil, fmt.Errorf("version code %d not found in source track", versionCode)
+	return nil, fmt.Errorf("version code not found")
 }
 
 func hasVersionCode(release *androidpublisher.TrackRelease, versionCode int64) bool {

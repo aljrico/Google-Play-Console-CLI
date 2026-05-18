@@ -27,7 +27,7 @@ func TestUpdateRolloutHaltDryRunDoesNotRequireController(t *testing.T) {
 	}
 }
 
-func TestUpdateRolloutResumeRequiresUserFraction(t *testing.T) {
+func TestUpdateRolloutResumeRequiresStatus(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
 		t.Fatalf("NewPackageName() error = %v", err)
@@ -38,6 +38,24 @@ func TestUpdateRolloutResumeRequiresUserFraction(t *testing.T) {
 		Track:       TrackProduction,
 		VersionCode: 42,
 		Action:      RolloutActionResume,
+	})
+	if err == nil {
+		t.Fatal("expected status error")
+	}
+}
+
+func TestUpdateRolloutResumeRequiresUserFractionForInProgress(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewRolloutPlan(RolloutOptions{
+		PackageName: packageName,
+		Track:       TrackProduction,
+		VersionCode: 42,
+		Action:      RolloutActionResume,
+		Status:      ReleaseStatusInProgress,
 	})
 	if err == nil {
 		t.Fatal("expected user-fraction error")
@@ -82,6 +100,7 @@ func TestUpdateRolloutCommitsWithConfirm(t *testing.T) {
 		Track:        TrackProduction,
 		VersionCode:  42,
 		Action:       RolloutActionResume,
+		Status:       ReleaseStatusInProgress,
 		UserFraction: &userFraction,
 		Confirm:      true,
 	})
@@ -97,6 +116,27 @@ func TestUpdateRolloutCommitsWithConfirm(t *testing.T) {
 	wantCalls := []string{"insert", "update-status", "validate", "commit"}
 	if !reflect.DeepEqual(controller.calls, wantCalls) {
 		t.Fatalf("calls = %#v, want %#v", controller.calls, wantCalls)
+	}
+}
+
+func TestUpdateRolloutCanResumeToCompleted(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	plan, err := NewRolloutPlan(RolloutOptions{
+		PackageName: packageName,
+		Track:       TrackProduction,
+		VersionCode: 42,
+		Action:      RolloutActionResume,
+		Status:      ReleaseStatusCompleted,
+	})
+	if err != nil {
+		t.Fatalf("NewRolloutPlan() error = %v", err)
+	}
+	if plan.Status != ReleaseStatusCompleted {
+		t.Fatalf("Status = %q, want %q", plan.Status, ReleaseStatusCompleted)
 	}
 }
 

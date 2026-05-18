@@ -32,7 +32,7 @@ gpc releases list --package com.example.app --track internal
 gpc releases upload --package com.example.app --track internal --aab ./app-release.aab --dry-run
 gpc releases promote --package com.example.app --from internal --to production --version-code 123 --status draft --dry-run
 gpc releases halt --package com.example.app --track production --version-code 123 --dry-run
-gpc releases resume --package com.example.app --track production --version-code 123 --user-fraction 0.25 --dry-run
+gpc releases resume --package com.example.app --track production --version-code 123 --status inProgress --user-fraction 0.25 --dry-run
 ```
 
 ### First Publish Flow
@@ -61,6 +61,6 @@ gpc version --output markdown
 
 ## Status
 
-Early but functional. Auth/profile storage, the command taxonomy, `tracks list`, `releases list`, and the first API-backed publish workflow are in place.
+Early but functional. Auth/profile storage, the command taxonomy, `tracks list`, `releases list`, and core release workflows for upload, promote, halt, resume, and internal publishing are in place.
 
 See [docs/PARITY.md](docs/PARITY.md) for the working parity map against App Store Connect CLI.

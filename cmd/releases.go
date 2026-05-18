@@ -10,33 +10,32 @@ import (
 )
 
 func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
-	var (
-		packageName  string
-		trackName    string
-		bundlePath   string
-		releaseName  string
-		status       string
-		userFraction float64
-		fromTrack    string
-		toTrack      string
-		versionCode  int64
-		rolloutTrack string
-		confirm      bool
-		dryRun       bool
-	)
+	var packageName string
 
 	cmd := &cobra.Command{
 		Use:   "releases",
 		Short: "Upload and manage Google Play releases",
 	}
-
 	cmd.PersistentFlags().StringVar(&packageName, "package", "", "Android package name, for example com.example.app")
-	listCommand := &cobra.Command{
+	cmd.AddCommand(
+		newReleasesListCommand(out, options, &packageName),
+		newReleasesUploadCommand(out, options, &packageName),
+		newReleasesPromoteCommand(out, options, &packageName),
+		newReleasesHaltCommand(out, options, &packageName),
+		newReleasesResumeCommand(out, options, &packageName),
+	)
+	return cmd
+}
+
+func newReleasesListCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var trackName string
+
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List releases for a track",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			typedPackageName, err := play.NewPackageName(packageName)
+			typedPackageName, err := play.NewPackageName(*packageName)
 			if err != nil {
 				return err
 			}
@@ -55,14 +54,27 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 			return output.Write(out, options.output, options.pretty, releases)
 		},
 	}
-	listCommand.Flags().StringVar(&trackName, "track", play.TrackInternal.String(), "Track name, for example internal, alpha, beta, or production")
-	cmd.AddCommand(listCommand)
-	uploadCommand := &cobra.Command{
+	cmd.Flags().StringVar(&trackName, "track", play.TrackInternal.String(), "Track name, for example internal, alpha, beta, or production")
+	return cmd
+}
+
+func newReleasesUploadCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		trackName    string
+		bundlePath   string
+		releaseName  string
+		status       string
+		userFraction float64
+		confirm      bool
+		dryRun       bool
+	)
+
+	cmd := &cobra.Command{
 		Use:   "upload",
 		Short: "Upload an Android App Bundle to a track",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			typedPackageName, err := play.NewPackageName(packageName)
+			typedPackageName, err := play.NewPackageName(*packageName)
 			if err != nil {
 				return err
 			}
@@ -107,21 +119,33 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 		},
 	}
 
-	uploadCommand.Flags().StringVar(&bundlePath, "aab", "", "Path to the Android App Bundle to upload")
-	uploadCommand.Flags().StringVar(&trackName, "track", play.TrackInternal.String(), "Track name, for example internal, alpha, beta, or production")
-	uploadCommand.Flags().StringVar(&releaseName, "release-name", "", "Release name shown in Play Console")
-	uploadCommand.Flags().StringVar(&status, "status", play.ReleaseStatusCompleted.String(), "Release status: completed, draft, halted, inProgress")
-	uploadCommand.Flags().Float64Var(&userFraction, "user-fraction", 0, "Staged rollout fraction for inProgress or halted releases")
-	uploadCommand.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
-	uploadCommand.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned release upload workflow without calling Google Play")
-	cmd.AddCommand(uploadCommand)
+	cmd.Flags().StringVar(&bundlePath, "aab", "", "Path to the Android App Bundle to upload")
+	cmd.Flags().StringVar(&trackName, "track", play.TrackInternal.String(), "Track name, for example internal, alpha, beta, or production")
+	cmd.Flags().StringVar(&releaseName, "release-name", "", "Release name shown in Play Console")
+	cmd.Flags().StringVar(&status, "status", play.ReleaseStatusCompleted.String(), "Release status: completed, draft, halted, inProgress")
+	cmd.Flags().Float64Var(&userFraction, "user-fraction", 0, "Staged rollout fraction for inProgress or halted releases")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned release upload workflow without calling Google Play")
+	return cmd
+}
 
-	promoteCommand := &cobra.Command{
+func newReleasesPromoteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		fromTrack    string
+		toTrack      string
+		versionCode  int64
+		status       string
+		userFraction float64
+		confirm      bool
+		dryRun       bool
+	)
+
+	cmd := &cobra.Command{
 		Use:   "promote",
 		Short: "Promote a release from one track to another",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			typedPackageName, err := play.NewPackageName(packageName)
+			typedPackageName, err := play.NewPackageName(*packageName)
 			if err != nil {
 				return err
 			}
@@ -169,77 +193,108 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 			return output.Write(out, options.output, options.pretty, result)
 		},
 	}
-	promoteCommand.Flags().StringVar(&fromTrack, "from", play.TrackInternal.String(), "Source track name")
-	promoteCommand.Flags().StringVar(&toTrack, "to", play.TrackProduction.String(), "Target track name")
-	promoteCommand.Flags().Int64Var(&versionCode, "version-code", 0, "Version code to promote")
-	promoteCommand.Flags().StringVar(&status, "status", play.ReleaseStatusDraft.String(), "Target release status: completed, draft, halted, inProgress")
-	promoteCommand.Flags().Float64Var(&userFraction, "user-fraction", 0, "Staged rollout fraction for inProgress or halted releases")
-	promoteCommand.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
-	promoteCommand.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned promotion workflow without calling Google Play")
-	cmd.AddCommand(promoteCommand)
+	cmd.Flags().StringVar(&fromTrack, "from", play.TrackInternal.String(), "Source track name")
+	cmd.Flags().StringVar(&toTrack, "to", play.TrackProduction.String(), "Target track name")
+	cmd.Flags().Int64Var(&versionCode, "version-code", 0, "Version code to promote")
+	cmd.Flags().StringVar(&status, "status", play.ReleaseStatusDraft.String(), "Target release status: completed, draft, halted, inProgress")
+	cmd.Flags().Float64Var(&userFraction, "user-fraction", 0, "Staged rollout fraction for inProgress or halted releases")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned promotion workflow without calling Google Play")
+	return cmd
+}
 
-	haltCommand := newRolloutCommand(out, options, play.RolloutActionHalt, &packageName, &rolloutTrack, &versionCode, &userFraction, &confirm, &dryRun)
-	haltCommand.Flags().StringVar(&rolloutTrack, "track", play.TrackProduction.String(), "Track name")
-	haltCommand.Flags().Int64Var(&versionCode, "version-code", 0, "Version code to halt")
-	haltCommand.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
-	haltCommand.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned halt workflow without calling Google Play")
-	cmd.AddCommand(haltCommand)
+func newReleasesHaltCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		trackName   string
+		versionCode int64
+		confirm     bool
+		dryRun      bool
+	)
 
-	resumeCommand := newRolloutCommand(out, options, play.RolloutActionResume, &packageName, &rolloutTrack, &versionCode, &userFraction, &confirm, &dryRun)
-	resumeCommand.Flags().StringVar(&rolloutTrack, "track", play.TrackProduction.String(), "Track name")
-	resumeCommand.Flags().Int64Var(&versionCode, "version-code", 0, "Version code to resume")
-	resumeCommand.Flags().Float64Var(&userFraction, "user-fraction", 0, "Staged rollout fraction for the resumed release")
-	resumeCommand.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
-	resumeCommand.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned resume workflow without calling Google Play")
-	cmd.AddCommand(resumeCommand)
+	cmd := newRolloutCommand(out, options, play.RolloutActionHalt, packageName, &trackName, &versionCode, nil, &confirm, &dryRun)
+	cmd.Flags().StringVar(&trackName, "track", play.TrackProduction.String(), "Track name")
+	cmd.Flags().Int64Var(&versionCode, "version-code", 0, "Version code to halt")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned halt workflow without calling Google Play")
+	return cmd
+}
 
+func newReleasesResumeCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		trackName    string
+		versionCode  int64
+		status       string
+		userFraction float64
+		confirm      bool
+		dryRun       bool
+	)
+
+	cmd := newRolloutCommand(out, options, play.RolloutActionResume, packageName, &trackName, &versionCode, &userFraction, &confirm, &dryRun)
+	cmd.Flags().StringVar(&trackName, "track", play.TrackProduction.String(), "Track name")
+	cmd.Flags().Int64Var(&versionCode, "version-code", 0, "Version code to resume")
+	cmd.Flags().StringVar(&status, "status", "", "Target release status: completed or inProgress")
+	cmd.Flags().Float64Var(&userFraction, "user-fraction", 0, "Staged rollout fraction when status is inProgress")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned resume workflow without calling Google Play")
+	cmd.RunE = rolloutRunE(out, options, play.RolloutActionResume, packageName, &trackName, &versionCode, &status, &userFraction, &confirm, &dryRun)
 	return cmd
 }
 
 func newRolloutCommand(out io.Writer, options *globalOptions, action play.RolloutAction, packageName *string, trackName *string, versionCode *int64, userFraction *float64, confirm *bool, dryRun *bool) *cobra.Command {
-	cmd := &cobra.Command{
+	status := ""
+	return &cobra.Command{
 		Use:   action.String(),
 		Short: fmt.Sprintf("%s a staged release", action.Title()),
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			typedPackageName, err := play.NewPackageName(*packageName)
-			if err != nil {
-				return err
-			}
-			typedTrackName, err := play.NewTrackName(*trackName)
-			if err != nil {
-				return err
-			}
+		RunE:  rolloutRunE(out, options, action, packageName, trackName, versionCode, &status, userFraction, confirm, dryRun),
+	}
+}
 
-			rolloutOptions := play.RolloutOptions{
-				PackageName: typedPackageName,
-				Track:       typedTrackName,
-				VersionCode: *versionCode,
-				Action:      action,
-				Confirm:     *confirm,
-				DryRun:      *dryRun,
-			}
-			if cmd.Flags().Changed("user-fraction") {
-				rolloutOptions.UserFraction = userFraction
-			}
-			if *dryRun {
-				result, err := play.UpdateRollout(cmd.Context(), nil, rolloutOptions)
-				if err != nil {
-					return err
-				}
-				return output.Write(out, options.output, options.pretty, result)
-			}
+func rolloutRunE(out io.Writer, options *globalOptions, action play.RolloutAction, packageName *string, trackName *string, versionCode *int64, status *string, userFraction *float64, confirm *bool, dryRun *bool) func(cmd *cobra.Command, args []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		typedPackageName, err := play.NewPackageName(*packageName)
+		if err != nil {
+			return err
+		}
+		typedTrackName, err := play.NewTrackName(*trackName)
+		if err != nil {
+			return err
+		}
 
-			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+		rolloutOptions := play.RolloutOptions{
+			PackageName: typedPackageName,
+			Track:       typedTrackName,
+			VersionCode: *versionCode,
+			Action:      action,
+			Confirm:     *confirm,
+			DryRun:      *dryRun,
+		}
+		if status != nil && *status != "" {
+			typedStatus, err := play.NewReleaseStatus(*status)
 			if err != nil {
 				return err
 			}
-			result, err := play.UpdateRollout(cmd.Context(), publisher, rolloutOptions)
+			rolloutOptions.Status = typedStatus
+		}
+		if userFraction != nil && cmd.Flags().Changed("user-fraction") {
+			rolloutOptions.UserFraction = userFraction
+		}
+		if *dryRun {
+			result, err := play.UpdateRollout(cmd.Context(), nil, rolloutOptions)
 			if err != nil {
 				return err
 			}
 			return output.Write(out, options.output, options.pretty, result)
-		},
+		}
+
+		publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+		if err != nil {
+			return err
+		}
+		result, err := play.UpdateRollout(cmd.Context(), publisher, rolloutOptions)
+		if err != nil {
+			return err
+		}
+		return output.Write(out, options.output, options.pretty, result)
 	}
-	return cmd
 }
