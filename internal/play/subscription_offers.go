@@ -7,15 +7,51 @@ import (
 
 type SubscriptionBasePlanID string
 
+const SubscriptionOfferWildcardID = "-"
+
 func NewSubscriptionBasePlanID(value string) (SubscriptionBasePlanID, error) {
 	if value == "" {
 		return "", fmt.Errorf("subscription base plan ID is required")
+	}
+	if len(value) > 63 {
+		return "", fmt.Errorf("subscription base plan ID cannot exceed 63 characters")
+	}
+	if !isValidSubscriptionBasePlanID(value) {
+		return "", fmt.Errorf("invalid subscription base plan ID %q", value)
 	}
 	return SubscriptionBasePlanID(value), nil
 }
 
 func (b SubscriptionBasePlanID) String() string {
 	return string(b)
+}
+
+func NewSubscriptionOfferListProductID(value string) (SubscriptionProductID, error) {
+	if value == SubscriptionOfferWildcardID {
+		return SubscriptionProductID(value), nil
+	}
+	return NewSubscriptionProductID(value)
+}
+
+func NewSubscriptionOfferListBasePlanID(value string) (SubscriptionBasePlanID, error) {
+	if value == SubscriptionOfferWildcardID {
+		return SubscriptionBasePlanID(value), nil
+	}
+	return NewSubscriptionBasePlanID(value)
+}
+
+func isValidSubscriptionBasePlanID(value string) bool {
+	first := value[0]
+	if !isASCIILower(first) && !isASCIIDigit(first) {
+		return false
+	}
+	for i := 1; i < len(value); i++ {
+		character := value[i]
+		if !isASCIILower(character) && !isASCIIDigit(character) && character != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 type SubscriptionOfferID string
@@ -47,9 +83,9 @@ type SubscriptionOffer struct {
 	OfferID            SubscriptionOfferID                  `json:"offerId"`
 	State              SubscriptionOfferState               `json:"state,omitempty"`
 	OfferTags          []string                             `json:"offerTags,omitempty"`
-	RegionalConfigs    []SubscriptionOfferRegionalConfig    `json:"regionalConfigs,omitempty"`
+	RegionalConfigs    []SubscriptionOfferRegionalConfig    `json:"regionalConfigs"`
 	OtherRegionsConfig *SubscriptionOfferOtherRegionsConfig `json:"otherRegionsConfig,omitempty"`
-	Phases             []SubscriptionOfferPhase             `json:"phases,omitempty"`
+	Phases             []SubscriptionOfferPhase             `json:"phases"`
 	Targeting          *SubscriptionOfferTargeting          `json:"targeting,omitempty"`
 }
 
@@ -65,7 +101,7 @@ type SubscriptionOfferOtherRegionsConfig struct {
 type SubscriptionOfferPhase struct {
 	Duration           string                                    `json:"duration,omitempty"`
 	RecurrenceCount    int64                                     `json:"recurrenceCount,omitempty"`
-	RegionalConfigs    []SubscriptionOfferPhaseRegionalConfig    `json:"regionalConfigs,omitempty"`
+	RegionalConfigs    []SubscriptionOfferPhaseRegionalConfig    `json:"regionalConfigs"`
 	OtherRegionsConfig *SubscriptionOfferPhaseOtherRegionsConfig `json:"otherRegionsConfig,omitempty"`
 }
 
@@ -122,11 +158,14 @@ func (o SubscriptionOfferListOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
 	}
-	if _, err := NewSubscriptionProductID(o.ProductID.String()); err != nil {
+	if _, err := NewSubscriptionOfferListProductID(o.ProductID.String()); err != nil {
 		return err
 	}
-	if _, err := NewSubscriptionBasePlanID(o.BasePlanID.String()); err != nil {
+	if _, err := NewSubscriptionOfferListBasePlanID(o.BasePlanID.String()); err != nil {
 		return err
+	}
+	if o.ProductID.String() == SubscriptionOfferWildcardID && o.BasePlanID.String() != SubscriptionOfferWildcardID {
+		return fmt.Errorf("subscription base plan ID must be %q when product ID is %q", SubscriptionOfferWildcardID, SubscriptionOfferWildcardID)
 	}
 	if o.PageSize < 0 {
 		return fmt.Errorf("page size cannot be negative")

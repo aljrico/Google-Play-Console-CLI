@@ -536,3 +536,59 @@ func TestSubscriptionOffersGetRejectsMissingOfferIDBeforeAuth(t *testing.T) {
 		t.Fatalf("error = %v, want offer ID validation", err)
 	}
 }
+
+func TestSubscriptionOffersListAcceptsWildcardsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"list",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"-",
+		"--base-plan-id",
+		"-",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected auth error after wildcard validation succeeds")
+	}
+	if strings.Contains(err.Error(), "invalid subscription product ID") || strings.Contains(err.Error(), "base plan") {
+		t.Fatalf("error = %v, want auth error after wildcard validation", err)
+	}
+}
+
+func TestSubscriptionOffersGetRejectsWildcardBasePlanBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"-",
+		"--offer-id",
+		"intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected base plan validation error")
+	}
+	if !strings.Contains(err.Error(), "subscription base plan ID") {
+		t.Fatalf("error = %v, want base plan validation", err)
+	}
+}

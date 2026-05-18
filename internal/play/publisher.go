@@ -950,9 +950,6 @@ func subscriptionOfferFromAPI(apiOffer *androidpublisher.SubscriptionOffer) Subs
 }
 
 func subscriptionOfferRegionalConfigsFromAPI(apiConfigs []*androidpublisher.RegionalSubscriptionOfferConfig) []SubscriptionOfferRegionalConfig {
-	if len(apiConfigs) == 0 {
-		return nil
-	}
 	configs := make([]SubscriptionOfferRegionalConfig, 0, len(apiConfigs))
 	for _, apiConfig := range apiConfigs {
 		if apiConfig == nil {
@@ -974,9 +971,6 @@ func subscriptionOfferOtherRegionsConfigFromAPI(apiConfig *androidpublisher.Othe
 }
 
 func subscriptionOfferPhasesFromAPI(apiPhases []*androidpublisher.SubscriptionOfferPhase) []SubscriptionOfferPhase {
-	if len(apiPhases) == 0 {
-		return nil
-	}
 	phases := make([]SubscriptionOfferPhase, 0, len(apiPhases))
 	for _, apiPhase := range apiPhases {
 		if apiPhase == nil {
@@ -993,9 +987,6 @@ func subscriptionOfferPhasesFromAPI(apiPhases []*androidpublisher.SubscriptionOf
 }
 
 func subscriptionOfferPhaseRegionalConfigsFromAPI(apiConfigs []*androidpublisher.RegionalSubscriptionOfferPhaseConfig) []SubscriptionOfferPhaseRegionalConfig {
-	if len(apiConfigs) == 0 {
-		return nil
-	}
 	configs := make([]SubscriptionOfferPhaseRegionalConfig, 0, len(apiConfigs))
 	for _, apiConfig := range apiConfigs {
 		if apiConfig == nil {

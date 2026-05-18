@@ -61,6 +61,56 @@ func TestListSubscriptionOffersRejectsPageSizeAboveGoogleLimit(t *testing.T) {
 	}
 }
 
+func TestListSubscriptionOffersAllowsGoogleWildcards(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	lister := &fakeSubscriptionOfferClient{}
+
+	_, err = ListSubscriptionOffers(context.Background(), lister, SubscriptionOfferListOptions{
+		PackageName: packageName,
+		ProductID:   "-",
+		BasePlanID:  "-",
+	})
+	if err != nil {
+		t.Fatalf("ListSubscriptionOffers() error = %v", err)
+	}
+}
+
+func TestListSubscriptionOffersRequiresBasePlanWildcardWithProductWildcard(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = ListSubscriptionOffers(context.Background(), nil, SubscriptionOfferListOptions{
+		PackageName: packageName,
+		ProductID:   "-",
+		BasePlanID:  "monthly",
+	})
+	if err == nil {
+		t.Fatal("expected wildcard validation error")
+	}
+}
+
+func TestGetSubscriptionOfferRejectsWildcardBasePlan(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = GetSubscriptionOffer(context.Background(), nil, SubscriptionOfferGetOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		BasePlanID:  "-",
+		OfferID:     "intro",
+	})
+	if err == nil {
+		t.Fatal("expected base plan validation error")
+	}
+}
+
 func TestGetSubscriptionOfferPassesIDsToGetter(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {

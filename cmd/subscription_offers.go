@@ -36,7 +36,7 @@ func newSubscriptionOffersListCommand(out io.Writer, options *globalOptions, pac
 		Short: "List subscription offers",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			typedPackageName, typedProductID, typedBasePlanID, err := parseSubscriptionOfferParent(*packageName, productID, basePlanID)
+			typedPackageName, typedProductID, typedBasePlanID, err := parseSubscriptionOfferListParent(*packageName, productID, basePlanID)
 			if err != nil {
 				return err
 			}
@@ -79,7 +79,7 @@ func newSubscriptionOffersGetCommand(out io.Writer, options *globalOptions, pack
 		Short: "Get one subscription offer",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			typedPackageName, typedProductID, typedBasePlanID, err := parseSubscriptionOfferParent(*packageName, productID, basePlanID)
+			typedPackageName, typedProductID, typedBasePlanID, err := parseSubscriptionOfferGetParent(*packageName, productID, basePlanID)
 			if err != nil {
 				return err
 			}
@@ -117,7 +117,23 @@ func addSubscriptionOfferParentFlags(cmd *cobra.Command, productID *string, base
 	cmd.Flags().StringVar(basePlanID, "base-plan-id", "", "Parent subscription base plan ID")
 }
 
-func parseSubscriptionOfferParent(packageName string, productID string, basePlanID string) (play.PackageName, play.SubscriptionProductID, play.SubscriptionBasePlanID, error) {
+func parseSubscriptionOfferListParent(packageName string, productID string, basePlanID string) (play.PackageName, play.SubscriptionProductID, play.SubscriptionBasePlanID, error) {
+	typedPackageName, err := play.NewPackageName(packageName)
+	if err != nil {
+		return "", "", "", err
+	}
+	typedProductID, err := play.NewSubscriptionOfferListProductID(productID)
+	if err != nil {
+		return "", "", "", err
+	}
+	typedBasePlanID, err := play.NewSubscriptionOfferListBasePlanID(basePlanID)
+	if err != nil {
+		return "", "", "", err
+	}
+	return typedPackageName, typedProductID, typedBasePlanID, nil
+}
+
+func parseSubscriptionOfferGetParent(packageName string, productID string, basePlanID string) (play.PackageName, play.SubscriptionProductID, play.SubscriptionBasePlanID, error) {
 	typedPackageName, err := play.NewPackageName(packageName)
 	if err != nil {
 		return "", "", "", err
