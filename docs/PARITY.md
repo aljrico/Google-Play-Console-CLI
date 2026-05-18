@@ -59,8 +59,8 @@ Sources:
 
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `localizations` | `listings` | `edits.listings` | planned | Play listing language records map well to localization commands. |
-| `metadata` | `metadata` | `edits.details`, `edits.listings` | planned | Should support deterministic sync from local files. |
+| `localizations` | `listings` | `edits.listings` | implemented | `gpc listings list`, `get`, and `update` cover localized store listing records. |
+| `metadata` | `metadata` | `edits.details`, `edits.listings` | implemented | First metadata slice is implemented through `gpc listings`; app details and file-based sync are still planned. |
 | `screenshots` | `images` | `edits.images` | planned | Screenshots and graphic assets are image uploads by language and type. |
 | `video-previews` | `videos` | Not clearly exposed in Android Publisher API | blocked | Play video preview management may require Console UI or another API surface. |
 | `background-assets` | `images` | `edits.images` | planned | Some asset types map to Play listing images. |

@@ -96,6 +96,35 @@ func (p GooglePublisher) ListTracks(ctx context.Context, packageName PackageName
 	return tracks, nil
 }
 
+func (p GooglePublisher) ListListings(ctx context.Context, packageName PackageName, editID string) ([]Listing, error) {
+	response, err := p.service.Edits.Listings.List(packageName.String(), editID).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("list listings for %s: %w", packageName, err)
+	}
+	listings := make([]Listing, 0, len(response.Listings))
+	for _, apiListing := range response.Listings {
+		listings = append(listings, listingFromAPI(apiListing))
+	}
+	return listings, nil
+}
+
+func (p GooglePublisher) GetListing(ctx context.Context, packageName PackageName, editID string, language ListingLanguage) (Listing, error) {
+	listing, err := p.service.Edits.Listings.Get(packageName.String(), editID, language.String()).Context(ctx).Do()
+	if err != nil {
+		return Listing{}, fmt.Errorf("get %s listing for %s: %w", language, packageName, err)
+	}
+	return listingFromAPI(listing), nil
+}
+
+func (p GooglePublisher) UpdateListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
+	apiListing := listingToAPI(listing)
+	updatedListing, err := p.service.Edits.Listings.Update(packageName.String(), editID, listing.Language.String(), apiListing).Context(ctx).Do()
+	if err != nil {
+		return Listing{}, fmt.Errorf("update %s listing for %s: %w", listing.Language, packageName, err)
+	}
+	return listingFromAPI(updatedListing), nil
+}
+
 func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName PackageName, editID string, trackName TrackName, release TrackRelease) (Track, error) {
 	apiTrack, err := p.service.Edits.Tracks.Get(packageName.String(), editID, trackName.String()).Context(ctx).Do()
 	if err != nil {
@@ -279,4 +308,41 @@ func userFractionFromAPI(apiRelease *androidpublisher.TrackRelease) *float64 {
 	}
 	userFraction := apiRelease.UserFraction
 	return &userFraction
+}
+
+func listingFromAPI(apiListing *androidpublisher.Listing) Listing {
+	if apiListing == nil {
+		return Listing{}
+	}
+	return Listing{
+		Language:         ListingLanguage(apiListing.Language),
+		Title:            apiListing.Title,
+		ShortDescription: apiListing.ShortDescription,
+		FullDescription:  apiListing.FullDescription,
+		Video:            apiListing.Video,
+	}
+}
+
+func listingToAPI(listing Listing) *androidpublisher.Listing {
+	apiListing := &androidpublisher.Listing{
+		Language:         listing.Language.String(),
+		Title:            listing.Title,
+		ShortDescription: listing.ShortDescription,
+		FullDescription:  listing.FullDescription,
+		Video:            listing.Video,
+	}
+	apiListing.ForceSendFields = append(apiListing.ForceSendFields, "Language")
+	if listing.Title != "" {
+		apiListing.ForceSendFields = append(apiListing.ForceSendFields, "Title")
+	}
+	if listing.ShortDescription != "" {
+		apiListing.ForceSendFields = append(apiListing.ForceSendFields, "ShortDescription")
+	}
+	if listing.FullDescription != "" {
+		apiListing.ForceSendFields = append(apiListing.ForceSendFields, "FullDescription")
+	}
+	if listing.Video != "" {
+		apiListing.ForceSendFields = append(apiListing.ForceSendFields, "Video")
+	}
+	return apiListing
 }
