@@ -61,9 +61,9 @@ Sources:
 | --- | --- | --- | --- | --- |
 | `localizations` | `listings` | `edits.listings` | tested | `gpc listings list`, `get`, partial `update`, `delete`, and `delete-all` cover localized store listing records. |
 | `metadata` | `metadata` | `edits.details`, `edits.listings` | tested | Metadata slices are covered through `gpc listings` and `gpc details`; file-based sync is still planned. |
-| `screenshots` | `images` | `edits.images` | tested | `gpc images list` inspects localized screenshot/image metadata by language and image type. Upload and delete remain planned. |
+| `screenshots` | `images` | `edits.images` | tested | `gpc images list` inspects localized screenshot/image metadata by language and image type; `delete` and `delete-all` remove images with dry-run/confirm edit gating. Upload remains planned. |
 | `video-previews` | `videos` | Not clearly exposed in Android Publisher API | blocked | Play video preview management may require Console UI or another API surface. |
-| `background-assets` | `images` | `edits.images` | tested | Feature graphics, icons, TV banners, and screenshots are covered by `gpc images list`; uploads remain planned. |
+| `background-assets` | `images` | `edits.images` | tested | Feature graphics, icons, TV banners, and screenshots are covered by `gpc images list`, `delete`, and `delete-all`; uploads remain planned. |
 | `product-pages` | N/A | N/A | not applicable | App Store custom product pages do not have a direct Play equivalent. |
 | `routing-coverage` | N/A | N/A | not applicable | Apple Maps routing coverage is Apple-specific. |
 | `app-tags` | N/A | N/A | not applicable | Apple-generated discoverability tags are Apple-specific. |

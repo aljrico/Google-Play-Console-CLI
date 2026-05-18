@@ -230,6 +230,39 @@ func TestListImagesUsesListingImagesEndpoint(t *testing.T) {
 	}
 }
 
+func TestDeleteImageUsesListingImageEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/edits/edit-123/listings/en-US/phoneScreenshots/image-1" {
+			t.Fatalf("path = %q, want image delete endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("method = %s, want DELETE", r.Method)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	if err := publisher.DeleteImage(context.Background(), "com.example.app", "edit-123", "en-US", ImageTypePhoneScreenshots, "image-1"); err != nil {
+		t.Fatalf("DeleteImage() error = %v", err)
+	}
+}
+
+func TestDeleteAllImagesUsesListingImagesEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/edits/edit-123/listings/en-US/featureGraphic" {
+			t.Fatalf("path = %q, want images delete-all endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("method = %s, want DELETE", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+
+	if err := publisher.DeleteAllImages(context.Background(), "com.example.app", "edit-123", "en-US", ImageTypeFeatureGraphic); err != nil {
+		t.Fatalf("DeleteAllImages() error = %v", err)
+	}
+}
+
 func TestAppDetailsToAPIForceSendsEmptyChangedField(t *testing.T) {
 	apiDetails := appDetailsToAPI(AppDetails{ContactPhone: stringValue("")})
 

@@ -193,6 +193,20 @@ func (p GooglePublisher) ListImages(ctx context.Context, packageName PackageName
 	return images, nil
 }
 
+func (p GooglePublisher) DeleteImage(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType, imageID string) error {
+	if err := p.service.Edits.Images.Delete(packageName.String(), editID, language.String(), imageType.String(), imageID).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("delete %s image %s for %s %s listing: %w", imageType, imageID, packageName, language, err)
+	}
+	return nil
+}
+
+func (p GooglePublisher) DeleteAllImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) error {
+	if _, err := p.service.Edits.Images.Deleteall(packageName.String(), editID, language.String(), imageType.String()).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("delete all %s images for %s %s listing: %w", imageType, packageName, language, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) GetAppDetails(ctx context.Context, packageName PackageName, editID string) (AppDetails, error) {
 	details, err := p.service.Edits.Details.Get(packageName.String(), editID).Context(ctx).Do()
 	if err != nil {

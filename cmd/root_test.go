@@ -1090,6 +1090,69 @@ func TestImagesListRejectsInvalidTypeBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestImagesDeleteDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"images",
+		"delete",
+		"--package",
+		"com.example.app",
+		"--language",
+		"en-US",
+		"--type",
+		"phoneScreenshots",
+		"--image-id",
+		"image-1",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, `"imageId":"image-1"`) || !strings.Contains(output, `"dryRun":true`) {
+		t.Fatalf("output = %s, want image delete dry-run", output)
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestImagesDeleteAllRejectsInvalidTypeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"images",
+		"delete-all",
+		"--package",
+		"com.example.app",
+		"--language",
+		"en-US",
+		"--type",
+		"bad",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected image type validation error")
+	}
+	if !strings.Contains(err.Error(), "unsupported image type") {
+		t.Fatalf("error = %v, want image type validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestDetailsUpdateDryRun(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
