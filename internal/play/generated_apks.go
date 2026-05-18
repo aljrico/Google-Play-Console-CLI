@@ -2,7 +2,6 @@ package play
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 )
 
@@ -22,14 +21,31 @@ func (o GeneratedAPKListOptions) Validate() error {
 }
 
 type GeneratedAPKSigningKey struct {
-	CertificateSHA256Hash string                    `json:"certificateSha256Hash,omitempty"`
-	SplitAPKs             []GeneratedSplitAPK       `json:"generatedSplitApks"`
-	StandaloneAPKs        []GeneratedStandaloneAPK  `json:"generatedStandaloneApks"`
-	AssetPackSlices       []GeneratedAssetPackSlice `json:"generatedAssetPackSlices"`
-	RecoveryModules       []GeneratedRecoveryAPK    `json:"generatedRecoveryModules"`
-	UniversalAPK          *GeneratedUniversalAPK    `json:"generatedUniversalApk,omitempty"`
-	TargetingPackageName  string                    `json:"targetingPackageName,omitempty"`
-	TargetingInfo         json.RawMessage           `json:"targetingInfo,omitempty"`
+	CertificateSHA256Hash string                     `json:"certificateSha256Hash,omitempty"`
+	SplitAPKs             []GeneratedSplitAPK        `json:"generatedSplitApks"`
+	StandaloneAPKs        []GeneratedStandaloneAPK   `json:"generatedStandaloneApks"`
+	AssetPackSlices       []GeneratedAssetPackSlice  `json:"generatedAssetPackSlices"`
+	RecoveryModules       []GeneratedRecoveryAPK     `json:"generatedRecoveryModules"`
+	UniversalAPK          *GeneratedUniversalAPK     `json:"generatedUniversalApk,omitempty"`
+	TargetingPackageName  string                     `json:"targetingPackageName,omitempty"`
+	TargetingInfo         *GeneratedAPKTargetingInfo `json:"targetingInfo,omitempty"`
+}
+
+type GeneratedAPKTargetingInfo struct {
+	PackageName    string                         `json:"packageName,omitempty"`
+	Variants       []GeneratedAPKTargetingVariant `json:"variant"`
+	AssetSliceSets []GeneratedAPKAssetSliceSet    `json:"assetSliceSet"`
+}
+
+type GeneratedAPKTargetingVariant struct {
+	VariantNumber int64    `json:"variantNumber"`
+	ModuleNames   []string `json:"moduleNames,omitempty"`
+}
+
+type GeneratedAPKAssetSliceSet struct {
+	ModuleName   string   `json:"moduleName,omitempty"`
+	DeliveryType string   `json:"deliveryType,omitempty"`
+	APKPaths     []string `json:"apkPaths,omitempty"`
 }
 
 type GeneratedSplitAPK struct {

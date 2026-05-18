@@ -1050,8 +1050,14 @@ func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
 				"generatedUniversalApk": {"downloadId": "universal-download"},
 				"targetingInfo": {
 					"packageName": "com.example.app",
-					"variant": [{"variantId": 0}],
-					"assetSliceSet": [{"assetModuleMetadata": {"name": "assets"}}]
+					"variant": [{
+						"variantNumber": 0,
+						"apkSet": [{"moduleMetadata": {"name": "base"}}]
+					}],
+					"assetSliceSet": [{
+						"assetModuleMetadata": {"name": "assets", "deliveryType": "FAST_FOLLOW"},
+						"apkDescription": [{"path": "asset-download.apk"}]
+					}]
 				}
 			}]
 		}`))
@@ -1071,8 +1077,14 @@ func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
 	if signingKey.CertificateSHA256Hash != "abc123" || signingKey.TargetingPackageName != "com.example.app" {
 		t.Fatalf("signing key = %#v, want hash and targeting package", signingKey)
 	}
-	if !strings.Contains(string(signingKey.TargetingInfo), `"variant"`) || !strings.Contains(string(signingKey.TargetingInfo), `"assetSliceSet"`) {
-		t.Fatalf("targeting info = %s, want raw variant and assetSliceSet", string(signingKey.TargetingInfo))
+	if signingKey.TargetingInfo == nil || len(signingKey.TargetingInfo.Variants) != 1 || signingKey.TargetingInfo.Variants[0].VariantNumber != 0 {
+		t.Fatalf("targeting info = %#v, want variantNumber 0", signingKey.TargetingInfo)
+	}
+	if len(signingKey.TargetingInfo.Variants[0].ModuleNames) != 1 || signingKey.TargetingInfo.Variants[0].ModuleNames[0] != "base" {
+		t.Fatalf("targeting variants = %#v, want base module", signingKey.TargetingInfo.Variants)
+	}
+	if len(signingKey.TargetingInfo.AssetSliceSets) != 1 || signingKey.TargetingInfo.AssetSliceSets[0].DeliveryType != "FAST_FOLLOW" {
+		t.Fatalf("asset slice targeting = %#v, want FAST_FOLLOW", signingKey.TargetingInfo.AssetSliceSets)
 	}
 	if len(signingKey.SplitAPKs) != 1 || signingKey.SplitAPKs[0].DownloadID != "split-download" {
 		t.Fatalf("split APKs = %#v, want split download", signingKey.SplitAPKs)

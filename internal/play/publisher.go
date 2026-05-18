@@ -2,7 +2,6 @@ package play
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -1448,15 +1447,57 @@ func generatedUniversalAPKFromAPI(apiAPK *androidpublisher.GeneratedUniversalApk
 	return &GeneratedUniversalAPK{DownloadID: apiAPK.DownloadId}
 }
 
-func generatedAPKTargetingInfoFromAPI(apiTargetingInfo *androidpublisher.TargetingInfo) json.RawMessage {
+func generatedAPKTargetingInfoFromAPI(apiTargetingInfo *androidpublisher.TargetingInfo) *GeneratedAPKTargetingInfo {
 	if apiTargetingInfo == nil {
 		return nil
 	}
-	payload, err := json.Marshal(apiTargetingInfo)
-	if err != nil {
-		return nil
+	targetingInfo := &GeneratedAPKTargetingInfo{
+		PackageName:    apiTargetingInfo.PackageName,
+		Variants:       []GeneratedAPKTargetingVariant{},
+		AssetSliceSets: []GeneratedAPKAssetSliceSet{},
 	}
-	return payload
+	for _, apiVariant := range apiTargetingInfo.Variant {
+		if apiVariant == nil {
+			continue
+		}
+		targetingInfo.Variants = append(targetingInfo.Variants, generatedAPKTargetingVariantFromAPI(apiVariant))
+	}
+	for _, apiAssetSliceSet := range apiTargetingInfo.AssetSliceSet {
+		if apiAssetSliceSet == nil {
+			continue
+		}
+		targetingInfo.AssetSliceSets = append(targetingInfo.AssetSliceSets, generatedAPKAssetSliceSetFromAPI(apiAssetSliceSet))
+	}
+	return targetingInfo
+}
+
+func generatedAPKTargetingVariantFromAPI(apiVariant *androidpublisher.SplitApkVariant) GeneratedAPKTargetingVariant {
+	moduleNames := make([]string, 0, len(apiVariant.ApkSet))
+	for _, apiAPKSet := range apiVariant.ApkSet {
+		if apiAPKSet == nil || apiAPKSet.ModuleMetadata == nil {
+			continue
+		}
+		moduleNames = append(moduleNames, apiAPKSet.ModuleMetadata.Name)
+	}
+	return GeneratedAPKTargetingVariant{
+		VariantNumber: apiVariant.VariantNumber,
+		ModuleNames:   moduleNames,
+	}
+}
+
+func generatedAPKAssetSliceSetFromAPI(apiAssetSliceSet *androidpublisher.AssetSliceSet) GeneratedAPKAssetSliceSet {
+	assetSliceSet := GeneratedAPKAssetSliceSet{APKPaths: []string{}}
+	if apiAssetSliceSet.AssetModuleMetadata != nil {
+		assetSliceSet.ModuleName = apiAssetSliceSet.AssetModuleMetadata.Name
+		assetSliceSet.DeliveryType = apiAssetSliceSet.AssetModuleMetadata.DeliveryType
+	}
+	for _, apiAPKDescription := range apiAssetSliceSet.ApkDescription {
+		if apiAPKDescription == nil || apiAPKDescription.Path == "" {
+			continue
+		}
+		assetSliceSet.APKPaths = append(assetSliceSet.APKPaths, apiAPKDescription.Path)
+	}
+	return assetSliceSet
 }
 
 func regionPriceConversionResultFromAPI(options RegionPriceConversionOptions, response *androidpublisher.ConvertRegionPricesResponse) RegionPriceConversionResult {
