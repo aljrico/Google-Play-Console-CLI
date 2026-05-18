@@ -62,6 +62,40 @@ func (p GooglePublisher) UploadBundle(ctx context.Context, packageName PackageNa
 	return BundleArtifact{VersionCode: bundle.VersionCode, SHA1: bundle.Sha1, SHA256: bundle.Sha256}, nil
 }
 
+func (p GooglePublisher) UploadInternalSharingAPK(ctx context.Context, packageName PackageName, path string) (InternalSharingArtifact, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return InternalSharingArtifact{}, fmt.Errorf("open APK %s: %w", path, err)
+	}
+	defer file.Close()
+
+	artifact, err := p.service.Internalappsharingartifacts.Uploadapk(packageName.String()).
+		Media(file, googleapi.ContentType("application/octet-stream")).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return InternalSharingArtifact{}, fmt.Errorf("upload internal sharing APK %s for %s: %w", path, packageName, err)
+	}
+	return internalSharingArtifactFromAPI(artifact), nil
+}
+
+func (p GooglePublisher) UploadInternalSharingBundle(ctx context.Context, packageName PackageName, path string) (InternalSharingArtifact, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return InternalSharingArtifact{}, fmt.Errorf("open bundle %s: %w", path, err)
+	}
+	defer file.Close()
+
+	artifact, err := p.service.Internalappsharingartifacts.Uploadbundle(packageName.String()).
+		Media(file, googleapi.ContentType("application/octet-stream")).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return InternalSharingArtifact{}, fmt.Errorf("upload internal sharing bundle %s for %s: %w", path, packageName, err)
+	}
+	return internalSharingArtifactFromAPI(artifact), nil
+}
+
 func (p GooglePublisher) ValidateEdit(ctx context.Context, packageName PackageName, editID string) error {
 	if _, err := p.service.Edits.Validate(packageName.String(), editID).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("validate edit %s for %s: %w", editID, packageName, err)
@@ -1159,6 +1193,17 @@ func userListResultFromAPI(developer DeveloperAccount, response *androidpublishe
 		result.Users = append(result.Users, userFromAPI(apiUser))
 	}
 	return result
+}
+
+func internalSharingArtifactFromAPI(apiArtifact *androidpublisher.InternalAppSharingArtifact) InternalSharingArtifact {
+	if apiArtifact == nil {
+		return InternalSharingArtifact{}
+	}
+	return InternalSharingArtifact{
+		CertificateFingerprint: apiArtifact.CertificateFingerprint,
+		DownloadURL:            apiArtifact.DownloadUrl,
+		SHA256:                 apiArtifact.Sha256,
+	}
 }
 
 func userFromAPI(apiUser *androidpublisher.User) User {

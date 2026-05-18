@@ -53,7 +53,7 @@ Sources:
 | `xcode-cloud` | N/A | N/A | not applicable | Apple CI service. |
 | `devices` | `device-tier-configs` / `system-apks` | `applications.deviceTierConfigs`, `systemapks.variants` | planned | Android-specific device targeting deserves its own command family. |
 | `apprecovery` | `app-recovery` | `apprecovery` | planned | Google Play has direct app recovery APIs. |
-| `internalappsharingartifacts` | `internal-sharing` | `internalappsharingartifacts` | planned | Useful for quick APK/AAB sharing outside normal tracks. |
+| `internalappsharingartifacts` | `internal-sharing` | `internalappsharingartifacts` | tested | `gpc internal-sharing upload` uploads APKs or AABs to internal app sharing, with dry-run and local file preflight. |
 
 ## Metadata And Store Listing
 

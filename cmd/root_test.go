@@ -263,6 +263,60 @@ func TestUsersListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestInternalSharingUploadDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"internal-sharing",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--aab",
+		"app-release.aab",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, `"kind":"bundle"`) || !strings.Contains(output, `"dryRun":true`) {
+		t.Fatalf("output = %s, want bundle dry run", output)
+	}
+}
+
+func TestInternalSharingUploadRejectsMissingArtifactBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"internal-sharing",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--apk",
+		t.TempDir() + "/missing.apk",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing artifact error")
+	}
+	if !strings.Contains(err.Error(), "open file") {
+		t.Fatalf("error = %v, want local file preflight", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestPublishInternalDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

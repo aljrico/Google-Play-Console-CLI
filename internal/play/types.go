@@ -2,7 +2,6 @@ package play
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -248,12 +247,8 @@ func ValidateReadableBundle(path string) error {
 	if filepath.Ext(path) != ".aab" {
 		return fmt.Errorf("AAB path must end with .aab")
 	}
-	file, err := os.Open(path)
-	if err != nil {
+	if err := ValidateReadableFile(path); err != nil {
 		return fmt.Errorf("open bundle %s: %w", path, err)
-	}
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("close bundle %s: %w", path, err)
 	}
 	return nil
 }

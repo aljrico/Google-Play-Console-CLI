@@ -148,6 +148,27 @@ func TestAppendTrackReleaseSendsReleaseNotes(t *testing.T) {
 	}
 }
 
+func TestUploadInternalSharingBundleUsesUploadEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/upload/androidpublisher/v3/applications/internalappsharing/com.example.app/artifacts/bundle" {
+			t.Fatalf("path = %q, want internal sharing bundle upload endpoint", r.URL.Path)
+		}
+		if r.URL.Query().Get("uploadType") == "" {
+			t.Fatalf("query = %q, want uploadType", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"downloadUrl":"https://example.com/download","sha256":"abc","certificateFingerprint":"def"}`))
+	}))
+
+	artifact, err := publisher.UploadInternalSharingBundle(context.Background(), "com.example.app", writeTestFile(t, "app.aab"))
+	if err != nil {
+		t.Fatalf("UploadInternalSharingBundle() error = %v", err)
+	}
+	if artifact.DownloadURL != "https://example.com/download" || artifact.SHA256 != "abc" {
+		t.Fatalf("artifact = %#v, want download URL and sha", artifact)
+	}
+}
+
 func TestListingToAPIForceSendsEmptyChangedField(t *testing.T) {
 	apiListing := listingToAPI(Listing{
 		Language: "en-US",
