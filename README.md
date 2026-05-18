@@ -44,6 +44,7 @@ gpc releases resume --package com.example.app --track production --version-code 
 gpc internal-sharing upload --package com.example.app --aab ./app-release.aab --dry-run
 gpc app-recovery list --package com.example.app --version-code 123
 gpc generated-apks list --package com.example.app --version-code 123
+gpc generated-apks download --package com.example.app --version-code 123 --download-id split-download --file ./split.apk --dry-run
 gpc system-apks variants list --package com.example.app --version-code 123
 gpc images list --package com.example.app --language en-US --type phoneScreenshots
 gpc images upload --package com.example.app --language en-US --type featureGraphic --file ./feature.png --dry-run

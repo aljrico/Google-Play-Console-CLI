@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 
@@ -536,6 +537,56 @@ func (p GooglePublisher) ListGeneratedAPKs(ctx context.Context, options Generate
 		return GeneratedAPKListResult{}, fmt.Errorf("list generated APKs for %s version code %d: %w", options.PackageName, options.VersionCode, err)
 	}
 	return generatedAPKListResultFromAPI(options, response), nil
+}
+
+func (p GooglePublisher) DownloadGeneratedAPK(ctx context.Context, options GeneratedAPKDownloadOptions) (GeneratedAPKDownloadResult, error) {
+	if err := options.Validate(); err != nil {
+		return GeneratedAPKDownloadResult{}, err
+	}
+	if err := ValidateGeneratedAPKOutputPath(options.OutputPath, options.Force); err != nil {
+		return GeneratedAPKDownloadResult{}, err
+	}
+	response, err := p.service.Generatedapks.Download(options.PackageName.String(), options.VersionCode, options.DownloadID.String()).
+		Context(ctx).
+		Download()
+	if err != nil {
+		return GeneratedAPKDownloadResult{}, fmt.Errorf("download generated APK %s for %s version code %d: %w", options.DownloadID, options.PackageName, options.VersionCode, err)
+	}
+	defer response.Body.Close()
+
+	flags := os.O_WRONLY | os.O_CREATE
+	if options.Force {
+		flags |= os.O_TRUNC
+	} else {
+		flags |= os.O_EXCL
+	}
+	file, err := os.OpenFile(options.OutputPath, flags, 0o644)
+	if err != nil {
+		return GeneratedAPKDownloadResult{}, fmt.Errorf("open output APK %s: %w", options.OutputPath, err)
+	}
+
+	bytesWritten, err := io.Copy(file, response.Body)
+	if err != nil {
+		_ = file.Close()
+		return GeneratedAPKDownloadResult{}, fmt.Errorf("write output APK %s: %w", options.OutputPath, err)
+	}
+	if err := file.Close(); err != nil {
+		return GeneratedAPKDownloadResult{}, fmt.Errorf("close output APK %s: %w", options.OutputPath, err)
+	}
+	plan, err := NewGeneratedAPKDownloadPlan(options)
+	if err != nil {
+		return GeneratedAPKDownloadResult{}, err
+	}
+	return GeneratedAPKDownloadResult{
+		PackageName:  options.PackageName,
+		VersionCode:  options.VersionCode,
+		DownloadID:   options.DownloadID,
+		OutputPath:   options.OutputPath,
+		DryRun:       false,
+		Downloaded:   true,
+		BytesWritten: bytesWritten,
+		Plan:         plan,
+	}, nil
 }
 
 func (p GooglePublisher) ListSystemAPKVariants(ctx context.Context, options SystemAPKVariantListOptions) (SystemAPKVariantListResult, error) {

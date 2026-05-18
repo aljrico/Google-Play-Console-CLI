@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -1463,6 +1465,65 @@ func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
 	}
 	if len(signingKey.RecoveryModules) != 1 || signingKey.RecoveryModules[0].RecoveryID != "7" {
 		t.Fatalf("recovery modules = %#v, want recovery ID 7", signingKey.RecoveryModules)
+	}
+}
+
+func TestDownloadGeneratedAPKUsesDownloadEndpoint(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "split.apk")
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/generatedApks/42/downloads/split-download:download" {
+			t.Fatalf("path = %q, want generated APK download endpoint", r.URL.Path)
+		}
+		if r.URL.Query().Get("alt") != "media" {
+			t.Fatalf("alt = %q, want media", r.URL.Query().Get("alt"))
+		}
+		w.Header().Set("Content-Type", "application/vnd.android.package-archive")
+		_, _ = w.Write([]byte("apk-bytes"))
+	}))
+
+	result, err := publisher.DownloadGeneratedAPK(context.Background(), GeneratedAPKDownloadOptions{
+		PackageName: "com.example.app",
+		VersionCode: 42,
+		DownloadID:  "split-download",
+		OutputPath:  outputPath,
+	})
+	if err != nil {
+		t.Fatalf("DownloadGeneratedAPK() error = %v", err)
+	}
+	if !result.Downloaded || result.BytesWritten != int64(len("apk-bytes")) {
+		t.Fatalf("result = %#v, want downloaded bytes", result)
+	}
+	contents, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(contents) != "apk-bytes" {
+		t.Fatalf("contents = %q, want apk-bytes", string(contents))
+	}
+}
+
+func TestDownloadGeneratedAPKRejectsExistingFileBeforeRequest(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "split.apk")
+	if err := os.WriteFile(outputPath, []byte("existing"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	_, err := publisher.DownloadGeneratedAPK(context.Background(), GeneratedAPKDownloadOptions{
+		PackageName: "com.example.app",
+		VersionCode: 42,
+		DownloadID:  "split-download",
+		OutputPath:  outputPath,
+	})
+	if err == nil {
+		t.Fatal("expected existing output error")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
 	}
 }
 
