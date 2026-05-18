@@ -28,10 +28,12 @@ type commandReference struct {
 }
 
 type commandReferenceEntry struct {
-	Name  string `json:"name"`
-	Path  string `json:"path"`
-	Use   string `json:"use"`
-	Short string `json:"short,omitempty"`
+	Name     string                  `json:"name"`
+	Path     string                  `json:"path"`
+	Use      string                  `json:"use"`
+	Short    string                  `json:"short,omitempty"`
+	Flags    []commandReferenceFlag  `json:"flags,omitempty"`
+	Commands []commandReferenceEntry `json:"commands,omitempty"`
 }
 
 type commandReferenceFlag struct {
@@ -91,25 +93,13 @@ func newDocsCommandsCommand(out io.Writer, options *globalOptions) *cobra.Comman
 }
 
 func buildCommandReference(root *cobra.Command) commandReference {
-	entries := make([]commandReferenceEntry, 0, len(root.Commands()))
-	for _, child := range sortedCommands(root.Commands()) {
-		if !shouldDocumentCommand(child) {
-			continue
-		}
-		entries = append(entries, commandReferenceEntry{
-			Name:  child.Name(),
-			Path:  child.CommandPath(),
-			Use:   child.UseLine(),
-			Short: child.Short,
-		})
-	}
 	return commandReference{
 		Name:     root.Name(),
 		Path:     root.CommandPath(),
 		Use:      root.UseLine(),
 		Short:    root.Short,
 		Flags:    commandFlags(root),
-		Commands: entries,
+		Commands: childCommandReferences(root),
 	}
 }
 
@@ -150,15 +140,91 @@ func renderCommandReferenceMarkdown(reference commandReference) string {
 		}
 		builder.WriteString("\n")
 	}
-	builder.WriteString("### Commands\n\n")
-	for _, entry := range reference.Commands {
+	renderCommandReferenceEntries(&builder, reference.Commands, 3)
+	return builder.String()
+}
+
+func renderCommandReferenceEntries(builder *strings.Builder, entries []commandReferenceEntry, level int) {
+	if len(entries) == 0 {
+		return
+	}
+	builder.WriteString(strings.Repeat("#", level))
+	builder.WriteString(" Commands\n\n")
+	for _, entry := range entries {
 		builder.WriteString("- `")
 		builder.WriteString(entry.Path)
 		builder.WriteString("`: ")
 		builder.WriteString(entry.Short)
 		builder.WriteString("\n")
 	}
-	return builder.String()
+	builder.WriteString("\n")
+	for _, entry := range entries {
+		if len(entry.Commands) == 0 && len(entry.Flags) == 0 {
+			continue
+		}
+		builder.WriteString(strings.Repeat("#", level))
+		builder.WriteString(" ")
+		builder.WriteString(entry.Path)
+		builder.WriteString("\n\n")
+		if entry.Short != "" {
+			builder.WriteString(entry.Short)
+			builder.WriteString("\n\n")
+		}
+		builder.WriteString("```sh\n")
+		builder.WriteString(entry.Use)
+		builder.WriteString("\n```\n\n")
+		renderCommandFlags(builder, entry.Flags, "Flags", level+1)
+		renderCommandReferenceEntries(builder, entry.Commands, level+1)
+	}
+}
+
+func renderCommandFlags(builder *strings.Builder, flags []commandReferenceFlag, title string, level int) {
+	if len(flags) == 0 {
+		return
+	}
+	builder.WriteString(strings.Repeat("#", min(level, 6)))
+	builder.WriteString(" ")
+	builder.WriteString(title)
+	builder.WriteString("\n\n")
+	for _, flag := range flags {
+		builder.WriteString("- `--")
+		builder.WriteString(flag.Name)
+		builder.WriteString("`")
+		if flag.Shorthand != "" {
+			builder.WriteString(" / `-")
+			builder.WriteString(flag.Shorthand)
+			builder.WriteString("`")
+		}
+		if flag.Usage != "" {
+			builder.WriteString(": ")
+			builder.WriteString(flag.Usage)
+		}
+		if flag.Default != "" {
+			builder.WriteString(" (default `")
+			builder.WriteString(flag.Default)
+			builder.WriteString("`)")
+		}
+		builder.WriteString("\n")
+	}
+	builder.WriteString("\n")
+}
+
+func childCommandReferences(parent *cobra.Command) []commandReferenceEntry {
+	entries := make([]commandReferenceEntry, 0, len(parent.Commands()))
+	for _, child := range sortedCommands(parent.Commands()) {
+		if !shouldDocumentCommand(child) {
+			continue
+		}
+		entries = append(entries, commandReferenceEntry{
+			Name:     child.Name(),
+			Path:     child.CommandPath(),
+			Use:      child.UseLine(),
+			Short:    child.Short,
+			Flags:    commandFlags(child),
+			Commands: childCommandReferences(child),
+		})
+	}
+	return entries
 }
 
 func sortedCommands(commands []*cobra.Command) []*cobra.Command {
@@ -176,10 +242,17 @@ func shouldDocumentCommand(cmd *cobra.Command) bool {
 
 func commandFlags(cmd *cobra.Command) []commandReferenceFlag {
 	flags := []commandReferenceFlag{}
-	cmd.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
+	cmd.NonInheritedFlags().VisitAll(func(flag *pflag.Flag) {
+		if !shouldDocumentFlag(flag) {
+			return
+		}
 		flags = append(flags, commandFlag(flag))
 	})
 	return flags
+}
+
+func shouldDocumentFlag(flag *pflag.Flag) bool {
+	return flag.Name != "help" && !flag.Hidden
 }
 
 func commandFlag(flag *pflag.Flag) commandReferenceFlag {

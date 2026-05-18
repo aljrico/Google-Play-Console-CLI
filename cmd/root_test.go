@@ -147,13 +147,22 @@ func TestDocsCommandsOutputsJSONReferenceWithoutAuth(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	output := buf.String()
-	for _, want := range []string{`"name":"gpc"`, `"path":"gpc users"`, `"path":"gpc releases"`} {
+	for _, want := range []string{
+		`"name":"gpc"`,
+		`"path":"gpc users"`,
+		`"path":"gpc users create"`,
+		`"path":"gpc purchases product acknowledge"`,
+		`"path":"gpc releases"`,
+	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
 		}
 	}
 	if strings.Contains(output, "no active auth profile") {
 		t.Fatalf("output = %s, did not expect auth", output)
+	}
+	if strings.Contains(output, `"name":"help"`) {
+		t.Fatalf("output = %s, did not expect generated help flags", output)
 	}
 }
 
@@ -171,10 +180,19 @@ func TestDocsCommandsOutputsMarkdownReference(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	output := buf.String()
-	for _, want := range []string{"# Command Reference", "`gpc users`", "`gpc releases`"} {
+	for _, want := range []string{
+		"# Command Reference",
+		"`gpc users`",
+		"`gpc users create`",
+		"`gpc purchases product acknowledge`",
+		"`gpc releases`",
+	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
 		}
+	}
+	if strings.Contains(output, "`--help`") {
+		t.Fatalf("output = %s, did not expect generated help flags", output)
 	}
 }
 
