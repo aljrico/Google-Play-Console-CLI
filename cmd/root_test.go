@@ -1114,12 +1114,92 @@ func TestImagesDeleteDryRunDoesNotRequireAuth(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	output := buf.String()
-	if !strings.Contains(output, `"imageId":"image-1"`) || !strings.Contains(output, `"dryRun":true`) {
-		t.Fatalf("output = %s, want image delete dry-run", output)
+	var result struct {
+		ImageID string `json:"imageId"`
+		DryRun  bool   `json:"dryRun"`
+		Plan    struct {
+			ImageID string `json:"imageId"`
+			All     bool   `json:"all"`
+		} `json:"plan"`
 	}
-	if strings.Contains(output, "no active auth profile") {
-		t.Fatalf("output = %s, did not expect auth", output)
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v; output = %s", err, buf.String())
+	}
+	if result.ImageID != "image-1" || result.Plan.ImageID != "image-1" || result.Plan.All || !result.DryRun {
+		t.Fatalf("result = %#v, want single image delete dry-run", result)
+	}
+	if strings.Contains(buf.String(), "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", buf.String())
+	}
+}
+
+func TestImagesDeleteAllDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"images",
+		"delete-all",
+		"--package",
+		"com.example.app",
+		"--language",
+		"en-US",
+		"--type",
+		"featureGraphic",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	var result struct {
+		All    bool `json:"all"`
+		DryRun bool `json:"dryRun"`
+		Plan   struct {
+			All bool `json:"all"`
+		} `json:"plan"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v; output = %s", err, buf.String())
+	}
+	if !result.All || !result.Plan.All || !result.DryRun {
+		t.Fatalf("result = %#v, want delete-all dry-run", result)
+	}
+	if strings.Contains(buf.String(), "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", buf.String())
+	}
+}
+
+func TestImagesDeleteRejectsMissingImageIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"images",
+		"delete",
+		"--package",
+		"com.example.app",
+		"--language",
+		"en-US",
+		"--type",
+		"phoneScreenshots",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing image ID error")
+	}
+	if !strings.Contains(err.Error(), "image ID is required") {
+		t.Fatalf("error = %v, want image ID validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
 	}
 }
 

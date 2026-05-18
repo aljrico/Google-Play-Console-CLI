@@ -89,6 +89,9 @@ func newImagesDeleteCommand(out io.Writer, options *globalOptions, packageName *
 			if err != nil {
 				return err
 			}
+			if err := deleteOptions.Validate(); err != nil {
+				return err
+			}
 			if dryRun {
 				result, err := play.DeleteImages(cmd.Context(), nil, deleteOptions)
 				if err != nil {
@@ -130,6 +133,9 @@ func newImagesDeleteAllCommand(out io.Writer, options *globalOptions, packageNam
 		RunE: func(cmd *cobra.Command, args []string) error {
 			deleteOptions, err := imageDeleteOptions(*packageName, language, imageType, "", true, confirm, dryRun)
 			if err != nil {
+				return err
+			}
+			if err := deleteOptions.Validate(); err != nil {
 				return err
 			}
 			if dryRun {

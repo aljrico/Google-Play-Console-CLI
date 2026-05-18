@@ -84,7 +84,7 @@ type ImageReader interface {
 type ImageDeleter interface {
 	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
 	DeleteImage(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType, imageID string) error
-	DeleteAllImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) error
+	DeleteAllImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) ([]StoreImage, error)
 	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
 	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
 	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
@@ -173,6 +173,7 @@ type ImageDeleteResult struct {
 	DryRun      bool            `json:"dryRun"`
 	Committed   bool            `json:"committed"`
 	Edit        *Edit           `json:"edit,omitempty"`
+	Deleted     []StoreImage    `json:"deleted,omitempty"`
 	Plan        ImageDeletePlan `json:"plan"`
 }
 
@@ -245,7 +246,9 @@ func DeleteImages(ctx context.Context, deleter ImageDeleter, options ImageDelete
 	}()
 
 	if options.All {
-		err = deleter.DeleteAllImages(ctx, options.PackageName, edit.ID, options.Language, options.Type)
+		deleted, deleteErr := deleter.DeleteAllImages(ctx, options.PackageName, edit.ID, options.Language, options.Type)
+		err = deleteErr
+		result.Deleted = deleted
 	} else {
 		err = deleter.DeleteImage(ctx, options.PackageName, edit.ID, options.Language, options.Type, options.ImageID)
 	}

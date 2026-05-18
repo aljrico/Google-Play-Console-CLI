@@ -255,11 +255,15 @@ func TestDeleteAllImagesUsesListingImagesEndpoint(t *testing.T) {
 			t.Fatalf("method = %s, want DELETE", r.Method)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{}`))
+		_, _ = w.Write([]byte(`{"deleted":[{"id":"image-1","sha256":"abc"}]}`))
 	}))
 
-	if err := publisher.DeleteAllImages(context.Background(), "com.example.app", "edit-123", "en-US", ImageTypeFeatureGraphic); err != nil {
+	deleted, err := publisher.DeleteAllImages(context.Background(), "com.example.app", "edit-123", "en-US", ImageTypeFeatureGraphic)
+	if err != nil {
 		t.Fatalf("DeleteAllImages() error = %v", err)
+	}
+	if len(deleted) != 1 || deleted[0].ID != "image-1" || deleted[0].SHA256 != "abc" {
+		t.Fatalf("deleted = %#v, want deleted image", deleted)
 	}
 }
 

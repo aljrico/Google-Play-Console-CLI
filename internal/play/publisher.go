@@ -200,11 +200,22 @@ func (p GooglePublisher) DeleteImage(ctx context.Context, packageName PackageNam
 	return nil
 }
 
-func (p GooglePublisher) DeleteAllImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) error {
-	if _, err := p.service.Edits.Images.Deleteall(packageName.String(), editID, language.String(), imageType.String()).Context(ctx).Do(); err != nil {
-		return fmt.Errorf("delete all %s images for %s %s listing: %w", imageType, packageName, language, err)
+func (p GooglePublisher) DeleteAllImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) ([]StoreImage, error) {
+	response, err := p.service.Edits.Images.Deleteall(packageName.String(), editID, language.String(), imageType.String()).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("delete all %s images for %s %s listing: %w", imageType, packageName, language, err)
 	}
-	return nil
+	if response == nil {
+		return []StoreImage{}, nil
+	}
+	images := make([]StoreImage, 0, len(response.Deleted))
+	for _, apiImage := range response.Deleted {
+		if apiImage == nil {
+			continue
+		}
+		images = append(images, imageFromAPI(apiImage))
+	}
+	return images, nil
 }
 
 func (p GooglePublisher) GetAppDetails(ctx context.Context, packageName PackageName, editID string) (AppDetails, error) {

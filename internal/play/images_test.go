@@ -81,6 +81,9 @@ func TestDeleteAllImagesCommitsWithConfirm(t *testing.T) {
 	if !result.Committed {
 		t.Fatalf("result = %#v, want committed", result)
 	}
+	if len(result.Deleted) != 1 || result.Deleted[0].ID != "image-1" {
+		t.Fatalf("deleted = %#v, want deleted image", result.Deleted)
+	}
 	wantCalls := []string{"insert", "delete-all", "validate", "commit"}
 	if !reflect.DeepEqual(deleter.calls, wantCalls) {
 		t.Fatalf("calls = %#v, want %#v", deleter.calls, wantCalls)
@@ -142,9 +145,9 @@ func (d *fakeImageDeleter) DeleteImage(ctx context.Context, packageName PackageN
 	return nil
 }
 
-func (d *fakeImageDeleter) DeleteAllImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) error {
+func (d *fakeImageDeleter) DeleteAllImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) ([]StoreImage, error) {
 	d.calls = append(d.calls, "delete-all")
-	return nil
+	return []StoreImage{{ID: "image-1"}}, nil
 }
 
 func (d *fakeImageDeleter) ValidateEdit(ctx context.Context, packageName PackageName, editID string) error {
