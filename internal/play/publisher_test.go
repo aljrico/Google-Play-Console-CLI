@@ -1,6 +1,8 @@
 package play
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"google.golang.org/api/androidpublisher/v3"
@@ -461,18 +463,30 @@ func TestSubscriptionOfferListResultFromAPIMapsNextPageToken(t *testing.T) {
 }
 
 func TestProductPurchaseFromAPIMapsEntitlementFields(t *testing.T) {
-	purchase := productPurchaseFromAPI("com.example.app", &androidpublisher.ProductPurchase{
-		ProductId:                   "coins_100",
-		PurchaseToken:               "token-123",
+	purchase := productPurchaseFromAPI(ProductPurchaseOptions{
+		PackageName: "com.example.app",
+		ProductID:   "coins_100",
+		Token:       "token-123",
+	}, &androidpublisher.ProductPurchaseV2{
 		OrderId:                     "GPA.123",
-		PurchaseState:               0,
-		PurchaseTimeMillis:          12345,
-		AcknowledgementState:        1,
-		ConsumptionState:            0,
-		Quantity:                    2,
-		RefundableQuantity:          1,
+		PurchaseStateContext:        &androidpublisher.PurchaseStateContext{PurchaseState: "PURCHASED"},
+		PurchaseCompletionTime:      "2026-05-18T10:00:00Z",
+		AcknowledgementState:        "ACKNOWLEDGEMENT_STATE_PENDING",
 		RegionCode:                  "US",
 		ObfuscatedExternalAccountId: "account",
+		TestPurchaseContext:         &androidpublisher.TestPurchaseContext{},
+		ProductLineItem: []*androidpublisher.ProductLineItem{
+			{
+				ProductId: "coins_100",
+				ProductOfferDetails: &androidpublisher.ProductOfferDetails{
+					ConsumptionState:   "CONSUMPTION_STATE_YET_TO_BE_CONSUMED",
+					OfferId:            "starter",
+					OfferTags:          []string{"welcome"},
+					Quantity:           0,
+					RefundableQuantity: 1,
+				},
+			},
+		},
 	})
 
 	if purchase.PackageName != "com.example.app" {
@@ -484,8 +498,43 @@ func TestProductPurchaseFromAPIMapsEntitlementFields(t *testing.T) {
 	if purchase.Token != "token-123" {
 		t.Fatalf("Token = %q, want token-123", purchase.Token)
 	}
-	if purchase.Quantity != 2 {
-		t.Fatalf("Quantity = %d, want 2", purchase.Quantity)
+	if purchase.PurchaseState != "PURCHASED" {
+		t.Fatalf("PurchaseState = %q, want PURCHASED", purchase.PurchaseState)
+	}
+	if !purchase.TestPurchase {
+		t.Fatal("TestPurchase = false, want true")
+	}
+	if len(purchase.LineItems) != 1 {
+		t.Fatalf("len(LineItems) = %d, want 1", len(purchase.LineItems))
+	}
+	if purchase.LineItems[0].Quantity != 0 {
+		t.Fatalf("Quantity = %d, want preserved zero", purchase.LineItems[0].Quantity)
+	}
+	if purchase.LineItems[0].ConsumptionState != "CONSUMPTION_STATE_YET_TO_BE_CONSUMED" {
+		t.Fatalf("ConsumptionState = %q, want yet-to-be-consumed", purchase.LineItems[0].ConsumptionState)
+	}
+}
+
+func TestProductPurchaseJSONPreservesZeroQuantities(t *testing.T) {
+	payload, err := json.Marshal(ProductPurchase{
+		PackageName: "com.example.app",
+		Token:       "token-123",
+		LineItems: []ProductPurchaseLineItem{
+			{
+				ProductID:          "coins_100",
+				Quantity:           0,
+				RefundableQuantity: 0,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	output := string(payload)
+	for _, want := range []string{`"quantity":0`, `"refundableQuantity":0`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("json = %s, want %s", output, want)
+		}
 	}
 }
 

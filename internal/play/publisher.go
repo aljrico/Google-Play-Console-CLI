@@ -286,11 +286,11 @@ func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName P
 }
 
 func (p GooglePublisher) GetProductPurchase(ctx context.Context, options ProductPurchaseOptions) (ProductPurchase, error) {
-	purchase, err := p.service.Purchases.Products.Get(options.PackageName.String(), options.ProductID.String(), options.Token.String()).Context(ctx).Do()
+	purchase, err := p.service.Purchases.Productsv2.Getproductpurchasev2(options.PackageName.String(), options.Token.String()).Context(ctx).Do()
 	if err != nil {
-		return ProductPurchase{}, fmt.Errorf("get product purchase %s for %s/%s: %w", options.Token, options.PackageName, options.ProductID, err)
+		return ProductPurchase{}, fmt.Errorf("get product purchase %s for %s: %w", options.Token, options.PackageName, err)
 	}
-	return productPurchaseFromAPI(options.PackageName, purchase), nil
+	return productPurchaseFromAPI(options, purchase), nil
 }
 
 func (p GooglePublisher) GetSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error) {
@@ -1080,26 +1080,61 @@ func subscriptionOfferTargetingScopeFromAPI(apiScope *androidpublisher.Targeting
 	}
 }
 
-func productPurchaseFromAPI(packageName PackageName, apiPurchase *androidpublisher.ProductPurchase) ProductPurchase {
+func productPurchaseFromAPI(options ProductPurchaseOptions, apiPurchase *androidpublisher.ProductPurchaseV2) ProductPurchase {
 	if apiPurchase == nil {
-		return ProductPurchase{PackageName: packageName}
+		return ProductPurchase{PackageName: options.PackageName, ProductID: options.ProductID, Token: options.Token, LineItems: []ProductPurchaseLineItem{}}
 	}
 	return ProductPurchase{
-		PackageName:                 packageName,
-		ProductID:                   InAppProductSKU(apiPurchase.ProductId),
-		Token:                       PurchaseToken(apiPurchase.PurchaseToken),
+		PackageName:                 options.PackageName,
+		ProductID:                   firstProductID(options.ProductID, apiPurchase.ProductLineItem),
+		Token:                       options.Token,
 		OrderID:                     apiPurchase.OrderId,
-		PurchaseState:               apiPurchase.PurchaseState,
-		PurchaseTimeMillis:          apiPurchase.PurchaseTimeMillis,
+		PurchaseState:               purchaseStateFromAPI(apiPurchase.PurchaseStateContext),
+		PurchaseCompletionTime:      apiPurchase.PurchaseCompletionTime,
 		AcknowledgementState:        apiPurchase.AcknowledgementState,
-		ConsumptionState:            apiPurchase.ConsumptionState,
-		Quantity:                    apiPurchase.Quantity,
-		RefundableQuantity:          apiPurchase.RefundableQuantity,
 		RegionCode:                  apiPurchase.RegionCode,
-		DeveloperPayload:            apiPurchase.DeveloperPayload,
 		ObfuscatedExternalAccountID: apiPurchase.ObfuscatedExternalAccountId,
 		ObfuscatedExternalProfileID: apiPurchase.ObfuscatedExternalProfileId,
+		TestPurchase:                apiPurchase.TestPurchaseContext != nil,
+		LineItems:                   productPurchaseLineItemsFromAPI(apiPurchase.ProductLineItem),
 	}
+}
+
+func purchaseStateFromAPI(apiState *androidpublisher.PurchaseStateContext) string {
+	if apiState == nil {
+		return ""
+	}
+	return apiState.PurchaseState
+}
+
+func firstProductID(fallback InAppProductSKU, apiItems []*androidpublisher.ProductLineItem) InAppProductSKU {
+	for _, apiItem := range apiItems {
+		if apiItem != nil && apiItem.ProductId != "" {
+			return InAppProductSKU(apiItem.ProductId)
+		}
+	}
+	return fallback
+}
+
+func productPurchaseLineItemsFromAPI(apiItems []*androidpublisher.ProductLineItem) []ProductPurchaseLineItem {
+	items := make([]ProductPurchaseLineItem, 0, len(apiItems))
+	for _, apiItem := range apiItems {
+		if apiItem == nil {
+			continue
+		}
+		item := ProductPurchaseLineItem{ProductID: apiItem.ProductId}
+		if apiItem.ProductOfferDetails != nil {
+			item.ConsumptionState = apiItem.ProductOfferDetails.ConsumptionState
+			item.PurchaseOptionID = apiItem.ProductOfferDetails.PurchaseOptionId
+			item.OfferID = apiItem.ProductOfferDetails.OfferId
+			item.OfferToken = apiItem.ProductOfferDetails.OfferToken
+			item.OfferTags = apiItem.ProductOfferDetails.OfferTags
+			item.Quantity = apiItem.ProductOfferDetails.Quantity
+			item.RefundableQuantity = apiItem.ProductOfferDetails.RefundableQuantity
+		}
+		items = append(items, item)
+	}
+	return items
 }
 
 func subscriptionPurchaseFromAPI(packageName PackageName, token PurchaseToken, apiPurchase *androidpublisher.SubscriptionPurchaseV2) SubscriptionPurchase {

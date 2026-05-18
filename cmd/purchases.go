@@ -38,14 +38,16 @@ func newPurchasesProductCommand(out io.Writer, options *globalOptions, packageNa
 			if err != nil {
 				return err
 			}
-			typedProductID, err := play.NewInAppProductSKU(productID)
-			if err != nil {
-				return err
-			}
 			purchaseOptions := play.ProductPurchaseOptions{
 				PackageName: typedPackageName,
-				ProductID:   typedProductID,
 				Token:       typedToken,
+			}
+			if productID != "" {
+				typedProductID, err := play.NewInAppProductSKU(productID)
+				if err != nil {
+					return err
+				}
+				purchaseOptions.ProductID = typedProductID
 			}
 			if err := purchaseOptions.Validate(); err != nil {
 				return err
@@ -61,7 +63,7 @@ func newPurchasesProductCommand(out io.Writer, options *globalOptions, packageNa
 			return output.Write(out, options.output, options.pretty, purchase)
 		},
 	}
-	cmd.Flags().StringVar(&productID, "product-id", "", "In-app product ID")
+	cmd.Flags().StringVar(&productID, "product-id", "", "Optional in-app product ID hint for stable output when Google omits line items")
 	cmd.Flags().StringVar(&token, "token", "", "Purchase token")
 	return cmd
 }

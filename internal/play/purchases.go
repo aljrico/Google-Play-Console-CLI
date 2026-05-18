@@ -20,7 +20,7 @@ func (t PurchaseToken) String() string {
 
 type ProductPurchaseOptions struct {
 	PackageName PackageName     `json:"packageName"`
-	ProductID   InAppProductSKU `json:"productId"`
+	ProductID   InAppProductSKU `json:"productId,omitempty"`
 	Token       PurchaseToken   `json:"token"`
 }
 
@@ -28,8 +28,10 @@ func (o ProductPurchaseOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
 	}
-	if _, err := NewInAppProductSKU(o.ProductID.String()); err != nil {
-		return err
+	if o.ProductID != "" {
+		if _, err := NewInAppProductSKU(o.ProductID.String()); err != nil {
+			return err
+		}
 	}
 	if _, err := NewPurchaseToken(o.Token.String()); err != nil {
 		return err
@@ -38,20 +40,29 @@ func (o ProductPurchaseOptions) Validate() error {
 }
 
 type ProductPurchase struct {
-	PackageName                 PackageName     `json:"packageName"`
-	ProductID                   InAppProductSKU `json:"productId"`
-	Token                       PurchaseToken   `json:"token,omitempty"`
-	OrderID                     string          `json:"orderId,omitempty"`
-	PurchaseState               int64           `json:"purchaseState,omitempty"`
-	PurchaseTimeMillis          int64           `json:"purchaseTimeMillis,omitempty"`
-	AcknowledgementState        int64           `json:"acknowledgementState,omitempty"`
-	ConsumptionState            int64           `json:"consumptionState,omitempty"`
-	Quantity                    int64           `json:"quantity,omitempty"`
-	RefundableQuantity          int64           `json:"refundableQuantity,omitempty"`
-	RegionCode                  string          `json:"regionCode,omitempty"`
-	DeveloperPayload            string          `json:"developerPayload,omitempty"`
-	ObfuscatedExternalAccountID string          `json:"obfuscatedExternalAccountId,omitempty"`
-	ObfuscatedExternalProfileID string          `json:"obfuscatedExternalProfileId,omitempty"`
+	PackageName                 PackageName               `json:"packageName"`
+	ProductID                   InAppProductSKU           `json:"productId,omitempty"`
+	Token                       PurchaseToken             `json:"token,omitempty"`
+	OrderID                     string                    `json:"orderId,omitempty"`
+	PurchaseState               string                    `json:"purchaseState,omitempty"`
+	PurchaseCompletionTime      string                    `json:"purchaseCompletionTime,omitempty"`
+	AcknowledgementState        string                    `json:"acknowledgementState,omitempty"`
+	RegionCode                  string                    `json:"regionCode,omitempty"`
+	ObfuscatedExternalAccountID string                    `json:"obfuscatedExternalAccountId,omitempty"`
+	ObfuscatedExternalProfileID string                    `json:"obfuscatedExternalProfileId,omitempty"`
+	TestPurchase                bool                      `json:"testPurchase,omitempty"`
+	LineItems                   []ProductPurchaseLineItem `json:"lineItems"`
+}
+
+type ProductPurchaseLineItem struct {
+	ProductID          string   `json:"productId,omitempty"`
+	ConsumptionState   string   `json:"consumptionState,omitempty"`
+	PurchaseOptionID   string   `json:"purchaseOptionId,omitempty"`
+	OfferID            string   `json:"offerId,omitempty"`
+	OfferToken         string   `json:"offerToken,omitempty"`
+	OfferTags          []string `json:"offerTags,omitempty"`
+	Quantity           int64    `json:"quantity"`
+	RefundableQuantity int64    `json:"refundableQuantity"`
 }
 
 type ProductPurchaseGetter interface {

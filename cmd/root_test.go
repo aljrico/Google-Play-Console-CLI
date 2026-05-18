@@ -618,6 +618,31 @@ func TestPurchasesProductRejectsMissingTokenBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestPurchasesProductAllowsTokenOnlyBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"purchases",
+		"product",
+		"--package",
+		"com.example.app",
+		"--token",
+		"token-123",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected auth error")
+	}
+	if strings.Contains(err.Error(), "product ID") || strings.Contains(err.Error(), "in-app product") {
+		t.Fatalf("error = %v, want auth error after token-only validation", err)
+	}
+}
+
 func TestPurchasesSubscriptionRejectsMissingTokenBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

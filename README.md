@@ -45,7 +45,7 @@ gpc subscriptions list --package com.example.app --page-size 50
 gpc subscriptions get --package com.example.app --product-id premium_monthly
 gpc subscription-offers list --package com.example.app --product-id premium_monthly --base-plan-id monthly
 gpc subscription-offers get --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro
-gpc purchases product --package com.example.app --product-id coins_100 --token PURCHASE_TOKEN
+gpc purchases product --package com.example.app --token PURCHASE_TOKEN
 gpc purchases subscription --package com.example.app --token PURCHASE_TOKEN
 ```
 
