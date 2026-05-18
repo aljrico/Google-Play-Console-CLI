@@ -51,7 +51,7 @@ Remove `--dry-run` to validate the edit against Google Play. Add `--confirm` to 
 
 ## Output
 
-`gpc` defaults to table output in an interactive terminal and JSON when stdout is piped. Override it with:
+`gpc` defaults to JSON so scripts get stable output. Override it with:
 
 ```sh
 gpc version --output json --pretty

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"reflect"
 	"strings"
 )
@@ -60,13 +59,6 @@ func Write(w io.Writer, format Format, pretty bool, value any) error {
 }
 
 func defaultFormat(w io.Writer) Format {
-	file, ok := w.(*os.File)
-	if !ok {
-		return JSON
-	}
-	if info, err := file.Stat(); err == nil && info.Mode()&os.ModeCharDevice != 0 {
-		return Table
-	}
 	return JSON
 }
 
@@ -98,7 +90,7 @@ func rowsFromValue(value any) (tableRows, error) {
 		header := []string{"key", "value"}
 		values := make([][]string, 0, v.Len())
 		for _, key := range v.MapKeys() {
-			values = append(values, []string{fmt.Sprint(key.Interface()), fmt.Sprint(v.MapIndex(key).Interface())})
+			values = append(values, []string{valueString(key), valueString(v.MapIndex(key))})
 		}
 		return tableRows{header: header, values: values}, nil
 	}
@@ -115,7 +107,7 @@ func rowsFromValue(value any) (tableRows, error) {
 				continue
 			}
 			header = append(header, headerName(field))
-			values = append(values, fmt.Sprint(v.Field(i).Interface()))
+			values = append(values, valueString(v.Field(i)))
 		}
 		return tableRows{header: header, values: [][]string{values}}, nil
 	}
@@ -165,9 +157,35 @@ func structValues(v reflect.Value) []string {
 		if field.PkgPath != "" {
 			continue
 		}
-		values = append(values, fmt.Sprint(v.Field(i).Interface()))
+		values = append(values, valueString(v.Field(i)))
 	}
 	return values
+}
+
+func valueString(v reflect.Value) string {
+	if !v.IsValid() {
+		return ""
+	}
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return ""
+		}
+		return valueString(v.Elem())
+	}
+	if v.Kind() == reflect.Slice {
+		values := make([]string, 0, v.Len())
+		for i := 0; i < v.Len(); i++ {
+			values = append(values, valueString(v.Index(i)))
+		}
+		return strings.Join(values, ",")
+	}
+	if v.Kind() == reflect.Struct {
+		data, err := json.Marshal(v.Interface())
+		if err == nil {
+			return string(data)
+		}
+	}
+	return fmt.Sprint(v.Interface())
 }
 
 func headerName(field reflect.StructField) string {

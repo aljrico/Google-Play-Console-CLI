@@ -11,6 +11,10 @@ type sampleRow struct {
 	Status string `json:"status"`
 }
 
+type pointerRow struct {
+	UserFraction *float64 `json:"userFraction,omitempty"`
+}
+
 func TestWriteJSONPretty(t *testing.T) {
 	var buf bytes.Buffer
 
@@ -34,6 +38,20 @@ func TestWritePlainTableForStructSlice(t *testing.T) {
 	}
 	output := buf.String()
 	if !strings.Contains(output, "name") || !strings.Contains(output, "internal") {
+		t.Fatalf("table output = %q", output)
+	}
+}
+
+func TestWritePlainTableDereferencesPointers(t *testing.T) {
+	var buf bytes.Buffer
+	userFraction := 0.25
+
+	err := Write(&buf, Table, false, pointerRow{UserFraction: &userFraction})
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	output := buf.String()
+	if strings.Contains(output, "0x") || !strings.Contains(output, "0.25") {
 		t.Fatalf("table output = %q", output)
 	}
 }
