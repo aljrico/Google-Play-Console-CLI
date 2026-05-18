@@ -104,7 +104,7 @@ Sources:
 | --- | --- | --- | --- | --- |
 | `account` | `account` | Partial | planned | Account health is likely a mix of API-backed checks and local auth checks. |
 | `users` | `users` | `users` | tested | `gpc users list` covers read-only developer account user inspection with pagination. Mutations remain planned. |
-| `actors` | `users` / `grants` | `users`, `grants` | tested | `gpc users list` exposes account users and embedded per-app grants; direct grant management remains planned. |
+| `actors` | `users` / `grants` | `users`, `grants` | tested | `gpc users list` exposes account users and embedded per-app grants; `gpc grants` manages app-level grants with dry-run/confirm gating. |
 | `agreements` | N/A | N/A | blocked | Play agreement state may not be exposed through public APIs. |
 | `grants` | `grants` | `grants` | tested | `gpc grants create`, `patch`, and `delete` manage app-level user grants with dry-run/confirm gating. Listing remains covered through `users list`. |
 

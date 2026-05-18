@@ -1080,6 +1080,9 @@ func TestCreateGrantUsesGrantEndpoint(t *testing.T) {
 		if request.PackageName != "com.example.app" || len(request.AppLevelPermissions) != 1 || request.AppLevelPermissions[0] != "CAN_VIEW_NON_FINANCIAL_DATA" {
 			t.Fatalf("request = %#v, want package and permission", request)
 		}
+		if request.Name != "developers/123/users/user@example.com/grants/com.example.app" {
+			t.Fatalf("request name = %q, want full grant resource", request.Name)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
 			"name": "developers/123/users/user@example.com/grants/com.example.app",

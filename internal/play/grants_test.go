@@ -19,8 +19,14 @@ func TestCreateGrantDryRunDoesNotRequireManager(t *testing.T) {
 	if !result.DryRun || result.Applied {
 		t.Fatalf("result = %#v, want dry-run not applied", result)
 	}
-	if result.Plan.Target != "developers/1234567890/users/user@example.com" {
-		t.Fatalf("target = %q, want parent resource", result.Plan.Target)
+	if result.Plan.Target != "developers/1234567890/users/user@example.com/grants/com.example.app" {
+		t.Fatalf("target = %q, want grant resource", result.Plan.Target)
+	}
+	if result.Desired == nil || result.Desired.Name != "developers/1234567890/users/user@example.com/grants/com.example.app" {
+		t.Fatalf("desired grant = %#v, want full grant resource", result.Desired)
+	}
+	if len(result.Plan.Permissions) != 1 || result.Plan.Permissions[0] != GrantPermissionViewNonFinancialData {
+		t.Fatalf("plan permissions = %#v, want requested permission", result.Plan.Permissions)
 	}
 }
 
@@ -70,6 +76,15 @@ func TestGrantOptionsRejectInvalidInputs(t *testing.T) {
 
 	if _, err := PatchGrant(context.Background(), nil, GrantPatchOptions{Name: "bad", Permissions: []GrantPermission{GrantPermissionViewNonFinancialData}, DryRun: true}); err == nil {
 		t.Fatal("PatchGrant() expected invalid name error")
+	}
+	for _, name := range []GrantName{
+		"developers/123/users//grants/com.example.app",
+		"developers/123/users/not-email/grants/com.example.app",
+		"developers/123/users/user@example.com/grants/com.example.app/extra",
+	} {
+		if _, err := PatchGrant(context.Background(), nil, GrantPatchOptions{Name: name, Permissions: []GrantPermission{GrantPermissionViewNonFinancialData}, DryRun: true}); err == nil {
+			t.Fatalf("PatchGrant(%q) expected invalid name error", name)
+		}
 	}
 	if _, err := DeleteGrant(context.Background(), nil, GrantDeleteOptions{Name: "developers/123/users/user@example.com/grants/com.example.app"}); err == nil {
 		t.Fatal("DeleteGrant() expected confirmation error")

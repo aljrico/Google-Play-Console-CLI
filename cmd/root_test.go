@@ -291,6 +291,12 @@ func TestGrantsCreateDryRunDoesNotRequireAuth(t *testing.T) {
 	if !strings.Contains(buf.String(), `"dryRun":true`) {
 		t.Fatalf("output = %s, want dryRun true", buf.String())
 	}
+	if !strings.Contains(buf.String(), `"target":"developers/1234567890/users/user@example.com/grants/com.example.app"`) {
+		t.Fatalf("output = %s, want full grant target", buf.String())
+	}
+	if !strings.Contains(buf.String(), `"appLevelPermissions":["CAN_VIEW_NON_FINANCIAL_DATA"]`) {
+		t.Fatalf("output = %s, want grant permission preview", buf.String())
+	}
 	if strings.Contains(buf.String(), "no active auth profile") {
 		t.Fatalf("output = %s, did not expect auth", buf.String())
 	}

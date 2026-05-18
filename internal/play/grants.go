@@ -12,8 +12,18 @@ func NewGrantName(value string) (GrantName, error) {
 	if value == "" {
 		return "", fmt.Errorf("grant name is required")
 	}
-	if !strings.HasPrefix(value, "developers/") || !strings.Contains(value, "/users/") || !strings.Contains(value, "/grants/") {
+	segments := strings.Split(value, "/")
+	if len(segments) != 6 || segments[0] != "developers" || segments[2] != "users" || segments[4] != "grants" {
 		return "", fmt.Errorf("invalid grant name %q", value)
+	}
+	if _, err := NewDeveloperAccount(segments[1]); err != nil {
+		return "", fmt.Errorf("invalid grant developer: %w", err)
+	}
+	if _, err := NewGrantUserEmail(segments[3]); err != nil {
+		return "", fmt.Errorf("invalid grant user: %w", err)
+	}
+	if segments[5] == "" {
+		return "", fmt.Errorf("invalid grant package %q", segments[5])
 	}
 	return GrantName(value), nil
 }
@@ -132,6 +142,10 @@ func (o GrantCreateOptions) Parent() string {
 	return o.Developer.ResourceName() + "/users/" + o.UserEmail.String()
 }
 
+func (o GrantCreateOptions) GrantName() GrantName {
+	return GrantName(o.Parent() + "/grants/" + o.PackageName.String())
+}
+
 type GrantPatchOptions struct {
 	Name        GrantName         `json:"name"`
 	Permissions []GrantPermission `json:"appLevelPermissions"`
@@ -183,10 +197,12 @@ func validateGrantMutation(permissions []GrantPermission, confirm bool, dryRun b
 }
 
 type GrantMutationPlan struct {
-	Action  string   `json:"action"`
-	Target  string   `json:"target"`
-	Confirm bool     `json:"confirm"`
-	Steps   []string `json:"steps"`
+	Action      string            `json:"action"`
+	Target      string            `json:"target"`
+	Permissions []GrantPermission `json:"appLevelPermissions,omitempty"`
+	Grant       *Grant            `json:"grant,omitempty"`
+	Confirm     bool              `json:"confirm"`
+	Steps       []string          `json:"steps"`
 }
 
 type GrantMutationResult struct {
@@ -194,6 +210,7 @@ type GrantMutationResult struct {
 	DryRun  bool              `json:"dryRun"`
 	Applied bool              `json:"applied"`
 	Grant   *Grant            `json:"grant,omitempty"`
+	Desired *Grant            `json:"desiredGrant,omitempty"`
 	Plan    GrantMutationPlan `json:"plan"`
 }
 
@@ -207,14 +224,22 @@ func CreateGrant(ctx context.Context, manager GrantManager, options GrantCreateO
 	if err := options.Validate(); err != nil {
 		return GrantMutationResult{}, err
 	}
+	desiredGrant := Grant{
+		Name:        options.GrantName(),
+		PackageName: options.PackageName,
+		Permissions: options.Permissions,
+	}
 	result := GrantMutationResult{
-		Action: "create",
-		DryRun: options.DryRun,
+		Action:  "create",
+		DryRun:  options.DryRun,
+		Desired: &desiredGrant,
 		Plan: GrantMutationPlan{
-			Action:  "create",
-			Target:  options.Parent(),
-			Confirm: options.Confirm,
-			Steps:   grantSteps("create", options.DryRun),
+			Action:      "create",
+			Target:      options.GrantName().String(),
+			Permissions: append([]GrantPermission(nil), options.Permissions...),
+			Grant:       &desiredGrant,
+			Confirm:     options.Confirm,
+			Steps:       grantSteps("create", options.DryRun),
 		},
 	}
 	if options.DryRun {
@@ -236,14 +261,21 @@ func PatchGrant(ctx context.Context, manager GrantManager, options GrantPatchOpt
 	if err := options.Validate(); err != nil {
 		return GrantMutationResult{}, err
 	}
+	desiredGrant := Grant{
+		Name:        options.Name,
+		Permissions: options.Permissions,
+	}
 	result := GrantMutationResult{
-		Action: "patch",
-		DryRun: options.DryRun,
+		Action:  "patch",
+		DryRun:  options.DryRun,
+		Desired: &desiredGrant,
 		Plan: GrantMutationPlan{
-			Action:  "patch",
-			Target:  options.Name.String(),
-			Confirm: options.Confirm,
-			Steps:   grantSteps("patch", options.DryRun),
+			Action:      "patch",
+			Target:      options.Name.String(),
+			Permissions: append([]GrantPermission(nil), options.Permissions...),
+			Grant:       &desiredGrant,
+			Confirm:     options.Confirm,
+			Steps:       grantSteps("patch", options.DryRun),
 		},
 	}
 	if options.DryRun {

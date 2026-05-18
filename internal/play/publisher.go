@@ -376,6 +376,7 @@ func (p GooglePublisher) UpdateDataSafety(ctx context.Context, packageName Packa
 
 func (p GooglePublisher) CreateGrant(ctx context.Context, options GrantCreateOptions) (Grant, error) {
 	apiGrant, err := p.service.Grants.Create(options.Parent(), grantToAPI(Grant{
+		Name:        options.GrantName(),
 		PackageName: options.PackageName,
 		Permissions: options.Permissions,
 	})).Context(ctx).Do()
