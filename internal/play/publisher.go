@@ -161,6 +161,21 @@ func (p GooglePublisher) PatchListing(ctx context.Context, packageName PackageNa
 	return listingFromAPI(updatedListing), nil
 }
 
+func (p GooglePublisher) ListImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) ([]StoreImage, error) {
+	response, err := p.service.Edits.Images.List(packageName.String(), editID, language.String(), imageType.String()).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("list %s images for %s %s listing: %w", imageType, packageName, language, err)
+	}
+	images := make([]StoreImage, 0, len(response.Images))
+	for _, apiImage := range response.Images {
+		if apiImage == nil {
+			continue
+		}
+		images = append(images, imageFromAPI(apiImage))
+	}
+	return images, nil
+}
+
 func (p GooglePublisher) GetAppDetails(ctx context.Context, packageName PackageName, editID string) (AppDetails, error) {
 	details, err := p.service.Edits.Details.Get(packageName.String(), editID).Context(ctx).Do()
 	if err != nil {
@@ -685,6 +700,18 @@ func listingFromAPI(apiListing *androidpublisher.Listing) Listing {
 		ShortDescription: stringPointer(apiListing.ShortDescription),
 		FullDescription:  stringPointer(apiListing.FullDescription),
 		Video:            stringPointer(apiListing.Video),
+	}
+}
+
+func imageFromAPI(apiImage *androidpublisher.Image) StoreImage {
+	if apiImage == nil {
+		return StoreImage{}
+	}
+	return StoreImage{
+		ID:     apiImage.Id,
+		URL:    apiImage.Url,
+		SHA1:   apiImage.Sha1,
+		SHA256: apiImage.Sha256,
 	}
 }
 

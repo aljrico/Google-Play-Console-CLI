@@ -184,6 +184,31 @@ func TestListingToAPIForceSendsEmptyChangedField(t *testing.T) {
 	}
 }
 
+func TestListImagesUsesListingImagesEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/edits/edit-123/listings/en-US/phoneScreenshots" {
+			t.Fatalf("path = %q, want images endpoint", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"images": [{
+				"id": "image-1",
+				"url": "https://example.com/image.png",
+				"sha1": "abc",
+				"sha256": "def"
+			}]
+		}`))
+	}))
+
+	images, err := publisher.ListImages(context.Background(), "com.example.app", "edit-123", "en-US", ImageTypePhoneScreenshots)
+	if err != nil {
+		t.Fatalf("ListImages() error = %v", err)
+	}
+	if len(images) != 1 || images[0].ID != "image-1" || images[0].SHA256 != "def" {
+		t.Fatalf("images = %#v, want mapped image", images)
+	}
+}
+
 func TestAppDetailsToAPIForceSendsEmptyChangedField(t *testing.T) {
 	apiDetails := appDetailsToAPI(AppDetails{ContactPhone: stringValue("")})
 
