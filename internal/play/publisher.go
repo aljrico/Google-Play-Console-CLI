@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -1499,16 +1500,37 @@ func generatedAPKTargetingInfoFromAPI(apiTargetingInfo *androidpublisher.Targeti
 
 func generatedAPKTargetingVariantFromAPI(apiVariant *androidpublisher.SplitApkVariant) GeneratedAPKTargetingVariant {
 	moduleNames := make([]string, 0, len(apiVariant.ApkSet))
+	targetedAPKs := []GeneratedAPKTargetedAPK{}
 	for _, apiAPKSet := range apiVariant.ApkSet {
 		if apiAPKSet == nil || apiAPKSet.ModuleMetadata == nil {
+			if apiAPKSet != nil {
+				targetedAPKs = append(targetedAPKs, generatedAPKTargetedAPKsFromAPI(apiAPKSet.ApkDescription)...)
+			}
 			continue
 		}
 		moduleNames = append(moduleNames, apiAPKSet.ModuleMetadata.Name)
+		targetedAPKs = append(targetedAPKs, generatedAPKTargetedAPKsFromAPI(apiAPKSet.ApkDescription)...)
 	}
 	return GeneratedAPKTargetingVariant{
 		VariantNumber: apiVariant.VariantNumber,
 		ModuleNames:   moduleNames,
+		Targeting:     generatedAPKRawJSONFromAPI(apiVariant.Targeting),
+		APKs:          targetedAPKs,
 	}
+}
+
+func generatedAPKTargetedAPKsFromAPI(apiAPKDescriptions []*androidpublisher.ApkDescription) []GeneratedAPKTargetedAPK {
+	targetedAPKs := make([]GeneratedAPKTargetedAPK, 0, len(apiAPKDescriptions))
+	for _, apiAPKDescription := range apiAPKDescriptions {
+		if apiAPKDescription == nil {
+			continue
+		}
+		targetedAPKs = append(targetedAPKs, GeneratedAPKTargetedAPK{
+			Path:      apiAPKDescription.Path,
+			Targeting: generatedAPKRawJSONFromAPI(apiAPKDescription.Targeting),
+		})
+	}
+	return targetedAPKs
 }
 
 func generatedAPKAssetSliceSetFromAPI(apiAssetSliceSet *androidpublisher.AssetSliceSet) GeneratedAPKAssetSliceSet {
@@ -1524,6 +1546,20 @@ func generatedAPKAssetSliceSetFromAPI(apiAssetSliceSet *androidpublisher.AssetSl
 		assetSliceSet.APKPaths = append(assetSliceSet.APKPaths, apiAPKDescription.Path)
 	}
 	return assetSliceSet
+}
+
+func generatedAPKRawJSONFromAPI(value any) json.RawMessage {
+	if value == nil {
+		return nil
+	}
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return nil
+	}
+	if string(payload) == "{}" {
+		return nil
+	}
+	return payload
 }
 
 func regionPriceConversionResultFromAPI(options RegionPriceConversionOptions, response *androidpublisher.ConvertRegionPricesResponse) RegionPriceConversionResult {

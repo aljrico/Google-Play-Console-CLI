@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 )
 
@@ -38,8 +39,15 @@ type GeneratedAPKTargetingInfo struct {
 }
 
 type GeneratedAPKTargetingVariant struct {
-	VariantNumber int64    `json:"variantNumber"`
-	ModuleNames   []string `json:"moduleNames,omitempty"`
+	VariantNumber int64                     `json:"variantNumber"`
+	ModuleNames   []string                  `json:"moduleNames,omitempty"`
+	Targeting     json.RawMessage           `json:"targeting,omitempty"`
+	APKs          []GeneratedAPKTargetedAPK `json:"apks"`
+}
+
+type GeneratedAPKTargetedAPK struct {
+	Path      string          `json:"path,omitempty"`
+	Targeting json.RawMessage `json:"targeting,omitempty"`
 }
 
 type GeneratedAPKAssetSliceSet struct {

@@ -48,6 +48,7 @@ func TestConvertRegionPricesRejectsInvalidOptions(t *testing.T) {
 		{},
 		{PackageName: "bad", Currency: "USD", Units: 1},
 		{PackageName: "com.example.app", Currency: "US", Units: 1},
+		{PackageName: "com.example.app", Currency: " usd ", Units: 1},
 		{PackageName: "com.example.app", Currency: "USD", Units: -1},
 		{PackageName: "com.example.app", Currency: "USD", Nanos: -1},
 		{PackageName: "com.example.app", Currency: "USD", Nanos: 1000000000},

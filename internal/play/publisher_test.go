@@ -1106,7 +1106,19 @@ func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
 					"packageName": "com.example.app",
 					"variant": [{
 						"variantNumber": 0,
-						"apkSet": [{"moduleMetadata": {"name": "base"}}]
+						"targeting": {
+							"abiTargeting": {"value": [{"alias": "ARM64_V8A"}]},
+							"sdkVersionTargeting": {"value": [{"min": 23}]}
+						},
+						"apkSet": [{
+							"moduleMetadata": {"name": "base"},
+							"apkDescription": [{
+								"path": "split-download.apk",
+								"targeting": {
+									"screenDensityTargeting": {"value": [{"densityAlias": "XXHDPI"}]}
+								}
+							}]
+						}]
 					}],
 					"assetSliceSet": [{
 						"assetModuleMetadata": {"name": "assets", "deliveryType": "FAST_FOLLOW"},
@@ -1136,6 +1148,12 @@ func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
 	}
 	if len(signingKey.TargetingInfo.Variants[0].ModuleNames) != 1 || signingKey.TargetingInfo.Variants[0].ModuleNames[0] != "base" {
 		t.Fatalf("targeting variants = %#v, want base module", signingKey.TargetingInfo.Variants)
+	}
+	if !strings.Contains(string(signingKey.TargetingInfo.Variants[0].Targeting), `"abiTargeting"`) || !strings.Contains(string(signingKey.TargetingInfo.Variants[0].Targeting), `"sdkVersionTargeting"`) {
+		t.Fatalf("variant targeting = %s, want ABI and SDK targeting", string(signingKey.TargetingInfo.Variants[0].Targeting))
+	}
+	if len(signingKey.TargetingInfo.Variants[0].APKs) != 1 || !strings.Contains(string(signingKey.TargetingInfo.Variants[0].APKs[0].Targeting), `"screenDensityTargeting"`) {
+		t.Fatalf("APK targeting = %#v, want screen density targeting", signingKey.TargetingInfo.Variants[0].APKs)
 	}
 	if len(signingKey.TargetingInfo.AssetSliceSets) != 1 || signingKey.TargetingInfo.AssetSliceSets[0].DeliveryType != "FAST_FOLLOW" {
 		t.Fatalf("asset slice targeting = %#v, want FAST_FOLLOW", signingKey.TargetingInfo.AssetSliceSets)

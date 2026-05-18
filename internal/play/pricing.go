@@ -26,8 +26,14 @@ func (c CurrencyCode) String() string {
 }
 
 func (c CurrencyCode) Validate() error {
-	_, err := NewCurrencyCode(c.String())
-	return err
+	normalized, err := NewCurrencyCode(c.String())
+	if err != nil {
+		return err
+	}
+	if normalized != c {
+		return fmt.Errorf("currency code must be normalized uppercase without surrounding whitespace")
+	}
+	return nil
 }
 
 type RegionPriceConversionOptions struct {
