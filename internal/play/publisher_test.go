@@ -74,6 +74,17 @@ func TestListingToAPIForceSendsEmptyChangedField(t *testing.T) {
 	}
 }
 
+func TestAppDetailsToAPIForceSendsEmptyChangedField(t *testing.T) {
+	apiDetails := appDetailsToAPI(AppDetails{ContactPhone: stringValue("")})
+
+	if apiDetails.ContactPhone != "" {
+		t.Fatalf("ContactPhone = %q, want empty string", apiDetails.ContactPhone)
+	}
+	if !containsField(apiDetails.ForceSendFields, "ContactPhone") {
+		t.Fatalf("ForceSendFields = %#v, want ContactPhone", apiDetails.ForceSendFields)
+	}
+}
+
 func containsField(fields []string, field string) bool {
 	for _, candidate := range fields {
 		if candidate == field {

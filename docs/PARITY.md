@@ -60,14 +60,14 @@ Sources:
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `localizations` | `listings` | `edits.listings` | tested | `gpc listings list`, `get`, partial `update`, `delete`, and `delete-all` cover localized store listing records. |
-| `metadata` | `metadata` | `edits.details`, `edits.listings` | planned | First metadata slice is covered through `gpc listings`; app details and file-based sync are still planned. |
+| `metadata` | `metadata` | `edits.details`, `edits.listings` | tested | Metadata slices are covered through `gpc listings` and `gpc details`; file-based sync is still planned. |
 | `screenshots` | `images` | `edits.images` | planned | Screenshots and graphic assets are image uploads by language and type. |
 | `video-previews` | `videos` | Not clearly exposed in Android Publisher API | blocked | Play video preview management may require Console UI or another API surface. |
 | `background-assets` | `images` | `edits.images` | planned | Some asset types map to Play listing images. |
 | `product-pages` | N/A | N/A | not applicable | App Store custom product pages do not have a direct Play equivalent. |
 | `routing-coverage` | N/A | N/A | not applicable | Apple Maps routing coverage is Apple-specific. |
 | `app-tags` | N/A | N/A | not applicable | Apple-generated discoverability tags are Apple-specific. |
-| `categories` | `details` | `edits.details` | planned | Play app details include category-like metadata. |
+| `categories` | `details` | `edits.details` | blocked | Current Android Publisher `edits.details` exposes default language and contact fields, not category mutation. |
 | `age-rating` | `details` / `data-safety` | Partial | blocked | Some declarations are API-backed, but Play Console coverage may be incomplete. |
 | `accessibility` | `details` / `data-safety` | Partial | blocked | Needs API verification before command design. |
 | `encryption` | N/A | N/A | not applicable | Apple export compliance workflow. |
