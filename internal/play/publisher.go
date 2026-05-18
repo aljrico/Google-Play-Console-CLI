@@ -125,6 +125,20 @@ func (p GooglePublisher) PatchListing(ctx context.Context, packageName PackageNa
 	return listingFromAPI(updatedListing), nil
 }
 
+func (p GooglePublisher) DeleteListing(ctx context.Context, packageName PackageName, editID string, language ListingLanguage) error {
+	if err := p.service.Edits.Listings.Delete(packageName.String(), editID, language.String()).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("delete %s listing for %s: %w", language, packageName, err)
+	}
+	return nil
+}
+
+func (p GooglePublisher) DeleteAllListings(ctx context.Context, packageName PackageName, editID string) error {
+	if err := p.service.Edits.Listings.Deleteall(packageName.String(), editID).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("delete all listings for %s: %w", packageName, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName PackageName, editID string, trackName TrackName, release TrackRelease) (Track, error) {
 	apiTrack, err := p.service.Edits.Tracks.Get(packageName.String(), editID, trackName.String()).Context(ctx).Do()
 	if err != nil {

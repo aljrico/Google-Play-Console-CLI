@@ -91,6 +91,15 @@ type ListingUpdater interface {
 	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
 }
 
+type ListingDeleter interface {
+	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
+	DeleteListing(ctx context.Context, packageName PackageName, editID string, language ListingLanguage) error
+	DeleteAllListings(ctx context.Context, packageName PackageName, editID string) error
+	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
+	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
+	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
+}
+
 type UpdateListingOptions struct {
 	PackageName PackageName `json:"packageName"`
 	Listing     Listing     `json:"listing"`
@@ -204,6 +213,138 @@ func UpdateListing(ctx context.Context, updater ListingUpdater, options UpdateLi
 	committedEdit, err := updater.CommitEdit(ctx, options.PackageName, edit.ID)
 	if err != nil {
 		return UpdateListingResult{}, err
+	}
+	shouldDeleteEdit = false
+	result.Edit = &committedEdit
+	result.Committed = true
+	return result, nil
+}
+
+type DeleteListingOptions struct {
+	PackageName PackageName     `json:"packageName"`
+	Language    ListingLanguage `json:"language,omitempty"`
+	All         bool            `json:"all"`
+	Confirm     bool            `json:"confirm"`
+	DryRun      bool            `json:"dryRun"`
+}
+
+func (o DeleteListingOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if o.All {
+		if o.Language != "" {
+			return fmt.Errorf("language cannot be set when deleting all listings")
+		}
+		return nil
+	}
+	if _, err := NewListingLanguage(o.Language.String()); err != nil {
+		return err
+	}
+	return nil
+}
+
+type DeleteListingPlan struct {
+	PackageName PackageName     `json:"packageName"`
+	Language    ListingLanguage `json:"language,omitempty"`
+	All         bool            `json:"all"`
+	Confirm     bool            `json:"confirm"`
+	Steps       []string        `json:"steps"`
+}
+
+type DeleteListingResult struct {
+	PackageName PackageName       `json:"packageName"`
+	Language    ListingLanguage   `json:"language,omitempty"`
+	All         bool              `json:"all"`
+	DryRun      bool              `json:"dryRun"`
+	Committed   bool              `json:"committed"`
+	Edit        *Edit             `json:"edit,omitempty"`
+	Plan        DeleteListingPlan `json:"plan"`
+}
+
+func NewDeleteListingPlan(options DeleteListingOptions) (DeleteListingPlan, error) {
+	if err := options.Validate(); err != nil {
+		return DeleteListingPlan{}, err
+	}
+	target := "all listings"
+	if !options.All {
+		target = fmt.Sprintf("%s listing", options.Language)
+	}
+	steps := []string{
+		"insert edit",
+		fmt.Sprintf("delete %s", target),
+		"validate edit",
+	}
+	if options.Confirm {
+		steps = append(steps, "commit edit")
+	} else {
+		steps = append(steps, "delete uncommitted edit")
+	}
+	return DeleteListingPlan{
+		PackageName: options.PackageName,
+		Language:    options.Language,
+		All:         options.All,
+		Confirm:     options.Confirm,
+		Steps:       steps,
+	}, nil
+}
+
+func DeleteListing(ctx context.Context, deleter ListingDeleter, options DeleteListingOptions) (result DeleteListingResult, err error) {
+	plan, err := NewDeleteListingPlan(options)
+	if err != nil {
+		return DeleteListingResult{}, err
+	}
+	result = DeleteListingResult{
+		PackageName: options.PackageName,
+		Language:    options.Language,
+		All:         options.All,
+		DryRun:      options.DryRun,
+		Committed:   false,
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if deleter == nil {
+		return DeleteListingResult{}, fmt.Errorf("listing deleter is required")
+	}
+
+	edit, err := deleter.InsertEdit(ctx, options.PackageName)
+	if err != nil {
+		return DeleteListingResult{}, err
+	}
+	result.Edit = &edit
+
+	shouldDeleteEdit := true
+	defer func() {
+		if shouldDeleteEdit {
+			cleanupCtx, cancel := newCleanupContext()
+			defer cancel()
+			if cleanupErr := deleter.DeleteEdit(cleanupCtx, options.PackageName, edit.ID); cleanupErr != nil {
+				err = errors.Join(err, cleanupErr)
+			}
+		}
+	}()
+
+	if options.All {
+		err = deleter.DeleteAllListings(ctx, options.PackageName, edit.ID)
+	} else {
+		err = deleter.DeleteListing(ctx, options.PackageName, edit.ID, options.Language)
+	}
+	if err != nil {
+		return DeleteListingResult{}, err
+	}
+
+	if err := deleter.ValidateEdit(ctx, options.PackageName, edit.ID); err != nil {
+		return DeleteListingResult{}, err
+	}
+	if !options.Confirm {
+		return result, nil
+	}
+
+	committedEdit, err := deleter.CommitEdit(ctx, options.PackageName, edit.ID)
+	if err != nil {
+		return DeleteListingResult{}, err
 	}
 	shouldDeleteEdit = false
 	result.Edit = &committedEdit

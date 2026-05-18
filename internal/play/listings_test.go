@@ -149,6 +149,88 @@ func TestUpdateListingCommitsWithConfirm(t *testing.T) {
 	}
 }
 
+func TestDeleteListingDryRunDoesNotRequireDeleter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := DeleteListing(context.Background(), nil, DeleteListingOptions{
+		PackageName: packageName,
+		Language:    "en-US",
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteListing() error = %v", err)
+	}
+	if !result.DryRun {
+		t.Fatal("DryRun = false, want true")
+	}
+}
+
+func TestDeleteListingValidatesAndCleansUpWithoutConfirm(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	deleter := &fakeListingClient{}
+
+	result, err := DeleteListing(context.Background(), deleter, DeleteListingOptions{
+		PackageName: packageName,
+		Language:    "en-US",
+	})
+	if err != nil {
+		t.Fatalf("DeleteListing() error = %v", err)
+	}
+	if result.Committed {
+		t.Fatal("Committed = true, want false")
+	}
+	wantCalls := []string{"insert", "delete-listing", "validate", "delete"}
+	if !reflect.DeepEqual(deleter.calls, wantCalls) {
+		t.Fatalf("calls = %#v, want %#v", deleter.calls, wantCalls)
+	}
+}
+
+func TestDeleteAllListingsCommitsWithConfirm(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	deleter := &fakeListingClient{}
+
+	result, err := DeleteListing(context.Background(), deleter, DeleteListingOptions{
+		PackageName: packageName,
+		All:         true,
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteListing() error = %v", err)
+	}
+	if !result.Committed {
+		t.Fatal("Committed = false, want true")
+	}
+	wantCalls := []string{"insert", "delete-all-listings", "validate", "commit"}
+	if !reflect.DeepEqual(deleter.calls, wantCalls) {
+		t.Fatalf("calls = %#v, want %#v", deleter.calls, wantCalls)
+	}
+}
+
+func TestDeleteAllListingsRejectsLanguage(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewDeleteListingPlan(DeleteListingOptions{
+		PackageName: packageName,
+		Language:    "en-US",
+		All:         true,
+	})
+	if err == nil {
+		t.Fatal("expected language validation error")
+	}
+}
+
 type fakeListingClient struct {
 	calls    []string
 	listing  Listing
@@ -173,6 +255,16 @@ func (c *fakeListingClient) GetListing(ctx context.Context, packageName PackageN
 func (c *fakeListingClient) PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
 	c.calls = append(c.calls, "update")
 	return listing, nil
+}
+
+func (c *fakeListingClient) DeleteListing(ctx context.Context, packageName PackageName, editID string, language ListingLanguage) error {
+	c.calls = append(c.calls, "delete-listing")
+	return nil
+}
+
+func (c *fakeListingClient) DeleteAllListings(ctx context.Context, packageName PackageName, editID string) error {
+	c.calls = append(c.calls, "delete-all-listings")
+	return nil
 }
 
 func (c *fakeListingClient) ValidateEdit(ctx context.Context, packageName PackageName, editID string) error {

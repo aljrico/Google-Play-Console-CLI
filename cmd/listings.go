@@ -20,7 +20,103 @@ func newListingsCommand(out io.Writer, options *globalOptions) *cobra.Command {
 		newListingsListCommand(out, options, &packageName),
 		newListingsGetCommand(out, options, &packageName),
 		newListingsUpdateCommand(out, options, &packageName),
+		newListingsDeleteCommand(out, options, &packageName),
+		newListingsDeleteAllCommand(out, options, &packageName),
 	)
+	return cmd
+}
+
+func newListingsDeleteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		language string
+		confirm  bool
+		dryRun   bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "delete",
+		Short: "Delete one localized store listing",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedLanguage, err := play.NewListingLanguage(language)
+			if err != nil {
+				return err
+			}
+			deleteOptions := play.DeleteListingOptions{
+				PackageName: typedPackageName,
+				Language:    typedLanguage,
+				Confirm:     confirm,
+				DryRun:      dryRun,
+			}
+			if dryRun {
+				result, err := play.DeleteListing(cmd.Context(), nil, deleteOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.DeleteListing(cmd.Context(), publisher, deleteOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&language, "language", "", "BCP-47 listing language, for example en-US")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned listing deletion without calling Google Play")
+	return cmd
+}
+
+func newListingsDeleteAllCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		confirm bool
+		dryRun  bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "delete-all",
+		Short: "Delete all localized store listings",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			deleteOptions := play.DeleteListingOptions{
+				PackageName: typedPackageName,
+				All:         true,
+				Confirm:     confirm,
+				DryRun:      dryRun,
+			}
+			if dryRun {
+				result, err := play.DeleteListing(cmd.Context(), nil, deleteOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.DeleteListing(cmd.Context(), publisher, deleteOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned listing deletion without calling Google Play")
 	return cmd
 }
 

@@ -34,6 +34,7 @@ gpc releases promote --package com.example.app --from internal --to production -
 gpc releases halt --package com.example.app --track production --version-code 123 --dry-run
 gpc releases resume --package com.example.app --track production --version-code 123 --status inProgress --user-fraction 0.25 --dry-run
 gpc listings update --package com.example.app --language en-US --title "Example" --dry-run
+gpc listings delete --package com.example.app --language en-US --dry-run
 ```
 
 ### First Publish Flow
