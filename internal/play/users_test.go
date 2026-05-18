@@ -56,6 +56,65 @@ func TestListUsersRejectsInvalidOptions(t *testing.T) {
 	}
 }
 
+func TestNewUserNameFromParts(t *testing.T) {
+	name := NewUserNameFromParts("1234567890", "user@example.com")
+	if name.String() != "developers/1234567890/users/user@example.com" {
+		t.Fatalf("name = %q, want user resource", name)
+	}
+	if err := name.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestDeleteUserDryRunDoesNotCallDeleter(t *testing.T) {
+	result, err := DeleteUser(context.Background(), nil, UserDeleteOptions{
+		Name:   "developers/1234567890/users/user@example.com",
+		DryRun: true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteUser() error = %v", err)
+	}
+	if result.Deleted {
+		t.Fatalf("Deleted = true, want false")
+	}
+	if result.Plan.Name != "developers/1234567890/users/user@example.com" {
+		t.Fatalf("plan = %#v, want name", result.Plan)
+	}
+}
+
+func TestDeleteUserPassesOptionsToDeleter(t *testing.T) {
+	deleter := &fakeUserDeleter{}
+	options := UserDeleteOptions{
+		Name:    "developers/1234567890/users/user@example.com",
+		Confirm: true,
+	}
+
+	result, err := DeleteUser(context.Background(), deleter, options)
+	if err != nil {
+		t.Fatalf("DeleteUser() error = %v", err)
+	}
+	if !result.Deleted {
+		t.Fatalf("Deleted = false, want true")
+	}
+	if deleter.options != options {
+		t.Fatalf("options = %#v, want %#v", deleter.options, options)
+	}
+}
+
+func TestDeleteUserRejectsInvalidOptions(t *testing.T) {
+	tests := []UserDeleteOptions{
+		{},
+		{Name: "developers/123/users/user@example.com/extra", DryRun: true},
+		{Name: "developers/1234567890/users/user@example.com"},
+		{Name: "developers/1234567890/users/user@example.com", Confirm: true, DryRun: true},
+	}
+	for _, options := range tests {
+		if _, err := DeleteUser(context.Background(), nil, options); err == nil {
+			t.Fatalf("DeleteUser(%#v) expected validation error", options)
+		}
+	}
+}
+
 type fakeUserLister struct {
 	options UserListOptions
 	result  UserListResult
@@ -64,4 +123,13 @@ type fakeUserLister struct {
 func (l *fakeUserLister) ListUsers(ctx context.Context, options UserListOptions) (UserListResult, error) {
 	l.options = options
 	return l.result, nil
+}
+
+type fakeUserDeleter struct {
+	options UserDeleteOptions
+}
+
+func (d *fakeUserDeleter) DeleteUser(ctx context.Context, options UserDeleteOptions) error {
+	d.options = options
+	return nil
 }

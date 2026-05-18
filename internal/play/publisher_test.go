@@ -1066,6 +1066,45 @@ func TestListUsersSendsExpectedQueryParams(t *testing.T) {
 	}
 }
 
+func TestDeleteUserUsesUserEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Fatalf("method = %s, want DELETE", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/developers/1234567890/users/user@example.com" {
+			t.Fatalf("path = %q, want user endpoint", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	err := publisher.DeleteUser(context.Background(), UserDeleteOptions{
+		Name:    "developers/1234567890/users/user@example.com",
+		Confirm: true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteUser() error = %v", err)
+	}
+}
+
+func TestDeleteUserRejectsDryRunBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	err := publisher.DeleteUser(context.Background(), UserDeleteOptions{
+		Name:   "developers/1234567890/users/user@example.com",
+		DryRun: true,
+	})
+	if err == nil {
+		t.Fatal("expected dry-run rejection")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
 func TestListAppRecoveriesSendsVersionCode(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/appRecoveries" {

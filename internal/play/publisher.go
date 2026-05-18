@@ -402,6 +402,16 @@ func (p GooglePublisher) ListUsers(ctx context.Context, options UserListOptions)
 	return userListResultFromAPI(options.Developer, response), nil
 }
 
+func (p GooglePublisher) DeleteUser(ctx context.Context, options UserDeleteOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	if err := p.service.Users.Delete(options.Name.String()).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("delete user %s: %w", options.Name, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) ListDeviceTierConfigs(ctx context.Context, options DeviceTierConfigListOptions) (DeviceTierConfigListResult, error) {
 	call := p.service.Applications.DeviceTierConfigs.List(options.PackageName.String()).Context(ctx)
 	if options.PageSize != 0 {
