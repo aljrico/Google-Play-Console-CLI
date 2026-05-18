@@ -98,6 +98,9 @@ func rowsFromValue(value any) (tableRows, error) {
 		}
 		return tableRows{header: header, values: values}, nil
 	}
+	if v.Kind() == reflect.Slice {
+		return rowsFromSlice(v)
+	}
 	if v.Kind() == reflect.Struct {
 		t := v.Type()
 		header := make([]string, 0, v.NumField())
@@ -113,6 +116,54 @@ func rowsFromValue(value any) (tableRows, error) {
 		return tableRows{header: header, values: [][]string{values}}, nil
 	}
 	return tableRows{}, fmt.Errorf("table output does not support %T yet", value)
+}
+
+func rowsFromSlice(v reflect.Value) (tableRows, error) {
+	if v.Len() == 0 {
+		return tableRows{header: []string{"result"}, values: [][]string{}}, nil
+	}
+	first := v.Index(0)
+	if first.Kind() == reflect.Pointer {
+		first = first.Elem()
+	}
+	if first.Kind() != reflect.Struct {
+		return tableRows{}, fmt.Errorf("table output does not support %T yet", v.Interface())
+	}
+
+	header := structHeaders(first.Type())
+	values := make([][]string, 0, v.Len())
+	for i := 0; i < v.Len(); i++ {
+		item := v.Index(i)
+		if item.Kind() == reflect.Pointer {
+			item = item.Elem()
+		}
+		values = append(values, structValues(item))
+	}
+	return tableRows{header: header, values: values}, nil
+}
+
+func structHeaders(t reflect.Type) []string {
+	header := make([]string, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if field.PkgPath != "" {
+			continue
+		}
+		header = append(header, headerName(field))
+	}
+	return header
+}
+
+func structValues(v reflect.Value) []string {
+	values := make([]string, 0, v.NumField())
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Type().Field(i)
+		if field.PkgPath != "" {
+			continue
+		}
+		values = append(values, fmt.Sprint(v.Field(i).Interface()))
+	}
+	return values
 }
 
 func headerName(field reflect.StructField) string {

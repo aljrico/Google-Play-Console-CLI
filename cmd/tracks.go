@@ -1,9 +1,10 @@
 package cmd
 
 import (
-	"fmt"
 	"io"
 
+	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
+	"github.com/aljrico/Google-Play-Console-CLI/internal/play"
 	"github.com/spf13/cobra"
 )
 
@@ -20,10 +21,19 @@ func newTracksCommand(out io.Writer) *cobra.Command {
 		Use:   "list",
 		Short: "List release tracks",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if packageName == "" {
-				return fmt.Errorf("--package is required")
+			typedPackageName, err := play.NewPackageName(packageName)
+			if err != nil {
+				return err
 			}
-			return fmt.Errorf("tracks list is not implemented yet")
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			tracks, err := play.ListTracks(cmd.Context(), publisher, typedPackageName)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, opts.output, opts.pretty, tracks)
 		},
 	})
 

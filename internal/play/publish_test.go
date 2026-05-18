@@ -122,7 +122,8 @@ func TestPublishInternalCommitsWithConfirm(t *testing.T) {
 }
 
 type fakePublisher struct {
-	calls []string
+	calls  []string
+	tracks []Track
 }
 
 func (p *fakePublisher) InsertEdit(ctx context.Context, packageName PackageName) (Edit, error) {
@@ -157,5 +158,5 @@ func (p *fakePublisher) DeleteEdit(ctx context.Context, packageName PackageName,
 
 func (p *fakePublisher) ListTracks(ctx context.Context, packageName PackageName, editID string) ([]Track, error) {
 	p.calls = append(p.calls, "list-tracks")
-	return nil, nil
+	return p.tracks, nil
 }
