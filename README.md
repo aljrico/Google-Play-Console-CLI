@@ -20,6 +20,7 @@ gpc auth login \
 
 gpc auth status
 gpc auth doctor
+gpc init --dry-run
 ```
 
 The service account needs access to the target app in Play Console and the Google Play Android Developer API enabled in the linked Google Cloud project.
