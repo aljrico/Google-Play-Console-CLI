@@ -82,7 +82,7 @@ Sources:
 | `iap` | `one-time-products` | `monetization.onetimeproducts` | planned | Modern one-time product resources have separate endpoints and pagination semantics. |
 | `subscriptions` | `subscriptions` | `monetization.subscriptions`, `basePlans` | tested | `gpc subscriptions list` and `get` cover read-only subscriptions and embedded base plans. Mutations remain planned. |
 | `subscriptions` | `subscription-offers` | `monetization.subscriptions.basePlans.offers` | tested | `gpc subscription-offers list` and `get` cover read-only offer inspection, including Google wildcard list parents. Batch-get and mutations remain planned. |
-| `pricing` | `pricing` | `monetization.convertRegionPrices`, product/subscription pricing APIs | planned | App pricing and IAP pricing may need separate commands. |
+| `pricing` | `pricing` | `monetization.convertRegionPrices`, product/subscription pricing APIs | tested | `gpc pricing convert-region-prices` calculates Play regional prices from an explicit source price. Product and subscription price mutations remain planned. |
 | `finance` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |
 | `analytics` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |
 | `insights` | `insights` | Built from reports | planned | Derived command, not a direct API mapping. |

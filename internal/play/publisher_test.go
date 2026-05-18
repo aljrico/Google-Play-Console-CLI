@@ -961,6 +961,61 @@ func TestBatchGetOrdersUsesRepeatedOrderIDs(t *testing.T) {
 	}
 }
 
+func TestConvertRegionPricesUsesPricingEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/pricing:convertRegionPrices" {
+			t.Fatalf("path = %q, want pricing conversion endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		var request androidpublisher.ConvertRegionPricesRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.Price == nil || request.Price.CurrencyCode != "USD" || request.Price.Units != 9 || request.Price.Nanos != 990000000 {
+			t.Fatalf("request price = %#v, want USD 9.99", request.Price)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"regionVersion": {"version": "2026/05"},
+			"convertedOtherRegionsPrice": {
+				"usdPrice": {"currencyCode": "USD", "units": "9", "nanos": 990000000},
+				"eurPrice": {"currencyCode": "EUR", "units": "8", "nanos": 990000000}
+			},
+			"convertedRegionPrices": {
+				"US": {
+					"regionCode": "US",
+					"price": {"currencyCode": "USD", "units": "9", "nanos": 990000000},
+					"taxAmount": {"currencyCode": "USD", "units": "0", "nanos": 700000000}
+				}
+			}
+		}`))
+	}))
+
+	result, err := publisher.ConvertRegionPrices(context.Background(), RegionPriceConversionOptions{
+		PackageName: "com.example.app",
+		Currency:    "USD",
+		Units:       9,
+		Nanos:       990000000,
+	})
+	if err != nil {
+		t.Fatalf("ConvertRegionPrices() error = %v", err)
+	}
+	if result.RegionVersion != "2026/05" {
+		t.Fatalf("RegionVersion = %q, want 2026/05", result.RegionVersion)
+	}
+	if result.SourcePrice.CurrencyCode != "USD" || result.SourcePrice.Units != 9 {
+		t.Fatalf("SourcePrice = %#v, want USD 9", result.SourcePrice)
+	}
+	if result.ConvertedOtherRegionsPrice == nil || result.ConvertedOtherRegionsPrice.EURPrice.Units != 8 {
+		t.Fatalf("ConvertedOtherRegionsPrice = %#v, want EUR price", result.ConvertedOtherRegionsPrice)
+	}
+	if result.ConvertedRegionPrices["US"].TaxAmount.Nanos != 700000000 {
+		t.Fatalf("US converted price = %#v, want tax nanos", result.ConvertedRegionPrices["US"])
+	}
+}
+
 func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/generatedApks/42" {

@@ -58,6 +58,7 @@ gpc purchases subscription --package com.example.app --token PURCHASE_TOKEN
 gpc purchases voided list --package com.example.app --max-results 25
 gpc orders get --package com.example.app --order-id GPA.1234-5678-9012-34567
 gpc orders batch-get --package com.example.app --order-id GPA.1234 --order-id GPA.5678
+gpc pricing convert-region-prices --package com.example.app --currency USD --units 9 --nanos 990000000
 gpc users list --developer 1234567890
 ```
 
