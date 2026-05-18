@@ -160,6 +160,16 @@ func (o GeneratedAPKDownloadOptions) Validate() error {
 	return nil
 }
 
+func (o GeneratedAPKDownloadOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live generated APK download cannot run with --dry-run")
+	}
+	return nil
+}
+
 type GeneratedAPKDownloadPlan struct {
 	PackageName PackageName            `json:"packageName"`
 	VersionCode int64                  `json:"versionCode"`

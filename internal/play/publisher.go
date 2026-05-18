@@ -565,7 +565,7 @@ func (p GooglePublisher) ListGeneratedAPKs(ctx context.Context, options Generate
 }
 
 func (p GooglePublisher) DownloadGeneratedAPK(ctx context.Context, options GeneratedAPKDownloadOptions) (GeneratedAPKDownloadResult, error) {
-	if err := options.Validate(); err != nil {
+	if err := options.ValidateLive(); err != nil {
 		return GeneratedAPKDownloadResult{}, err
 	}
 	if err := ValidateGeneratedAPKOutputPath(options.OutputPath, options.Force); err != nil {
@@ -636,9 +636,29 @@ func publishGeneratedAPKTempFile(tempPath string, outputPath string, force bool)
 		}
 		return nil
 	}
-	if err := os.Link(tempPath, outputPath); err != nil {
+	outputFile, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
 		return fmt.Errorf("create output APK %s: %w", outputPath, err)
 	}
+	outputCommitted := false
+	defer func() {
+		_ = outputFile.Close()
+		if !outputCommitted {
+			_ = os.Remove(outputPath)
+		}
+	}()
+	tempFile, err := os.Open(tempPath)
+	if err != nil {
+		return fmt.Errorf("open temporary APK %s: %w", tempPath, err)
+	}
+	defer tempFile.Close()
+	if _, err := io.Copy(outputFile, tempFile); err != nil {
+		return fmt.Errorf("copy temporary APK %s to %s: %w", tempPath, outputPath, err)
+	}
+	if err := outputFile.Close(); err != nil {
+		return fmt.Errorf("close output APK %s: %w", outputPath, err)
+	}
+	outputCommitted = true
 	if err := os.Remove(tempPath); err != nil {
 		return fmt.Errorf("remove temporary APK %s: %w", tempPath, err)
 	}
@@ -710,6 +730,18 @@ func (p GooglePublisher) GetSubscriptionPurchase(ctx context.Context, options Su
 		return SubscriptionPurchase{}, fmt.Errorf("get subscription purchase %s for %s: %w", options.Token, options.PackageName, err)
 	}
 	return subscriptionPurchaseFromAPI(options.PackageName, options.Token, purchase), nil
+}
+
+func (p GooglePublisher) RevokeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseRevokeOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	if _, err := p.service.Purchases.Subscriptionsv2.Revoke(options.PackageName.String(), options.Token.String(), subscriptionRevokeRequestToAPI(options)).
+		Context(ctx).
+		Do(); err != nil {
+		return fmt.Errorf("revoke subscription purchase %s for %s: %w", options.Token, options.PackageName, err)
+	}
+	return nil
 }
 
 func (p GooglePublisher) ListVoidedPurchases(ctx context.Context, options VoidedPurchaseListOptions) (VoidedPurchaseListResult, error) {
@@ -2342,6 +2374,19 @@ func productPurchaseLineItemsFromAPI(apiItems []*androidpublisher.ProductLineIte
 		items = append(items, item)
 	}
 	return items
+}
+
+func subscriptionRevokeRequestToAPI(options SubscriptionPurchaseRevokeOptions) *androidpublisher.RevokeSubscriptionPurchaseRequest {
+	context := &androidpublisher.RevocationContext{}
+	switch options.RefundType {
+	case SubscriptionRefundTypeFull:
+		context.FullRefund = &androidpublisher.RevocationContextFullRefund{}
+	case SubscriptionRefundTypeProrated:
+		context.ProratedRefund = &androidpublisher.RevocationContextProratedRefund{}
+	}
+	return &androidpublisher.RevokeSubscriptionPurchaseRequest{
+		RevocationContext: context,
+	}
 }
 
 func subscriptionPurchaseFromAPI(packageName PackageName, token PurchaseToken, apiPurchase *androidpublisher.SubscriptionPurchaseV2) SubscriptionPurchase {

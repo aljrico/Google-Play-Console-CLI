@@ -122,6 +122,62 @@ func TestGetSubscriptionPurchasePassesOptionsToGetter(t *testing.T) {
 	}
 }
 
+func TestRevokeSubscriptionPurchaseDryRunDoesNotCallRevoker(t *testing.T) {
+	result, err := RevokeSubscriptionPurchase(context.Background(), nil, SubscriptionPurchaseRevokeOptions{
+		PackageName: "com.example.app",
+		Token:       "token-123",
+		RefundType:  SubscriptionRefundTypeFull,
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("RevokeSubscriptionPurchase() error = %v", err)
+	}
+	if result.Applied {
+		t.Fatalf("Applied = true, want false")
+	}
+	if result.RefundType != SubscriptionRefundTypeFull || len(result.Plan.Steps) != 2 {
+		t.Fatalf("result = %#v, want full refund plan", result)
+	}
+}
+
+func TestRevokeSubscriptionPurchasePassesOptionsToRevoker(t *testing.T) {
+	revoker := &fakePurchaseClient{}
+	options := SubscriptionPurchaseRevokeOptions{
+		PackageName: "com.example.app",
+		Token:       "token-123",
+		RefundType:  SubscriptionRefundTypeProrated,
+		Confirm:     true,
+	}
+
+	result, err := RevokeSubscriptionPurchase(context.Background(), revoker, options)
+	if err != nil {
+		t.Fatalf("RevokeSubscriptionPurchase() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatalf("Applied = false, want true")
+	}
+	if revoker.subscriptionRevokeOptions != options {
+		t.Fatalf("subscriptionRevokeOptions = %#v, want %#v", revoker.subscriptionRevokeOptions, options)
+	}
+}
+
+func TestRevokeSubscriptionPurchaseRejectsInvalidOptions(t *testing.T) {
+	tests := []SubscriptionPurchaseRevokeOptions{
+		{},
+		{PackageName: "bad", Token: "token-123", RefundType: SubscriptionRefundTypeFull, DryRun: true},
+		{PackageName: "com.example.app", RefundType: SubscriptionRefundTypeFull, DryRun: true},
+		{PackageName: "com.example.app", Token: "token-123", DryRun: true},
+		{PackageName: "com.example.app", Token: "token-123", RefundType: "partial", DryRun: true},
+		{PackageName: "com.example.app", Token: "token-123", RefundType: SubscriptionRefundTypeFull},
+		{PackageName: "com.example.app", Token: "token-123", RefundType: SubscriptionRefundTypeFull, Confirm: true, DryRun: true},
+	}
+	for _, options := range tests {
+		if _, err := RevokeSubscriptionPurchase(context.Background(), nil, options); err == nil {
+			t.Fatalf("RevokeSubscriptionPurchase(%#v) expected validation error", options)
+		}
+	}
+}
+
 func TestListVoidedPurchasesPassesOptionsToLister(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -231,14 +287,15 @@ func TestVoidedPurchaseListOptionsAcceptsValidTimeWindow(t *testing.T) {
 }
 
 type fakePurchaseClient struct {
-	productOptions       ProductPurchaseOptions
-	productPurchase      ProductPurchase
-	acknowledgeOptions   ProductPurchaseMutationOptions
-	consumeOptions       ProductPurchaseMutationOptions
-	subscriptionOptions  SubscriptionPurchaseOptions
-	subscriptionPurchase SubscriptionPurchase
-	voidedOptions        VoidedPurchaseListOptions
-	voidedResult         VoidedPurchaseListResult
+	productOptions            ProductPurchaseOptions
+	productPurchase           ProductPurchase
+	acknowledgeOptions        ProductPurchaseMutationOptions
+	consumeOptions            ProductPurchaseMutationOptions
+	subscriptionOptions       SubscriptionPurchaseOptions
+	subscriptionPurchase      SubscriptionPurchase
+	subscriptionRevokeOptions SubscriptionPurchaseRevokeOptions
+	voidedOptions             VoidedPurchaseListOptions
+	voidedResult              VoidedPurchaseListResult
 }
 
 func (c *fakePurchaseClient) GetProductPurchase(ctx context.Context, options ProductPurchaseOptions) (ProductPurchase, error) {
@@ -259,6 +316,11 @@ func (c *fakePurchaseClient) ConsumeProductPurchase(ctx context.Context, options
 func (c *fakePurchaseClient) GetSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error) {
 	c.subscriptionOptions = options
 	return c.subscriptionPurchase, nil
+}
+
+func (c *fakePurchaseClient) RevokeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseRevokeOptions) error {
+	c.subscriptionRevokeOptions = options
+	return nil
 }
 
 func (c *fakePurchaseClient) ListVoidedPurchases(ctx context.Context, options VoidedPurchaseListOptions) (VoidedPurchaseListResult, error) {

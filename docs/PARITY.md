@@ -87,7 +87,7 @@ Sources:
 | `analytics` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |
 | `insights` | `insights` | Built from reports | planned | Derived command, not a direct API mapping. |
 | `orders` | `orders` | `orders` | tested | `gpc orders get` and `batch-get` inspect order details by ID; `refund` applies guarded refunds only with `--confirm`, with optional revoke and dry-run planning. |
-| `purchases` | `purchases` | `purchases.products`, `purchases.productsv2`, `purchases.subscriptionsv2`, `voidedpurchases` | tested | `gpc purchases product` and `subscription` cover read-only purchase-token status, `gpc purchases product acknowledge` and `consume` apply guarded product purchase mutations, and `gpc purchases voided list` covers voided purchase reporting. Subscription cancel/acknowledge and refund remain planned. |
+| `purchases` | `purchases` | `purchases.products`, `purchases.productsv2`, `purchases.subscriptionsv2`, `voidedpurchases` | tested | `gpc purchases product` and `subscription` cover read-only purchase-token status, `gpc purchases product acknowledge` and `consume` apply guarded product purchase mutations, `gpc purchases subscription revoke` handles guarded full/prorated revocation, and `gpc purchases voided list` covers voided purchase reporting. Legacy subscription acknowledge/cancel and item-based revocation remain planned. |
 
 ## Review, Quality, And Feedback
 

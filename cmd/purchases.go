@@ -159,7 +159,7 @@ func newPurchasesSubscriptionCommand(out io.Writer, options *globalOptions, pack
 
 	cmd := &cobra.Command{
 		Use:   "subscription",
-		Short: "Get one subscription purchase",
+		Short: "Get or revoke one subscription purchase",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, typedToken, err := parsePurchaseParent(*packageName, token)
@@ -185,6 +185,63 @@ func newPurchasesSubscriptionCommand(out io.Writer, options *globalOptions, pack
 		},
 	}
 	cmd.Flags().StringVar(&token, "token", "", "Purchase token")
+	cmd.AddCommand(newPurchasesSubscriptionRevokeCommand(out, options, packageName))
+	return cmd
+}
+
+func newPurchasesSubscriptionRevokeCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		token      string
+		refundType string
+		confirm    bool
+		dryRun     bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "revoke",
+		Short: "Revoke a subscription purchase",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, typedToken, err := parsePurchaseParent(*packageName, token)
+			if err != nil {
+				return err
+			}
+			typedRefundType, err := play.NewSubscriptionRefundType(refundType)
+			if err != nil {
+				return err
+			}
+			revokeOptions := play.SubscriptionPurchaseRevokeOptions{
+				PackageName: typedPackageName,
+				Token:       typedToken,
+				RefundType:  typedRefundType,
+				Confirm:     confirm,
+				DryRun:      dryRun,
+			}
+			if err := revokeOptions.Validate(); err != nil {
+				return err
+			}
+			if dryRun {
+				result, err := play.RevokeSubscriptionPurchase(cmd.Context(), nil, revokeOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.RevokeSubscriptionPurchase(cmd.Context(), publisher, revokeOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&token, "token", "", "Purchase token")
+	cmd.Flags().StringVar(&refundType, "refund", "", "Refund type: full or prorated")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription revocation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription revocation without calling Google Play")
 	return cmd
 }
 

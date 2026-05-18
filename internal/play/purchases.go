@@ -3,6 +3,7 @@ package play
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -245,6 +246,10 @@ type SubscriptionPurchaseGetter interface {
 	GetSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error)
 }
 
+type SubscriptionPurchaseRevoker interface {
+	RevokeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseRevokeOptions) error
+}
+
 func GetSubscriptionPurchase(ctx context.Context, getter SubscriptionPurchaseGetter, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error) {
 	if err := options.Validate(); err != nil {
 		return SubscriptionPurchase{}, err
@@ -253,6 +258,119 @@ func GetSubscriptionPurchase(ctx context.Context, getter SubscriptionPurchaseGet
 		return SubscriptionPurchase{}, fmt.Errorf("subscription purchase getter is required")
 	}
 	return getter.GetSubscriptionPurchase(ctx, options)
+}
+
+type SubscriptionRefundType string
+
+const (
+	SubscriptionRefundTypeFull     SubscriptionRefundType = "full"
+	SubscriptionRefundTypeProrated SubscriptionRefundType = "prorated"
+)
+
+func NewSubscriptionRefundType(value string) (SubscriptionRefundType, error) {
+	refundType := SubscriptionRefundType(strings.TrimSpace(value))
+	switch refundType {
+	case SubscriptionRefundTypeFull, SubscriptionRefundTypeProrated:
+		return refundType, nil
+	default:
+		return "", fmt.Errorf("unsupported subscription refund type %q", value)
+	}
+}
+
+func (t SubscriptionRefundType) String() string {
+	return string(t)
+}
+
+func (t SubscriptionRefundType) Validate() error {
+	_, err := NewSubscriptionRefundType(t.String())
+	return err
+}
+
+type SubscriptionPurchaseRevokeOptions struct {
+	PackageName PackageName            `json:"packageName"`
+	Token       PurchaseToken          `json:"token"`
+	RefundType  SubscriptionRefundType `json:"refundType"`
+	Confirm     bool                   `json:"confirm"`
+	DryRun      bool                   `json:"dryRun"`
+}
+
+func (o SubscriptionPurchaseRevokeOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewPurchaseToken(o.Token.String()); err != nil {
+		return err
+	}
+	if err := o.RefundType.Validate(); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("subscription purchase revoke requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o SubscriptionPurchaseRevokeOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live subscription purchase revoke cannot run with --dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live subscription purchase revoke requires --confirm")
+	}
+	return nil
+}
+
+type SubscriptionPurchaseRevokePlan struct {
+	PackageName PackageName            `json:"packageName"`
+	Token       PurchaseToken          `json:"token"`
+	RefundType  SubscriptionRefundType `json:"refundType"`
+	Confirm     bool                   `json:"confirm"`
+	Steps       []string               `json:"steps"`
+}
+
+type SubscriptionPurchaseRevokeResult struct {
+	PackageName PackageName                    `json:"packageName"`
+	Token       PurchaseToken                  `json:"token"`
+	RefundType  SubscriptionRefundType         `json:"refundType"`
+	DryRun      bool                           `json:"dryRun"`
+	Applied     bool                           `json:"applied"`
+	Plan        SubscriptionPurchaseRevokePlan `json:"plan"`
+}
+
+func RevokeSubscriptionPurchase(ctx context.Context, revoker SubscriptionPurchaseRevoker, options SubscriptionPurchaseRevokeOptions) (SubscriptionPurchaseRevokeResult, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionPurchaseRevokeResult{}, err
+	}
+	result := SubscriptionPurchaseRevokeResult{
+		PackageName: options.PackageName,
+		Token:       options.Token,
+		RefundType:  options.RefundType,
+		DryRun:      options.DryRun,
+		Plan: SubscriptionPurchaseRevokePlan{
+			PackageName: options.PackageName,
+			Token:       options.Token,
+			RefundType:  options.RefundType,
+			Confirm:     options.Confirm,
+			Steps:       []string{"revoke subscription purchase", string(options.RefundType) + " refund"},
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if revoker == nil {
+		return SubscriptionPurchaseRevokeResult{}, fmt.Errorf("subscription purchase revoker is required")
+	}
+	if err := revoker.RevokeSubscriptionPurchase(ctx, options); err != nil {
+		return SubscriptionPurchaseRevokeResult{}, err
+	}
+	result.Applied = true
+	return result, nil
 }
 
 type VoidedPurchaseType int64

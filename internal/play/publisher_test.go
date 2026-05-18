@@ -870,6 +870,78 @@ func TestConsumeProductPurchaseUsesLegacyProductEndpoint(t *testing.T) {
 	}
 }
 
+func TestConsumeProductPurchaseRejectsDryRunBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	err := publisher.ConsumeProductPurchase(context.Background(), ProductPurchaseMutationOptions{
+		PackageName: "com.example.app",
+		ProductID:   "coins_100",
+		Token:       "token-123",
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected dry-run rejection")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
+func TestRevokeSubscriptionPurchaseUsesSubscriptionV2Endpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/purchases/subscriptionsv2/tokens/token-123:revoke" {
+			t.Fatalf("path = %q, want subscription v2 revoke endpoint", r.URL.Path)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		if !strings.Contains(string(body), `"fullRefund":{}`) {
+			t.Fatalf("body = %q, want full refund context", string(body))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+
+	err := publisher.RevokeSubscriptionPurchase(context.Background(), SubscriptionPurchaseRevokeOptions{
+		PackageName: "com.example.app",
+		Token:       "token-123",
+		RefundType:  SubscriptionRefundTypeFull,
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("RevokeSubscriptionPurchase() error = %v", err)
+	}
+}
+
+func TestRevokeSubscriptionPurchaseRejectsDryRunBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	err := publisher.RevokeSubscriptionPurchase(context.Background(), SubscriptionPurchaseRevokeOptions{
+		PackageName: "com.example.app",
+		Token:       "token-123",
+		RefundType:  SubscriptionRefundTypeProrated,
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected dry-run rejection")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
 func TestProductPurchaseJSONPreservesZeroQuantities(t *testing.T) {
 	payload, err := json.Marshal(ProductPurchase{
 		PackageName: "com.example.app",
@@ -1526,6 +1598,26 @@ func TestCancelAppRecoveryUsesCancelEndpoint(t *testing.T) {
 	}
 }
 
+func TestCancelAppRecoveryRejectsDryRunBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	err := publisher.CancelAppRecovery(context.Background(), AppRecoveryMutationOptions{
+		PackageName:   "com.example.app",
+		AppRecoveryID: "7",
+		DryRun:        true,
+	})
+	if err == nil {
+		t.Fatal("expected dry-run rejection")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
 func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/generatedApks/42" {
@@ -1659,6 +1751,32 @@ func TestDownloadGeneratedAPKUsesDownloadEndpoint(t *testing.T) {
 	}
 	if string(contents) != "apk-bytes" {
 		t.Fatalf("contents = %q, want apk-bytes", string(contents))
+	}
+}
+
+func TestDownloadGeneratedAPKRejectsDryRunBeforeRequest(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "split.apk")
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	_, err := publisher.DownloadGeneratedAPK(context.Background(), GeneratedAPKDownloadOptions{
+		PackageName: "com.example.app",
+		VersionCode: 42,
+		DownloadID:  "split-download",
+		OutputPath:  outputPath,
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected dry-run rejection")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+	if _, statErr := os.Stat(outputPath); !os.IsNotExist(statErr) {
+		t.Fatalf("output stat error = %v, want not exist", statErr)
 	}
 }
 
