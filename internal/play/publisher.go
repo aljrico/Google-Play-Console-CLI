@@ -415,6 +415,12 @@ func releaseToAPI(release TrackRelease) *androidpublisher.TrackRelease {
 		apiRelease.UserFraction = *release.UserFraction
 		apiRelease.ForceSendFields = append(apiRelease.ForceSendFields, "UserFraction")
 	}
+	for _, note := range release.ReleaseNotes {
+		apiRelease.ReleaseNotes = append(apiRelease.ReleaseNotes, &androidpublisher.LocalizedText{
+			Language: note.Language.String(),
+			Text:     note.Text,
+		})
+	}
 	return apiRelease
 }
 
@@ -505,7 +511,22 @@ func releaseFromAPI(apiRelease *androidpublisher.TrackRelease) TrackRelease {
 		Status:       ReleaseStatus(apiRelease.Status),
 		UserFraction: userFractionFromAPI(apiRelease),
 		VersionCodes: []int64(apiRelease.VersionCodes),
+		ReleaseNotes: releaseNotesFromAPI(apiRelease.ReleaseNotes),
 	}
+}
+
+func releaseNotesFromAPI(apiNotes []*androidpublisher.LocalizedText) []ReleaseNote {
+	notes := make([]ReleaseNote, 0, len(apiNotes))
+	for _, apiNote := range apiNotes {
+		if apiNote == nil {
+			continue
+		}
+		notes = append(notes, ReleaseNote{
+			Language: ListingLanguage(apiNote.Language),
+			Text:     apiNote.Text,
+		})
+	}
+	return notes
 }
 
 func userFractionFromAPI(apiRelease *androidpublisher.TrackRelease) *float64 {

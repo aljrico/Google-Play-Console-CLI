@@ -62,6 +62,7 @@ func PublishInternal(ctx context.Context, publisher InternalPublisher, options P
 		Status:       options.Status,
 		UserFraction: options.UserFraction,
 		VersionCodes: []int64{bundle.VersionCode},
+		ReleaseNotes: options.ReleaseNotes,
 	}
 
 	if _, err := publisher.AppendTrackRelease(ctx, options.PackageName, edit.ID, plan.Track, release); err != nil {

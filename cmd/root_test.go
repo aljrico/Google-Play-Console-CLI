@@ -207,6 +207,8 @@ func TestPublishInternalDryRunDoesNotRequireAuth(t *testing.T) {
 		"com.example.app",
 		"--aab",
 		"app-release.aab",
+		"--release-note",
+		"en-US=Bug fixes.",
 		"--dry-run",
 		"--output",
 		"json",
@@ -217,6 +219,37 @@ func TestPublishInternalDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), `"dryRun":true`) {
 		t.Fatalf("publish dry-run output = %s", buf.String())
+	}
+	if !strings.Contains(buf.String(), `"releaseNotes":[{"language":"en-US","text":"Bug fixes."}]`) {
+		t.Fatalf("publish dry-run output = %s, want release note", buf.String())
+	}
+}
+
+func TestReleasesUploadRejectsMalformedReleaseNoteBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"releases",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--aab",
+		"app-release.aab",
+		"--release-note",
+		"en-US",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected release note validation error")
+	}
+	if !strings.Contains(err.Error(), "language=text") {
+		t.Fatalf("error = %v, want release note format validation", err)
 	}
 }
 

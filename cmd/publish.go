@@ -23,6 +23,7 @@ func newPublishInternalCommand(out io.Writer, options *globalOptions) *cobra.Com
 		packageName  string
 		bundlePath   string
 		releaseName  string
+		releaseNotes []string
 		status       string
 		userFraction float64
 		confirm      bool
@@ -42,15 +43,20 @@ func newPublishInternalCommand(out io.Writer, options *globalOptions) *cobra.Com
 			if err != nil {
 				return err
 			}
+			typedReleaseNotes, err := parseReleaseNotes(releaseNotes)
+			if err != nil {
+				return err
+			}
 
 			publishOptions := play.PublishInternalOptions{
-				PackageName: typedPackageName,
-				Track:       play.TrackInternal,
-				BundlePath:  bundlePath,
-				ReleaseName: releaseName,
-				Status:      typedStatus,
-				Confirm:     confirm,
-				DryRun:      dryRun,
+				PackageName:  typedPackageName,
+				Track:        play.TrackInternal,
+				BundlePath:   bundlePath,
+				ReleaseName:  releaseName,
+				Status:       typedStatus,
+				ReleaseNotes: typedReleaseNotes,
+				Confirm:      confirm,
+				DryRun:       dryRun,
 			}
 			if cmd.Flags().Changed("user-fraction") {
 				publishOptions.UserFraction = &userFraction
@@ -78,6 +84,7 @@ func newPublishInternalCommand(out io.Writer, options *globalOptions) *cobra.Com
 	cmd.Flags().StringVar(&packageName, "package", "", "Android package name, for example com.example.app")
 	cmd.Flags().StringVar(&bundlePath, "aab", "", "Path to the Android App Bundle to upload")
 	cmd.Flags().StringVar(&releaseName, "release-name", "", "Release name shown in Play Console")
+	cmd.Flags().StringArrayVar(&releaseNotes, "release-note", nil, "Localized release note as language=text, repeatable")
 	cmd.Flags().StringVar(&status, "status", play.ReleaseStatusCompleted.String(), "Release status: completed, draft, halted, inProgress")
 	cmd.Flags().Float64Var(&userFraction, "user-fraction", 0, "Staged rollout fraction for inProgress or halted releases")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")

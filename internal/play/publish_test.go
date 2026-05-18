@@ -154,6 +154,9 @@ func TestPublishInternalAppendsTrackRelease(t *testing.T) {
 		BundlePath:  "app-release.aab",
 		ReleaseName: "1.2.3",
 		Status:      ReleaseStatusCompleted,
+		ReleaseNotes: []ReleaseNote{
+			{Language: "en-US", Text: "Bug fixes."},
+		},
 	})
 	if err != nil {
 		t.Fatalf("PublishInternal() error = %v", err)
@@ -167,6 +170,9 @@ func TestPublishInternalAppendsTrackRelease(t *testing.T) {
 	}
 	if release.VersionCodes[0] != 42 {
 		t.Fatalf("release version code = %d, want 42", release.VersionCodes[0])
+	}
+	if len(release.ReleaseNotes) != 1 || release.ReleaseNotes[0].Text != "Bug fixes." {
+		t.Fatalf("release notes = %#v, want bug fixes note", release.ReleaseNotes)
 	}
 }
 

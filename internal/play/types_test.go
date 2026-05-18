@@ -76,3 +76,22 @@ func TestPublishInternalOptionsRejectsUserFractionForCompletedRelease(t *testing
 		t.Fatal("expected user fraction error")
 	}
 }
+
+func TestPublishInternalOptionsRejectsEmptyReleaseNoteText(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	options := PublishInternalOptions{
+		PackageName: packageName,
+		BundlePath:  "app-release.aab",
+		Status:      ReleaseStatusCompleted,
+		ReleaseNotes: []ReleaseNote{
+			{Language: "en-US"},
+		},
+	}
+	if err := options.Validate(); err == nil {
+		t.Fatal("expected release note text error")
+	}
+}

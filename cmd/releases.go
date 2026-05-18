@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
 	"github.com/aljrico/Google-Play-Console-CLI/internal/play"
@@ -63,6 +64,7 @@ func newReleasesUploadCommand(out io.Writer, options *globalOptions, packageName
 		trackName    string
 		bundlePath   string
 		releaseName  string
+		releaseNotes []string
 		status       string
 		userFraction float64
 		confirm      bool
@@ -86,15 +88,20 @@ func newReleasesUploadCommand(out io.Writer, options *globalOptions, packageName
 			if err != nil {
 				return err
 			}
+			typedReleaseNotes, err := parseReleaseNotes(releaseNotes)
+			if err != nil {
+				return err
+			}
 
 			publishOptions := play.PublishInternalOptions{
-				PackageName: typedPackageName,
-				Track:       typedTrackName,
-				BundlePath:  bundlePath,
-				ReleaseName: releaseName,
-				Status:      typedStatus,
-				Confirm:     confirm,
-				DryRun:      dryRun,
+				PackageName:  typedPackageName,
+				Track:        typedTrackName,
+				BundlePath:   bundlePath,
+				ReleaseName:  releaseName,
+				Status:       typedStatus,
+				ReleaseNotes: typedReleaseNotes,
+				Confirm:      confirm,
+				DryRun:       dryRun,
 			}
 			if cmd.Flags().Changed("user-fraction") {
 				publishOptions.UserFraction = &userFraction
@@ -122,11 +129,31 @@ func newReleasesUploadCommand(out io.Writer, options *globalOptions, packageName
 	cmd.Flags().StringVar(&bundlePath, "aab", "", "Path to the Android App Bundle to upload")
 	cmd.Flags().StringVar(&trackName, "track", play.TrackInternal.String(), "Track name, for example internal, alpha, beta, or production")
 	cmd.Flags().StringVar(&releaseName, "release-name", "", "Release name shown in Play Console")
+	cmd.Flags().StringArrayVar(&releaseNotes, "release-note", nil, "Localized release note as language=text, repeatable")
 	cmd.Flags().StringVar(&status, "status", play.ReleaseStatusCompleted.String(), "Release status: completed, draft, halted, inProgress")
 	cmd.Flags().Float64Var(&userFraction, "user-fraction", 0, "Staged rollout fraction for inProgress or halted releases")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned release upload workflow without calling Google Play")
 	return cmd
+}
+
+func parseReleaseNotes(values []string) ([]play.ReleaseNote, error) {
+	notes := make([]play.ReleaseNote, 0, len(values))
+	for _, value := range values {
+		language, text, ok := strings.Cut(value, "=")
+		if !ok {
+			return nil, fmt.Errorf("release note must be formatted as language=text")
+		}
+		typedLanguage, err := play.NewListingLanguage(language)
+		if err != nil {
+			return nil, err
+		}
+		if text == "" {
+			return nil, fmt.Errorf("release note text is required")
+		}
+		notes = append(notes, play.ReleaseNote{Language: typedLanguage, Text: text})
+	}
+	return notes, nil
 }
 
 func newReleasesPromoteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {

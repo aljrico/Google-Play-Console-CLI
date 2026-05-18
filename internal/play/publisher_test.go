@@ -66,6 +66,43 @@ func TestSetReleaseStatusClearsUserFractionWhenCompleted(t *testing.T) {
 	}
 }
 
+func TestReleaseToAPIMapsReleaseNotes(t *testing.T) {
+	apiRelease := releaseToAPI(TrackRelease{
+		Name:         "1.2.3",
+		Status:       ReleaseStatusCompleted,
+		VersionCodes: []int64{42},
+		ReleaseNotes: []ReleaseNote{
+			{Language: "en-US", Text: "Bug fixes."},
+			{Language: "es-ES", Text: "Correcciones."},
+		},
+	})
+
+	if len(apiRelease.ReleaseNotes) != 2 {
+		t.Fatalf("len(ReleaseNotes) = %d, want 2", len(apiRelease.ReleaseNotes))
+	}
+	if apiRelease.ReleaseNotes[0].Language != "en-US" || apiRelease.ReleaseNotes[0].Text != "Bug fixes." {
+		t.Fatalf("first note = %#v, want en-US bug fixes", apiRelease.ReleaseNotes[0])
+	}
+}
+
+func TestReleaseFromAPIMapsReleaseNotes(t *testing.T) {
+	release := releaseFromAPI(&androidpublisher.TrackRelease{
+		Name:         "1.2.3",
+		Status:       "completed",
+		VersionCodes: googleapi.Int64s([]int64{42}),
+		ReleaseNotes: []*androidpublisher.LocalizedText{
+			{Language: "en-US", Text: "Bug fixes."},
+		},
+	})
+
+	if len(release.ReleaseNotes) != 1 {
+		t.Fatalf("len(ReleaseNotes) = %d, want 1", len(release.ReleaseNotes))
+	}
+	if release.ReleaseNotes[0].Language != "en-US" || release.ReleaseNotes[0].Text != "Bug fixes." {
+		t.Fatalf("release note = %#v, want en-US bug fixes", release.ReleaseNotes[0])
+	}
+}
+
 func TestListingToAPIForceSendsEmptyChangedField(t *testing.T) {
 	apiListing := listingToAPI(Listing{
 		Language: "en-US",

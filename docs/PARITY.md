@@ -41,7 +41,7 @@ Sources:
 | `status` | `status` | `applications.tracks.releases`, `edits.tracks` | tested | `gpc status` summarizes non-draft releases by track and can include draft releases on request. |
 | `submit` | `publish` / `release` | `edits.commit`, `edits.validate` | implemented | Release upload and promotion validate by default and commit only with `--confirm`. |
 | `validate` | `validate` | `edits.validate` | planned | Should dry-run an edit before commit. |
-| `release-notes` | `release-notes` | `edits.tracks.releases.releaseNotes` | planned | Release notes are attached to track releases. |
+| `release-notes` | `releases upload --release-note` | `edits.tracks.releases.releaseNotes` | tested | Upload accepts repeatable localized `language=text` release notes and maps them to Play track releases. |
 
 ## Tracks, Testing, And Distribution
 

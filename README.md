@@ -33,7 +33,7 @@ gpc capabilities --status tested
 gpc docs parity --output markdown
 gpc status --package com.example.app
 gpc releases list --package com.example.app --track internal
-gpc releases upload --package com.example.app --track internal --aab ./app-release.aab --dry-run
+gpc releases upload --package com.example.app --track internal --aab ./app-release.aab --release-note "en-US=Bug fixes." --dry-run
 gpc releases promote --package com.example.app --from internal --to production --version-code 123 --status draft --dry-run
 gpc releases halt --package com.example.app --track production --version-code 123 --dry-run
 gpc releases resume --package com.example.app --track production --version-code 123 --status inProgress --user-fraction 0.25 --dry-run

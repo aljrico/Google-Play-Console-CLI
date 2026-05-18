@@ -119,11 +119,17 @@ type TrackRelease struct {
 	Status       ReleaseStatus `json:"status"`
 	UserFraction *float64      `json:"userFraction,omitempty"`
 	VersionCodes []int64       `json:"versionCodes"`
+	ReleaseNotes []ReleaseNote `json:"releaseNotes,omitempty"`
 }
 
 type Track struct {
 	Name     TrackName      `json:"name"`
 	Releases []TrackRelease `json:"releases"`
+}
+
+type ReleaseNote struct {
+	Language ListingLanguage `json:"language"`
+	Text     string          `json:"text"`
 }
 
 type PublishInternalOptions struct {
@@ -133,6 +139,7 @@ type PublishInternalOptions struct {
 	ReleaseName  string        `json:"releaseName"`
 	Status       ReleaseStatus `json:"status"`
 	UserFraction *float64      `json:"userFraction,omitempty"`
+	ReleaseNotes []ReleaseNote `json:"releaseNotes,omitempty"`
 	Confirm      bool          `json:"confirm"`
 	DryRun       bool          `json:"dryRun"`
 }
@@ -152,6 +159,14 @@ func (o PublishInternalOptions) Validate() error {
 	}
 	if _, err := NewReleaseStatus(o.Status.String()); err != nil {
 		return err
+	}
+	for _, note := range o.ReleaseNotes {
+		if _, err := NewListingLanguage(note.Language.String()); err != nil {
+			return err
+		}
+		if note.Text == "" {
+			return fmt.Errorf("release note text is required")
+		}
 	}
 	switch o.Status {
 	case ReleaseStatusInProgress:
@@ -181,6 +196,7 @@ type PublishPlan struct {
 	ReleaseName  string        `json:"releaseName,omitempty"`
 	Status       ReleaseStatus `json:"status"`
 	UserFraction *float64      `json:"userFraction,omitempty"`
+	ReleaseNotes []ReleaseNote `json:"releaseNotes,omitempty"`
 	Confirm      bool          `json:"confirm"`
 	Steps        []string      `json:"steps"`
 }
@@ -211,6 +227,7 @@ func NewPublishInternalPlan(options PublishInternalOptions) (PublishPlan, error)
 		ReleaseName:  options.ReleaseName,
 		Status:       options.Status,
 		UserFraction: options.UserFraction,
+		ReleaseNotes: options.ReleaseNotes,
 		Confirm:      options.Confirm,
 		Steps:        steps,
 	}, nil
