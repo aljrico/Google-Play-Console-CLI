@@ -415,6 +415,20 @@ func (p GooglePublisher) CreateUser(ctx context.Context, options UserCreateOptio
 	return userFromAPI(apiUser), nil
 }
 
+func (p GooglePublisher) PatchUser(ctx context.Context, options UserPatchOptions) (User, error) {
+	if err := options.ValidateLive(); err != nil {
+		return User{}, err
+	}
+	apiUser, err := p.service.Users.Patch(options.Name.String(), userPatchToAPI(options)).
+		UpdateMask(options.UpdateMask()).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return User{}, fmt.Errorf("patch user %s: %w", options.Name, err)
+	}
+	return userFromAPI(apiUser), nil
+}
+
 func (p GooglePublisher) DeleteUser(ctx context.Context, options UserDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
@@ -2301,6 +2315,17 @@ func userCreateToAPI(options UserCreateOptions) *androidpublisher.User {
 		DeveloperAccountPermissions: userPermissionStrings(options.Permissions),
 		ExpirationTime:              options.ExpirationTime,
 	}
+}
+
+func userPatchToAPI(options UserPatchOptions) *androidpublisher.User {
+	apiUser := &androidpublisher.User{
+		Name:           options.Name.String(),
+		ExpirationTime: options.ExpirationTime,
+	}
+	if len(options.Permissions) > 0 {
+		apiUser.DeveloperAccountPermissions = userPermissionStrings(options.Permissions)
+	}
+	return apiUser
 }
 
 func userPermissionsFromAPI(apiPermissions []string) []UserPermission {

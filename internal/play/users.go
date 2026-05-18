@@ -178,6 +178,10 @@ type UserCreator interface {
 	CreateUser(ctx context.Context, options UserCreateOptions) (User, error)
 }
 
+type UserPatcher interface {
+	PatchUser(ctx context.Context, options UserPatchOptions) (User, error)
+}
+
 func ListUsers(ctx context.Context, lister UserLister, options UserListOptions) (UserListResult, error) {
 	if err := options.Validate(); err != nil {
 		return UserListResult{}, err
@@ -282,6 +286,97 @@ func CreateUser(ctx context.Context, creator UserCreator, options UserCreateOpti
 		return UserMutationResult{}, fmt.Errorf("user creator is required")
 	}
 	user, err := creator.CreateUser(ctx, options)
+	if err != nil {
+		return UserMutationResult{}, err
+	}
+	result.Applied = true
+	result.User = &user
+	return result, nil
+}
+
+type UserPatchOptions struct {
+	Name           UserName         `json:"name"`
+	Permissions    []UserPermission `json:"developerAccountPermissions,omitempty"`
+	ExpirationTime string           `json:"expirationTime,omitempty"`
+	Confirm        bool             `json:"confirm"`
+	DryRun         bool             `json:"dryRun"`
+}
+
+func (o UserPatchOptions) Validate() error {
+	if err := o.Name.Validate(); err != nil {
+		return err
+	}
+	if len(o.Permissions) == 0 && o.ExpirationTime == "" {
+		return fmt.Errorf("user patch requires --permission or --expiration-time")
+	}
+	if len(o.Permissions) > 0 {
+		if err := validateUserPermissions(o.Permissions); err != nil {
+			return err
+		}
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("user patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o UserPatchOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live user patch cannot run with --dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live user patch requires --confirm")
+	}
+	return nil
+}
+
+func (o UserPatchOptions) UpdateMask() string {
+	paths := []string{}
+	if len(o.Permissions) > 0 {
+		paths = append(paths, "developerAccountPermissions")
+	}
+	if o.ExpirationTime != "" {
+		paths = append(paths, "expirationTime")
+	}
+	return strings.Join(paths, ",")
+}
+
+func PatchUser(ctx context.Context, patcher UserPatcher, options UserPatchOptions) (UserMutationResult, error) {
+	if err := options.Validate(); err != nil {
+		return UserMutationResult{}, err
+	}
+	desired := User{
+		Name:                        options.Name.String(),
+		DeveloperAccountPermissions: append([]UserPermission(nil), options.Permissions...),
+		ExpirationTime:              options.ExpirationTime,
+		Grants:                      []UserGrant{},
+	}
+	result := UserMutationResult{
+		Action:  "patch",
+		DryRun:  options.DryRun,
+		Desired: &desired,
+		Plan: UserMutationPlan{
+			Action:         "patch",
+			Name:           options.Name,
+			Permissions:    append([]UserPermission(nil), options.Permissions...),
+			ExpirationTime: options.ExpirationTime,
+			Confirm:        options.Confirm,
+			Steps:          []string{"patch user access"},
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if patcher == nil {
+		return UserMutationResult{}, fmt.Errorf("user patcher is required")
+	}
+	user, err := patcher.PatchUser(ctx, options)
 	if err != nil {
 		return UserMutationResult{}, err
 	}

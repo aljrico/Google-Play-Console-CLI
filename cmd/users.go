@@ -16,6 +16,7 @@ func newUsersCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	cmd.AddCommand(
 		newUsersListCommand(out, options),
 		newUsersCreateCommand(out, options),
+		newUsersPatchCommand(out, options),
 		newUsersDeleteCommand(out, options),
 	)
 	return cmd
@@ -124,6 +125,68 @@ func newUsersCreateCommand(out io.Writer, options *globalOptions) *cobra.Command
 	cmd.Flags().StringVar(&expirationTime, "expiration-time", "", "Optional RFC3339 access expiration time")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the user creation")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned user creation without calling Google Play")
+	return cmd
+}
+
+func newUsersPatchCommand(out io.Writer, options *globalOptions) *cobra.Command {
+	var (
+		developer      string
+		userEmail      string
+		name           string
+		permissions    []string
+		expirationTime string
+		confirm        bool
+		dryRun         bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "patch",
+		Short: "Replace developer-account access fields for a user",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			userName, err := parseUserName(name, developer, userEmail)
+			if err != nil {
+				return err
+			}
+			typedPermissions, err := parseUserPermissions(permissions)
+			if err != nil {
+				return err
+			}
+			patchOptions := play.UserPatchOptions{
+				Name:           userName,
+				Permissions:    typedPermissions,
+				ExpirationTime: expirationTime,
+				Confirm:        confirm,
+				DryRun:         dryRun,
+			}
+			if err := patchOptions.Validate(); err != nil {
+				return err
+			}
+			if dryRun {
+				result, err := play.PatchUser(cmd.Context(), nil, patchOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.PatchUser(cmd.Context(), publisher, patchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&developer, "developer", "", "Developer account ID or resource, for example 1234567890 or developers/1234567890")
+	cmd.Flags().StringVar(&userEmail, "user-email", "", "Play Console user email")
+	cmd.Flags().StringVar(&name, "name", "", "User resource name, developers/{developer}/users/{email}")
+	cmd.Flags().StringArrayVar(&permissions, "permission", nil, "Developer-account permission, repeatable; replaces the account-level permission list when provided")
+	cmd.Flags().StringVar(&expirationTime, "expiration-time", "", "Optional RFC3339 access expiration time")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the user patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned user patch without calling Google Play")
 	return cmd
 }
 

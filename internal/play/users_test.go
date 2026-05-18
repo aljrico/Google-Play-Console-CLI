@@ -138,6 +138,70 @@ func TestCreateUserRejectsInvalidOptions(t *testing.T) {
 	}
 }
 
+func TestPatchUserDryRunDoesNotCallPatcher(t *testing.T) {
+	result, err := PatchUser(context.Background(), nil, UserPatchOptions{
+		Name:        "developers/1234567890/users/user@example.com",
+		Permissions: []UserPermission{UserPermissionReplyToReviewsGlobal},
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("PatchUser() error = %v", err)
+	}
+	if result.Applied {
+		t.Fatalf("Applied = true, want false")
+	}
+	if result.Plan.Name != "developers/1234567890/users/user@example.com" || result.Plan.Action != "patch" {
+		t.Fatalf("plan = %#v, want patch plan", result.Plan)
+	}
+}
+
+func TestPatchUserPassesOptionsToPatcher(t *testing.T) {
+	patcher := &fakeUserPatcher{user: User{Email: "user@example.com"}}
+	options := UserPatchOptions{
+		Name:           "developers/1234567890/users/user@example.com",
+		ExpirationTime: "2027-01-02T03:04:05Z",
+		Confirm:        true,
+	}
+
+	result, err := PatchUser(context.Background(), patcher, options)
+	if err != nil {
+		t.Fatalf("PatchUser() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatalf("Applied = false, want true")
+	}
+	if !reflect.DeepEqual(patcher.options, options) {
+		t.Fatalf("options = %#v, want %#v", patcher.options, options)
+	}
+}
+
+func TestPatchUserRejectsInvalidOptions(t *testing.T) {
+	tests := []UserPatchOptions{
+		{},
+		{Name: "developers/1234567890/users/user@example.com", DryRun: true},
+		{Name: "developers/1234567890/users/user@example.com", Permissions: []UserPermission{"NOPE"}, DryRun: true},
+		{Name: "developers/1234567890/users/user@example.com", Permissions: []UserPermission{UserPermissionReplyToReviewsGlobal}},
+		{Name: "developers/1234567890/users/user@example.com", Permissions: []UserPermission{UserPermissionReplyToReviewsGlobal}, Confirm: true, DryRun: true},
+	}
+	for _, options := range tests {
+		if _, err := PatchUser(context.Background(), nil, options); err == nil {
+			t.Fatalf("PatchUser(%#v) expected validation error", options)
+		}
+	}
+}
+
+func TestUserPatchOptionsBuildsUpdateMask(t *testing.T) {
+	options := UserPatchOptions{
+		Name:           "developers/1234567890/users/user@example.com",
+		Permissions:    []UserPermission{UserPermissionReplyToReviewsGlobal},
+		ExpirationTime: "2027-01-02T03:04:05Z",
+		DryRun:         true,
+	}
+	if options.UpdateMask() != "developerAccountPermissions,expirationTime" {
+		t.Fatalf("UpdateMask() = %q, want developerAccountPermissions,expirationTime", options.UpdateMask())
+	}
+}
+
 func TestDeleteUserPassesOptionsToDeleter(t *testing.T) {
 	deleter := &fakeUserDeleter{}
 	options := UserDeleteOptions{
@@ -198,4 +262,14 @@ type fakeUserCreator struct {
 func (c *fakeUserCreator) CreateUser(ctx context.Context, options UserCreateOptions) (User, error) {
 	c.options = options
 	return c.user, nil
+}
+
+type fakeUserPatcher struct {
+	options UserPatchOptions
+	user    User
+}
+
+func (p *fakeUserPatcher) PatchUser(ctx context.Context, options UserPatchOptions) (User, error) {
+	p.options = options
+	return p.user, nil
 }

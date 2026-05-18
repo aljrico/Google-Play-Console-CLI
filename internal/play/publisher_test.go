@@ -1127,6 +1127,68 @@ func TestCreateUserRejectsDryRunBeforeRequest(t *testing.T) {
 	}
 }
 
+func TestPatchUserUsesUserEndpointAndUpdateMask(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Fatalf("method = %s, want PATCH", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/developers/1234567890/users/user@example.com" {
+			t.Fatalf("path = %q, want user endpoint", r.URL.Path)
+		}
+		assertQueryValue(t, r.URL.Query(), "updateMask", "developerAccountPermissions,expirationTime")
+		var request androidpublisher.User
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.Name != "developers/1234567890/users/user@example.com" || request.ExpirationTime != "2027-01-02T03:04:05Z" {
+			t.Fatalf("request = %#v, want name and expiration", request)
+		}
+		if len(request.DeveloperAccountPermissions) != 1 || request.DeveloperAccountPermissions[0] != "CAN_REPLY_TO_REVIEWS_GLOBAL" {
+			t.Fatalf("permissions = %#v, want reply permission", request.DeveloperAccountPermissions)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"name": "developers/1234567890/users/user@example.com",
+			"email": "user@example.com",
+			"developerAccountPermissions": ["CAN_REPLY_TO_REVIEWS_GLOBAL"],
+			"expirationTime": "2027-01-02T03:04:05Z"
+		}`))
+	}))
+
+	user, err := publisher.PatchUser(context.Background(), UserPatchOptions{
+		Name:           "developers/1234567890/users/user@example.com",
+		Permissions:    []UserPermission{UserPermissionReplyToReviewsGlobal},
+		ExpirationTime: "2027-01-02T03:04:05Z",
+		Confirm:        true,
+	})
+	if err != nil {
+		t.Fatalf("PatchUser() error = %v", err)
+	}
+	if user.ExpirationTime != "2027-01-02T03:04:05Z" || len(user.DeveloperAccountPermissions) != 1 {
+		t.Fatalf("user = %#v, want expiration and permission", user)
+	}
+}
+
+func TestPatchUserRejectsDryRunBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	_, err := publisher.PatchUser(context.Background(), UserPatchOptions{
+		Name:           "developers/1234567890/users/user@example.com",
+		ExpirationTime: "2027-01-02T03:04:05Z",
+		DryRun:         true,
+	})
+	if err == nil {
+		t.Fatal("expected dry-run rejection")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
 func TestDeleteUserUsesUserEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {

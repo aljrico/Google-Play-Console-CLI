@@ -2242,6 +2242,66 @@ func TestUsersCreateRejectsMissingConfirmBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestUsersPatchDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"users",
+		"patch",
+		"--name",
+		"developers/1234567890/users/user@example.com",
+		"--permission",
+		"CAN_REPLY_TO_REVIEWS_GLOBAL",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{`"action":"patch"`, `"dryRun":true`, `"desiredUser"`, `"CAN_REPLY_TO_REVIEWS_GLOBAL"`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestUsersPatchRejectsEmptyPatchBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"users",
+		"patch",
+		"--developer",
+		"1234567890",
+		"--user-email",
+		"user@example.com",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected empty patch validation error")
+	}
+	if !strings.Contains(err.Error(), "--permission") {
+		t.Fatalf("error = %v, want patch field validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestUsersDeleteRejectsMissingConfirmBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
