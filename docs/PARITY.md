@@ -40,7 +40,7 @@ Sources:
 | `publish` | `publish` | `edits`, `edits.tracks` | implemented | `gpc publish internal` supports AAB upload planning and live validate/commit flow, appending through the raw Google track model to preserve existing release metadata. |
 | `status` | `status` | `applications.tracks.releases`, `edits.tracks` | tested | `gpc status` summarizes non-draft releases by track and can include draft releases on request. |
 | `submit` | `publish` / `release` | `edits.commit`, `edits.validate` | implemented | Release upload and promotion validate by default and commit only with `--confirm`. |
-| `validate` | `validate` | `edits.validate` | planned | Should dry-run an edit before commit. |
+| `validate` | `validate` | `edits.validate` | tested | `gpc validate` creates a temporary edit, validates it, and deletes the edit afterwards. |
 | `release-notes` | `releases upload --release-note` | `edits.tracks.releases.releaseNotes` | tested | Upload accepts repeatable localized `language=text` release notes and maps them to Play track releases. |
 
 ## Tracks, Testing, And Distribution
