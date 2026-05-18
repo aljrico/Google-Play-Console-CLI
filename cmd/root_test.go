@@ -695,6 +695,60 @@ func TestPurchasesVoidedListRejectsInvalidTypeBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestPurchasesVoidedListRejectsTokenWithTimeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"purchases",
+		"voided",
+		"list",
+		"--package",
+		"com.example.app",
+		"--token",
+		"page",
+		"--start-time",
+		"1700000000000",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected token/time validation error")
+	}
+	if !strings.Contains(err.Error(), "pagination token") {
+		t.Fatalf("error = %v, want token/time validation", err)
+	}
+}
+
+func TestPurchasesVoidedListRejectsFutureEndTimeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"purchases",
+		"voided",
+		"list",
+		"--package",
+		"com.example.app",
+		"--end-time",
+		"4102444800000",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected future end time validation error")
+	}
+	if !strings.Contains(err.Error(), "future") {
+		t.Fatalf("error = %v, want future end time validation", err)
+	}
+}
+
 func TestPurchasesSubscriptionRejectsMissingTokenBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

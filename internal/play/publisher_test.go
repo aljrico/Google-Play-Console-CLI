@@ -1,12 +1,16 @@
 package play
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"google.golang.org/api/androidpublisher/v3"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
 )
 
 func TestUpsertTrackReleaseAppendsNewVersionCode(t *testing.T) {
@@ -515,6 +519,48 @@ func TestProductPurchaseFromAPIMapsEntitlementFields(t *testing.T) {
 	}
 }
 
+func TestGetProductPurchaseUsesProductV2TokenEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/purchases/productsv2/tokens/token-123" {
+			t.Fatalf("path = %q, want productsv2 token endpoint", r.URL.Path)
+		}
+		if r.URL.Query().Has("productId") {
+			t.Fatalf("query = %q, did not expect legacy product ID param", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"orderId": "GPA.123",
+			"purchaseStateContext": {"purchaseState": "PURCHASED"},
+			"productLineItem": [
+				{
+					"productId": "coins_100",
+					"productOfferDetails": {
+						"quantity": 2,
+						"refundableQuantity": 1
+					}
+				}
+			]
+		}`))
+	}))
+
+	purchase, err := publisher.GetProductPurchase(context.Background(), ProductPurchaseOptions{
+		PackageName: "com.example.app",
+		Token:       "token-123",
+	})
+	if err != nil {
+		t.Fatalf("GetProductPurchase() error = %v", err)
+	}
+	if purchase.ProductID != "coins_100" {
+		t.Fatalf("ProductID = %q, want coins_100", purchase.ProductID)
+	}
+	if purchase.PurchaseState != "PURCHASED" {
+		t.Fatalf("PurchaseState = %q, want PURCHASED", purchase.PurchaseState)
+	}
+	if len(purchase.LineItems) != 1 || purchase.LineItems[0].Quantity != 2 {
+		t.Fatalf("LineItems = %#v, want quantity 2", purchase.LineItems)
+	}
+}
+
 func TestProductPurchaseJSONPreservesZeroQuantities(t *testing.T) {
 	payload, err := json.Marshal(ProductPurchase{
 		PackageName: "com.example.app",
@@ -535,6 +581,54 @@ func TestProductPurchaseJSONPreservesZeroQuantities(t *testing.T) {
 		if !strings.Contains(output, want) {
 			t.Fatalf("json = %s, want %s", output, want)
 		}
+	}
+}
+
+func TestListVoidedPurchasesSendsExpectedQueryParams(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/purchases/voidedpurchases" {
+			t.Fatalf("path = %q, want voided purchases endpoint", r.URL.Path)
+		}
+		query := r.URL.Query()
+		assertQueryValue(t, query, "maxResults", "25")
+		assertQueryValue(t, query, "startIndex", "5")
+		assertQueryValue(t, query, "token", "page")
+		assertQueryValue(t, query, "type", "1")
+		assertQueryValue(t, query, "includeQuantityBasedPartialRefund", "true")
+		if query.Has("startTime") || query.Has("endTime") {
+			t.Fatalf("query = %q, did not expect time params with token", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"tokenPagination": {"nextPageToken": "next"},
+			"voidedPurchases": [
+				{
+					"orderId": "GPA.123",
+					"purchaseToken": "token-123",
+					"voidedReason": 0,
+					"voidedSource": 0,
+					"voidedQuantity": 0
+				}
+			]
+		}`))
+	}))
+
+	result, err := publisher.ListVoidedPurchases(context.Background(), VoidedPurchaseListOptions{
+		PackageName:                       "com.example.app",
+		MaxResults:                        25,
+		StartIndex:                        5,
+		Token:                             "page",
+		Type:                              VoidedPurchaseTypeProductsSubscriptions,
+		IncludeQuantityBasedPartialRefund: true,
+	})
+	if err != nil {
+		t.Fatalf("ListVoidedPurchases() error = %v", err)
+	}
+	if len(result.Purchases) != 1 {
+		t.Fatalf("len(Purchases) = %d, want 1", len(result.Purchases))
+	}
+	if result.Pagination == nil || result.Pagination.NextPageToken != "next" {
+		t.Fatalf("Pagination = %#v, want next token", result.Pagination)
 	}
 }
 
@@ -600,6 +694,30 @@ func TestVoidedPurchaseJSONPreservesZeroReasonSourceAndQuantity(t *testing.T) {
 		if !strings.Contains(output, want) {
 			t.Fatalf("json = %s, want %s", output, want)
 		}
+	}
+}
+
+func newTestPublisher(t *testing.T, handler http.Handler) GooglePublisher {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	service, err := androidpublisher.NewService(
+		context.Background(),
+		option.WithHTTPClient(server.Client()),
+		option.WithEndpoint(server.URL+"/"),
+		option.WithoutAuthentication(),
+	)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	return GooglePublisher{service: service}
+}
+
+func assertQueryValue(t *testing.T, query map[string][]string, key string, want string) {
+	t.Helper()
+	values := query[key]
+	if len(values) != 1 || values[0] != want {
+		t.Fatalf("query[%s] = %#v, want %q", key, values, want)
 	}
 }
 

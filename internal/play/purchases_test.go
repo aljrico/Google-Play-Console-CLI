@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestGetProductPurchasePassesOptionsToGetter(t *testing.T) {
@@ -75,13 +76,13 @@ func TestListVoidedPurchasesPassesOptionsToLister(t *testing.T) {
 		PackageName: packageName,
 		Purchases:   []VoidedPurchase{{OrderID: "GPA.123"}},
 	}}
+	now := time.Now()
 	options := VoidedPurchaseListOptions{
 		PackageName:                       packageName,
 		MaxResults:                        25,
 		StartIndex:                        5,
-		Token:                             "next",
-		StartTimeMillis:                   1700000000000,
-		EndTimeMillis:                     1700001000000,
+		StartTimeMillis:                   now.Add(-time.Hour).UnixMilli(),
+		EndTimeMillis:                     now.UnixMilli(),
 		Type:                              VoidedPurchaseTypeProductsSubscriptions,
 		IncludeQuantityBasedPartialRefund: true,
 	}
@@ -103,6 +104,7 @@ func TestListVoidedPurchasesRejectsInvalidOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewPackageName() error = %v", err)
 	}
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name    string
@@ -121,6 +123,26 @@ func TestListVoidedPurchasesRejectsInvalidOptions(t *testing.T) {
 			options: VoidedPurchaseListOptions{PackageName: packageName, StartTimeMillis: -1},
 		},
 		{
+			name:    "token with start time",
+			options: VoidedPurchaseListOptions{PackageName: packageName, Token: "page", StartTimeMillis: now.UnixMilli()},
+		},
+		{
+			name:    "token with end time",
+			options: VoidedPurchaseListOptions{PackageName: packageName, Token: "page", EndTimeMillis: now.UnixMilli()},
+		},
+		{
+			name:    "start after end",
+			options: VoidedPurchaseListOptions{PackageName: packageName, StartTimeMillis: now.UnixMilli(), EndTimeMillis: now.Add(-time.Hour).UnixMilli()},
+		},
+		{
+			name:    "start older than window",
+			options: VoidedPurchaseListOptions{PackageName: packageName, StartTimeMillis: now.Add(-voidedPurchaseWindow - time.Millisecond).UnixMilli()},
+		},
+		{
+			name:    "future end time",
+			options: VoidedPurchaseListOptions{PackageName: packageName, EndTimeMillis: now.Add(time.Millisecond).UnixMilli()},
+		},
+		{
 			name:    "invalid type",
 			options: VoidedPurchaseListOptions{PackageName: packageName, Type: 2},
 		},
@@ -128,11 +150,28 @@ func TestListVoidedPurchasesRejectsInvalidOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ListVoidedPurchases(context.Background(), nil, tt.options)
+			err := tt.options.ValidateAt(now)
 			if err == nil {
 				t.Fatal("expected validation error")
 			}
 		})
+	}
+}
+
+func TestVoidedPurchaseListOptionsAcceptsValidTimeWindow(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	now := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
+
+	err = VoidedPurchaseListOptions{
+		PackageName:     packageName,
+		StartTimeMillis: now.Add(-voidedPurchaseWindow).UnixMilli(),
+		EndTimeMillis:   now.UnixMilli(),
+	}.ValidateAt(now)
+	if err != nil {
+		t.Fatalf("ValidateAt() error = %v", err)
 	}
 }
 

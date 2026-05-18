@@ -3,6 +3,7 @@ package play
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 type PurchaseToken string
@@ -142,6 +143,7 @@ type VoidedPurchaseType int64
 const (
 	VoidedPurchaseTypeProductsOnly          VoidedPurchaseType = 0
 	VoidedPurchaseTypeProductsSubscriptions VoidedPurchaseType = 1
+	voidedPurchaseWindow                    time.Duration      = 30 * 24 * time.Hour
 )
 
 type VoidedPurchaseListOptions struct {
@@ -156,6 +158,10 @@ type VoidedPurchaseListOptions struct {
 }
 
 func (o VoidedPurchaseListOptions) Validate() error {
+	return o.ValidateAt(time.Now())
+}
+
+func (o VoidedPurchaseListOptions) ValidateAt(now time.Time) error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
 	}
@@ -170,6 +176,19 @@ func (o VoidedPurchaseListOptions) Validate() error {
 	}
 	if o.EndTimeMillis < 0 {
 		return fmt.Errorf("end time cannot be negative")
+	}
+	if o.Token != "" && (o.StartTimeMillis > 0 || o.EndTimeMillis > 0) {
+		return fmt.Errorf("start time and end time cannot be used with a pagination token")
+	}
+	if o.StartTimeMillis > 0 && o.EndTimeMillis > 0 && o.StartTimeMillis > o.EndTimeMillis {
+		return fmt.Errorf("start time cannot be after end time")
+	}
+	nowMillis := now.UnixMilli()
+	if o.StartTimeMillis > 0 && o.StartTimeMillis < now.Add(-voidedPurchaseWindow).UnixMilli() {
+		return fmt.Errorf("start time cannot be older than 30 days")
+	}
+	if o.EndTimeMillis > nowMillis {
+		return fmt.Errorf("end time cannot be in the future")
 	}
 	if o.Type != VoidedPurchaseTypeProductsOnly && o.Type != VoidedPurchaseTypeProductsSubscriptions {
 		return fmt.Errorf("voided purchase type must be 0 or 1")
