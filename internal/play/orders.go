@@ -32,11 +32,69 @@ type BuyerAddress struct {
 }
 
 type OrderLineItem struct {
-	ProductID    string `json:"productId,omitempty"`
-	ProductTitle string `json:"productTitle,omitempty"`
-	ListingPrice *Money `json:"listingPrice,omitempty"`
-	Tax          *Money `json:"tax,omitempty"`
-	Total        *Money `json:"total,omitempty"`
+	ProductID              string                    `json:"productId,omitempty"`
+	ProductTitle           string                    `json:"productTitle,omitempty"`
+	ListingPrice           *Money                    `json:"listingPrice,omitempty"`
+	Tax                    *Money                    `json:"tax,omitempty"`
+	Total                  *Money                    `json:"total,omitempty"`
+	OneTimePurchaseDetails *OneTimePurchaseDetails   `json:"oneTimePurchaseDetails,omitempty"`
+	PaidAppDetails         *PaidAppDetails           `json:"paidAppDetails,omitempty"`
+	SubscriptionDetails    *OrderSubscriptionDetails `json:"subscriptionDetails,omitempty"`
+}
+
+type OneTimePurchaseDetails struct {
+	OfferID  string `json:"offerId,omitempty"`
+	Quantity int64  `json:"quantity,omitempty"`
+}
+
+type PaidAppDetails struct{}
+
+type OrderSubscriptionDetails struct {
+	BasePlanID             string `json:"basePlanId,omitempty"`
+	OfferID                string `json:"offerId,omitempty"`
+	OfferPhase             string `json:"offerPhase,omitempty"`
+	ServicePeriodStartTime string `json:"servicePeriodStartTime,omitempty"`
+	ServicePeriodEndTime   string `json:"servicePeriodEndTime,omitempty"`
+}
+
+type OrderDetails struct {
+	TaxInclusive bool `json:"taxInclusive"`
+}
+
+type OrderHistory struct {
+	CancellationEvent   *OrderEvent          `json:"cancellationEvent,omitempty"`
+	ProcessedEvent      *OrderEvent          `json:"processedEvent,omitempty"`
+	RefundEvent         *OrderRefundEvent    `json:"refundEvent,omitempty"`
+	PartialRefundEvents []PartialRefundEvent `json:"partialRefundEvents,omitempty"`
+}
+
+type OrderEvent struct {
+	EventTime string `json:"eventTime,omitempty"`
+}
+
+type OrderRefundEvent struct {
+	EventTime     string         `json:"eventTime,omitempty"`
+	RefundReason  string         `json:"refundReason,omitempty"`
+	RefundDetails *RefundDetails `json:"refundDetails,omitempty"`
+}
+
+type PartialRefundEvent struct {
+	CreateTime    string         `json:"createTime,omitempty"`
+	ProcessTime   string         `json:"processTime,omitempty"`
+	State         string         `json:"state,omitempty"`
+	RefundDetails *RefundDetails `json:"refundDetails,omitempty"`
+}
+
+type RefundDetails struct {
+	Tax   *Money `json:"tax,omitempty"`
+	Total *Money `json:"total,omitempty"`
+}
+
+type PointsDetails struct {
+	PointsOfferID            string `json:"pointsOfferId,omitempty"`
+	PointsSpent              int64  `json:"pointsSpent,omitempty"`
+	PointsDiscountRateMicros int64  `json:"pointsDiscountRateMicros,omitempty"`
+	PointsCouponValue        *Money `json:"pointsCouponValue,omitempty"`
 }
 
 type Order struct {
@@ -49,6 +107,9 @@ type Order struct {
 	Total                           *Money          `json:"total,omitempty"`
 	Tax                             *Money          `json:"tax,omitempty"`
 	DeveloperRevenueInBuyerCurrency *Money          `json:"developerRevenueInBuyerCurrency,omitempty"`
+	OrderDetails                    *OrderDetails   `json:"orderDetails,omitempty"`
+	OrderHistory                    *OrderHistory   `json:"orderHistory,omitempty"`
+	PointsDetails                   *PointsDetails  `json:"pointsDetails,omitempty"`
 	LineItems                       []OrderLineItem `json:"lineItems"`
 }
 

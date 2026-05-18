@@ -1376,17 +1376,135 @@ func orderFromAPI(apiOrder *androidpublisher.Order) Order {
 		Total:                           moneyFromAPI(apiOrder.Total),
 		Tax:                             moneyFromAPI(apiOrder.Tax),
 		DeveloperRevenueInBuyerCurrency: moneyFromAPI(apiOrder.DeveloperRevenueInBuyerCurrency),
+		OrderDetails:                    orderDetailsFromAPI(apiOrder.OrderDetails),
+		OrderHistory:                    orderHistoryFromAPI(apiOrder.OrderHistory),
+		PointsDetails:                   pointsDetailsFromAPI(apiOrder.PointsDetails),
 		LineItems:                       lineItems,
 	}
 }
 
 func orderLineItemFromAPI(apiLineItem *androidpublisher.LineItem) OrderLineItem {
 	return OrderLineItem{
-		ProductID:    apiLineItem.ProductId,
-		ProductTitle: apiLineItem.ProductTitle,
-		ListingPrice: moneyFromAPI(apiLineItem.ListingPrice),
-		Tax:          moneyFromAPI(apiLineItem.Tax),
-		Total:        moneyFromAPI(apiLineItem.Total),
+		ProductID:              apiLineItem.ProductId,
+		ProductTitle:           apiLineItem.ProductTitle,
+		ListingPrice:           moneyFromAPI(apiLineItem.ListingPrice),
+		Tax:                    moneyFromAPI(apiLineItem.Tax),
+		Total:                  moneyFromAPI(apiLineItem.Total),
+		OneTimePurchaseDetails: oneTimePurchaseDetailsFromAPI(apiLineItem.OneTimePurchaseDetails),
+		PaidAppDetails:         paidAppDetailsFromAPI(apiLineItem.PaidAppDetails),
+		SubscriptionDetails:    orderSubscriptionDetailsFromAPI(apiLineItem.SubscriptionDetails),
+	}
+}
+
+func oneTimePurchaseDetailsFromAPI(apiDetails *androidpublisher.OneTimePurchaseDetails) *OneTimePurchaseDetails {
+	if apiDetails == nil {
+		return nil
+	}
+	return &OneTimePurchaseDetails{
+		OfferID:  apiDetails.OfferId,
+		Quantity: apiDetails.Quantity,
+	}
+}
+
+func paidAppDetailsFromAPI(apiDetails *androidpublisher.PaidAppDetails) *PaidAppDetails {
+	if apiDetails == nil {
+		return nil
+	}
+	return &PaidAppDetails{}
+}
+
+func orderSubscriptionDetailsFromAPI(apiDetails *androidpublisher.SubscriptionDetails) *OrderSubscriptionDetails {
+	if apiDetails == nil {
+		return nil
+	}
+	return &OrderSubscriptionDetails{
+		BasePlanID:             apiDetails.BasePlanId,
+		OfferID:                apiDetails.OfferId,
+		OfferPhase:             apiDetails.OfferPhase,
+		ServicePeriodStartTime: apiDetails.ServicePeriodStartTime,
+		ServicePeriodEndTime:   apiDetails.ServicePeriodEndTime,
+	}
+}
+
+func orderDetailsFromAPI(apiDetails *androidpublisher.OrderDetails) *OrderDetails {
+	if apiDetails == nil {
+		return nil
+	}
+	return &OrderDetails{TaxInclusive: apiDetails.TaxInclusive}
+}
+
+func orderHistoryFromAPI(apiHistory *androidpublisher.OrderHistory) *OrderHistory {
+	if apiHistory == nil {
+		return nil
+	}
+	partialRefundEvents := make([]PartialRefundEvent, 0, len(apiHistory.PartialRefundEvents))
+	for _, apiEvent := range apiHistory.PartialRefundEvents {
+		if apiEvent == nil {
+			continue
+		}
+		partialRefundEvents = append(partialRefundEvents, partialRefundEventFromAPI(apiEvent))
+	}
+	return &OrderHistory{
+		CancellationEvent:   cancellationEventFromAPI(apiHistory.CancellationEvent),
+		ProcessedEvent:      processedEventFromAPI(apiHistory.ProcessedEvent),
+		RefundEvent:         orderRefundEventFromAPI(apiHistory.RefundEvent),
+		PartialRefundEvents: partialRefundEvents,
+	}
+}
+
+func cancellationEventFromAPI(apiEvent *androidpublisher.CancellationEvent) *OrderEvent {
+	if apiEvent == nil {
+		return nil
+	}
+	return &OrderEvent{EventTime: apiEvent.EventTime}
+}
+
+func processedEventFromAPI(apiEvent *androidpublisher.ProcessedEvent) *OrderEvent {
+	if apiEvent == nil {
+		return nil
+	}
+	return &OrderEvent{EventTime: apiEvent.EventTime}
+}
+
+func orderRefundEventFromAPI(apiEvent *androidpublisher.RefundEvent) *OrderRefundEvent {
+	if apiEvent == nil {
+		return nil
+	}
+	return &OrderRefundEvent{
+		EventTime:     apiEvent.EventTime,
+		RefundReason:  apiEvent.RefundReason,
+		RefundDetails: refundDetailsFromAPI(apiEvent.RefundDetails),
+	}
+}
+
+func partialRefundEventFromAPI(apiEvent *androidpublisher.PartialRefundEvent) PartialRefundEvent {
+	return PartialRefundEvent{
+		CreateTime:    apiEvent.CreateTime,
+		ProcessTime:   apiEvent.ProcessTime,
+		State:         apiEvent.State,
+		RefundDetails: refundDetailsFromAPI(apiEvent.RefundDetails),
+	}
+}
+
+func refundDetailsFromAPI(apiDetails *androidpublisher.RefundDetails) *RefundDetails {
+	if apiDetails == nil {
+		return nil
+	}
+	return &RefundDetails{
+		Tax:   moneyFromAPI(apiDetails.Tax),
+		Total: moneyFromAPI(apiDetails.Total),
+	}
+}
+
+func pointsDetailsFromAPI(apiDetails *androidpublisher.PointsDetails) *PointsDetails {
+	if apiDetails == nil {
+		return nil
+	}
+	return &PointsDetails{
+		PointsOfferID:            apiDetails.PointsOfferId,
+		PointsSpent:              apiDetails.PointsSpent,
+		PointsDiscountRateMicros: apiDetails.PointsDiscountRateMicros,
+		PointsCouponValue:        moneyFromAPI(apiDetails.PointsCouponValue),
 	}
 }
 

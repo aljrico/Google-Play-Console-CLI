@@ -857,11 +857,39 @@ func TestGetOrderUsesOrderEndpoint(t *testing.T) {
 			"purchaseToken": "token-123",
 			"state": "PROCESSED",
 			"total": {"currencyCode": "USD", "units": "9", "nanos": 990000000},
+			"orderDetails": {"taxInclusive": true},
+			"orderHistory": {
+				"processedEvent": {"eventTime": "2026-05-18T10:00:00Z"},
+				"partialRefundEvents": [{
+					"createTime": "2026-05-18T11:00:00Z",
+					"processTime": "2026-05-18T11:01:00Z",
+					"state": "PROCESSED_SUCCESSFULLY",
+					"refundDetails": {"total": {"currencyCode": "USD", "units": "2"}}
+				}],
+				"refundEvent": {
+					"eventTime": "2026-05-18T12:00:00Z",
+					"refundReason": "OTHER",
+					"refundDetails": {"total": {"currencyCode": "USD", "units": "7"}}
+				}
+			},
+			"pointsDetails": {
+				"pointsOfferId": "points-offer",
+				"pointsSpent": "100",
+				"pointsDiscountRateMicros": "500000",
+				"pointsCouponValue": {"currencyCode": "USD", "units": "2"}
+			},
 			"buyerAddress": {"buyerCountry": "US"},
 			"lineItems": [{
 				"productId": "premium",
 				"productTitle": "Premium",
-				"total": {"currencyCode": "USD", "units": "9", "nanos": 990000000}
+				"total": {"currencyCode": "USD", "units": "9", "nanos": 990000000},
+				"subscriptionDetails": {
+					"basePlanId": "monthly",
+					"offerId": "intro",
+					"offerPhase": "INTRODUCTORY",
+					"servicePeriodStartTime": "2026-05-18T00:00:00Z",
+					"servicePeriodEndTime": "2026-06-18T00:00:00Z"
+				}
 			}]
 		}`))
 	}))
@@ -881,6 +909,24 @@ func TestGetOrderUsesOrderEndpoint(t *testing.T) {
 	}
 	if len(result.Order.LineItems) != 1 || result.Order.LineItems[0].ProductID != "premium" {
 		t.Fatalf("line items = %#v, want premium line item", result.Order.LineItems)
+	}
+	if result.Order.OrderDetails == nil || !result.Order.OrderDetails.TaxInclusive {
+		t.Fatalf("order details = %#v, want tax-inclusive details", result.Order.OrderDetails)
+	}
+	if result.Order.OrderHistory == nil || result.Order.OrderHistory.ProcessedEvent.EventTime == "" {
+		t.Fatalf("order history = %#v, want processed event", result.Order.OrderHistory)
+	}
+	if len(result.Order.OrderHistory.PartialRefundEvents) != 1 || result.Order.OrderHistory.PartialRefundEvents[0].RefundDetails.Total.Units != 2 {
+		t.Fatalf("partial refunds = %#v, want one $2 refund", result.Order.OrderHistory.PartialRefundEvents)
+	}
+	if result.Order.OrderHistory.RefundEvent == nil || result.Order.OrderHistory.RefundEvent.RefundReason != "OTHER" {
+		t.Fatalf("refund event = %#v, want OTHER refund", result.Order.OrderHistory.RefundEvent)
+	}
+	if result.Order.PointsDetails == nil || result.Order.PointsDetails.PointsSpent != 100 {
+		t.Fatalf("points details = %#v, want 100 points", result.Order.PointsDetails)
+	}
+	if result.Order.LineItems[0].SubscriptionDetails == nil || result.Order.LineItems[0].SubscriptionDetails.BasePlanID != "monthly" {
+		t.Fatalf("subscription details = %#v, want monthly base plan", result.Order.LineItems[0].SubscriptionDetails)
 	}
 }
 
