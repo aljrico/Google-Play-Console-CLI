@@ -26,7 +26,7 @@ Sources:
 | `init` | `init` | N/A | planned | Should create `.gpc/` helper docs and workflow templates. |
 | `docs` | `docs` | N/A | planned | Should expose embedded command and workflow docs. |
 | `version` | `version` | N/A | implemented | Prints build metadata. |
-| `completion` | `completion` | N/A | planned | Cobra can generate shell completions. |
+| `completion` | `completion` | N/A | implemented | Cobra generates shell completions for supported shells. |
 
 ## Apps And Releases
 
