@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"reflect"
 	"testing"
 )
 
@@ -65,11 +66,83 @@ func TestGetSubscriptionPurchasePassesOptionsToGetter(t *testing.T) {
 	}
 }
 
+func TestListVoidedPurchasesPassesOptionsToLister(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	lister := &fakePurchaseClient{voidedResult: VoidedPurchaseListResult{
+		PackageName: packageName,
+		Purchases:   []VoidedPurchase{{OrderID: "GPA.123"}},
+	}}
+	options := VoidedPurchaseListOptions{
+		PackageName:                       packageName,
+		MaxResults:                        25,
+		StartIndex:                        5,
+		Token:                             "next",
+		StartTimeMillis:                   1700000000000,
+		EndTimeMillis:                     1700001000000,
+		Type:                              VoidedPurchaseTypeProductsSubscriptions,
+		IncludeQuantityBasedPartialRefund: true,
+	}
+
+	result, err := ListVoidedPurchases(context.Background(), lister, options)
+	if err != nil {
+		t.Fatalf("ListVoidedPurchases() error = %v", err)
+	}
+	if len(result.Purchases) != 1 {
+		t.Fatalf("len(Purchases) = %d, want 1", len(result.Purchases))
+	}
+	if !reflect.DeepEqual(lister.voidedOptions, options) {
+		t.Fatalf("options = %#v, want %#v", lister.voidedOptions, options)
+	}
+}
+
+func TestListVoidedPurchasesRejectsInvalidOptions(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		options VoidedPurchaseListOptions
+	}{
+		{
+			name:    "negative max results",
+			options: VoidedPurchaseListOptions{PackageName: packageName, MaxResults: -1},
+		},
+		{
+			name:    "negative start index",
+			options: VoidedPurchaseListOptions{PackageName: packageName, StartIndex: -1},
+		},
+		{
+			name:    "negative start time",
+			options: VoidedPurchaseListOptions{PackageName: packageName, StartTimeMillis: -1},
+		},
+		{
+			name:    "invalid type",
+			options: VoidedPurchaseListOptions{PackageName: packageName, Type: 2},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ListVoidedPurchases(context.Background(), nil, tt.options)
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
 type fakePurchaseClient struct {
 	productOptions       ProductPurchaseOptions
 	productPurchase      ProductPurchase
 	subscriptionOptions  SubscriptionPurchaseOptions
 	subscriptionPurchase SubscriptionPurchase
+	voidedOptions        VoidedPurchaseListOptions
+	voidedResult         VoidedPurchaseListResult
 }
 
 func (c *fakePurchaseClient) GetProductPurchase(ctx context.Context, options ProductPurchaseOptions) (ProductPurchase, error) {
@@ -80,4 +153,9 @@ func (c *fakePurchaseClient) GetProductPurchase(ctx context.Context, options Pro
 func (c *fakePurchaseClient) GetSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error) {
 	c.subscriptionOptions = options
 	return c.subscriptionPurchase, nil
+}
+
+func (c *fakePurchaseClient) ListVoidedPurchases(ctx context.Context, options VoidedPurchaseListOptions) (VoidedPurchaseListResult, error) {
+	c.voidedOptions = options
+	return c.voidedResult, nil
 }

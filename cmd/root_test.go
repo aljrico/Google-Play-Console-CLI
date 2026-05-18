@@ -643,6 +643,58 @@ func TestPurchasesProductAllowsTokenOnlyBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestPurchasesVoidedListRejectsNegativeMaxResultsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"purchases",
+		"voided",
+		"list",
+		"--package",
+		"com.example.app",
+		"--max-results",
+		"-1",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected max results validation error")
+	}
+	if !strings.Contains(err.Error(), "max results") {
+		t.Fatalf("error = %v, want max results validation", err)
+	}
+}
+
+func TestPurchasesVoidedListRejectsInvalidTypeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"purchases",
+		"voided",
+		"list",
+		"--package",
+		"com.example.app",
+		"--type",
+		"2",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected type validation error")
+	}
+	if !strings.Contains(err.Error(), "voided purchase type") {
+		t.Fatalf("error = %v, want type validation", err)
+	}
+}
+
 func TestPurchasesSubscriptionRejectsMissingTokenBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

@@ -136,3 +136,86 @@ func GetSubscriptionPurchase(ctx context.Context, getter SubscriptionPurchaseGet
 	}
 	return getter.GetSubscriptionPurchase(ctx, options)
 }
+
+type VoidedPurchaseType int64
+
+const (
+	VoidedPurchaseTypeProductsOnly          VoidedPurchaseType = 0
+	VoidedPurchaseTypeProductsSubscriptions VoidedPurchaseType = 1
+)
+
+type VoidedPurchaseListOptions struct {
+	PackageName                       PackageName        `json:"packageName"`
+	MaxResults                        int64              `json:"maxResults,omitempty"`
+	StartIndex                        int64              `json:"startIndex,omitempty"`
+	Token                             string             `json:"token,omitempty"`
+	StartTimeMillis                   int64              `json:"startTimeMillis,omitempty"`
+	EndTimeMillis                     int64              `json:"endTimeMillis,omitempty"`
+	Type                              VoidedPurchaseType `json:"type,omitempty"`
+	IncludeQuantityBasedPartialRefund bool               `json:"includeQuantityBasedPartialRefund,omitempty"`
+}
+
+func (o VoidedPurchaseListOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if o.MaxResults < 0 {
+		return fmt.Errorf("max results cannot be negative")
+	}
+	if o.StartIndex < 0 {
+		return fmt.Errorf("start index cannot be negative")
+	}
+	if o.StartTimeMillis < 0 {
+		return fmt.Errorf("start time cannot be negative")
+	}
+	if o.EndTimeMillis < 0 {
+		return fmt.Errorf("end time cannot be negative")
+	}
+	if o.Type != VoidedPurchaseTypeProductsOnly && o.Type != VoidedPurchaseTypeProductsSubscriptions {
+		return fmt.Errorf("voided purchase type must be 0 or 1")
+	}
+	return nil
+}
+
+type VoidedPurchase struct {
+	OrderID            string `json:"orderId,omitempty"`
+	PurchaseToken      string `json:"purchaseToken,omitempty"`
+	PurchaseTimeMillis int64  `json:"purchaseTimeMillis,omitempty"`
+	VoidedTimeMillis   int64  `json:"voidedTimeMillis,omitempty"`
+	VoidedReason       int64  `json:"voidedReason"`
+	VoidedSource       int64  `json:"voidedSource"`
+	VoidedQuantity     int64  `json:"voidedQuantity"`
+}
+
+type VoidedPurchasePageInfo struct {
+	ResultPerPage int64 `json:"resultPerPage,omitempty"`
+	StartIndex    int64 `json:"startIndex,omitempty"`
+	TotalResults  int64 `json:"totalResults,omitempty"`
+}
+
+type VoidedPurchasePagination struct {
+	NextPageToken     string `json:"nextPageToken,omitempty"`
+	PreviousPageToken string `json:"previousPageToken,omitempty"`
+}
+
+type VoidedPurchaseListResult struct {
+	PackageName PackageName               `json:"packageName"`
+	Options     VoidedPurchaseListOptions `json:"options"`
+	PageInfo    *VoidedPurchasePageInfo   `json:"pageInfo,omitempty"`
+	Pagination  *VoidedPurchasePagination `json:"pagination,omitempty"`
+	Purchases   []VoidedPurchase          `json:"purchases"`
+}
+
+type VoidedPurchaseLister interface {
+	ListVoidedPurchases(ctx context.Context, options VoidedPurchaseListOptions) (VoidedPurchaseListResult, error)
+}
+
+func ListVoidedPurchases(ctx context.Context, lister VoidedPurchaseLister, options VoidedPurchaseListOptions) (VoidedPurchaseListResult, error) {
+	if err := options.Validate(); err != nil {
+		return VoidedPurchaseListResult{}, err
+	}
+	if lister == nil {
+		return VoidedPurchaseListResult{}, fmt.Errorf("voided purchase lister is required")
+	}
+	return lister.ListVoidedPurchases(ctx, options)
+}

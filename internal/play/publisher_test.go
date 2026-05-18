@@ -538,6 +538,71 @@ func TestProductPurchaseJSONPreservesZeroQuantities(t *testing.T) {
 	}
 }
 
+func TestVoidedPurchaseListResultFromAPIMapsPurchasesAndPagination(t *testing.T) {
+	result := voidedPurchaseListResultFromAPI(VoidedPurchaseListOptions{
+		PackageName:                       "com.example.app",
+		MaxResults:                        25,
+		StartIndex:                        5,
+		Token:                             "page",
+		StartTimeMillis:                   1700000000000,
+		EndTimeMillis:                     1700001000000,
+		Type:                              VoidedPurchaseTypeProductsSubscriptions,
+		IncludeQuantityBasedPartialRefund: true,
+	}, &androidpublisher.VoidedPurchasesListResponse{
+		PageInfo:        &androidpublisher.PageInfo{ResultPerPage: 25, StartIndex: 5, TotalResults: 30},
+		TokenPagination: &androidpublisher.TokenPagination{NextPageToken: "next", PreviousPageToken: "prev"},
+		VoidedPurchases: []*androidpublisher.VoidedPurchase{
+			{
+				OrderId:            "GPA.123",
+				PurchaseToken:      "token-123",
+				PurchaseTimeMillis: 1700000000000,
+				VoidedTimeMillis:   1700000100000,
+				VoidedReason:       0,
+				VoidedSource:       0,
+				VoidedQuantity:     0,
+			},
+		},
+	})
+
+	if result.PackageName != "com.example.app" {
+		t.Fatalf("PackageName = %q, want com.example.app", result.PackageName)
+	}
+	if len(result.Purchases) != 1 {
+		t.Fatalf("len(Purchases) = %d, want 1", len(result.Purchases))
+	}
+	purchase := result.Purchases[0]
+	if purchase.OrderID != "GPA.123" {
+		t.Fatalf("OrderID = %q, want GPA.123", purchase.OrderID)
+	}
+	if purchase.VoidedReason != 0 {
+		t.Fatalf("VoidedReason = %d, want 0", purchase.VoidedReason)
+	}
+	if result.PageInfo == nil || result.PageInfo.TotalResults != 30 {
+		t.Fatalf("PageInfo = %#v, want total results 30", result.PageInfo)
+	}
+	if result.Pagination == nil || result.Pagination.NextPageToken != "next" {
+		t.Fatalf("Pagination = %#v, want next token", result.Pagination)
+	}
+}
+
+func TestVoidedPurchaseJSONPreservesZeroReasonSourceAndQuantity(t *testing.T) {
+	payload, err := json.Marshal(VoidedPurchase{
+		OrderID:        "GPA.123",
+		VoidedReason:   0,
+		VoidedSource:   0,
+		VoidedQuantity: 0,
+	})
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	output := string(payload)
+	for _, want := range []string{`"voidedReason":0`, `"voidedSource":0`, `"voidedQuantity":0`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("json = %s, want %s", output, want)
+		}
+	}
+}
+
 func TestSubscriptionPurchaseFromAPIMapsLineItems(t *testing.T) {
 	purchase := subscriptionPurchaseFromAPI("com.example.app", "token-123", &androidpublisher.SubscriptionPurchaseV2{
 		SubscriptionState:    "SUBSCRIPTION_STATE_ACTIVE",

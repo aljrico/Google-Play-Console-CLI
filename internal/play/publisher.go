@@ -301,6 +301,36 @@ func (p GooglePublisher) GetSubscriptionPurchase(ctx context.Context, options Su
 	return subscriptionPurchaseFromAPI(options.PackageName, options.Token, purchase), nil
 }
 
+func (p GooglePublisher) ListVoidedPurchases(ctx context.Context, options VoidedPurchaseListOptions) (VoidedPurchaseListResult, error) {
+	call := p.service.Purchases.Voidedpurchases.List(options.PackageName.String()).Context(ctx)
+	if options.MaxResults > 0 {
+		call.MaxResults(options.MaxResults)
+	}
+	if options.StartIndex > 0 {
+		call.StartIndex(options.StartIndex)
+	}
+	if options.Token != "" {
+		call.Token(options.Token)
+	}
+	if options.StartTimeMillis > 0 {
+		call.StartTime(options.StartTimeMillis)
+	}
+	if options.EndTimeMillis > 0 {
+		call.EndTime(options.EndTimeMillis)
+	}
+	if options.Type != VoidedPurchaseTypeProductsOnly {
+		call.Type(int64(options.Type))
+	}
+	if options.IncludeQuantityBasedPartialRefund {
+		call.IncludeQuantityBasedPartialRefund(true)
+	}
+	response, err := call.Do()
+	if err != nil {
+		return VoidedPurchaseListResult{}, fmt.Errorf("list voided purchases for %s: %w", options.PackageName, err)
+	}
+	return voidedPurchaseListResultFromAPI(options, response), nil
+}
+
 func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName PackageName, editID string, trackName TrackName, release TrackRelease) (Track, error) {
 	apiTrack, err := p.service.Edits.Tracks.Get(packageName.String(), editID, trackName.String()).Context(ctx).Do()
 	if err != nil {
@@ -1207,6 +1237,49 @@ func obfuscatedExternalProfileIDFromAPI(apiIdentifiers *androidpublisher.Externa
 		return ""
 	}
 	return apiIdentifiers.ObfuscatedExternalProfileId
+}
+
+func voidedPurchaseListResultFromAPI(options VoidedPurchaseListOptions, response *androidpublisher.VoidedPurchasesListResponse) VoidedPurchaseListResult {
+	result := VoidedPurchaseListResult{
+		PackageName: options.PackageName,
+		Options:     options,
+		Purchases:   []VoidedPurchase{},
+	}
+	if response == nil {
+		return result
+	}
+	for _, apiPurchase := range response.VoidedPurchases {
+		if apiPurchase == nil {
+			continue
+		}
+		result.Purchases = append(result.Purchases, voidedPurchaseFromAPI(apiPurchase))
+	}
+	if response.PageInfo != nil {
+		result.PageInfo = &VoidedPurchasePageInfo{
+			ResultPerPage: response.PageInfo.ResultPerPage,
+			StartIndex:    response.PageInfo.StartIndex,
+			TotalResults:  response.PageInfo.TotalResults,
+		}
+	}
+	if response.TokenPagination != nil {
+		result.Pagination = &VoidedPurchasePagination{
+			NextPageToken:     response.TokenPagination.NextPageToken,
+			PreviousPageToken: response.TokenPagination.PreviousPageToken,
+		}
+	}
+	return result
+}
+
+func voidedPurchaseFromAPI(apiPurchase *androidpublisher.VoidedPurchase) VoidedPurchase {
+	return VoidedPurchase{
+		OrderID:            apiPurchase.OrderId,
+		PurchaseToken:      apiPurchase.PurchaseToken,
+		PurchaseTimeMillis: apiPurchase.PurchaseTimeMillis,
+		VoidedTimeMillis:   apiPurchase.VoidedTimeMillis,
+		VoidedReason:       apiPurchase.VoidedReason,
+		VoidedSource:       apiPurchase.VoidedSource,
+		VoidedQuantity:     apiPurchase.VoidedQuantity,
+	}
 }
 
 func stringPointer(value string) *string {
