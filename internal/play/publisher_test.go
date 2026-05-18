@@ -170,6 +170,27 @@ func TestUploadInternalSharingBundleUsesUploadEndpoint(t *testing.T) {
 	}
 }
 
+func TestUploadAPKUsesEditAPKUploadEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/upload/androidpublisher/v3/applications/com.example.app/edits/edit-123/apks" {
+			t.Fatalf("path = %q, want APK upload endpoint", r.URL.Path)
+		}
+		if r.URL.Query().Get("uploadType") == "" {
+			t.Fatalf("query = %q, want uploadType", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"versionCode":43,"binary":{"sha1":"abc","sha256":"def"}}`))
+	}))
+
+	apk, err := publisher.UploadAPK(context.Background(), "com.example.app", "edit-123", writeTestFile(t, "app.apk"))
+	if err != nil {
+		t.Fatalf("UploadAPK() error = %v", err)
+	}
+	if apk.VersionCode != 43 || apk.SHA256 != "def" {
+		t.Fatalf("apk = %#v, want version code and sha", apk)
+	}
+}
+
 func TestListingToAPIForceSendsEmptyChangedField(t *testing.T) {
 	apiListing := listingToAPI(Listing{
 		Language: "en-US",

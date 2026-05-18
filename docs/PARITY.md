@@ -34,7 +34,7 @@ Sources:
 | --- | --- | --- | --- | --- |
 | `apps` | `apps` | Limited; most Play APIs require package name | planned | Google Play has no broad app list equivalent in the Android Publisher API. |
 | `versions` | `releases` | `applications.tracks.releases`, `edits.tracks` | implemented | `gpc releases list` reads releases for a track through `edits.tracks`; upload, promote, halt, and resume cover the first mutation workflows. |
-| `builds` | `artifacts` / `releases upload` | `edits.apks`, `edits.bundles`, `generatedapks` | implemented | `gpc releases upload` uploads AABs through an edit; APK support is still planned. |
+| `builds` | `artifacts` / `releases upload` | `edits.apks`, `edits.bundles`, `generatedapks` | tested | `gpc releases upload` uploads APKs or AABs through an edit and assigns the uploaded version code to the requested track. |
 | `build-bundles` | `generated-apks` / `releases upload` | `edits.bundles`, `generatedapks` | tested | `gpc releases upload` uploads AABs and `gpc generated-apks list` inspects generated APK download metadata for a version code. Download support remains planned. |
 | `release` | `release` | `edits`, `edits.tracks`, `applications.tracks.releases` | implemented | `gpc releases upload`, `promote`, `halt`, and `resume` insert edits, update tracks, validate, and commit only with `--confirm`; promotion requires an explicit version code and defaults target status to draft. |
 | `publish` | `publish` | `edits`, `edits.tracks` | implemented | `gpc publish internal` supports AAB upload planning and live validate/commit flow, appending through the raw Google track model to preserve existing release metadata. |

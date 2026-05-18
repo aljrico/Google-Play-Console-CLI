@@ -62,6 +62,7 @@ func newReleasesListCommand(out io.Writer, options *globalOptions, packageName *
 func newReleasesUploadCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	var (
 		trackName    string
+		apkPath      string
 		bundlePath   string
 		releaseName  string
 		releaseNotes []string
@@ -73,7 +74,7 @@ func newReleasesUploadCommand(out io.Writer, options *globalOptions, packageName
 
 	cmd := &cobra.Command{
 		Use:   "upload",
-		Short: "Upload an Android App Bundle to a track",
+		Short: "Upload an APK or Android App Bundle to a track",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, err := play.NewPackageName(*packageName)
@@ -96,6 +97,7 @@ func newReleasesUploadCommand(out io.Writer, options *globalOptions, packageName
 			publishOptions := play.PublishInternalOptions{
 				PackageName:  typedPackageName,
 				Track:        typedTrackName,
+				APKPath:      apkPath,
 				BundlePath:   bundlePath,
 				ReleaseName:  releaseName,
 				Status:       typedStatus,
@@ -116,7 +118,7 @@ func newReleasesUploadCommand(out io.Writer, options *globalOptions, packageName
 				}
 				return output.Write(out, options.output, options.pretty, result)
 			}
-			if err := play.ValidateReadableBundle(bundlePath); err != nil {
+			if err := play.ValidateReadableReleaseArtifact(publishOptions); err != nil {
 				return err
 			}
 
@@ -132,6 +134,7 @@ func newReleasesUploadCommand(out io.Writer, options *globalOptions, packageName
 		},
 	}
 
+	cmd.Flags().StringVar(&apkPath, "apk", "", "Path to the APK to upload")
 	cmd.Flags().StringVar(&bundlePath, "aab", "", "Path to the Android App Bundle to upload")
 	cmd.Flags().StringVar(&trackName, "track", play.TrackInternal.String(), "Track name, for example internal, alpha, beta, or production")
 	cmd.Flags().StringVar(&releaseName, "release-name", "", "Release name shown in Play Console")

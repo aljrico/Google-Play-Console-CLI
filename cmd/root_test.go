@@ -666,6 +666,70 @@ func TestReleasesUploadDryRunUsesRequestedTrack(t *testing.T) {
 	}
 }
 
+func TestReleasesUploadDryRunSupportsAPK(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"releases",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--track",
+		"internal",
+		"--apk",
+		"app-release.apk",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, `"artifact":"apk"`) {
+		t.Fatalf("release upload dry-run output = %s, want APK artifact", output)
+	}
+	if !strings.Contains(output, `"apkPath":"app-release.apk"`) {
+		t.Fatalf("release upload dry-run output = %s, want APK path", output)
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestReleasesUploadRejectsMultipleArtifactsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"releases",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--apk",
+		"app-release.apk",
+		"--aab",
+		"app-release.aab",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected multiple artifact validation error")
+	}
+	if !strings.Contains(err.Error(), "exactly one of APK path or AAB path") {
+		t.Fatalf("error = %v, want artifact validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestReleasesUploadLiveRejectsInvalidUserFractionBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bundlePath := writeRootTestFile(t, "app-release.aab")

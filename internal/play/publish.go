@@ -8,6 +8,7 @@ import (
 
 type InternalPublisher interface {
 	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
+	UploadAPK(ctx context.Context, packageName PackageName, editID string, apkPath string) (APKArtifact, error)
 	UploadBundle(ctx context.Context, packageName PackageName, editID string, bundlePath string) (BundleArtifact, error)
 	AppendTrackRelease(ctx context.Context, packageName PackageName, editID string, trackName TrackName, release TrackRelease) (Track, error)
 	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
@@ -30,7 +31,7 @@ func PublishInternal(ctx context.Context, publisher InternalPublisher, options P
 	if options.DryRun {
 		return result, nil
 	}
-	if err := ValidateReadableBundle(options.BundlePath); err != nil {
+	if err := ValidateReadableReleaseArtifact(options); err != nil {
 		return PublishResult{}, err
 	}
 	if publisher == nil {
@@ -54,17 +55,16 @@ func PublishInternal(ctx context.Context, publisher InternalPublisher, options P
 		}
 	}()
 
-	bundle, err := publisher.UploadBundle(ctx, options.PackageName, edit.ID, options.BundlePath)
+	versionCode, err := uploadReleaseArtifact(ctx, publisher, options, edit.ID, &result)
 	if err != nil {
 		return PublishResult{}, err
 	}
-	result.Bundle = &bundle
 
 	release := TrackRelease{
 		Name:         options.ReleaseName,
 		Status:       options.Status,
 		UserFraction: options.UserFraction,
-		VersionCodes: []int64{bundle.VersionCode},
+		VersionCodes: []int64{versionCode},
 		ReleaseNotes: options.ReleaseNotes,
 	}
 
@@ -86,4 +86,25 @@ func PublishInternal(ctx context.Context, publisher InternalPublisher, options P
 	result.Edit = &committedEdit
 	result.Committed = true
 	return result, nil
+}
+
+func uploadReleaseArtifact(ctx context.Context, publisher InternalPublisher, options PublishInternalOptions, editID string, result *PublishResult) (int64, error) {
+	switch options.ArtifactKind() {
+	case ArtifactKindAPK:
+		apk, err := publisher.UploadAPK(ctx, options.PackageName, editID, options.APKPath)
+		if err != nil {
+			return 0, err
+		}
+		result.APK = &apk
+		return apk.VersionCode, nil
+	case ArtifactKindBundle:
+		bundle, err := publisher.UploadBundle(ctx, options.PackageName, editID, options.BundlePath)
+		if err != nil {
+			return 0, err
+		}
+		result.Bundle = &bundle
+		return bundle.VersionCode, nil
+	default:
+		return 0, fmt.Errorf("unsupported artifact kind %q", options.ArtifactKind())
+	}
 }

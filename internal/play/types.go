@@ -100,8 +100,15 @@ func (s ReleaseStatus) String() string {
 type ArtifactKind string
 
 const (
+	ArtifactKindAPK    ArtifactKind = "apk"
 	ArtifactKindBundle ArtifactKind = "bundle"
 )
+
+type APKArtifact struct {
+	VersionCode int64  `json:"versionCode"`
+	SHA1        string `json:"sha1"`
+	SHA256      string `json:"sha256"`
+}
 
 type BundleArtifact struct {
 	VersionCode int64  `json:"versionCode"`
@@ -135,7 +142,8 @@ type ReleaseNote struct {
 type PublishInternalOptions struct {
 	PackageName  PackageName   `json:"packageName"`
 	Track        TrackName     `json:"track"`
-	BundlePath   string        `json:"bundlePath"`
+	APKPath      string        `json:"apkPath,omitempty"`
+	BundlePath   string        `json:"bundlePath,omitempty"`
 	ReleaseName  string        `json:"releaseName"`
 	Status       ReleaseStatus `json:"status"`
 	UserFraction *float64      `json:"userFraction,omitempty"`
@@ -151,10 +159,13 @@ func (o PublishInternalOptions) Validate() error {
 	if _, err := NewTrackName(targetTrackName(o).String()); err != nil {
 		return err
 	}
-	if o.BundlePath == "" {
-		return fmt.Errorf("AAB path is required")
+	if (o.APKPath == "") == (o.BundlePath == "") {
+		return fmt.Errorf("exactly one of APK path or AAB path is required")
 	}
-	if filepath.Ext(o.BundlePath) != ".aab" {
+	if o.APKPath != "" && filepath.Ext(o.APKPath) != ".apk" {
+		return fmt.Errorf("APK path must end with .apk")
+	}
+	if o.BundlePath != "" && filepath.Ext(o.BundlePath) != ".aab" {
 		return fmt.Errorf("AAB path must end with .aab")
 	}
 	if _, err := NewReleaseStatus(o.Status.String()); err != nil {
@@ -188,11 +199,26 @@ func (o PublishInternalOptions) Validate() error {
 	return nil
 }
 
+func (o PublishInternalOptions) ArtifactPath() string {
+	if o.APKPath != "" {
+		return o.APKPath
+	}
+	return o.BundlePath
+}
+
+func (o PublishInternalOptions) ArtifactKind() ArtifactKind {
+	if o.APKPath != "" {
+		return ArtifactKindAPK
+	}
+	return ArtifactKindBundle
+}
+
 type PublishPlan struct {
 	PackageName  PackageName   `json:"packageName"`
 	Track        TrackName     `json:"track"`
 	Artifact     ArtifactKind  `json:"artifact"`
-	BundlePath   string        `json:"bundlePath"`
+	APKPath      string        `json:"apkPath,omitempty"`
+	BundlePath   string        `json:"bundlePath,omitempty"`
 	ReleaseName  string        `json:"releaseName,omitempty"`
 	Status       ReleaseStatus `json:"status"`
 	UserFraction *float64      `json:"userFraction,omitempty"`
@@ -209,7 +235,7 @@ func NewPublishInternalPlan(options PublishInternalOptions) (PublishPlan, error)
 
 	steps := []string{
 		"insert edit",
-		"upload Android App Bundle",
+		uploadArtifactStep(options.ArtifactKind()),
 		fmt.Sprintf("append release to %s track", trackName),
 		"validate edit",
 	}
@@ -222,7 +248,8 @@ func NewPublishInternalPlan(options PublishInternalOptions) (PublishPlan, error)
 	return PublishPlan{
 		PackageName:  options.PackageName,
 		Track:        trackName,
-		Artifact:     ArtifactKindBundle,
+		Artifact:     options.ArtifactKind(),
+		APKPath:      options.APKPath,
 		BundlePath:   options.BundlePath,
 		ReleaseName:  options.ReleaseName,
 		Status:       options.Status,
@@ -231,6 +258,13 @@ func NewPublishInternalPlan(options PublishInternalOptions) (PublishPlan, error)
 		Confirm:      options.Confirm,
 		Steps:        steps,
 	}, nil
+}
+
+func uploadArtifactStep(kind ArtifactKind) string {
+	if kind == ArtifactKindAPK {
+		return "upload APK"
+	}
+	return "upload Android App Bundle"
 }
 
 func targetTrackName(options PublishInternalOptions) TrackName {
@@ -253,12 +287,40 @@ func ValidateReadableBundle(path string) error {
 	return nil
 }
 
+func ValidateReadableAPK(path string) error {
+	if path == "" {
+		return fmt.Errorf("APK path is required")
+	}
+	if filepath.Ext(path) != ".apk" {
+		return fmt.Errorf("APK path must end with .apk")
+	}
+	if err := ValidateReadableFile(path); err != nil {
+		return fmt.Errorf("open APK %s: %w", path, err)
+	}
+	return nil
+}
+
+func ValidateReadableReleaseArtifact(options PublishInternalOptions) error {
+	if err := options.Validate(); err != nil {
+		return err
+	}
+	switch options.ArtifactKind() {
+	case ArtifactKindAPK:
+		return ValidateReadableAPK(options.APKPath)
+	case ArtifactKindBundle:
+		return ValidateReadableBundle(options.BundlePath)
+	default:
+		return fmt.Errorf("unsupported artifact kind %q", options.ArtifactKind())
+	}
+}
+
 type PublishResult struct {
 	PackageName PackageName     `json:"packageName"`
 	Track       TrackName       `json:"track"`
 	DryRun      bool            `json:"dryRun"`
 	Committed   bool            `json:"committed"`
 	Edit        *Edit           `json:"edit,omitempty"`
+	APK         *APKArtifact    `json:"apk,omitempty"`
 	Bundle      *BundleArtifact `json:"bundle,omitempty"`
 	Plan        PublishPlan     `json:"plan"`
 }

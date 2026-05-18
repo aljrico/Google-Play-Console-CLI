@@ -64,6 +64,23 @@ func (p GooglePublisher) UploadBundle(ctx context.Context, packageName PackageNa
 	return BundleArtifact{VersionCode: bundle.VersionCode, SHA1: bundle.Sha1, SHA256: bundle.Sha256}, nil
 }
 
+func (p GooglePublisher) UploadAPK(ctx context.Context, packageName PackageName, editID string, apkPath string) (APKArtifact, error) {
+	file, err := os.Open(apkPath)
+	if err != nil {
+		return APKArtifact{}, fmt.Errorf("open APK %s: %w", apkPath, err)
+	}
+	defer file.Close()
+
+	apk, err := p.service.Edits.Apks.Upload(packageName.String(), editID).
+		Media(file, googleapi.ContentType("application/octet-stream")).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return APKArtifact{}, fmt.Errorf("upload APK %s for %s: %w", apkPath, packageName, err)
+	}
+	return apkArtifactFromAPI(apk), nil
+}
+
 func (p GooglePublisher) UploadInternalSharingAPK(ctx context.Context, packageName PackageName, path string) (InternalSharingArtifact, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -1360,6 +1377,18 @@ func internalSharingArtifactFromAPI(apiArtifact *androidpublisher.InternalAppSha
 		DownloadURL:            apiArtifact.DownloadUrl,
 		SHA256:                 apiArtifact.Sha256,
 	}
+}
+
+func apkArtifactFromAPI(apiAPK *androidpublisher.Apk) APKArtifact {
+	if apiAPK == nil {
+		return APKArtifact{}
+	}
+	artifact := APKArtifact{VersionCode: apiAPK.VersionCode}
+	if apiAPK.Binary != nil {
+		artifact.SHA1 = apiAPK.Binary.Sha1
+		artifact.SHA256 = apiAPK.Binary.Sha256
+	}
+	return artifact
 }
 
 func appRecoveryListResultFromAPI(options AppRecoveryListOptions, response *androidpublisher.ListAppRecoveriesResponse) AppRecoveryListResult {

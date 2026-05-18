@@ -54,6 +54,29 @@ func TestNewPublishInternalPlanSupportsCustomTrack(t *testing.T) {
 	}
 }
 
+func TestNewPublishInternalPlanSupportsAPK(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	plan, err := NewPublishInternalPlan(PublishInternalOptions{
+		PackageName: packageName,
+		APKPath:     "app-release.apk",
+		Status:      ReleaseStatusCompleted,
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("NewPublishInternalPlan() error = %v", err)
+	}
+	if plan.Artifact != ArtifactKindAPK || plan.APKPath != "app-release.apk" {
+		t.Fatalf("plan = %#v, want APK artifact", plan)
+	}
+	if plan.Steps[1] != "upload APK" {
+		t.Fatalf("upload step = %q, want APK upload", plan.Steps[1])
+	}
+}
+
 func TestPublishInternalDryRunDoesNotRequirePublisher(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -106,6 +129,23 @@ func TestPublishInternalRejectsNonBundlePath(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestPublishInternalRejectsMultipleArtifacts(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewPublishInternalPlan(PublishInternalOptions{
+		PackageName: packageName,
+		APKPath:     "app-release.apk",
+		BundlePath:  "app-release.aab",
+		Status:      ReleaseStatusCompleted,
+	})
+	if err == nil {
+		t.Fatal("expected multiple artifact error")
 	}
 }
 
@@ -162,6 +202,35 @@ func TestPublishInternalCommitsWithConfirm(t *testing.T) {
 	}
 }
 
+func TestPublishInternalUploadsAPK(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	publisher := &fakePublisher{}
+	apkPath := writeTestAPK(t)
+
+	result, err := PublishInternal(context.Background(), publisher, PublishInternalOptions{
+		PackageName: packageName,
+		APKPath:     apkPath,
+		Status:      ReleaseStatusCompleted,
+	})
+	if err != nil {
+		t.Fatalf("PublishInternal() error = %v", err)
+	}
+	if result.APK == nil || result.APK.VersionCode != 43 {
+		t.Fatalf("APK = %#v, want version code 43", result.APK)
+	}
+
+	wantCalls := []string{"insert", "upload-apk", "append-track-release", "validate", "delete"}
+	if !reflect.DeepEqual(publisher.calls, wantCalls) {
+		t.Fatalf("calls = %#v, want %#v", publisher.calls, wantCalls)
+	}
+	if publisher.appendedReleases[0].VersionCodes[0] != 43 {
+		t.Fatalf("release version code = %d, want APK version code", publisher.appendedReleases[0].VersionCodes[0])
+	}
+}
+
 func TestPublishInternalAppendsTrackRelease(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -206,6 +275,15 @@ func writeTestBundle(t *testing.T) string {
 	return path
 }
 
+func writeTestAPK(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "app-release.apk")
+	if err := os.WriteFile(path, []byte("apk"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	return path
+}
+
 type fakePublisher struct {
 	calls            []string
 	tracks           []Track
@@ -220,6 +298,11 @@ func (p *fakePublisher) InsertEdit(ctx context.Context, packageName PackageName)
 func (p *fakePublisher) UploadBundle(ctx context.Context, packageName PackageName, editID string, bundlePath string) (BundleArtifact, error) {
 	p.calls = append(p.calls, "upload-bundle")
 	return BundleArtifact{VersionCode: 42}, nil
+}
+
+func (p *fakePublisher) UploadAPK(ctx context.Context, packageName PackageName, editID string, apkPath string) (APKArtifact, error) {
+	p.calls = append(p.calls, "upload-apk")
+	return APKArtifact{VersionCode: 43}, nil
 }
 
 func (p *fakePublisher) UpdateTrack(ctx context.Context, packageName PackageName, editID string, track Track) (Track, error) {
