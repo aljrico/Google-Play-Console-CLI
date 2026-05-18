@@ -41,6 +41,8 @@ gpc reviews get --package com.example.app --review-id review-123
 gpc reviews reply --package com.example.app --review-id review-123 --text "Thanks for the feedback." --dry-run
 ```
 
+Review APIs follow Google Play's limits: list responses are recent reviews with comments, reply text is capped at 350 characters, and live replies require a service account with review-reply access.
+
 ### First Publish Flow
 
 ```sh

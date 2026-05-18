@@ -92,7 +92,7 @@ Sources:
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `review` | `review` | No clear public review-submission lifecycle API | blocked | Track/release state is available, but review queue control appears limited. |
-| `reviews` | `reviews` | `reviews` | tested | `gpc reviews list`, `get`, and guarded `reply` cover Play review reading and developer replies. |
+| `reviews` | `reviews` | `reviews` | tested | `gpc reviews list`, `get`, and guarded `reply` cover Play review reading and developer replies. Google limits this API to recent reviews with comments; reply text is capped at 350 characters and requires review-reply access. |
 | `performance` | `vitals` / `quality` | Separate reporting APIs | planned | Android vitals is outside the core Android Publisher REST surface. |
 | `crashes` | `vitals` / `quality` | Separate reporting APIs | planned | Needs separate API/client research. |
 

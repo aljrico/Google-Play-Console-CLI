@@ -525,6 +525,7 @@ func reviewCommentFromAPI(apiComment *androidpublisher.Comment) ReviewComment {
 				OriginalText:     userComment.OriginalText,
 				ThumbsUpCount:    userComment.ThumbsUpCount,
 				ThumbsDownCount:  userComment.ThumbsDownCount,
+				DeviceMetadata:   deviceMetadataFromAPI(userComment.DeviceMetadata),
 			},
 		}
 	}
@@ -540,6 +541,25 @@ func reviewCommentFromAPI(apiComment *androidpublisher.Comment) ReviewComment {
 		}
 	}
 	return ReviewComment{}
+}
+
+func deviceMetadataFromAPI(apiMetadata *androidpublisher.DeviceMetadata) *DeviceMetadata {
+	if apiMetadata == nil {
+		return nil
+	}
+	return &DeviceMetadata{
+		CPUMake:            apiMetadata.CpuMake,
+		CPUModel:           apiMetadata.CpuModel,
+		DeviceClass:        apiMetadata.DeviceClass,
+		GLESVersion:        apiMetadata.GlEsVersion,
+		Manufacturer:       apiMetadata.Manufacturer,
+		NativePlatform:     apiMetadata.NativePlatform,
+		ProductName:        apiMetadata.ProductName,
+		RAMMegabytes:       apiMetadata.RamMb,
+		ScreenDensityDPI:   apiMetadata.ScreenDensityDpi,
+		ScreenHeightPixels: apiMetadata.ScreenHeightPx,
+		ScreenWidthPixels:  apiMetadata.ScreenWidthPx,
+	}
 }
 
 func timestampFromAPI(apiTimestamp *androidpublisher.Timestamp) *Timestamp {

@@ -3,6 +3,7 @@ package play
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -49,6 +50,21 @@ func TestListReviewsRejectsNegativeMaxResults(t *testing.T) {
 	_, err = ListReviews(context.Background(), nil, ReviewListOptions{
 		PackageName: packageName,
 		MaxResults:  -1,
+	})
+	if err == nil {
+		t.Fatal("expected max results validation error")
+	}
+}
+
+func TestListReviewsRejectsMaxResultsAboveGoogleLimit(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = ListReviews(context.Background(), nil, ReviewListOptions{
+		PackageName: packageName,
+		MaxResults:  101,
 	})
 	if err == nil {
 		t.Fatal("expected max results validation error")
@@ -117,6 +133,40 @@ func TestReplyToReviewRequiresConfirmOutsideDryRun(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected confirmation validation error")
+	}
+}
+
+func TestReplyToReviewAllowsGoogleMaximumLength(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = ReplyToReview(context.Background(), nil, ReviewReplyOptions{
+		PackageName: packageName,
+		ReviewID:    "review-123",
+		Text:        strings.Repeat("a", maxReviewReplyCharacters),
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("ReplyToReview() error = %v", err)
+	}
+}
+
+func TestReplyToReviewRejectsTextOverGoogleMaximumLength(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = ReplyToReview(context.Background(), nil, ReviewReplyOptions{
+		PackageName: packageName,
+		ReviewID:    "review-123",
+		Text:        strings.Repeat("a", maxReviewReplyCharacters+1),
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected reply length validation error")
 	}
 }
 

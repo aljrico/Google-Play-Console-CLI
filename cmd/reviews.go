@@ -41,17 +41,21 @@ func newReviewsListCommand(out io.Writer, options *globalOptions, packageName *s
 			if err != nil {
 				return err
 			}
-			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
-			if err != nil {
-				return err
-			}
-			result, err := play.ListReviews(cmd.Context(), publisher, play.ReviewListOptions{
+			listOptions := play.ReviewListOptions{
 				PackageName:         typedPackageName,
 				MaxResults:          maxResults,
 				StartIndex:          startIndex,
 				Token:               token,
 				TranslationLanguage: translationLanguage,
-			})
+			}
+			if err := listOptions.Validate(); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.ListReviews(cmd.Context(), publisher, listOptions)
 			if err != nil {
 				return err
 			}

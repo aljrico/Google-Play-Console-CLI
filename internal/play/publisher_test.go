@@ -96,6 +96,12 @@ func TestReviewFromAPIMapsUserAndDeveloperComments(t *testing.T) {
 					StarRating:       5,
 					ReviewerLanguage: "en",
 					LastModified:     &androidpublisher.Timestamp{Seconds: 123},
+					DeviceMetadata: &androidpublisher.DeviceMetadata{
+						Manufacturer:     "Google",
+						ProductName:      "Pixel",
+						RamMb:            8192,
+						ScreenDensityDpi: 420,
+					},
 				},
 			},
 			{
@@ -119,11 +125,40 @@ func TestReviewFromAPIMapsUserAndDeveloperComments(t *testing.T) {
 	if review.Comments[0].User == nil || review.Comments[0].User.StarRating != 5 {
 		t.Fatalf("first comment user = %#v, want 5-star user comment", review.Comments[0].User)
 	}
+	if review.Comments[0].User.DeviceMetadata == nil || review.Comments[0].User.DeviceMetadata.RAMMegabytes != 8192 {
+		t.Fatalf("device metadata = %#v, want RAM metadata", review.Comments[0].User.DeviceMetadata)
+	}
 	if review.Comments[1].Kind != ReviewCommentKindDeveloper {
 		t.Fatalf("second comment kind = %q, want developer", review.Comments[1].Kind)
 	}
 	if review.Comments[1].Developer == nil || review.Comments[1].Developer.LastEdited.Seconds != 456 {
 		t.Fatalf("second comment developer = %#v, want timestamp 456", review.Comments[1].Developer)
+	}
+}
+
+func TestReviewListResultFromAPIMapsPagination(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result := reviewListResultFromAPI(ReviewListOptions{PackageName: packageName}, &androidpublisher.ReviewsListResponse{
+		PageInfo: &androidpublisher.PageInfo{
+			ResultPerPage: 10,
+			StartIndex:    20,
+			TotalResults:  30,
+		},
+		TokenPagination: &androidpublisher.TokenPagination{
+			NextPageToken:     "next",
+			PreviousPageToken: "previous",
+		},
+	})
+
+	if result.PageInfo == nil || result.PageInfo.TotalResults != 30 {
+		t.Fatalf("PageInfo = %#v, want total results", result.PageInfo)
+	}
+	if result.Pagination == nil || result.Pagination.NextPageToken != "next" {
+		t.Fatalf("Pagination = %#v, want next token", result.Pagination)
 	}
 }
 

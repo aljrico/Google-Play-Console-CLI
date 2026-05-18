@@ -5,6 +5,8 @@ import (
 	"fmt"
 )
 
+const maxReviewReplyCharacters = 350
+
 type ReviewID string
 
 func NewReviewID(value string) (ReviewID, error) {
@@ -39,15 +41,30 @@ type ReviewComment struct {
 }
 
 type UserReviewComment struct {
-	ReviewerLanguage string `json:"reviewerLanguage,omitempty"`
-	StarRating       int64  `json:"starRating,omitempty"`
-	AppVersionCode   int64  `json:"appVersionCode,omitempty"`
-	AppVersionName   string `json:"appVersionName,omitempty"`
-	AndroidOSVersion int64  `json:"androidOsVersion,omitempty"`
-	Device           string `json:"device,omitempty"`
-	OriginalText     string `json:"originalText,omitempty"`
-	ThumbsUpCount    int64  `json:"thumbsUpCount,omitempty"`
-	ThumbsDownCount  int64  `json:"thumbsDownCount,omitempty"`
+	ReviewerLanguage string          `json:"reviewerLanguage,omitempty"`
+	StarRating       int64           `json:"starRating,omitempty"`
+	AppVersionCode   int64           `json:"appVersionCode,omitempty"`
+	AppVersionName   string          `json:"appVersionName,omitempty"`
+	AndroidOSVersion int64           `json:"androidOsVersion,omitempty"`
+	Device           string          `json:"device,omitempty"`
+	OriginalText     string          `json:"originalText,omitempty"`
+	ThumbsUpCount    int64           `json:"thumbsUpCount,omitempty"`
+	ThumbsDownCount  int64           `json:"thumbsDownCount,omitempty"`
+	DeviceMetadata   *DeviceMetadata `json:"deviceMetadata,omitempty"`
+}
+
+type DeviceMetadata struct {
+	CPUMake            string `json:"cpuMake,omitempty"`
+	CPUModel           string `json:"cpuModel,omitempty"`
+	DeviceClass        string `json:"deviceClass,omitempty"`
+	GLESVersion        int64  `json:"glEsVersion,omitempty"`
+	Manufacturer       string `json:"manufacturer,omitempty"`
+	NativePlatform     string `json:"nativePlatform,omitempty"`
+	ProductName        string `json:"productName,omitempty"`
+	RAMMegabytes       int64  `json:"ramMb,omitempty"`
+	ScreenDensityDPI   int64  `json:"screenDensityDpi,omitempty"`
+	ScreenHeightPixels int64  `json:"screenHeightPx,omitempty"`
+	ScreenWidthPixels  int64  `json:"screenWidthPx,omitempty"`
 }
 
 type DeveloperReviewComment struct {
@@ -85,6 +102,9 @@ func (o ReviewListOptions) Validate() error {
 	}
 	if o.MaxResults < 0 {
 		return fmt.Errorf("max results cannot be negative")
+	}
+	if o.MaxResults > 100 {
+		return fmt.Errorf("max results cannot exceed 100")
 	}
 	if o.StartIndex < 0 {
 		return fmt.Errorf("start index cannot be negative")
@@ -165,6 +185,9 @@ func (o ReviewReplyOptions) Validate() error {
 	}
 	if o.Text == "" {
 		return fmt.Errorf("reply text is required")
+	}
+	if len([]rune(o.Text)) > maxReviewReplyCharacters {
+		return fmt.Errorf("reply text cannot exceed %d characters", maxReviewReplyCharacters)
 	}
 	if !o.DryRun && !o.Confirm {
 		return fmt.Errorf("review reply requires --confirm or --dry-run")
