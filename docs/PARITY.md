@@ -32,7 +32,7 @@ Sources:
 
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `apps` | `apps` | Limited; most Play APIs require package name | planned | Google Play has no broad app list equivalent in the Android Publisher API. |
+| `apps` | `apps` | Limited; most Play APIs require package name | blocked | Google Play has no broad app list equivalent in the Android Publisher API; `gpc apps list` returns an explicit unsupported-surface error without requiring auth. |
 | `versions` | `releases` | `applications.tracks.releases`, `edits.tracks` | implemented | `gpc releases list` reads releases for a track through `edits.tracks`; upload, promote, halt, and resume cover the first mutation workflows. |
 | `builds` | `artifacts` / `releases upload` | `edits.apks`, `edits.bundles`, `generatedapks` | tested | `gpc releases upload` uploads APKs or AABs through an edit and assigns the uploaded version code to the requested track. |
 | `build-bundles` | `generated-apks` / `releases upload` | `edits.bundles`, `generatedapks` | tested | `gpc releases upload` uploads AABs and `gpc generated-apks list` inspects generated APK download metadata for a version code. Download support remains planned. |
