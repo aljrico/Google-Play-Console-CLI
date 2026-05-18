@@ -2,7 +2,6 @@ package play
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 )
 
@@ -22,9 +21,21 @@ func (o SystemAPKVariantListOptions) Validate() error {
 }
 
 type SystemAPKVariant struct {
-	VariantID  int64           `json:"variantId"`
-	DeviceSpec json.RawMessage `json:"deviceSpec,omitempty"`
-	Options    json.RawMessage `json:"options,omitempty"`
+	VariantID  int64                `json:"variantId"`
+	DeviceSpec *SystemAPKDeviceSpec `json:"deviceSpec,omitempty"`
+	Options    *SystemAPKOptions    `json:"options,omitempty"`
+}
+
+type SystemAPKDeviceSpec struct {
+	ScreenDensity    int64    `json:"screenDensity,omitempty"`
+	SupportedABIs    []string `json:"supportedAbis,omitempty"`
+	SupportedLocales []string `json:"supportedLocales,omitempty"`
+}
+
+type SystemAPKOptions struct {
+	Rotated                     bool `json:"rotated,omitempty"`
+	UncompressedDexFiles        bool `json:"uncompressedDexFiles,omitempty"`
+	UncompressedNativeLibraries bool `json:"uncompressedNativeLibraries,omitempty"`
 }
 
 type SystemAPKVariantListResult struct {

@@ -1530,11 +1530,33 @@ func systemAPKVariantListResultFromAPI(options SystemAPKVariantListOptions, resp
 		}
 		result.Variants = append(result.Variants, SystemAPKVariant{
 			VariantID:  apiVariant.VariantId,
-			DeviceSpec: generatedAPKRawJSONFromAPI(apiVariant.DeviceSpec),
-			Options:    generatedAPKRawJSONFromAPI(apiVariant.Options),
+			DeviceSpec: systemAPKDeviceSpecFromAPI(apiVariant.DeviceSpec),
+			Options:    systemAPKOptionsFromAPI(apiVariant.Options),
 		})
 	}
 	return result
+}
+
+func systemAPKDeviceSpecFromAPI(apiSpec *androidpublisher.DeviceSpec) *SystemAPKDeviceSpec {
+	if apiSpec == nil {
+		return nil
+	}
+	return &SystemAPKDeviceSpec{
+		ScreenDensity:    apiSpec.ScreenDensity,
+		SupportedABIs:    append([]string(nil), apiSpec.SupportedAbis...),
+		SupportedLocales: append([]string(nil), apiSpec.SupportedLocales...),
+	}
+}
+
+func systemAPKOptionsFromAPI(apiOptions *androidpublisher.SystemApkOptions) *SystemAPKOptions {
+	if apiOptions == nil {
+		return nil
+	}
+	return &SystemAPKOptions{
+		Rotated:                     apiOptions.Rotated,
+		UncompressedDexFiles:        apiOptions.UncompressedDexFiles,
+		UncompressedNativeLibraries: apiOptions.UncompressedNativeLibraries,
+	}
 }
 
 func generatedAPKSigningKeyFromAPI(apiSigningKey *androidpublisher.GeneratedApksPerSigningKey) GeneratedAPKSigningKey {

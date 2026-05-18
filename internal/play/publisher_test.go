@@ -1371,11 +1371,11 @@ func TestListSystemAPKVariantsUsesVersionCodeEndpoint(t *testing.T) {
 	if len(result.Variants) != 1 || result.Variants[0].VariantID != 7 {
 		t.Fatalf("variants = %#v, want variant 7", result.Variants)
 	}
-	if !strings.Contains(string(result.Variants[0].DeviceSpec), "arm64-v8a") {
-		t.Fatalf("device spec = %s, want ABI preserved", result.Variants[0].DeviceSpec)
+	if result.Variants[0].DeviceSpec == nil || len(result.Variants[0].DeviceSpec.SupportedABIs) != 1 || result.Variants[0].DeviceSpec.SupportedABIs[0] != "arm64-v8a" {
+		t.Fatalf("device spec = %#v, want ABI preserved", result.Variants[0].DeviceSpec)
 	}
-	if !strings.Contains(string(result.Variants[0].Options), "rotated") {
-		t.Fatalf("options = %s, want options preserved", result.Variants[0].Options)
+	if result.Variants[0].Options == nil || !result.Variants[0].Options.Rotated {
+		t.Fatalf("options = %#v, want rotated option", result.Variants[0].Options)
 	}
 }
 
