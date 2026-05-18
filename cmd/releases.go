@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
@@ -19,6 +20,7 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 		fromTrack    string
 		toTrack      string
 		versionCode  int64
+		rolloutTrack string
 		confirm      bool
 		dryRun       bool
 	)
@@ -176,5 +178,68 @@ func newReleasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	promoteCommand.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned promotion workflow without calling Google Play")
 	cmd.AddCommand(promoteCommand)
 
+	haltCommand := newRolloutCommand(out, options, play.RolloutActionHalt, &packageName, &rolloutTrack, &versionCode, &userFraction, &confirm, &dryRun)
+	haltCommand.Flags().StringVar(&rolloutTrack, "track", play.TrackProduction.String(), "Track name")
+	haltCommand.Flags().Int64Var(&versionCode, "version-code", 0, "Version code to halt")
+	haltCommand.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
+	haltCommand.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned halt workflow without calling Google Play")
+	cmd.AddCommand(haltCommand)
+
+	resumeCommand := newRolloutCommand(out, options, play.RolloutActionResume, &packageName, &rolloutTrack, &versionCode, &userFraction, &confirm, &dryRun)
+	resumeCommand.Flags().StringVar(&rolloutTrack, "track", play.TrackProduction.String(), "Track name")
+	resumeCommand.Flags().Int64Var(&versionCode, "version-code", 0, "Version code to resume")
+	resumeCommand.Flags().Float64Var(&userFraction, "user-fraction", 0, "Staged rollout fraction for the resumed release")
+	resumeCommand.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
+	resumeCommand.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned resume workflow without calling Google Play")
+	cmd.AddCommand(resumeCommand)
+
+	return cmd
+}
+
+func newRolloutCommand(out io.Writer, options *globalOptions, action play.RolloutAction, packageName *string, trackName *string, versionCode *int64, userFraction *float64, confirm *bool, dryRun *bool) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   action.String(),
+		Short: fmt.Sprintf("%s a staged release", action.Title()),
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedTrackName, err := play.NewTrackName(*trackName)
+			if err != nil {
+				return err
+			}
+
+			rolloutOptions := play.RolloutOptions{
+				PackageName: typedPackageName,
+				Track:       typedTrackName,
+				VersionCode: *versionCode,
+				Action:      action,
+				Confirm:     *confirm,
+				DryRun:      *dryRun,
+			}
+			if cmd.Flags().Changed("user-fraction") {
+				rolloutOptions.UserFraction = userFraction
+			}
+			if *dryRun {
+				result, err := play.UpdateRollout(cmd.Context(), nil, rolloutOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.UpdateRollout(cmd.Context(), publisher, rolloutOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
 	return cmd
 }

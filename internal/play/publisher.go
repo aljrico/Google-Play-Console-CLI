@@ -62,15 +62,6 @@ func (p GooglePublisher) UploadBundle(ctx context.Context, packageName PackageNa
 	return BundleArtifact{VersionCode: bundle.VersionCode, SHA1: bundle.Sha1, SHA256: bundle.Sha256}, nil
 }
 
-func (p GooglePublisher) UpdateTrack(ctx context.Context, packageName PackageName, editID string, track Track) (Track, error) {
-	apiTrack := trackToAPI(track)
-	updatedTrack, err := p.service.Edits.Tracks.Update(packageName.String(), editID, track.Name.String(), apiTrack).Context(ctx).Do()
-	if err != nil {
-		return Track{}, fmt.Errorf("update %s track for %s: %w", track.Name, packageName, err)
-	}
-	return trackFromAPI(updatedTrack), nil
-}
-
 func (p GooglePublisher) ValidateEdit(ctx context.Context, packageName PackageName, editID string) error {
 	if _, err := p.service.Edits.Validate(packageName.String(), editID).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("validate edit %s for %s: %w", editID, packageName, err)
@@ -132,16 +123,7 @@ func (p GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName Pa
 	if err != nil {
 		return TrackRelease{}, err
 	}
-	apiRelease.Status = status.String()
-	apiRelease.UserFraction = 0
-	apiRelease.ForceSendFields = append(apiRelease.ForceSendFields, "Status")
-	apiRelease.NullFields = removeField(apiRelease.NullFields, "UserFraction")
-	if userFraction == nil {
-		apiRelease.ForceSendFields = removeField(apiRelease.ForceSendFields, "UserFraction")
-	} else {
-		apiRelease.UserFraction = *userFraction
-		apiRelease.ForceSendFields = append(apiRelease.ForceSendFields, "UserFraction")
-	}
+	setReleaseStatus(apiRelease, status, userFraction)
 
 	target, err := p.service.Edits.Tracks.Get(packageName.String(), editID, targetTrack.String()).Context(ctx).Do()
 	if err != nil {
@@ -159,6 +141,23 @@ func (p GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName Pa
 	return releaseFromAPI(apiRelease), nil
 }
 
+func (p GooglePublisher) UpdateTrackReleaseStatus(ctx context.Context, packageName PackageName, editID string, trackName TrackName, versionCode int64, status ReleaseStatus, userFraction *float64) (TrackRelease, error) {
+	apiTrack, err := p.service.Edits.Tracks.Get(packageName.String(), editID, trackName.String()).Context(ctx).Do()
+	if err != nil {
+		return TrackRelease{}, fmt.Errorf("get %s track for %s: %w", trackName, packageName, err)
+	}
+	apiRelease, err := selectReleaseByVersionCode(apiTrack, versionCode)
+	if err != nil {
+		return TrackRelease{}, err
+	}
+	setReleaseStatus(apiRelease, status, userFraction)
+
+	if _, err := p.service.Edits.Tracks.Update(packageName.String(), editID, trackName.String(), apiTrack).Context(ctx).Do(); err != nil {
+		return TrackRelease{}, fmt.Errorf("update rollout status for version code %d on %s track for %s: %w", versionCode, trackName, packageName, err)
+	}
+	return releaseFromAPI(apiRelease), nil
+}
+
 func trackFromAPI(apiTrack *androidpublisher.Track) Track {
 	if apiTrack == nil {
 		return Track{}
@@ -168,17 +167,6 @@ func trackFromAPI(apiTrack *androidpublisher.Track) Track {
 		releases = append(releases, releaseFromAPI(apiRelease))
 	}
 	return Track{Name: TrackName(apiTrack.Track), Releases: releases}
-}
-
-func trackToAPI(track Track) *androidpublisher.Track {
-	apiTrack := &androidpublisher.Track{
-		Track:    track.Name.String(),
-		Releases: make([]*androidpublisher.TrackRelease, 0, len(track.Releases)),
-	}
-	for _, release := range track.Releases {
-		apiTrack.Releases = append(apiTrack.Releases, releaseToAPI(release))
-	}
-	return apiTrack
 }
 
 func releaseToAPI(release TrackRelease) *androidpublisher.TrackRelease {
@@ -217,6 +205,28 @@ func hasVersionCode(release *androidpublisher.TrackRelease, versionCode int64) b
 		}
 	}
 	return false
+}
+
+func setReleaseStatus(release *androidpublisher.TrackRelease, status ReleaseStatus, userFraction *float64) {
+	release.Status = status.String()
+	release.UserFraction = 0
+	release.ForceSendFields = appendUniqueField(release.ForceSendFields, "Status")
+	release.NullFields = removeField(release.NullFields, "UserFraction")
+	if userFraction == nil {
+		release.ForceSendFields = removeField(release.ForceSendFields, "UserFraction")
+		return
+	}
+	release.UserFraction = *userFraction
+	release.ForceSendFields = appendUniqueField(release.ForceSendFields, "UserFraction")
+}
+
+func appendUniqueField(fields []string, field string) []string {
+	for _, candidate := range fields {
+		if candidate == field {
+			return fields
+		}
+	}
+	return append(fields, field)
 }
 
 func removeField(fields []string, field string) []string {

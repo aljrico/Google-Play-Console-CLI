@@ -139,3 +139,59 @@ func TestReleasesPromoteDryRun(t *testing.T) {
 		t.Fatalf("release promote dry-run output = %s", buf.String())
 	}
 }
+
+func TestReleasesHaltDryRun(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"releases",
+		"halt",
+		"--package",
+		"com.example.app",
+		"--track",
+		"production",
+		"--version-code",
+		"42",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(buf.String(), `"action":"halt"`) {
+		t.Fatalf("release halt dry-run output = %s", buf.String())
+	}
+}
+
+func TestReleasesResumeDryRun(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"releases",
+		"resume",
+		"--package",
+		"com.example.app",
+		"--track",
+		"production",
+		"--version-code",
+		"42",
+		"--user-fraction",
+		"0.25",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(buf.String(), `"action":"resume"`) {
+		t.Fatalf("release resume dry-run output = %s", buf.String())
+	}
+}
