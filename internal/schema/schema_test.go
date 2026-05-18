@@ -118,6 +118,66 @@ func TestFetchFiltersResourceAndMethod(t *testing.T) {
 	}
 }
 
+func TestFetchParentResourceFilterKeepsMatchingDescendants(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(testDiscoveryDocument))
+	}))
+	defer server.Close()
+
+	document, err := Fetch(context.Background(), server.Client(), FetchOptions{
+		DiscoveryURL: server.URL,
+		Resource:     "edits",
+		Method:       "list",
+	})
+	if err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+
+	if len(document.Resources) != 1 {
+		t.Fatalf("Resources len = %d, want 1", len(document.Resources))
+	}
+	edits := document.Resources[0]
+	if edits.Path != "edits" {
+		t.Fatalf("resource path = %q, want edits", edits.Path)
+	}
+	if len(edits.Resources) != 1 {
+		t.Fatalf("edits children len = %d, want tracks child", len(edits.Resources))
+	}
+	tracks := edits.Resources[0]
+	if tracks.Path != "edits.tracks" {
+		t.Fatalf("child path = %q, want edits.tracks", tracks.Path)
+	}
+	if len(tracks.Methods) != 1 || tracks.Methods[0].Name != "list" {
+		t.Fatalf("tracks methods = %#v, want list only", tracks.Methods)
+	}
+}
+
+func TestMethodSummariesFlattensFilteredDocument(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(testDiscoveryDocument))
+	}))
+	defer server.Close()
+
+	document, err := Fetch(context.Background(), server.Client(), FetchOptions{
+		DiscoveryURL: server.URL,
+		Resource:     "edits",
+		Method:       "list",
+	})
+	if err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+
+	summaries := MethodSummaries(document)
+	if len(summaries) != 1 {
+		t.Fatalf("summaries len = %d, want 1", len(summaries))
+	}
+	if summaries[0].Resource != "edits.tracks" || summaries[0].Method != "list" {
+		t.Fatalf("summary = %#v, want edits.tracks list", summaries[0])
+	}
+}
+
 func TestFetchRejectsInvalidDiscoveryURL(t *testing.T) {
 	_, err := Fetch(context.Background(), nil, FetchOptions{DiscoveryURL: "ftp://example.com/schema.json"})
 	if err == nil {

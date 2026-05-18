@@ -260,6 +260,63 @@ func TestSchemaOutputsDiscoverySummaryWithoutAuth(t *testing.T) {
 	}
 }
 
+func TestSchemaOutputsFlatMarkdownSummary(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+		  "name": "androidpublisher",
+		  "version": "v3",
+		  "resources": {
+		    "edits": {
+		      "resources": {
+		        "tracks": {
+		          "methods": {
+		            "list": {
+		              "id": "androidpublisher.edits.tracks.list",
+		              "path": "androidpublisher/v3/applications/{packageName}/edits/{editId}/tracks",
+		              "httpMethod": "GET"
+		            }
+		          }
+		        }
+		      }
+		    }
+		  }
+		}`))
+	}))
+	defer server.Close()
+	previousDiscoveryURL := schemaDiscoveryURL
+	schemaDiscoveryURL = server.URL
+	defer func() {
+		schemaDiscoveryURL = previousDiscoveryURL
+	}()
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"schema",
+		"--resource",
+		"edits",
+		"--method",
+		"list",
+		"--output",
+		"markdown",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		"| resource | method | id | httpMethod | path | description |",
+		"edits.tracks",
+		"androidpublisher.edits.tracks.list",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+}
+
 func TestAppsListReportsBlockedSurfaceWithoutAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

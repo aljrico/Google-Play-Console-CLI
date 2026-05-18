@@ -55,6 +55,15 @@ type Parameter struct {
 	Description string `json:"description,omitempty"`
 }
 
+type MethodSummary struct {
+	Resource    string `json:"resource"`
+	Method      string `json:"method"`
+	ID          string `json:"id,omitempty"`
+	HTTPMethod  string `json:"httpMethod,omitempty"`
+	Path        string `json:"path,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
 type discoveryDocument struct {
 	Name        string                       `json:"name"`
 	Version     string                       `json:"version"`
@@ -203,20 +212,25 @@ func filterResources(resources []Resource, resourceFilter string, methodFilter s
 	if resourceFilter == "" && methodFilter == "" {
 		return resources
 	}
+	return filterResourcesInScope(resources, resourceFilter, methodFilter, false)
+}
 
+func filterResourcesInScope(resources []Resource, resourceFilter string, methodFilter string, includeAllDescendants bool) []Resource {
 	filtered := make([]Resource, 0, len(resources))
 	for _, resource := range resources {
-		childResources := filterResources(resource.Resources, resourceFilter, methodFilter)
+		exactResourceMatch := resourceFilter == "" || resource.Path == resourceFilter
+		ancestorResourceMatch := resourceFilter != "" && strings.HasPrefix(resourceFilter, resource.Path+".")
+		includeResourceSubtree := includeAllDescendants || exactResourceMatch
+		childResources := filterResourcesInScope(resource.Resources, resourceFilter, methodFilter, includeResourceSubtree)
 		methods := filterMethods(resource.Methods, methodFilter)
-		resourceMatches := resourceFilter == "" || resource.Path == resourceFilter
-		methodMatches := methodFilter == "" || len(methods) > 0 || childResourcesContainMethods(childResources)
-		if resourceMatches && methodMatches {
+		methodMatches := methodFilter == "" || len(methods) > 0 || resourcesContainMethods(childResources)
+		if includeResourceSubtree && methodMatches {
 			resource.Methods = methods
 			resource.Resources = childResources
 			filtered = append(filtered, resource)
 			continue
 		}
-		if len(childResources) > 0 {
+		if ancestorResourceMatch && len(childResources) > 0 {
 			resource.Methods = nil
 			resource.Resources = childResources
 			filtered = append(filtered, resource)
@@ -238,13 +252,35 @@ func filterMethods(methods []Method, methodFilter string) []Method {
 	return filtered
 }
 
-func childResourcesContainMethods(resources []Resource) bool {
+func resourcesContainMethods(resources []Resource) bool {
 	for _, resource := range resources {
-		if len(resource.Methods) > 0 || childResourcesContainMethods(resource.Resources) {
+		if len(resource.Methods) > 0 || resourcesContainMethods(resource.Resources) {
 			return true
 		}
 	}
 	return false
+}
+
+func MethodSummaries(document Document) []MethodSummary {
+	summaries := []MethodSummary{}
+	appendMethodSummaries(&summaries, document.Resources)
+	return summaries
+}
+
+func appendMethodSummaries(summaries *[]MethodSummary, resources []Resource) {
+	for _, resource := range resources {
+		for _, method := range resource.Methods {
+			*summaries = append(*summaries, MethodSummary{
+				Resource:    resource.Path,
+				Method:      method.Name,
+				ID:          method.ID,
+				HTTPMethod:  method.HTTPMethod,
+				Path:        method.Path,
+				Description: method.Description,
+			})
+		}
+		appendMethodSummaries(summaries, resource.Resources)
+	}
 }
 
 func sortedKeys[V any](items map[string]V) []string {

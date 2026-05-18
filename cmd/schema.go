@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"io"
+	"net/http"
+	"time"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
 	"github.com/aljrico/Google-Play-Console-CLI/internal/schema"
@@ -9,6 +11,7 @@ import (
 )
 
 var schemaDiscoveryURL = schema.DefaultDiscoveryURL
+var schemaHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 func newSchemaCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	var (
@@ -21,13 +24,16 @@ func newSchemaCommand(out io.Writer, options *globalOptions) *cobra.Command {
 		Short: "Print the Google Play discovery schema",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			document, err := schema.Fetch(cmd.Context(), nil, schema.FetchOptions{
+			document, err := schema.Fetch(cmd.Context(), schemaHTTPClient, schema.FetchOptions{
 				DiscoveryURL: schemaDiscoveryURL,
 				Resource:     resource,
 				Method:       method,
 			})
 			if err != nil {
 				return err
+			}
+			if options.output == output.Table || options.output == output.Markdown {
+				return output.Write(out, options.output, options.pretty, schema.MethodSummaries(document))
 			}
 			return output.Write(out, options.output, options.pretty, document)
 		},
