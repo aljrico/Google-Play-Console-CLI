@@ -101,3 +101,9 @@ func TestValidateReadableBundleRejectsMissingBundle(t *testing.T) {
 		t.Fatal("expected missing bundle error")
 	}
 }
+
+func TestValidateReadableAPKRejectsMissingAPK(t *testing.T) {
+	if err := ValidateReadableAPK(t.TempDir() + "/missing.apk"); err == nil {
+		t.Fatal("expected missing APK error")
+	}
+}

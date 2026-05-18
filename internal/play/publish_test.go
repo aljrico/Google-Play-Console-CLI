@@ -116,6 +116,22 @@ func TestPublishInternalChecksBundleBeforePublisher(t *testing.T) {
 	}
 }
 
+func TestPublishInternalChecksAPKBeforePublisher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = PublishInternal(context.Background(), nil, PublishInternalOptions{
+		PackageName: packageName,
+		APKPath:     t.TempDir() + "/missing.apk",
+		Status:      ReleaseStatusCompleted,
+	})
+	if err == nil {
+		t.Fatal("expected missing APK error")
+	}
+}
+
 func TestPublishInternalRejectsNonBundlePath(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -685,11 +686,27 @@ func TestReleasesUploadDryRunUsesRequestedTrack(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(buf.String(), `"track":"beta"`) {
-		t.Fatalf("release upload dry-run output = %s", buf.String())
+	var result struct {
+		Track string `json:"track"`
+		Plan  struct {
+			Track      string `json:"track"`
+			Artifact   string `json:"artifact"`
+			APKPath    string `json:"apkPath,omitempty"`
+			BundlePath string `json:"bundlePath,omitempty"`
+			Status     string `json:"status"`
+		} `json:"plan"`
 	}
-	if !strings.Contains(buf.String(), `"status":"completed"`) {
-		t.Fatalf("release upload dry-run output = %s", buf.String())
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v; output = %s", err, buf.String())
+	}
+	if result.Track != "beta" || result.Plan.Track != "beta" {
+		t.Fatalf("release upload dry-run result = %#v, want beta track", result)
+	}
+	if result.Plan.Artifact != "bundle" || result.Plan.BundlePath != "app-release.aab" || result.Plan.APKPath != "" {
+		t.Fatalf("release upload dry-run plan = %#v, want bundle-only artifact", result.Plan)
+	}
+	if result.Plan.Status != "completed" {
+		t.Fatalf("release upload dry-run plan = %#v, want completed status", result.Plan)
 	}
 }
 
@@ -715,15 +732,27 @@ func TestReleasesUploadDryRunSupportsAPK(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	output := buf.String()
-	if !strings.Contains(output, `"artifact":"apk"`) {
-		t.Fatalf("release upload dry-run output = %s, want APK artifact", output)
+	var result struct {
+		Track string `json:"track"`
+		Plan  struct {
+			Track      string `json:"track"`
+			Artifact   string `json:"artifact"`
+			APKPath    string `json:"apkPath,omitempty"`
+			BundlePath string `json:"bundlePath,omitempty"`
+			Status     string `json:"status"`
+		} `json:"plan"`
 	}
-	if !strings.Contains(output, `"apkPath":"app-release.apk"`) {
-		t.Fatalf("release upload dry-run output = %s, want APK path", output)
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v; output = %s", err, buf.String())
 	}
-	if strings.Contains(output, "no active auth profile") {
-		t.Fatalf("output = %s, did not expect auth", output)
+	if result.Track != "internal" || result.Plan.Track != "internal" {
+		t.Fatalf("release upload dry-run result = %#v, want internal track", result)
+	}
+	if result.Plan.Artifact != "apk" || result.Plan.APKPath != "app-release.apk" || result.Plan.BundlePath != "" {
+		t.Fatalf("release upload dry-run plan = %#v, want APK-only artifact", result.Plan)
+	}
+	if strings.Contains(buf.String(), "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", buf.String())
 	}
 }
 
@@ -751,6 +780,34 @@ func TestReleasesUploadRejectsMultipleArtifactsBeforeAuth(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "exactly one of APK path or AAB path") {
 		t.Fatalf("error = %v, want artifact validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestReleasesUploadLiveRejectsMissingAPKBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"releases",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--apk",
+		t.TempDir() + "/missing.apk",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing APK error")
+	}
+	if !strings.Contains(err.Error(), "open APK") {
+		t.Fatalf("error = %v, want APK preflight", err)
 	}
 	if strings.Contains(err.Error(), "no active auth profile") {
 		t.Fatalf("error = %v, did not expect auth error", err)
