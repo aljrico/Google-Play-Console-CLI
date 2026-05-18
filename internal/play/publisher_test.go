@@ -961,6 +961,71 @@ func TestBatchGetOrdersUsesRepeatedOrderIDs(t *testing.T) {
 	}
 }
 
+func TestListGeneratedAPKsUsesVersionCodeEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/generatedApks/42" {
+			t.Fatalf("path = %q, want generated APKs endpoint", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"generatedApks": [{
+				"certificateSha256Hash": "abc123",
+				"generatedSplitApks": [{
+					"downloadId": "split-download",
+					"moduleName": "base",
+					"splitId": "config.en",
+					"variantId": 1
+				}],
+				"generatedStandaloneApks": [{
+					"downloadId": "standalone-download",
+					"variantId": 2
+				}],
+				"generatedAssetPackSlices": [{
+					"downloadId": "asset-download",
+					"moduleName": "assets",
+					"sliceId": "slice-a",
+					"version": "3"
+				}],
+				"generatedRecoveryModules": [{
+					"downloadId": "recovery-download",
+					"moduleName": "base",
+					"recoveryId": "7",
+					"recoveryStatus": "RECOVERY_STATUS_ACTIVE"
+				}],
+				"generatedUniversalApk": {"downloadId": "universal-download"},
+				"targetingInfo": {"packageName": "com.example.app"}
+			}]
+		}`))
+	}))
+
+	result, err := publisher.ListGeneratedAPKs(context.Background(), GeneratedAPKListOptions{
+		PackageName: "com.example.app",
+		VersionCode: 42,
+	})
+	if err != nil {
+		t.Fatalf("ListGeneratedAPKs() error = %v", err)
+	}
+	if len(result.SigningKeys) != 1 {
+		t.Fatalf("len(SigningKeys) = %d, want 1", len(result.SigningKeys))
+	}
+	signingKey := result.SigningKeys[0]
+	if signingKey.CertificateSHA256Hash != "abc123" || signingKey.TargetingPackageName != "com.example.app" {
+		t.Fatalf("signing key = %#v, want hash and targeting package", signingKey)
+	}
+	if len(signingKey.SplitAPKs) != 1 || signingKey.SplitAPKs[0].DownloadID != "split-download" {
+		t.Fatalf("split APKs = %#v, want split download", signingKey.SplitAPKs)
+	}
+	if signingKey.UniversalAPK == nil || signingKey.UniversalAPK.DownloadID != "universal-download" {
+		t.Fatalf("universal APK = %#v, want universal download", signingKey.UniversalAPK)
+	}
+	if len(signingKey.AssetPackSlices) != 1 || signingKey.AssetPackSlices[0].Version != 3 {
+		t.Fatalf("asset pack slices = %#v, want version 3", signingKey.AssetPackSlices)
+	}
+	if len(signingKey.RecoveryModules) != 1 || signingKey.RecoveryModules[0].RecoveryID != "7" {
+		t.Fatalf("recovery modules = %#v, want recovery ID 7", signingKey.RecoveryModules)
+	}
+}
+
 func TestVoidedPurchaseListResultFromAPIMapsPurchasesAndPagination(t *testing.T) {
 	result := voidedPurchaseListResultFromAPI(VoidedPurchaseListOptions{
 		PackageName:                       "com.example.app",

@@ -356,6 +356,16 @@ func (p GooglePublisher) ListAppRecoveries(ctx context.Context, options AppRecov
 	return appRecoveryListResultFromAPI(options, response), nil
 }
 
+func (p GooglePublisher) ListGeneratedAPKs(ctx context.Context, options GeneratedAPKListOptions) (GeneratedAPKListResult, error) {
+	response, err := p.service.Generatedapks.List(options.PackageName.String(), options.VersionCode).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return GeneratedAPKListResult{}, fmt.Errorf("list generated APKs for %s version code %d: %w", options.PackageName, options.VersionCode, err)
+	}
+	return generatedAPKListResultFromAPI(options, response), nil
+}
+
 func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName PackageName, productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, offerID SubscriptionOfferID) (SubscriptionOffer, error) {
 	offer, err := p.service.Monetization.Subscriptions.BasePlans.Offers.Get(
 		packageName.String(),
@@ -1335,6 +1345,88 @@ func appRecoveryRemoteInAppUpdateDataFromAPI(apiData *androidpublisher.RemoteInA
 		})
 	}
 	return &AppRecoveryRemoteInAppUpdateData{PerBundle: perBundle}
+}
+
+func generatedAPKListResultFromAPI(options GeneratedAPKListOptions, response *androidpublisher.GeneratedApksListResponse) GeneratedAPKListResult {
+	result := GeneratedAPKListResult{
+		PackageName: options.PackageName,
+		VersionCode: options.VersionCode,
+		SigningKeys: []GeneratedAPKSigningKey{},
+	}
+	if response == nil {
+		return result
+	}
+	for _, apiSigningKey := range response.GeneratedApks {
+		if apiSigningKey == nil {
+			continue
+		}
+		result.SigningKeys = append(result.SigningKeys, generatedAPKSigningKeyFromAPI(apiSigningKey))
+	}
+	return result
+}
+
+func generatedAPKSigningKeyFromAPI(apiSigningKey *androidpublisher.GeneratedApksPerSigningKey) GeneratedAPKSigningKey {
+	signingKey := GeneratedAPKSigningKey{
+		CertificateSHA256Hash: apiSigningKey.CertificateSha256Hash,
+		SplitAPKs:             []GeneratedSplitAPK{},
+		StandaloneAPKs:        []GeneratedStandaloneAPK{},
+		AssetPackSlices:       []GeneratedAssetPackSlice{},
+		RecoveryModules:       []GeneratedRecoveryAPK{},
+		UniversalAPK:          generatedUniversalAPKFromAPI(apiSigningKey.GeneratedUniversalApk),
+	}
+	if apiSigningKey.TargetingInfo != nil {
+		signingKey.TargetingPackageName = apiSigningKey.TargetingInfo.PackageName
+	}
+	for _, apiAPK := range apiSigningKey.GeneratedSplitApks {
+		if apiAPK == nil {
+			continue
+		}
+		signingKey.SplitAPKs = append(signingKey.SplitAPKs, GeneratedSplitAPK{
+			DownloadID: apiAPK.DownloadId,
+			ModuleName: apiAPK.ModuleName,
+			SplitID:    apiAPK.SplitId,
+			VariantID:  apiAPK.VariantId,
+		})
+	}
+	for _, apiAPK := range apiSigningKey.GeneratedStandaloneApks {
+		if apiAPK == nil {
+			continue
+		}
+		signingKey.StandaloneAPKs = append(signingKey.StandaloneAPKs, GeneratedStandaloneAPK{
+			DownloadID: apiAPK.DownloadId,
+			VariantID:  apiAPK.VariantId,
+		})
+	}
+	for _, apiSlice := range apiSigningKey.GeneratedAssetPackSlices {
+		if apiSlice == nil {
+			continue
+		}
+		signingKey.AssetPackSlices = append(signingKey.AssetPackSlices, GeneratedAssetPackSlice{
+			DownloadID: apiSlice.DownloadId,
+			ModuleName: apiSlice.ModuleName,
+			SliceID:    apiSlice.SliceId,
+			Version:    apiSlice.Version,
+		})
+	}
+	for _, apiRecoveryAPK := range apiSigningKey.GeneratedRecoveryModules {
+		if apiRecoveryAPK == nil {
+			continue
+		}
+		signingKey.RecoveryModules = append(signingKey.RecoveryModules, GeneratedRecoveryAPK{
+			DownloadID:     apiRecoveryAPK.DownloadId,
+			ModuleName:     apiRecoveryAPK.ModuleName,
+			RecoveryID:     strconv.FormatInt(apiRecoveryAPK.RecoveryId, 10),
+			RecoveryStatus: apiRecoveryAPK.RecoveryStatus,
+		})
+	}
+	return signingKey
+}
+
+func generatedUniversalAPKFromAPI(apiAPK *androidpublisher.GeneratedUniversalApk) *GeneratedUniversalAPK {
+	if apiAPK == nil {
+		return nil
+	}
+	return &GeneratedUniversalAPK{DownloadID: apiAPK.DownloadId}
 }
 
 func orderBatchGetResultFromAPI(options OrderBatchGetOptions, response *androidpublisher.BatchGetOrdersResponse) OrderBatchGetResult {
