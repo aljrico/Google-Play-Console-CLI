@@ -1,0 +1,162 @@
+# Parity Matrix
+
+This matrix maps the `asc` command families from App Store Connect CLI to the closest `gpc` command shape for Google Play Console automation.
+
+Status values:
+
+- `planned`: the feature should exist, but is not implemented yet.
+- `implemented`: the command works.
+- `tested`: implemented with automated coverage.
+- `documented`: implemented and covered in user docs.
+- `blocked`: useful, but blocked by missing or insufficient public Google Play API coverage.
+- `not applicable`: Apple-specific behavior with no Google Play equivalent.
+
+Sources:
+
+- Reference command families: https://github.com/rorkai/App-Store-Connect-CLI/blob/main/docs/COMMANDS.md
+- Google Play Android Developer API: https://developers.google.com/android-publisher/api-ref/rest
+
+## Getting Started
+
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `auth` | `auth` | OAuth/service account credentials | implemented | Scaffold supports service account profile storage and validation. |
+| `doctor` | `auth doctor` | OAuth/service account credentials | implemented | Validates the configured service account JSON. |
+| `install-skills` | `skills` | N/A | planned | Useful later for agent workflows, not core CLI behavior. |
+| `init` | `init` | N/A | planned | Should create `.gpc/` helper docs and workflow templates. |
+| `docs` | `docs` | N/A | planned | Should expose embedded command and workflow docs. |
+| `version` | `version` | N/A | implemented | Prints build metadata. |
+| `completion` | `completion` | N/A | planned | Cobra can generate shell completions. |
+
+## Apps And Releases
+
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `apps` | `apps` | Limited; most Play APIs require package name | planned | Google Play has no broad app list equivalent in the Android Publisher API. |
+| `versions` | `releases` | `applications.tracks.releases`, `edits.tracks` | planned | Play releases live under tracks, not standalone app versions. |
+| `builds` | `artifacts` / `releases upload` | `edits.apks`, `edits.bundles`, `generatedapks` | planned | First vertical slice should upload AAB/APK through an edit. |
+| `build-bundles` | `bundles` | `edits.bundles`, `generatedapks` | planned | Android App Bundles are first-class in Play. |
+| `release` | `release` | `edits`, `edits.tracks`, `applications.tracks.releases` | planned | High-level workflow should insert edit, upload artifact, update track, validate or commit. |
+| `publish` | `publish` | `edits`, `edits.tracks` | planned | Canonical CI command for upload-and-track assignment. |
+| `status` | `status` | `applications.tracks.releases`, `edits.tracks` | planned | Should summarize active releases by track. |
+| `submit` | `publish` / `release` | `edits.commit`, `edits.validate` | planned | Play submission is mainly committing an edit and release track changes. |
+| `validate` | `validate` | `edits.validate` | planned | Should dry-run an edit before commit. |
+| `release-notes` | `release-notes` | `edits.tracks.releases.releaseNotes` | planned | Release notes are attached to track releases. |
+
+## Tracks, Testing, And Distribution
+
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `testflight` | `tracks` / `testers` | `edits.tracks`, `edits.testers` | planned | Play tracks cover internal, closed, open, and production testing. |
+| `sandbox` | N/A | N/A | not applicable | Apple sandbox testers are App Store-specific. |
+| `xcode` | N/A | N/A | not applicable | Local Xcode helpers do not belong in a Play Console CLI. |
+| `xcode-cloud` | N/A | N/A | not applicable | Apple CI service. |
+| `devices` | `device-tier-configs` / `system-apks` | `applications.deviceTierConfigs`, `systemapks.variants` | planned | Android-specific device targeting deserves its own command family. |
+| `apprecovery` | `app-recovery` | `apprecovery` | planned | Google Play has direct app recovery APIs. |
+| `internalappsharingartifacts` | `internal-sharing` | `internalappsharingartifacts` | planned | Useful for quick APK/AAB sharing outside normal tracks. |
+
+## Metadata And Store Listing
+
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `localizations` | `listings` | `edits.listings` | planned | Play listing language records map well to localization commands. |
+| `metadata` | `metadata` | `edits.details`, `edits.listings` | planned | Should support deterministic sync from local files. |
+| `screenshots` | `images` | `edits.images` | planned | Screenshots and graphic assets are image uploads by language and type. |
+| `video-previews` | `videos` | Not clearly exposed in Android Publisher API | blocked | Play video preview management may require Console UI or another API surface. |
+| `background-assets` | `images` | `edits.images` | planned | Some asset types map to Play listing images. |
+| `product-pages` | N/A | N/A | not applicable | App Store custom product pages do not have a direct Play equivalent. |
+| `routing-coverage` | N/A | N/A | not applicable | Apple Maps routing coverage is Apple-specific. |
+| `app-tags` | N/A | N/A | not applicable | Apple-generated discoverability tags are Apple-specific. |
+| `categories` | `details` | `edits.details` | planned | Play app details include category-like metadata. |
+| `age-rating` | `details` / `data-safety` | Partial | blocked | Some declarations are API-backed, but Play Console coverage may be incomplete. |
+| `accessibility` | `details` / `data-safety` | Partial | blocked | Needs API verification before command design. |
+| `encryption` | N/A | N/A | not applicable | Apple export compliance workflow. |
+| `eula` | N/A | N/A | not applicable | No direct Play equivalent. |
+| `data-safety` | `data-safety` | `applications.dataSafety` | planned | Google-specific declaration workflow. |
+
+## Monetization
+
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `iap` | `in-app-products` / `one-time-products` | `inappproducts`, `monetization.onetimeproducts` | planned | Prefer modern monetization resources where possible. |
+| `subscriptions` | `subscriptions` | `monetization.subscriptions`, `basePlans`, `offers` | planned | Play subscription model is richer and more nested than App Store groups. |
+| `pricing` | `pricing` | `monetization.convertRegionPrices`, product/subscription pricing APIs | planned | App pricing and IAP pricing may need separate commands. |
+| `finance` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |
+| `analytics` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |
+| `insights` | `insights` | Built from reports | planned | Derived command, not a direct API mapping. |
+| `orders` | `orders` | `orders` | planned | Useful for order lookup and refunds. |
+| `purchases` | `purchases` | `purchases.products`, `purchases.subscriptions`, `voidedpurchases` | planned | Useful for server-side entitlement support. |
+
+## Review, Quality, And Feedback
+
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `review` | `review` | No clear public review-submission lifecycle API | blocked | Track/release state is available, but review queue control appears limited. |
+| `reviews` | `reviews` | `reviews` | planned | Play supports listing reviews and replying. |
+| `performance` | `vitals` / `quality` | Separate reporting APIs | planned | Android vitals is outside the core Android Publisher REST surface. |
+| `crashes` | `vitals` / `quality` | Separate reporting APIs | planned | Needs separate API/client research. |
+
+## Team And Access
+
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `account` | `account` | Partial | planned | Account health is likely a mix of API-backed checks and local auth checks. |
+| `users` | `users` | `users` | planned | Play supports user management. |
+| `actors` | `users` / `grants` | `users`, `grants` | planned | API keys and users differ from App Store Connect actors. |
+| `agreements` | N/A | N/A | blocked | Play agreement state may not be exposed through public APIs. |
+| `grants` | `grants` | `grants` | planned | Google-specific access grants. |
+
+## Signing And Platform-Specific Apple Features
+
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `signing` | N/A | N/A | not applicable | Android signing belongs to local build tooling and Play App Signing, not ASC-style cert/profile APIs. |
+| `bundle-ids` | N/A | N/A | not applicable | Android package names are app identifiers but not managed like Apple bundle IDs. |
+| `certificates` | N/A | N/A | not applicable | Apple-specific signing assets. |
+| `profiles` | N/A | N/A | not applicable | Apple provisioning profiles. |
+| `merchant-ids` | N/A | N/A | not applicable | Apple Pay merchant IDs. |
+| `pass-type-ids` | N/A | N/A | not applicable | Apple Wallet pass identifiers. |
+| `notarization` | N/A | N/A | not applicable | macOS notarization. |
+| `app-clips` | N/A | N/A | not applicable | Apple App Clips. |
+| `android-ios-mapping` | N/A | N/A | not applicable | Reference-specific bridge feature, not core Play automation. |
+| `marketplace` | N/A | N/A | not applicable | Apple alternative marketplace resources. |
+| `alternative-distribution` | N/A | N/A | not applicable | Apple alternative distribution resources. |
+| `pre-orders` | N/A | N/A | blocked | Play pre-registration may not be exposed through Android Publisher REST. |
+| `nominations` | N/A | N/A | not applicable | Apple featuring nominations. |
+| `game-center` | N/A | N/A | not applicable | Apple Game Center. |
+
+## Automation And Utility
+
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `workflow` | `workflow` | N/A | planned | Repo-local automation runner, independent of Google APIs. |
+| `webhooks` | `notifications` | Pub/Sub and Real-time developer notifications | planned | Likely separate setup from Android Publisher REST. |
+| `notify` | `notify` | N/A | planned | External notifications are CLI utility behavior. |
+| `migrate` | `migrate` | N/A | planned | Should support fastlane supply metadata migration. |
+| `diff` | `diff` | N/A | planned | Deterministic non-mutating plans are important for CI. |
+| `capabilities` | `capabilities` | N/A | planned | Should expose this matrix from the CLI later. |
+| `schema` | `schema` | Discovery document | planned | Google APIs expose a machine-readable discovery document. |
+| `snitch` | `snitch` | N/A | planned | Nice-to-have friction reporter. |
+| `web` | `web` | N/A | planned | Experimental Play Console browser workflows only when no API exists. |
+
+## First Vertical Slice
+
+The first API-backed slice should be:
+
+```sh
+gpc publish internal \
+  --package com.example.app \
+  --aab ./app-release.aab \
+  --release-name "1.2.3" \
+  --dry-run
+```
+
+This should exercise:
+
+- service account auth
+- edit insert
+- bundle upload
+- track update
+- edit validate
+- optional edit commit behind `--confirm`
+- stable JSON output for CI
