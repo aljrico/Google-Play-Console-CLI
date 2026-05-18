@@ -2179,6 +2179,69 @@ func TestUsersDeleteDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestUsersCreateDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"users",
+		"create",
+		"--developer",
+		"1234567890",
+		"--user-email",
+		"user@example.com",
+		"--permission",
+		"CAN_VIEW_NON_FINANCIAL_DATA_GLOBAL",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{`"action":"create"`, `"dryRun":true`, `"desiredUser"`, `"CAN_VIEW_NON_FINANCIAL_DATA_GLOBAL"`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestUsersCreateRejectsMissingConfirmBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"users",
+		"create",
+		"--developer",
+		"1234567890",
+		"--user-email",
+		"user@example.com",
+		"--permission",
+		"CAN_VIEW_NON_FINANCIAL_DATA_GLOBAL",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm validation error")
+	}
+	if !strings.Contains(err.Error(), "--confirm") {
+		t.Fatalf("error = %v, want confirm validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestUsersDeleteRejectsMissingConfirmBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

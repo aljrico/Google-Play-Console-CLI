@@ -1066,6 +1066,67 @@ func TestListUsersSendsExpectedQueryParams(t *testing.T) {
 	}
 }
 
+func TestCreateUserUsesUsersEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/developers/1234567890/users" {
+			t.Fatalf("path = %q, want users endpoint", r.URL.Path)
+		}
+		var request androidpublisher.User
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.Name != "developers/1234567890/users/user@example.com" || request.Email != "user@example.com" {
+			t.Fatalf("request = %#v, want user identity", request)
+		}
+		if len(request.DeveloperAccountPermissions) != 1 || request.DeveloperAccountPermissions[0] != "CAN_VIEW_NON_FINANCIAL_DATA_GLOBAL" {
+			t.Fatalf("permissions = %#v, want non-financial global", request.DeveloperAccountPermissions)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"name": "developers/1234567890/users/user@example.com",
+			"email": "user@example.com",
+			"developerAccountPermissions": ["CAN_VIEW_NON_FINANCIAL_DATA_GLOBAL"]
+		}`))
+	}))
+
+	user, err := publisher.CreateUser(context.Background(), UserCreateOptions{
+		Developer:   "1234567890",
+		UserEmail:   "user@example.com",
+		Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal},
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("CreateUser() error = %v", err)
+	}
+	if user.Email != "user@example.com" || len(user.DeveloperAccountPermissions) != 1 {
+		t.Fatalf("user = %#v, want mapped user", user)
+	}
+}
+
+func TestCreateUserRejectsDryRunBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	_, err := publisher.CreateUser(context.Background(), UserCreateOptions{
+		Developer:   "1234567890",
+		UserEmail:   "user@example.com",
+		Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal},
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected dry-run rejection")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
 func TestDeleteUserUsesUserEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {

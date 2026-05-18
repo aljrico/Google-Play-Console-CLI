@@ -103,7 +103,7 @@ Sources:
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `account` | `account` | Partial | planned | Account health is likely a mix of API-backed checks and local auth checks. |
-| `users` | `users` | `users` | tested | `gpc users list` covers developer account user inspection with pagination, and `gpc users delete` removes all account access with dry-run/confirm gating. Create and patch remain planned. |
+| `users` | `users` | `users` | tested | `gpc users list` covers developer account user inspection with pagination, `create` grants account-level access, and `delete` removes all account access with dry-run/confirm gating. Patch remains planned; app-level access is handled through `grants`. |
 | `actors` | `users` / `grants` | `users`, `grants` | tested | `gpc users list` exposes account users and embedded per-app grants; `gpc grants` manages app-level grants with dry-run/confirm gating. |
 | `agreements` | N/A | N/A | blocked | Play agreement state may not be exposed through public APIs. |
 | `grants` | `grants` | `grants` | tested | `gpc grants create`, `patch`, and `delete` manage app-level user grants with dry-run/confirm gating. Listing remains covered through `users list`. |

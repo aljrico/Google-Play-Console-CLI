@@ -77,6 +77,7 @@ gpc orders refund --package com.example.app --order-id GPA.1234-5678-9012-34567 
 gpc orders refund --package com.example.app --order-id GPA.1234-5678-9012-34567 --revoke --confirm
 gpc pricing convert-region-prices --package com.example.app --currency USD --units 9 --nanos 990000000
 gpc users list --developer 1234567890
+gpc users create --developer 1234567890 --user-email user@example.com --permission CAN_VIEW_NON_FINANCIAL_DATA_GLOBAL --dry-run
 gpc users delete --developer 1234567890 --user-email user@example.com --dry-run
 gpc grants create --developer 1234567890 --user-email user@example.com --package com.example.app --permission CAN_VIEW_NON_FINANCIAL_DATA --dry-run
 ```

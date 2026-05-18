@@ -15,6 +15,7 @@ func newUsersCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	}
 	cmd.AddCommand(
 		newUsersListCommand(out, options),
+		newUsersCreateCommand(out, options),
 		newUsersDeleteCommand(out, options),
 	)
 	return cmd
@@ -58,6 +59,71 @@ func newUsersListCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	cmd.Flags().StringVar(&developer, "developer", "", "Developer account ID or resource, for example 1234567890 or developers/1234567890")
 	cmd.Flags().Int64Var(&pageSize, "page-size", 0, "Maximum users to return; use -1 to disable pagination")
 	cmd.Flags().StringVar(&pageToken, "page-token", "", "Pagination token from a previous response")
+	return cmd
+}
+
+func newUsersCreateCommand(out io.Writer, options *globalOptions) *cobra.Command {
+	var (
+		developer      string
+		userEmail      string
+		permissions    []string
+		expirationTime string
+		confirm        bool
+		dryRun         bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Grant developer-account access to a user",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedDeveloper, err := play.NewDeveloperAccount(developer)
+			if err != nil {
+				return err
+			}
+			typedUserEmail, err := play.NewGrantUserEmail(userEmail)
+			if err != nil {
+				return err
+			}
+			typedPermissions, err := parseUserPermissions(permissions)
+			if err != nil {
+				return err
+			}
+			createOptions := play.UserCreateOptions{
+				Developer:      typedDeveloper,
+				UserEmail:      typedUserEmail,
+				Permissions:    typedPermissions,
+				ExpirationTime: expirationTime,
+				Confirm:        confirm,
+				DryRun:         dryRun,
+			}
+			if err := createOptions.Validate(); err != nil {
+				return err
+			}
+			if dryRun {
+				result, err := play.CreateUser(cmd.Context(), nil, createOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.CreateUser(cmd.Context(), publisher, createOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&developer, "developer", "", "Developer account ID or resource, for example 1234567890 or developers/1234567890")
+	cmd.Flags().StringVar(&userEmail, "user-email", "", "Play Console user email")
+	cmd.Flags().StringArrayVar(&permissions, "permission", nil, "Developer-account permission, repeatable")
+	cmd.Flags().StringVar(&expirationTime, "expiration-time", "", "Optional RFC3339 access expiration time")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the user creation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned user creation without calling Google Play")
 	return cmd
 }
 
@@ -111,6 +177,18 @@ func newUsersDeleteCommand(out io.Writer, options *globalOptions) *cobra.Command
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the user deletion")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned user deletion without calling Google Play")
 	return cmd
+}
+
+func parseUserPermissions(values []string) ([]play.UserPermission, error) {
+	permissions := make([]play.UserPermission, 0, len(values))
+	for _, value := range values {
+		permission, err := play.NewUserPermission(value)
+		if err != nil {
+			return nil, err
+		}
+		permissions = append(permissions, permission)
+	}
+	return permissions, nil
 }
 
 func parseUserName(name string, developer string, userEmail string) (play.UserName, error) {

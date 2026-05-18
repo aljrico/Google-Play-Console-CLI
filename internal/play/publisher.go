@@ -402,6 +402,19 @@ func (p GooglePublisher) ListUsers(ctx context.Context, options UserListOptions)
 	return userListResultFromAPI(options.Developer, response), nil
 }
 
+func (p GooglePublisher) CreateUser(ctx context.Context, options UserCreateOptions) (User, error) {
+	if err := options.ValidateLive(); err != nil {
+		return User{}, err
+	}
+	apiUser, err := p.service.Users.Create(options.Developer.ResourceName(), userCreateToAPI(options)).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return User{}, fmt.Errorf("create user %s under %s: %w", options.UserEmail, options.Developer.ResourceName(), err)
+	}
+	return userFromAPI(apiUser), nil
+}
+
 func (p GooglePublisher) DeleteUser(ctx context.Context, options UserDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
@@ -2275,10 +2288,35 @@ func userFromAPI(apiUser *androidpublisher.User) User {
 		Email:                       apiUser.Email,
 		AccessState:                 apiUser.AccessState,
 		ExpirationTime:              apiUser.ExpirationTime,
-		DeveloperAccountPermissions: apiUser.DeveloperAccountPermissions,
+		DeveloperAccountPermissions: userPermissionsFromAPI(apiUser.DeveloperAccountPermissions),
 		Partial:                     apiUser.Partial,
 		Grants:                      userGrantsFromAPI(apiUser.Grants),
 	}
+}
+
+func userCreateToAPI(options UserCreateOptions) *androidpublisher.User {
+	return &androidpublisher.User{
+		Name:                        options.UserName().String(),
+		Email:                       options.UserEmail.String(),
+		DeveloperAccountPermissions: userPermissionStrings(options.Permissions),
+		ExpirationTime:              options.ExpirationTime,
+	}
+}
+
+func userPermissionsFromAPI(apiPermissions []string) []UserPermission {
+	permissions := make([]UserPermission, 0, len(apiPermissions))
+	for _, apiPermission := range apiPermissions {
+		permissions = append(permissions, UserPermission(apiPermission))
+	}
+	return permissions
+}
+
+func userPermissionStrings(permissions []UserPermission) []string {
+	values := make([]string, 0, len(permissions))
+	for _, permission := range permissions {
+		values = append(values, permission.String())
+	}
+	return values
 }
 
 func userGrantsFromAPI(apiGrants []*androidpublisher.Grant) []UserGrant {

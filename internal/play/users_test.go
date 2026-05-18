@@ -82,6 +82,62 @@ func TestDeleteUserDryRunDoesNotCallDeleter(t *testing.T) {
 	}
 }
 
+func TestCreateUserDryRunDoesNotCallCreator(t *testing.T) {
+	result, err := CreateUser(context.Background(), nil, UserCreateOptions{
+		Developer:   "1234567890",
+		UserEmail:   "user@example.com",
+		Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal},
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("CreateUser() error = %v", err)
+	}
+	if result.Applied {
+		t.Fatalf("Applied = true, want false")
+	}
+	if result.Desired == nil || result.Desired.Email != "user@example.com" {
+		t.Fatalf("desired = %#v, want user@example.com", result.Desired)
+	}
+}
+
+func TestCreateUserPassesOptionsToCreator(t *testing.T) {
+	creator := &fakeUserCreator{user: User{Email: "user@example.com"}}
+	options := UserCreateOptions{
+		Developer:   "1234567890",
+		UserEmail:   "user@example.com",
+		Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal},
+		Confirm:     true,
+	}
+
+	result, err := CreateUser(context.Background(), creator, options)
+	if err != nil {
+		t.Fatalf("CreateUser() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatalf("Applied = false, want true")
+	}
+	if !reflect.DeepEqual(creator.options, options) {
+		t.Fatalf("options = %#v, want %#v", creator.options, options)
+	}
+}
+
+func TestCreateUserRejectsInvalidOptions(t *testing.T) {
+	tests := []UserCreateOptions{
+		{},
+		{Developer: "bad/account", UserEmail: "user@example.com", Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal}, DryRun: true},
+		{Developer: "1234567890", Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal}, DryRun: true},
+		{Developer: "1234567890", UserEmail: "user@example.com", DryRun: true},
+		{Developer: "1234567890", UserEmail: "user@example.com", Permissions: []UserPermission{"NOPE"}, DryRun: true},
+		{Developer: "1234567890", UserEmail: "user@example.com", Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal}},
+		{Developer: "1234567890", UserEmail: "user@example.com", Permissions: []UserPermission{UserPermissionViewNonFinancialDataGlobal}, Confirm: true, DryRun: true},
+	}
+	for _, options := range tests {
+		if _, err := CreateUser(context.Background(), nil, options); err == nil {
+			t.Fatalf("CreateUser(%#v) expected validation error", options)
+		}
+	}
+}
+
 func TestDeleteUserPassesOptionsToDeleter(t *testing.T) {
 	deleter := &fakeUserDeleter{}
 	options := UserDeleteOptions{
@@ -132,4 +188,14 @@ type fakeUserDeleter struct {
 func (d *fakeUserDeleter) DeleteUser(ctx context.Context, options UserDeleteOptions) error {
 	d.options = options
 	return nil
+}
+
+type fakeUserCreator struct {
+	options UserCreateOptions
+	user    User
+}
+
+func (c *fakeUserCreator) CreateUser(ctx context.Context, options UserCreateOptions) (User, error) {
+	c.options = options
+	return c.user, nil
 }
