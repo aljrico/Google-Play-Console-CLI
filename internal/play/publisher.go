@@ -364,6 +364,16 @@ func (p GooglePublisher) GetDeviceTierConfig(ctx context.Context, options Device
 	}, nil
 }
 
+func (p GooglePublisher) UpdateDataSafety(ctx context.Context, packageName PackageName, safetyLabels string) error {
+	request := &androidpublisher.SafetyLabelsUpdateRequest{
+		SafetyLabels: safetyLabels,
+	}
+	if _, err := p.service.Applications.DataSafety(packageName.String(), request).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("update data safety for %s: %w", packageName, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) GetOrder(ctx context.Context, options OrderGetOptions) (OrderGetResult, error) {
 	apiOrder, err := p.service.Orders.Get(options.PackageName.String(), options.OrderID.String()).Context(ctx).Do()
 	if err != nil {

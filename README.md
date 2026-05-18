@@ -47,6 +47,7 @@ gpc images list --package com.example.app --language en-US --type phoneScreensho
 gpc listings update --package com.example.app --language en-US --title "Example" --dry-run
 gpc listings delete --package com.example.app --language en-US --dry-run
 gpc details update --package com.example.app --contact-email support@example.com --dry-run
+gpc data-safety update --package com.example.app --csv ./data-safety.csv --dry-run
 gpc reviews list --package com.example.app --max-results 25
 gpc reviews get --package com.example.app --review-id review-123
 gpc reviews reply --package com.example.app --review-id review-123 --text "Thanks for the feedback." --dry-run

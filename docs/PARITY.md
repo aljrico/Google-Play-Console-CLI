@@ -72,7 +72,7 @@ Sources:
 | `accessibility` | `details` / `data-safety` | Partial | blocked | Needs API verification before command design. |
 | `encryption` | N/A | N/A | not applicable | Apple export compliance workflow. |
 | `eula` | N/A | N/A | not applicable | No direct Play equivalent. |
-| `data-safety` | `data-safety` | `applications.dataSafety` | planned | Google-specific declaration workflow. |
+| `data-safety` | `data-safety` | `applications.dataSafety` | tested | `gpc data-safety update` uploads a Play data safety CSV only with `--confirm`; dry-run previews are local. |
 
 ## Monetization
 

@@ -1041,6 +1041,30 @@ func TestConvertRegionPricesUsesPricingEndpoint(t *testing.T) {
 	}
 }
 
+func TestUpdateDataSafetyUsesApplicationsEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/dataSafety" {
+			t.Fatalf("path = %q, want data safety endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		var request androidpublisher.SafetyLabelsUpdateRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.SafetyLabels != "question,answer\n" {
+			t.Fatalf("SafetyLabels = %q, want CSV content", request.SafetyLabels)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+
+	if err := publisher.UpdateDataSafety(context.Background(), "com.example.app", "question,answer\n"); err != nil {
+		t.Fatalf("UpdateDataSafety() error = %v", err)
+	}
+}
+
 func TestListDeviceTierConfigsUsesApplicationsEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/deviceTierConfigs" {
