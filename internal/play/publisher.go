@@ -285,6 +285,22 @@ func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName P
 	return subscriptionOfferFromAPI(offer), nil
 }
 
+func (p GooglePublisher) GetProductPurchase(ctx context.Context, options ProductPurchaseOptions) (ProductPurchase, error) {
+	purchase, err := p.service.Purchases.Products.Get(options.PackageName.String(), options.ProductID.String(), options.Token.String()).Context(ctx).Do()
+	if err != nil {
+		return ProductPurchase{}, fmt.Errorf("get product purchase %s for %s/%s: %w", options.Token, options.PackageName, options.ProductID, err)
+	}
+	return productPurchaseFromAPI(options.PackageName, purchase), nil
+}
+
+func (p GooglePublisher) GetSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error) {
+	purchase, err := p.service.Purchases.Subscriptionsv2.Get(options.PackageName.String(), options.Token.String()).Context(ctx).Do()
+	if err != nil {
+		return SubscriptionPurchase{}, fmt.Errorf("get subscription purchase %s for %s: %w", options.Token, options.PackageName, err)
+	}
+	return subscriptionPurchaseFromAPI(options.PackageName, options.Token, purchase), nil
+}
+
 func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName PackageName, editID string, trackName TrackName, release TrackRelease) (Track, error) {
 	apiTrack, err := p.service.Edits.Tracks.Get(packageName.String(), editID, trackName.String()).Context(ctx).Do()
 	if err != nil {
@@ -1062,6 +1078,100 @@ func subscriptionOfferTargetingScopeFromAPI(apiScope *androidpublisher.Targeting
 		ThisSubscription:          apiScope.ThisSubscription != nil,
 		SpecificSubscriptionInApp: apiScope.SpecificSubscriptionInApp,
 	}
+}
+
+func productPurchaseFromAPI(packageName PackageName, apiPurchase *androidpublisher.ProductPurchase) ProductPurchase {
+	if apiPurchase == nil {
+		return ProductPurchase{PackageName: packageName}
+	}
+	return ProductPurchase{
+		PackageName:                 packageName,
+		ProductID:                   InAppProductSKU(apiPurchase.ProductId),
+		Token:                       PurchaseToken(apiPurchase.PurchaseToken),
+		OrderID:                     apiPurchase.OrderId,
+		PurchaseState:               apiPurchase.PurchaseState,
+		PurchaseTimeMillis:          apiPurchase.PurchaseTimeMillis,
+		AcknowledgementState:        apiPurchase.AcknowledgementState,
+		ConsumptionState:            apiPurchase.ConsumptionState,
+		Quantity:                    apiPurchase.Quantity,
+		RefundableQuantity:          apiPurchase.RefundableQuantity,
+		RegionCode:                  apiPurchase.RegionCode,
+		DeveloperPayload:            apiPurchase.DeveloperPayload,
+		ObfuscatedExternalAccountID: apiPurchase.ObfuscatedExternalAccountId,
+		ObfuscatedExternalProfileID: apiPurchase.ObfuscatedExternalProfileId,
+	}
+}
+
+func subscriptionPurchaseFromAPI(packageName PackageName, token PurchaseToken, apiPurchase *androidpublisher.SubscriptionPurchaseV2) SubscriptionPurchase {
+	if apiPurchase == nil {
+		return SubscriptionPurchase{PackageName: packageName, Token: token, LineItems: []SubscriptionPurchaseLineItem{}}
+	}
+	return SubscriptionPurchase{
+		PackageName:                 packageName,
+		Token:                       token,
+		SubscriptionState:           apiPurchase.SubscriptionState,
+		AcknowledgementState:        apiPurchase.AcknowledgementState,
+		LatestOrderID:               apiPurchase.LatestOrderId,
+		LinkedPurchaseToken:         apiPurchase.LinkedPurchaseToken,
+		RegionCode:                  apiPurchase.RegionCode,
+		StartTime:                   apiPurchase.StartTime,
+		LineItems:                   subscriptionPurchaseLineItemsFromAPI(apiPurchase.LineItems),
+		ExternalAccountID:           externalAccountIDFromAPI(apiPurchase.ExternalAccountIdentifiers),
+		ObfuscatedExternalAccountID: obfuscatedExternalAccountIDFromAPI(apiPurchase.ExternalAccountIdentifiers),
+		ObfuscatedExternalProfileID: obfuscatedExternalProfileIDFromAPI(apiPurchase.ExternalAccountIdentifiers),
+		TestPurchase:                apiPurchase.TestPurchase != nil,
+	}
+}
+
+func subscriptionPurchaseLineItemsFromAPI(apiItems []*androidpublisher.SubscriptionPurchaseLineItem) []SubscriptionPurchaseLineItem {
+	items := make([]SubscriptionPurchaseLineItem, 0, len(apiItems))
+	for _, apiItem := range apiItems {
+		if apiItem == nil {
+			continue
+		}
+		item := SubscriptionPurchaseLineItem{
+			ProductID:               apiItem.ProductId,
+			ExpiryTime:              apiItem.ExpiryTime,
+			LatestSuccessfulOrderID: apiItem.LatestSuccessfulOrderId,
+		}
+		if apiItem.OfferDetails != nil {
+			item.BasePlanID = apiItem.OfferDetails.BasePlanId
+			item.OfferID = apiItem.OfferDetails.OfferId
+			item.OfferTags = apiItem.OfferDetails.OfferTags
+		}
+		if apiItem.AutoRenewingPlan != nil {
+			autoRenewEnabled := apiItem.AutoRenewingPlan.AutoRenewEnabled
+			item.AutoRenewEnabled = &autoRenewEnabled
+			item.RecurringPrice = moneyFromAPI(apiItem.AutoRenewingPlan.RecurringPrice)
+		}
+		if apiItem.PrepaidPlan != nil {
+			item.Prepaid = true
+			item.AllowExtendAfterTime = apiItem.PrepaidPlan.AllowExtendAfterTime
+		}
+		items = append(items, item)
+	}
+	return items
+}
+
+func externalAccountIDFromAPI(apiIdentifiers *androidpublisher.ExternalAccountIdentifiers) string {
+	if apiIdentifiers == nil {
+		return ""
+	}
+	return apiIdentifiers.ExternalAccountId
+}
+
+func obfuscatedExternalAccountIDFromAPI(apiIdentifiers *androidpublisher.ExternalAccountIdentifiers) string {
+	if apiIdentifiers == nil {
+		return ""
+	}
+	return apiIdentifiers.ObfuscatedExternalAccountId
+}
+
+func obfuscatedExternalProfileIDFromAPI(apiIdentifiers *androidpublisher.ExternalAccountIdentifiers) string {
+	if apiIdentifiers == nil {
+		return ""
+	}
+	return apiIdentifiers.ObfuscatedExternalProfileId
 }
 
 func stringPointer(value string) *string {

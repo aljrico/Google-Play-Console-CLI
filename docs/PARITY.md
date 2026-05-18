@@ -87,7 +87,7 @@ Sources:
 | `analytics` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |
 | `insights` | `insights` | Built from reports | planned | Derived command, not a direct API mapping. |
 | `orders` | `orders` | `orders` | planned | Useful for order lookup and refunds. |
-| `purchases` | `purchases` | `purchases.products`, `purchases.subscriptions`, `voidedpurchases` | planned | Useful for server-side entitlement support. |
+| `purchases` | `purchases` | `purchases.products`, `purchases.subscriptionsv2`, `voidedpurchases` | tested | `gpc purchases product` and `subscription` cover read-only purchase-token status. Acknowledge, consume, cancel, refund, and voided purchase listing remain planned. |
 
 ## Review, Quality, And Feedback
 

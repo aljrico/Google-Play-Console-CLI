@@ -592,3 +592,51 @@ func TestSubscriptionOffersGetRejectsWildcardBasePlanBeforeAuth(t *testing.T) {
 		t.Fatalf("error = %v, want base plan validation", err)
 	}
 }
+
+func TestPurchasesProductRejectsMissingTokenBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"purchases",
+		"product",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected token validation error")
+	}
+	if !strings.Contains(err.Error(), "purchase token") {
+		t.Fatalf("error = %v, want token validation", err)
+	}
+}
+
+func TestPurchasesSubscriptionRejectsMissingTokenBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"purchases",
+		"subscription",
+		"--package",
+		"com.example.app",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected token validation error")
+	}
+	if !strings.Contains(err.Error(), "purchase token") {
+		t.Fatalf("error = %v, want token validation", err)
+	}
+}

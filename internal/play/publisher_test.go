@@ -460,6 +460,89 @@ func TestSubscriptionOfferListResultFromAPIMapsNextPageToken(t *testing.T) {
 	}
 }
 
+func TestProductPurchaseFromAPIMapsEntitlementFields(t *testing.T) {
+	purchase := productPurchaseFromAPI("com.example.app", &androidpublisher.ProductPurchase{
+		ProductId:                   "coins_100",
+		PurchaseToken:               "token-123",
+		OrderId:                     "GPA.123",
+		PurchaseState:               0,
+		PurchaseTimeMillis:          12345,
+		AcknowledgementState:        1,
+		ConsumptionState:            0,
+		Quantity:                    2,
+		RefundableQuantity:          1,
+		RegionCode:                  "US",
+		ObfuscatedExternalAccountId: "account",
+	})
+
+	if purchase.PackageName != "com.example.app" {
+		t.Fatalf("PackageName = %q, want com.example.app", purchase.PackageName)
+	}
+	if purchase.ProductID != "coins_100" {
+		t.Fatalf("ProductID = %q, want coins_100", purchase.ProductID)
+	}
+	if purchase.Token != "token-123" {
+		t.Fatalf("Token = %q, want token-123", purchase.Token)
+	}
+	if purchase.Quantity != 2 {
+		t.Fatalf("Quantity = %d, want 2", purchase.Quantity)
+	}
+}
+
+func TestSubscriptionPurchaseFromAPIMapsLineItems(t *testing.T) {
+	purchase := subscriptionPurchaseFromAPI("com.example.app", "token-123", &androidpublisher.SubscriptionPurchaseV2{
+		SubscriptionState:    "SUBSCRIPTION_STATE_ACTIVE",
+		AcknowledgementState: "ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED",
+		LatestOrderId:        "GPA.123",
+		LinkedPurchaseToken:  "old-token",
+		RegionCode:           "US",
+		StartTime:            "2026-05-18T10:00:00Z",
+		ExternalAccountIdentifiers: &androidpublisher.ExternalAccountIdentifiers{
+			ExternalAccountId:           "external",
+			ObfuscatedExternalAccountId: "account",
+		},
+		TestPurchase: &androidpublisher.TestPurchase{},
+		LineItems: []*androidpublisher.SubscriptionPurchaseLineItem{
+			{
+				ProductId:               "premium",
+				ExpiryTime:              "2026-06-18T10:00:00Z",
+				LatestSuccessfulOrderId: "GPA.456",
+				OfferDetails: &androidpublisher.OfferDetails{
+					BasePlanId: "monthly",
+					OfferId:    "intro",
+					OfferTags:  []string{"public"},
+				},
+				AutoRenewingPlan: &androidpublisher.AutoRenewingPlan{
+					AutoRenewEnabled: true,
+					RecurringPrice:   &androidpublisher.Money{CurrencyCode: "USD", Units: 9, Nanos: 990000000},
+				},
+			},
+		},
+	})
+
+	if purchase.Token != "token-123" {
+		t.Fatalf("Token = %q, want token-123", purchase.Token)
+	}
+	if purchase.SubscriptionState != "SUBSCRIPTION_STATE_ACTIVE" {
+		t.Fatalf("SubscriptionState = %q, want active", purchase.SubscriptionState)
+	}
+	if !purchase.TestPurchase {
+		t.Fatal("TestPurchase = false, want true")
+	}
+	if len(purchase.LineItems) != 1 {
+		t.Fatalf("len(LineItems) = %d, want 1", len(purchase.LineItems))
+	}
+	if purchase.LineItems[0].BasePlanID != "monthly" {
+		t.Fatalf("BasePlanID = %q, want monthly", purchase.LineItems[0].BasePlanID)
+	}
+	if purchase.LineItems[0].AutoRenewEnabled == nil || !*purchase.LineItems[0].AutoRenewEnabled {
+		t.Fatalf("AutoRenewEnabled = %v, want true", purchase.LineItems[0].AutoRenewEnabled)
+	}
+	if purchase.LineItems[0].RecurringPrice == nil || purchase.LineItems[0].RecurringPrice.Units != 9 {
+		t.Fatalf("RecurringPrice = %#v, want 9 units", purchase.LineItems[0].RecurringPrice)
+	}
+}
+
 func containsField(fields []string, field string) bool {
 	for _, candidate := range fields {
 		if candidate == field {
