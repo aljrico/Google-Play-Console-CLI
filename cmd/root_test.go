@@ -84,6 +84,51 @@ func TestCapabilitiesRejectsUnsupportedStatus(t *testing.T) {
 	}
 }
 
+func TestDocsParityOutputsMarkdownWithoutAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"docs",
+		"parity",
+		"--output",
+		"markdown",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "# Parity Matrix") {
+		t.Fatalf("output = %s, want parity matrix markdown", output)
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestDocsParityOutputsJSONDocument(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"docs",
+		"parity",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{`"name":"parity"`, `"format":"markdown"`, `# Parity Matrix`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+}
+
 func TestPublishInternalDryRunRejectsInvalidPackage(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
