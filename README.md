@@ -32,6 +32,7 @@ gpc tracks list --package com.example.app
 gpc capabilities --status tested
 gpc docs parity --output markdown
 gpc docs commands --output markdown
+gpc schema --resource edits.tracks --method list --pretty
 gpc device-tier-configs list --package com.example.app --page-size 25
 gpc device-tier-configs get --package com.example.app --id 7
 gpc status --package com.example.app
@@ -114,6 +115,6 @@ gpc version --output markdown
 
 ## Status
 
-Early but functional. Auth/profile storage, the command taxonomy, core release workflows, localized listings, app-level details, review reading/replies, read-only monetization catalog commands, purchase checks, order lookup, and guarded order refunds are in place.
+Early but functional. Auth/profile storage, the command taxonomy, generated command/schema docs, core release workflows, localized listings, app-level details, review reading/replies, read-only monetization catalog commands, purchase checks, order lookup, and guarded order refunds are in place.
 
 See [docs/PARITY.md](docs/PARITY.md) for the working parity map against App Store Connect CLI.

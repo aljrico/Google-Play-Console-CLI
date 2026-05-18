@@ -137,7 +137,7 @@ Sources:
 | `migrate` | `migrate` | N/A | planned | Should support fastlane supply metadata migration. |
 | `diff` | `diff` | N/A | planned | Deterministic non-mutating plans are important for CI. |
 | `capabilities` | `capabilities` | N/A | tested | `gpc capabilities` exposes this parity matrix as structured CLI output with status and section filters. |
-| `schema` | `schema` | Discovery document | planned | Google APIs expose a machine-readable discovery document. |
+| `schema` | `schema` | Discovery document | tested | `gpc schema` fetches the Android Publisher discovery document and emits a stable resource/method summary, with resource and method filters. |
 | `snitch` | `snitch` | N/A | planned | Nice-to-have friction reporter. |
 | `web` | `web` | N/A | planned | Experimental Play Console browser workflows only when no API exists. |
 
