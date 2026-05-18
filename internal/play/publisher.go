@@ -193,6 +193,26 @@ func (p GooglePublisher) ListImages(ctx context.Context, packageName PackageName
 	return images, nil
 }
 
+func (p GooglePublisher) UploadImage(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType, path string) (StoreImage, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return StoreImage{}, fmt.Errorf("open image %s: %w", path, err)
+	}
+	defer file.Close()
+
+	response, err := p.service.Edits.Images.Upload(packageName.String(), editID, language.String(), imageType.String()).
+		Media(file, googleapi.ContentType(ImageContentType(path))).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return StoreImage{}, fmt.Errorf("upload %s image %s for %s %s listing: %w", imageType, path, packageName, language, err)
+	}
+	if response == nil {
+		return StoreImage{}, nil
+	}
+	return imageFromAPI(response.Image), nil
+}
+
 func (p GooglePublisher) DeleteImage(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType, imageID string) error {
 	if err := p.service.Edits.Images.Delete(packageName.String(), editID, language.String(), imageType.String(), imageID).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete %s image %s for %s %s listing: %w", imageType, imageID, packageName, language, err)

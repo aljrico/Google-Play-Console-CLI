@@ -1090,6 +1090,80 @@ func TestImagesListRejectsInvalidTypeBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestImagesUploadDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"images",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--language",
+		"en-US",
+		"--type",
+		"featureGraphic",
+		"--file",
+		"feature.png",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	var result struct {
+		Path   string `json:"path"`
+		DryRun bool   `json:"dryRun"`
+		Plan   struct {
+			Path string `json:"path"`
+		} `json:"plan"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v; output = %s", err, buf.String())
+	}
+	if result.Path != "feature.png" || result.Plan.Path != "feature.png" || !result.DryRun {
+		t.Fatalf("result = %#v, want image upload dry-run", result)
+	}
+	if strings.Contains(buf.String(), "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", buf.String())
+	}
+}
+
+func TestImagesUploadRejectsMissingFileBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"images",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--language",
+		"en-US",
+		"--type",
+		"featureGraphic",
+		"--file",
+		t.TempDir() + "/missing.png",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing image error")
+	}
+	if !strings.Contains(err.Error(), "open image") {
+		t.Fatalf("error = %v, want image preflight", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestImagesDeleteDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

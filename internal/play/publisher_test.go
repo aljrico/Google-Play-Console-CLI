@@ -230,6 +230,30 @@ func TestListImagesUsesListingImagesEndpoint(t *testing.T) {
 	}
 }
 
+func TestUploadImageUsesListingImageUploadEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/upload/androidpublisher/v3/applications/com.example.app/edits/edit-123/listings/en-US/featureGraphic" {
+			t.Fatalf("path = %q, want image upload endpoint", r.URL.Path)
+		}
+		if r.URL.Query().Get("uploadType") == "" {
+			t.Fatalf("query = %q, want uploadType", r.URL.RawQuery)
+		}
+		if r.Header.Get("Content-Type") == "" {
+			t.Fatal("missing content type")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"image":{"id":"image-1","url":"https://example.com/feature.png","sha256":"abc"}}`))
+	}))
+
+	image, err := publisher.UploadImage(context.Background(), "com.example.app", "edit-123", "en-US", ImageTypeFeatureGraphic, writeTestFile(t, "feature.png"))
+	if err != nil {
+		t.Fatalf("UploadImage() error = %v", err)
+	}
+	if image.ID != "image-1" || image.SHA256 != "abc" {
+		t.Fatalf("image = %#v, want uploaded image", image)
+	}
+}
+
 func TestDeleteImageUsesListingImageEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/edits/edit-123/listings/en-US/phoneScreenshots/image-1" {

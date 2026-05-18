@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 )
 
 type ImageType string
@@ -90,6 +92,14 @@ type ImageDeleter interface {
 	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
 }
 
+type ImageUploader interface {
+	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
+	UploadImage(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType, path string) (StoreImage, error)
+	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
+	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
+	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
+}
+
 func ListImages(ctx context.Context, reader ImageReader, options ImageListOptions) (result ImageListResult, err error) {
 	if err := options.Validate(); err != nil {
 		return ImageListResult{}, err
@@ -120,6 +130,172 @@ func ListImages(ctx context.Context, reader ImageReader, options ImageListOption
 		Type:        options.Type,
 		Images:      images,
 	}, nil
+}
+
+type ImageUploadOptions struct {
+	PackageName PackageName     `json:"packageName"`
+	Language    ListingLanguage `json:"language"`
+	Type        ImageType       `json:"type"`
+	Path        string          `json:"path"`
+	Confirm     bool            `json:"confirm"`
+	DryRun      bool            `json:"dryRun"`
+}
+
+func (o ImageUploadOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewListingLanguage(o.Language.String()); err != nil {
+		return err
+	}
+	if err := o.Type.Validate(); err != nil {
+		return err
+	}
+	if o.Path == "" {
+		return fmt.Errorf("image path is required")
+	}
+	return validateImagePath(o.Path)
+}
+
+type ImageUploadPlan struct {
+	PackageName PackageName     `json:"packageName"`
+	Language    ListingLanguage `json:"language"`
+	Type        ImageType       `json:"type"`
+	Path        string          `json:"path"`
+	Confirm     bool            `json:"confirm"`
+	Steps       []string        `json:"steps"`
+}
+
+type ImageUploadResult struct {
+	PackageName PackageName     `json:"packageName"`
+	Language    ListingLanguage `json:"language"`
+	Type        ImageType       `json:"type"`
+	Path        string          `json:"path"`
+	DryRun      bool            `json:"dryRun"`
+	Committed   bool            `json:"committed"`
+	Edit        *Edit           `json:"edit,omitempty"`
+	Image       *StoreImage     `json:"image,omitempty"`
+	Plan        ImageUploadPlan `json:"plan"`
+}
+
+func NewImageUploadPlan(options ImageUploadOptions) (ImageUploadPlan, error) {
+	if err := options.Validate(); err != nil {
+		return ImageUploadPlan{}, err
+	}
+	steps := []string{
+		"insert edit",
+		fmt.Sprintf("upload %s image for %s", options.Type, options.Language),
+		"validate edit",
+	}
+	if options.Confirm {
+		steps = append(steps, "commit edit")
+	} else {
+		steps = append(steps, "delete uncommitted edit")
+	}
+	return ImageUploadPlan{
+		PackageName: options.PackageName,
+		Language:    options.Language,
+		Type:        options.Type,
+		Path:        options.Path,
+		Confirm:     options.Confirm,
+		Steps:       steps,
+	}, nil
+}
+
+func UploadImage(ctx context.Context, uploader ImageUploader, options ImageUploadOptions) (result ImageUploadResult, err error) {
+	plan, err := NewImageUploadPlan(options)
+	if err != nil {
+		return ImageUploadResult{}, err
+	}
+	result = ImageUploadResult{
+		PackageName: options.PackageName,
+		Language:    options.Language,
+		Type:        options.Type,
+		Path:        options.Path,
+		DryRun:      options.DryRun,
+		Committed:   false,
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if err := ValidateReadableImageFile(options.Path); err != nil {
+		return ImageUploadResult{}, err
+	}
+	if uploader == nil {
+		return ImageUploadResult{}, fmt.Errorf("image uploader is required")
+	}
+
+	edit, err := uploader.InsertEdit(ctx, options.PackageName)
+	if err != nil {
+		return ImageUploadResult{}, err
+	}
+	result.Edit = &edit
+
+	shouldDeleteEdit := true
+	defer func() {
+		if shouldDeleteEdit {
+			cleanupCtx, cancel := newCleanupContext()
+			defer cancel()
+			if cleanupErr := uploader.DeleteEdit(cleanupCtx, options.PackageName, edit.ID); cleanupErr != nil {
+				err = errors.Join(err, cleanupErr)
+			}
+		}
+	}()
+
+	image, err := uploader.UploadImage(ctx, options.PackageName, edit.ID, options.Language, options.Type, options.Path)
+	if err != nil {
+		return ImageUploadResult{}, err
+	}
+	result.Image = &image
+	if err := uploader.ValidateEdit(ctx, options.PackageName, edit.ID); err != nil {
+		return ImageUploadResult{}, err
+	}
+	if !options.Confirm {
+		return result, nil
+	}
+
+	committedEdit, err := uploader.CommitEdit(ctx, options.PackageName, edit.ID)
+	if err != nil {
+		return ImageUploadResult{}, err
+	}
+	shouldDeleteEdit = false
+	result.Edit = &committedEdit
+	result.Committed = true
+	return result, nil
+}
+
+func ValidateReadableImageFile(path string) error {
+	if err := validateImagePath(path); err != nil {
+		return err
+	}
+	if err := ValidateReadableFile(path); err != nil {
+		return fmt.Errorf("open image %s: %w", path, err)
+	}
+	return nil
+}
+
+func ImageContentType(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+func validateImagePath(path string) error {
+	if path == "" {
+		return fmt.Errorf("image path is required")
+	}
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".jpg", ".jpeg", ".png":
+		return nil
+	default:
+		return fmt.Errorf("image path must end with .jpg, .jpeg, or .png")
+	}
 }
 
 type ImageDeleteOptions struct {
