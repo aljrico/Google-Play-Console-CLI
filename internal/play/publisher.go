@@ -105,7 +105,7 @@ func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName Pac
 		apiTrack = &androidpublisher.Track{Track: trackName.String()}
 	}
 	apiTrack.Track = trackName.String()
-	apiTrack.Releases = append(apiTrack.Releases, releaseToAPI(release))
+	upsertTrackRelease(apiTrack, releaseToAPI(release))
 
 	updatedTrack, err := p.service.Edits.Tracks.Update(packageName.String(), editID, trackName.String(), apiTrack).Context(ctx).Do()
 	if err != nil {
@@ -133,7 +133,7 @@ func (p GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName Pa
 		target = &androidpublisher.Track{Track: targetTrack.String()}
 	}
 	target.Track = targetTrack.String()
-	target.Releases = append(target.Releases, apiRelease)
+	upsertTrackRelease(target, apiRelease)
 
 	if _, err := p.service.Edits.Tracks.Update(packageName.String(), editID, targetTrack.String(), target).Context(ctx).Do(); err != nil {
 		return TrackRelease{}, fmt.Errorf("promote release from %s to %s for %s: %w", sourceTrack, targetTrack, packageName, err)
@@ -201,6 +201,28 @@ func hasVersionCode(release *androidpublisher.TrackRelease, versionCode int64) b
 	}
 	for _, candidate := range release.VersionCodes {
 		if candidate == versionCode {
+			return true
+		}
+	}
+	return false
+}
+
+func upsertTrackRelease(track *androidpublisher.Track, release *androidpublisher.TrackRelease) {
+	for index, existingRelease := range track.Releases {
+		if releasesShareVersionCode(existingRelease, release) {
+			track.Releases[index] = release
+			return
+		}
+	}
+	track.Releases = append(track.Releases, release)
+}
+
+func releasesShareVersionCode(left *androidpublisher.TrackRelease, right *androidpublisher.TrackRelease) bool {
+	if left == nil || right == nil {
+		return false
+	}
+	for _, versionCode := range right.VersionCodes {
+		if hasVersionCode(left, versionCode) {
 			return true
 		}
 	}

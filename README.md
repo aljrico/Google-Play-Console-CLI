@@ -24,7 +24,7 @@ gpc auth doctor
 
 The service account needs access to the target app in Play Console and the Google Play Android Developer API enabled in the linked Google Cloud project.
 
-### Planned Command Shape
+### Command Shape
 
 ```sh
 gpc tracks list --package com.example.app

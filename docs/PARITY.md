@@ -36,7 +36,7 @@ Sources:
 | `versions` | `releases` | `applications.tracks.releases`, `edits.tracks` | implemented | `gpc releases list` reads releases for a track through `edits.tracks`; upload, promote, halt, and resume cover the first mutation workflows. |
 | `builds` | `artifacts` / `releases upload` | `edits.apks`, `edits.bundles`, `generatedapks` | implemented | `gpc releases upload` uploads AABs through an edit; APK support is still planned. |
 | `build-bundles` | `bundles` | `edits.bundles`, `generatedapks` | planned | Android App Bundles are first-class in Play. |
-| `release` | `release` | `edits`, `edits.tracks`, `applications.tracks.releases` | implemented | `gpc releases upload`, `promote`, `halt`, and `resume` insert edits, update tracks, validate, and commit only with `--confirm`; promotion requires an explicit version code and target status. |
+| `release` | `release` | `edits`, `edits.tracks`, `applications.tracks.releases` | implemented | `gpc releases upload`, `promote`, `halt`, and `resume` insert edits, update tracks, validate, and commit only with `--confirm`; promotion requires an explicit version code and defaults target status to draft. |
 | `publish` | `publish` | `edits`, `edits.tracks` | implemented | `gpc publish internal` supports AAB upload planning and live validate/commit flow, appending through the raw Google track model to preserve existing release metadata. |
 | `status` | `status` | `applications.tracks.releases`, `edits.tracks` | planned | Should summarize active releases by track. |
 | `submit` | `publish` / `release` | `edits.commit`, `edits.validate` | implemented | Release upload and promotion validate by default and commit only with `--confirm`. |

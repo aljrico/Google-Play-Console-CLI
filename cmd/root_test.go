@@ -200,3 +200,32 @@ func TestReleasesResumeDryRun(t *testing.T) {
 		t.Fatalf("release resume dry-run output = %s", buf.String())
 	}
 }
+
+func TestReleasesResumeCompletedDryRun(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"releases",
+		"resume",
+		"--package",
+		"com.example.app",
+		"--track",
+		"production",
+		"--version-code",
+		"42",
+		"--status",
+		"completed",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(buf.String(), `"status":"completed"`) {
+		t.Fatalf("release resume completed dry-run output = %s", buf.String())
+	}
+}
