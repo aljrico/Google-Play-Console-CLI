@@ -66,6 +66,8 @@ gpc subscriptions get --package com.example.app --product-id premium_monthly
 gpc subscription-offers list --package com.example.app --product-id premium_monthly --base-plan-id monthly
 gpc subscription-offers get --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro
 gpc purchases product --package com.example.app --token PURCHASE_TOKEN
+gpc purchases product acknowledge --package com.example.app --product-id coins_100 --token PURCHASE_TOKEN --dry-run
+gpc purchases product consume --package com.example.app --product-id coins_100 --token PURCHASE_TOKEN --dry-run
 gpc purchases subscription --package com.example.app --token PURCHASE_TOKEN
 gpc purchases voided list --package com.example.app --max-results 25
 gpc orders get --package com.example.app --order-id GPA.1234-5678-9012-34567

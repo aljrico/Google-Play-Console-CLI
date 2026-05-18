@@ -676,6 +676,34 @@ func (p GooglePublisher) GetProductPurchase(ctx context.Context, options Product
 	return productPurchaseFromAPI(options, purchase), nil
 }
 
+func (p GooglePublisher) AcknowledgeProductPurchase(ctx context.Context, options ProductPurchaseMutationOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	request := &androidpublisher.ProductPurchasesAcknowledgeRequest{}
+	if options.DeveloperPayload != "" {
+		request.DeveloperPayload = options.DeveloperPayload
+	}
+	if err := p.service.Purchases.Products.Acknowledge(options.PackageName.String(), options.ProductID.String(), options.Token.String(), request).
+		Context(ctx).
+		Do(); err != nil {
+		return fmt.Errorf("acknowledge product purchase %s for %s/%s: %w", options.Token, options.PackageName, options.ProductID, err)
+	}
+	return nil
+}
+
+func (p GooglePublisher) ConsumeProductPurchase(ctx context.Context, options ProductPurchaseMutationOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	if err := p.service.Purchases.Products.Consume(options.PackageName.String(), options.ProductID.String(), options.Token.String()).
+		Context(ctx).
+		Do(); err != nil {
+		return fmt.Errorf("consume product purchase %s for %s/%s: %w", options.Token, options.PackageName, options.ProductID, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) GetSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error) {
 	purchase, err := p.service.Purchases.Subscriptionsv2.Get(options.PackageName.String(), options.Token.String()).Context(ctx).Do()
 	if err != nil {

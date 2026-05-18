@@ -790,6 +790,86 @@ func TestGetProductPurchaseUsesProductV2TokenEndpoint(t *testing.T) {
 	}
 }
 
+func TestAcknowledgeProductPurchaseUsesLegacyProductEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/purchases/products/coins_100/tokens/token-123:acknowledge" {
+			t.Fatalf("path = %q, want product acknowledge endpoint", r.URL.Path)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		if !strings.Contains(string(body), `"developerPayload":"order-7"`) {
+			t.Fatalf("body = %q, want developer payload", string(body))
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	err := publisher.AcknowledgeProductPurchase(context.Background(), ProductPurchaseMutationOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		Token:            "token-123",
+		DeveloperPayload: "order-7",
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("AcknowledgeProductPurchase() error = %v", err)
+	}
+}
+
+func TestAcknowledgeProductPurchaseRejectsDryRunBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	err := publisher.AcknowledgeProductPurchase(context.Background(), ProductPurchaseMutationOptions{
+		PackageName: "com.example.app",
+		ProductID:   "coins_100",
+		Token:       "token-123",
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected dry-run rejection")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
+func TestConsumeProductPurchaseUsesLegacyProductEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/purchases/products/coins_100/tokens/token-123:consume" {
+			t.Fatalf("path = %q, want product consume endpoint", r.URL.Path)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		if strings.TrimSpace(string(body)) != "" {
+			t.Fatalf("body = %q, want empty body", string(body))
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	err := publisher.ConsumeProductPurchase(context.Background(), ProductPurchaseMutationOptions{
+		PackageName: "com.example.app",
+		ProductID:   "coins_100",
+		Token:       "token-123",
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("ConsumeProductPurchase() error = %v", err)
+	}
+}
+
 func TestProductPurchaseJSONPreservesZeroQuantities(t *testing.T) {
 	payload, err := json.Marshal(ProductPurchase{
 		PackageName: "com.example.app",

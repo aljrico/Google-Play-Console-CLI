@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
@@ -13,7 +14,7 @@ func newPurchasesCommand(out io.Writer, options *globalOptions) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "purchases",
-		Short: "Inspect Google Play purchase tokens",
+		Short: "Inspect and manage Google Play purchase tokens",
 	}
 	cmd.PersistentFlags().StringVar(&packageName, "package", "", "Android package name, for example com.example.app")
 	cmd.AddCommand(
@@ -32,7 +33,7 @@ func newPurchasesProductCommand(out io.Writer, options *globalOptions, packageNa
 
 	cmd := &cobra.Command{
 		Use:   "product",
-		Short: "Get one in-app product purchase",
+		Short: "Get or mutate one in-app product purchase",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, typedToken, err := parsePurchaseParent(*packageName, token)
@@ -66,7 +67,91 @@ func newPurchasesProductCommand(out io.Writer, options *globalOptions, packageNa
 	}
 	cmd.Flags().StringVar(&productID, "product-id", "", "Optional in-app product ID hint for stable output when Google omits line items")
 	cmd.Flags().StringVar(&token, "token", "", "Purchase token")
+	cmd.AddCommand(
+		newPurchasesProductAcknowledgeCommand(out, options, packageName),
+		newPurchasesProductConsumeCommand(out, options, packageName),
+	)
 	return cmd
+}
+
+func newPurchasesProductAcknowledgeCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	return newPurchasesProductMutationCommand(out, options, packageName, "acknowledge", "Acknowledge an in-app product purchase")
+}
+
+func newPurchasesProductConsumeCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	return newPurchasesProductMutationCommand(out, options, packageName, "consume", "Consume an in-app product purchase")
+}
+
+func newPurchasesProductMutationCommand(out io.Writer, options *globalOptions, packageName *string, action string, short string) *cobra.Command {
+	var (
+		productID        string
+		token            string
+		developerPayload string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   action,
+		Short: short,
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, typedToken, err := parsePurchaseParent(*packageName, token)
+			if err != nil {
+				return err
+			}
+			typedProductID, err := play.NewInAppProductSKU(productID)
+			if err != nil {
+				return err
+			}
+			mutationOptions := play.ProductPurchaseMutationOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				Token:            typedToken,
+				DeveloperPayload: developerPayload,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if err := mutationOptions.Validate(); err != nil {
+				return err
+			}
+			if dryRun {
+				return runProductPurchaseMutation(cmd, out, options, nil, mutationOptions, action)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return runProductPurchaseMutation(cmd, out, options, publisher, mutationOptions, action)
+		},
+	}
+	cmd.Flags().StringVar(&productID, "product-id", "", "In-app product ID")
+	cmd.Flags().StringVar(&token, "token", "", "Purchase token")
+	if action == "acknowledge" {
+		cmd.Flags().StringVar(&developerPayload, "developer-payload", "", "Optional developer payload to attach to the acknowledgement")
+	}
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the product purchase mutation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned product purchase mutation without calling Google Play")
+	return cmd
+}
+
+func runProductPurchaseMutation(cmd *cobra.Command, out io.Writer, options *globalOptions, mutator play.ProductPurchaseMutator, mutationOptions play.ProductPurchaseMutationOptions, action string) error {
+	var (
+		result play.ProductPurchaseMutationResult
+		err    error
+	)
+	switch action {
+	case "acknowledge":
+		result, err = play.AcknowledgeProductPurchase(cmd.Context(), mutator, mutationOptions)
+	case "consume":
+		result, err = play.ConsumeProductPurchase(cmd.Context(), mutator, mutationOptions)
+	default:
+		err = fmt.Errorf("unsupported product purchase action %q", action)
+	}
+	if err != nil {
+		return err
+	}
+	return output.Write(out, options.output, options.pretty, result)
 }
 
 func newPurchasesSubscriptionCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {

@@ -45,6 +45,61 @@ func TestGetProductPurchaseRejectsMissingToken(t *testing.T) {
 	}
 }
 
+func TestAcknowledgeProductPurchaseDryRunDoesNotCallMutator(t *testing.T) {
+	result, err := AcknowledgeProductPurchase(context.Background(), nil, ProductPurchaseMutationOptions{
+		PackageName: "com.example.app",
+		ProductID:   "coins_100",
+		Token:       "token-123",
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("AcknowledgeProductPurchase() error = %v", err)
+	}
+	if result.Applied {
+		t.Fatalf("Applied = true, want false")
+	}
+	if result.Action != "acknowledge" || result.Plan.Action != "acknowledge" {
+		t.Fatalf("result = %#v, want acknowledge action", result)
+	}
+}
+
+func TestConsumeProductPurchasePassesOptionsToMutator(t *testing.T) {
+	mutator := &fakePurchaseClient{}
+	options := ProductPurchaseMutationOptions{
+		PackageName: "com.example.app",
+		ProductID:   "coins_100",
+		Token:       "token-123",
+		Confirm:     true,
+	}
+
+	result, err := ConsumeProductPurchase(context.Background(), mutator, options)
+	if err != nil {
+		t.Fatalf("ConsumeProductPurchase() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatalf("Applied = false, want true")
+	}
+	if mutator.consumeOptions != options {
+		t.Fatalf("consumeOptions = %#v, want %#v", mutator.consumeOptions, options)
+	}
+}
+
+func TestProductPurchaseMutationRejectsInvalidOptions(t *testing.T) {
+	tests := []ProductPurchaseMutationOptions{
+		{},
+		{PackageName: "bad", ProductID: "coins_100", Token: "token-123", DryRun: true},
+		{PackageName: "com.example.app", Token: "token-123", DryRun: true},
+		{PackageName: "com.example.app", ProductID: "coins_100", DryRun: true},
+		{PackageName: "com.example.app", ProductID: "coins_100", Token: "token-123"},
+		{PackageName: "com.example.app", ProductID: "coins_100", Token: "token-123", Confirm: true, DryRun: true},
+	}
+	for _, options := range tests {
+		if _, err := AcknowledgeProductPurchase(context.Background(), nil, options); err == nil {
+			t.Fatalf("AcknowledgeProductPurchase(%#v) expected validation error", options)
+		}
+	}
+}
+
 func TestGetSubscriptionPurchasePassesOptionsToGetter(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -178,6 +233,8 @@ func TestVoidedPurchaseListOptionsAcceptsValidTimeWindow(t *testing.T) {
 type fakePurchaseClient struct {
 	productOptions       ProductPurchaseOptions
 	productPurchase      ProductPurchase
+	acknowledgeOptions   ProductPurchaseMutationOptions
+	consumeOptions       ProductPurchaseMutationOptions
 	subscriptionOptions  SubscriptionPurchaseOptions
 	subscriptionPurchase SubscriptionPurchase
 	voidedOptions        VoidedPurchaseListOptions
@@ -187,6 +244,16 @@ type fakePurchaseClient struct {
 func (c *fakePurchaseClient) GetProductPurchase(ctx context.Context, options ProductPurchaseOptions) (ProductPurchase, error) {
 	c.productOptions = options
 	return c.productPurchase, nil
+}
+
+func (c *fakePurchaseClient) AcknowledgeProductPurchase(ctx context.Context, options ProductPurchaseMutationOptions) error {
+	c.acknowledgeOptions = options
+	return nil
+}
+
+func (c *fakePurchaseClient) ConsumeProductPurchase(ctx context.Context, options ProductPurchaseMutationOptions) error {
+	c.consumeOptions = options
+	return nil
 }
 
 func (c *fakePurchaseClient) GetSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error) {

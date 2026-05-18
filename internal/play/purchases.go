@@ -70,6 +70,11 @@ type ProductPurchaseGetter interface {
 	GetProductPurchase(ctx context.Context, options ProductPurchaseOptions) (ProductPurchase, error)
 }
 
+type ProductPurchaseMutator interface {
+	AcknowledgeProductPurchase(ctx context.Context, options ProductPurchaseMutationOptions) error
+	ConsumeProductPurchase(ctx context.Context, options ProductPurchaseMutationOptions) error
+}
+
 func GetProductPurchase(ctx context.Context, getter ProductPurchaseGetter, options ProductPurchaseOptions) (ProductPurchase, error) {
 	if err := options.Validate(); err != nil {
 		return ProductPurchase{}, err
@@ -78,6 +83,118 @@ func GetProductPurchase(ctx context.Context, getter ProductPurchaseGetter, optio
 		return ProductPurchase{}, fmt.Errorf("product purchase getter is required")
 	}
 	return getter.GetProductPurchase(ctx, options)
+}
+
+type ProductPurchaseMutationOptions struct {
+	PackageName      PackageName     `json:"packageName"`
+	ProductID        InAppProductSKU `json:"productId"`
+	Token            PurchaseToken   `json:"token"`
+	DeveloperPayload string          `json:"developerPayload,omitempty"`
+	Confirm          bool            `json:"confirm"`
+	DryRun           bool            `json:"dryRun"`
+}
+
+func (o ProductPurchaseMutationOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewInAppProductSKU(o.ProductID.String()); err != nil {
+		return err
+	}
+	if _, err := NewPurchaseToken(o.Token.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("product purchase mutation requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o ProductPurchaseMutationOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live product purchase mutation cannot run with --dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live product purchase mutation requires --confirm")
+	}
+	return nil
+}
+
+type ProductPurchaseMutationPlan struct {
+	Action           string          `json:"action"`
+	PackageName      PackageName     `json:"packageName"`
+	ProductID        InAppProductSKU `json:"productId"`
+	Token            PurchaseToken   `json:"token"`
+	DeveloperPayload string          `json:"developerPayload,omitempty"`
+	Confirm          bool            `json:"confirm"`
+	Steps            []string        `json:"steps"`
+}
+
+type ProductPurchaseMutationResult struct {
+	Action      string                      `json:"action"`
+	PackageName PackageName                 `json:"packageName"`
+	ProductID   InAppProductSKU             `json:"productId"`
+	Token       PurchaseToken               `json:"token"`
+	DryRun      bool                        `json:"dryRun"`
+	Applied     bool                        `json:"applied"`
+	Plan        ProductPurchaseMutationPlan `json:"plan"`
+}
+
+func AcknowledgeProductPurchase(ctx context.Context, mutator ProductPurchaseMutator, options ProductPurchaseMutationOptions) (ProductPurchaseMutationResult, error) {
+	return mutateProductPurchase(ctx, mutator, options, "acknowledge")
+}
+
+func ConsumeProductPurchase(ctx context.Context, mutator ProductPurchaseMutator, options ProductPurchaseMutationOptions) (ProductPurchaseMutationResult, error) {
+	return mutateProductPurchase(ctx, mutator, options, "consume")
+}
+
+func mutateProductPurchase(ctx context.Context, mutator ProductPurchaseMutator, options ProductPurchaseMutationOptions, action string) (ProductPurchaseMutationResult, error) {
+	if err := options.Validate(); err != nil {
+		return ProductPurchaseMutationResult{}, err
+	}
+	steps := []string{action + " product purchase"}
+	result := ProductPurchaseMutationResult{
+		Action:      action,
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		Token:       options.Token,
+		DryRun:      options.DryRun,
+		Plan: ProductPurchaseMutationPlan{
+			Action:           action,
+			PackageName:      options.PackageName,
+			ProductID:        options.ProductID,
+			Token:            options.Token,
+			DeveloperPayload: options.DeveloperPayload,
+			Confirm:          options.Confirm,
+			Steps:            steps,
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if mutator == nil {
+		return ProductPurchaseMutationResult{}, fmt.Errorf("product purchase mutator is required")
+	}
+	switch action {
+	case "acknowledge":
+		if err := mutator.AcknowledgeProductPurchase(ctx, options); err != nil {
+			return ProductPurchaseMutationResult{}, err
+		}
+	case "consume":
+		if err := mutator.ConsumeProductPurchase(ctx, options); err != nil {
+			return ProductPurchaseMutationResult{}, err
+		}
+	default:
+		return ProductPurchaseMutationResult{}, fmt.Errorf("unsupported product purchase action %q", action)
+	}
+	result.Applied = true
+	return result, nil
 }
 
 type SubscriptionPurchaseOptions struct {
