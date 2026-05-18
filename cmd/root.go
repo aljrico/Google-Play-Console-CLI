@@ -45,6 +45,7 @@ func newRootCommand(out io.Writer) *cobra.Command {
 		newDetailsCommand(out, options),
 		newReviewsCommand(out, options),
 		newInAppProductsCommand(out, options),
+		newSubscriptionsCommand(out, options),
 	)
 
 	return cmd

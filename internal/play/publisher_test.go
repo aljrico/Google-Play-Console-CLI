@@ -176,6 +176,13 @@ func TestInAppProductFromAPIMapsCatalogFields(t *testing.T) {
 		Listings: map[string]androidpublisher.InAppProductListing{
 			"en-US": {Title: "100 coins", Description: "A small pack."},
 		},
+		ManagedProductTaxesAndComplianceSettings: &androidpublisher.ManagedProductTaxAndComplianceSettings{
+			EeaWithdrawalRightType:  "WITHDRAWAL_RIGHT_DIGITAL_CONTENT",
+			IsTokenizedDigitalAsset: true,
+			TaxRateInfoByRegionCode: map[string]androidpublisher.RegionalTaxRateInfo{
+				"US": {TaxTier: "TAX_TIER_NEWS_1", EligibleForStreamingServiceTaxRate: true},
+			},
+		},
 	})
 
 	if product.PackageName != "com.example.app" {
@@ -192,6 +199,15 @@ func TestInAppProductFromAPIMapsCatalogFields(t *testing.T) {
 	}
 	if product.Listings["en-US"].Title != "100 coins" {
 		t.Fatalf("listing = %#v, want title", product.Listings["en-US"])
+	}
+	if product.ManagedProductTaxAndComplianceSettings == nil {
+		t.Fatal("ManagedProductTaxAndComplianceSettings = nil, want settings")
+	}
+	if !product.ManagedProductTaxAndComplianceSettings.IsTokenizedDigitalAsset {
+		t.Fatal("IsTokenizedDigitalAsset = false, want true")
+	}
+	if product.ManagedProductTaxAndComplianceSettings.TaxRateInfoByRegionCode["US"].TaxTier != "TAX_TIER_NEWS_1" {
+		t.Fatalf("TaxRateInfoByRegionCode = %#v, want US tax tier", product.ManagedProductTaxAndComplianceSettings.TaxRateInfoByRegionCode)
 	}
 }
 
@@ -215,6 +231,89 @@ func TestInAppProductListResultFromAPIMapsPagination(t *testing.T) {
 	}
 	if result.Pagination == nil || result.Pagination.NextPageToken != "next" {
 		t.Fatalf("Pagination = %#v, want next token", result.Pagination)
+	}
+}
+
+func TestSubscriptionFromAPIMapsListingsAndBasePlans(t *testing.T) {
+	subscription := subscriptionFromAPI(&androidpublisher.Subscription{
+		PackageName: "com.example.app",
+		ProductId:   "premium",
+		Listings: []*androidpublisher.SubscriptionListing{
+			{LanguageCode: "en-US", Title: "Premium", Description: "All features"},
+		},
+		BasePlans: []*androidpublisher.BasePlan{
+			{
+				BasePlanId: "monthly",
+				State:      "ACTIVE",
+				AutoRenewingBasePlanType: &androidpublisher.AutoRenewingBasePlanType{
+					BillingPeriodDuration: "P1M",
+					GracePeriodDuration:   "P7D",
+					AccountHoldDuration:   "P30D",
+					LegacyCompatible:      true,
+				},
+				OfferTags: []*androidpublisher.OfferTag{{Tag: "public"}},
+				RegionalConfigs: []*androidpublisher.RegionalBasePlanConfig{
+					{RegionCode: "US"},
+				},
+			},
+			{
+				BasePlanId:          "prepaid",
+				State:               "DRAFT",
+				PrepaidBasePlanType: &androidpublisher.PrepaidBasePlanType{BillingPeriodDuration: "P1M"},
+			},
+		},
+		RestrictedPaymentCountries: &androidpublisher.RestrictedPaymentCountries{
+			RegionCodes: []string{"BR", "IN"},
+		},
+	})
+
+	if subscription.ProductID != "premium" {
+		t.Fatalf("ProductID = %q, want premium", subscription.ProductID)
+	}
+	if len(subscription.Listings) != 1 || subscription.Listings[0].Title != "Premium" {
+		t.Fatalf("Listings = %#v, want Premium listing", subscription.Listings)
+	}
+	if len(subscription.BasePlans) != 2 {
+		t.Fatalf("len(BasePlans) = %d, want 2", len(subscription.BasePlans))
+	}
+	if subscription.BasePlans[0].Type != SubscriptionBasePlanTypeAutoRenewing {
+		t.Fatalf("first base plan type = %q, want autoRenewing", subscription.BasePlans[0].Type)
+	}
+	if subscription.BasePlans[0].BillingPeriodDuration != "P1M" {
+		t.Fatalf("billing duration = %q, want P1M", subscription.BasePlans[0].BillingPeriodDuration)
+	}
+	if subscription.BasePlans[0].OfferTags[0] != "public" {
+		t.Fatalf("OfferTags = %#v, want public", subscription.BasePlans[0].OfferTags)
+	}
+	if subscription.BasePlans[0].RegionalConfigCount != 1 {
+		t.Fatalf("RegionalConfigCount = %d, want 1", subscription.BasePlans[0].RegionalConfigCount)
+	}
+	if subscription.BasePlans[1].Type != SubscriptionBasePlanTypePrepaid {
+		t.Fatalf("second base plan type = %q, want prepaid", subscription.BasePlans[1].Type)
+	}
+	if len(subscription.RestrictedCountries) != 2 {
+		t.Fatalf("RestrictedCountries = %#v, want two countries", subscription.RestrictedCountries)
+	}
+}
+
+func TestSubscriptionListResultFromAPIMapsNextPageToken(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result := subscriptionListResultFromAPI(SubscriptionListOptions{PackageName: packageName}, &androidpublisher.ListSubscriptionsResponse{
+		NextPageToken: "next",
+		Subscriptions: []*androidpublisher.Subscription{
+			{PackageName: "com.example.app", ProductId: "premium"},
+		},
+	})
+
+	if len(result.Subscriptions) != 1 {
+		t.Fatalf("len(Subscriptions) = %d, want 1", len(result.Subscriptions))
+	}
+	if result.NextPageToken != "next" {
+		t.Fatalf("NextPageToken = %q, want next", result.NextPageToken)
 	}
 }
 

@@ -430,3 +430,53 @@ func TestInAppProductsGetRejectsMissingSKUBeforeAuth(t *testing.T) {
 		t.Fatalf("error = %v, want SKU validation", err)
 	}
 }
+
+func TestSubscriptionsListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"list",
+		"--package",
+		"com.example.app",
+		"--page-size",
+		"1001",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected page size validation error")
+	}
+	if !strings.Contains(err.Error(), "page size") {
+		t.Fatalf("error = %v, want page size validation", err)
+	}
+}
+
+func TestSubscriptionsGetRejectsInvalidProductIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"Premium",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected product ID validation error")
+	}
+	if !strings.Contains(err.Error(), "subscription product ID") {
+		t.Fatalf("error = %v, want product ID validation", err)
+	}
+}

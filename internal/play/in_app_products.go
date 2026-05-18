@@ -46,17 +46,31 @@ type InAppProductListing struct {
 }
 
 type InAppProduct struct {
-	PackageName        PackageName                    `json:"packageName"`
-	SKU                InAppProductSKU                `json:"sku"`
-	Status             ProductStatus                  `json:"status,omitempty"`
-	PurchaseType       ProductPurchaseType            `json:"purchaseType,omitempty"`
-	DefaultLanguage    string                         `json:"defaultLanguage,omitempty"`
-	DefaultPrice       *ProductPrice                  `json:"defaultPrice,omitempty"`
-	Prices             map[string]ProductPrice        `json:"prices,omitempty"`
-	Listings           map[string]InAppProductListing `json:"listings,omitempty"`
-	SubscriptionPeriod string                         `json:"subscriptionPeriod,omitempty"`
-	TrialPeriod        string                         `json:"trialPeriod,omitempty"`
-	GracePeriod        string                         `json:"gracePeriod,omitempty"`
+	PackageName                            PackageName                    `json:"packageName"`
+	SKU                                    InAppProductSKU                `json:"sku"`
+	Status                                 ProductStatus                  `json:"status,omitempty"`
+	PurchaseType                           ProductPurchaseType            `json:"purchaseType,omitempty"`
+	DefaultLanguage                        string                         `json:"defaultLanguage,omitempty"`
+	DefaultPrice                           *ProductPrice                  `json:"defaultPrice,omitempty"`
+	Prices                                 map[string]ProductPrice        `json:"prices,omitempty"`
+	Listings                               map[string]InAppProductListing `json:"listings,omitempty"`
+	SubscriptionPeriod                     string                         `json:"subscriptionPeriod,omitempty"`
+	TrialPeriod                            string                         `json:"trialPeriod,omitempty"`
+	GracePeriod                            string                         `json:"gracePeriod,omitempty"`
+	ManagedProductTaxAndComplianceSettings *ProductTaxComplianceSettings  `json:"managedProductTaxAndComplianceSettings,omitempty"`
+	SubscriptionTaxAndComplianceSettings   *ProductTaxComplianceSettings  `json:"subscriptionTaxAndComplianceSettings,omitempty"`
+}
+
+type ProductTaxComplianceSettings struct {
+	EEAWithdrawalRightType  string                         `json:"eeaWithdrawalRightType,omitempty"`
+	IsTokenizedDigitalAsset bool                           `json:"isTokenizedDigitalAsset,omitempty"`
+	TaxRateInfoByRegionCode map[string]RegionalTaxRateInfo `json:"taxRateInfoByRegionCode,omitempty"`
+}
+
+type RegionalTaxRateInfo struct {
+	EligibleForStreamingServiceTaxRate bool   `json:"eligibleForStreamingServiceTaxRate,omitempty"`
+	StreamingTaxType                   string `json:"streamingTaxType,omitempty"`
+	TaxTier                            string `json:"taxTier,omitempty"`
 }
 
 type InAppProductPagination struct {

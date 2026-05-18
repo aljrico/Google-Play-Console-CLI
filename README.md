@@ -41,11 +41,13 @@ gpc reviews get --package com.example.app --review-id review-123
 gpc reviews reply --package com.example.app --review-id review-123 --text "Thanks for the feedback." --dry-run
 gpc in-app-products list --package com.example.app
 gpc in-app-products get --package com.example.app --sku coins_100
+gpc subscriptions list --package com.example.app --page-size 50
+gpc subscriptions get --package com.example.app --product-id premium_monthly
 ```
 
 Review APIs follow Google Play's limits: list responses are recent reviews with comments, reply text is capped at 350 characters, and live replies require a service account with review-reply access.
 
-`in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; modern subscriptions need the newer monetization subscription resources.
+`in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `subscriptions` uses the newer monetization subscription resources.
 
 ### First Publish Flow
 
@@ -73,6 +75,6 @@ gpc version --output markdown
 
 ## Status
 
-Early but functional. Auth/profile storage, the command taxonomy, core release workflows, localized listings, app-level details, review reading/replies, and read-only legacy in-app product catalog commands are in place.
+Early but functional. Auth/profile storage, the command taxonomy, core release workflows, localized listings, app-level details, review reading/replies, and read-only monetization catalog commands are in place.
 
 See [docs/PARITY.md](docs/PARITY.md) for the working parity map against App Store Connect CLI.
