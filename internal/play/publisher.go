@@ -105,6 +105,24 @@ func (p GooglePublisher) ListTracks(ctx context.Context, packageName PackageName
 	return tracks, nil
 }
 
+func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName PackageName, editID string, trackName TrackName, release TrackRelease) (Track, error) {
+	apiTrack, err := p.service.Edits.Tracks.Get(packageName.String(), editID, trackName.String()).Context(ctx).Do()
+	if err != nil {
+		return Track{}, fmt.Errorf("get %s track for %s: %w", trackName, packageName, err)
+	}
+	if apiTrack == nil {
+		apiTrack = &androidpublisher.Track{Track: trackName.String()}
+	}
+	apiTrack.Track = trackName.String()
+	apiTrack.Releases = append(apiTrack.Releases, releaseToAPI(release))
+
+	updatedTrack, err := p.service.Edits.Tracks.Update(packageName.String(), editID, trackName.String(), apiTrack).Context(ctx).Do()
+	if err != nil {
+		return Track{}, fmt.Errorf("append release to %s track for %s: %w", trackName, packageName, err)
+	}
+	return trackFromAPI(updatedTrack), nil
+}
+
 func trackFromAPI(apiTrack *androidpublisher.Track) Track {
 	if apiTrack == nil {
 		return Track{}

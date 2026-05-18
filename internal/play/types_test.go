@@ -48,6 +48,17 @@ func TestPublishInternalOptionsRequiresUserFractionForStagedRollout(t *testing.T
 	}
 }
 
+func TestPublishInternalOptionsRejectsInvalidTypedPackageName(t *testing.T) {
+	options := PublishInternalOptions{
+		PackageName: PackageName("bad"),
+		BundlePath:  "app-release.aab",
+		Status:      ReleaseStatusCompleted,
+	}
+	if err := options.Validate(); err == nil {
+		t.Fatal("expected package validation error")
+	}
+}
+
 func TestPublishInternalOptionsRejectsUserFractionForCompletedRelease(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {

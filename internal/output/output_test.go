@@ -38,6 +38,19 @@ func TestWritePlainTableForStructSlice(t *testing.T) {
 	}
 }
 
+func TestDefaultOutputUsesWriter(t *testing.T) {
+	var buf bytes.Buffer
+
+	err := Write(&buf, "", false, sampleRow{Name: "internal", Status: "completed"})
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, `"name":"internal"`) {
+		t.Fatalf("default output = %q, want compact JSON for non-file writer", output)
+	}
+}
+
 func TestWriteMarkdownTableForStruct(t *testing.T) {
 	var buf bytes.Buffer
 

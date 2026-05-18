@@ -59,6 +59,6 @@ gpc version --output markdown
 
 ## Status
 
-Early scaffold. Auth/profile storage and the command taxonomy are in place; API-backed Play Console commands come next.
+Early but functional. Auth/profile storage, the command taxonomy, `tracks list`, `releases list`, and the first API-backed publish workflow are in place.
 
 See [docs/PARITY.md](docs/PARITY.md) for the working parity map against App Store Connect CLI.

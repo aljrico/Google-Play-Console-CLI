@@ -19,7 +19,7 @@ const (
 
 func (f *Format) String() string {
 	if f == nil || *f == "" {
-		return string(defaultFormat())
+		return string(JSON)
 	}
 	return string(*f)
 }
@@ -40,7 +40,7 @@ func (f *Format) Type() string {
 
 func Write(w io.Writer, format Format, pretty bool, value any) error {
 	if format == "" {
-		format = defaultFormat()
+		format = defaultFormat(w)
 	}
 
 	switch format {
@@ -59,8 +59,12 @@ func Write(w io.Writer, format Format, pretty bool, value any) error {
 	}
 }
 
-func defaultFormat() Format {
-	if info, err := os.Stdout.Stat(); err == nil && info.Mode()&os.ModeCharDevice != 0 {
+func defaultFormat(w io.Writer) Format {
+	file, ok := w.(*os.File)
+	if !ok {
+		return JSON
+	}
+	if info, err := file.Stat(); err == nil && info.Mode()&os.ModeCharDevice != 0 {
 		return Table
 	}
 	return JSON

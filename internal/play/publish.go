@@ -9,8 +9,7 @@ import (
 type InternalPublisher interface {
 	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
 	UploadBundle(ctx context.Context, packageName PackageName, editID string, bundlePath string) (BundleArtifact, error)
-	ListTracks(ctx context.Context, packageName PackageName, editID string) ([]Track, error)
-	UpdateTrack(ctx context.Context, packageName PackageName, editID string, track Track) (Track, error)
+	AppendTrackRelease(ctx context.Context, packageName PackageName, editID string, trackName TrackName, release TrackRelease) (Track, error)
 	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
 	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
 	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
@@ -44,7 +43,9 @@ func PublishInternal(ctx context.Context, publisher InternalPublisher, options P
 	shouldDeleteEdit := true
 	defer func() {
 		if shouldDeleteEdit {
-			if cleanupErr := publisher.DeleteEdit(ctx, options.PackageName, edit.ID); cleanupErr != nil {
+			cleanupCtx, cancel := newCleanupContext()
+			defer cancel()
+			if cleanupErr := publisher.DeleteEdit(cleanupCtx, options.PackageName, edit.ID); cleanupErr != nil {
 				err = errors.Join(err, cleanupErr)
 			}
 		}
@@ -63,13 +64,7 @@ func PublishInternal(ctx context.Context, publisher InternalPublisher, options P
 		VersionCodes: []int64{bundle.VersionCode},
 	}
 
-	tracks, err := publisher.ListTracks(ctx, options.PackageName, edit.ID)
-	if err != nil {
-		return PublishResult{}, err
-	}
-	releases := append(releasesForTrack(tracks, TrackInternal), release)
-	track := Track{Name: TrackInternal, Releases: releases}
-	if _, err := publisher.UpdateTrack(ctx, options.PackageName, edit.ID, track); err != nil {
+	if _, err := publisher.AppendTrackRelease(ctx, options.PackageName, edit.ID, TrackInternal, release); err != nil {
 		return PublishResult{}, err
 	}
 	if err := publisher.ValidateEdit(ctx, options.PackageName, edit.ID); err != nil {
@@ -87,13 +82,4 @@ func PublishInternal(ctx context.Context, publisher InternalPublisher, options P
 	result.Edit = &committedEdit
 	result.Committed = true
 	return result, nil
-}
-
-func releasesForTrack(tracks []Track, trackName TrackName) []TrackRelease {
-	for _, track := range tracks {
-		if track.Name == trackName {
-			return append([]TrackRelease{}, track.Releases...)
-		}
-	}
-	return []TrackRelease{}
 }

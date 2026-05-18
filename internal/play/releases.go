@@ -6,8 +6,8 @@ import (
 )
 
 func ListTrackReleases(ctx context.Context, publisher TrackLister, packageName PackageName, track TrackName) ([]TrackRelease, error) {
-	if packageName == "" {
-		return nil, fmt.Errorf("package name is required")
+	if err := packageName.Validate(); err != nil {
+		return nil, err
 	}
 	if track == "" {
 		return nil, fmt.Errorf("track name is required")

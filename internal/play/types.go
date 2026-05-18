@@ -22,6 +22,11 @@ func (p PackageName) String() string {
 	return string(p)
 }
 
+func (p PackageName) Validate() error {
+	_, err := NewPackageName(p.String())
+	return err
+}
+
 func isValidPackageName(value string) bool {
 	segments := strings.Split(value, ".")
 	if len(segments) < 2 {
@@ -132,8 +137,8 @@ type PublishInternalOptions struct {
 }
 
 func (o PublishInternalOptions) Validate() error {
-	if o.PackageName == "" {
-		return fmt.Errorf("package name is required")
+	if err := o.PackageName.Validate(); err != nil {
+		return err
 	}
 	if o.BundlePath == "" {
 		return fmt.Errorf("AAB path is required")
@@ -180,8 +185,7 @@ func NewPublishInternalPlan(options PublishInternalOptions) (PublishPlan, error)
 	steps := []string{
 		"insert edit",
 		"upload Android App Bundle",
-		"list existing internal track releases",
-		"update internal track release",
+		"append release to internal track",
 		"validate edit",
 	}
 	if options.Confirm {

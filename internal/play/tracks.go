@@ -13,8 +13,8 @@ type TrackLister interface {
 }
 
 func ListTracks(ctx context.Context, publisher TrackLister, packageName PackageName) (tracks []Track, err error) {
-	if packageName == "" {
-		return nil, fmt.Errorf("package name is required")
+	if err := packageName.Validate(); err != nil {
+		return nil, err
 	}
 	if publisher == nil {
 		return nil, fmt.Errorf("publisher is required")
@@ -26,7 +26,9 @@ func ListTracks(ctx context.Context, publisher TrackLister, packageName PackageN
 	}
 
 	defer func() {
-		if cleanupErr := publisher.DeleteEdit(ctx, packageName, edit.ID); cleanupErr != nil {
+		cleanupCtx, cancel := newCleanupContext()
+		defer cancel()
+		if cleanupErr := publisher.DeleteEdit(cleanupCtx, packageName, edit.ID); cleanupErr != nil {
 			err = errors.Join(err, cleanupErr)
 		}
 	}()
