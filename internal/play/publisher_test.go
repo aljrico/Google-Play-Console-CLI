@@ -1569,6 +1569,68 @@ func TestDownloadGeneratedAPKRejectsExistingFileBeforeRequest(t *testing.T) {
 	}
 }
 
+func TestDownloadGeneratedAPKForceReplacesExistingFile(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "split.apk")
+	if err := os.WriteFile(outputPath, []byte("existing"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/vnd.android.package-archive")
+		_, _ = w.Write([]byte("replacement"))
+	}))
+
+	result, err := publisher.DownloadGeneratedAPK(context.Background(), GeneratedAPKDownloadOptions{
+		PackageName: "com.example.app",
+		VersionCode: 42,
+		DownloadID:  "split-download",
+		OutputPath:  outputPath,
+		Force:       true,
+	})
+	if err != nil {
+		t.Fatalf("DownloadGeneratedAPK() error = %v", err)
+	}
+	if result.BytesWritten != int64(len("replacement")) {
+		t.Fatalf("BytesWritten = %d, want replacement length", result.BytesWritten)
+	}
+	contents, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(contents) != "replacement" {
+		t.Fatalf("contents = %q, want replacement", string(contents))
+	}
+}
+
+func TestDownloadGeneratedAPKRemovesTempFileOnBodyError(t *testing.T) {
+	dir := t.TempDir()
+	outputPath := filepath.Join(dir, "split.apk")
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/vnd.android.package-archive")
+		w.Header().Set("Content-Length", "20")
+		_, _ = w.Write([]byte("partial"))
+	}))
+
+	_, err := publisher.DownloadGeneratedAPK(context.Background(), GeneratedAPKDownloadOptions{
+		PackageName: "com.example.app",
+		VersionCode: 42,
+		DownloadID:  "split-download",
+		OutputPath:  outputPath,
+	})
+	if err == nil {
+		t.Fatal("expected body read error")
+	}
+	if _, statErr := os.Stat(outputPath); !os.IsNotExist(statErr) {
+		t.Fatalf("output stat error = %v, want not exist", statErr)
+	}
+	matches, globErr := filepath.Glob(filepath.Join(dir, ".split.apk.tmp-*"))
+	if globErr != nil {
+		t.Fatalf("Glob() error = %v", globErr)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("temporary files = %v, want none", matches)
+	}
+}
+
 func TestListSystemAPKVariantsUsesVersionCodeEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/systemApks/42/variants" {

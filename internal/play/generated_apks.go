@@ -21,9 +21,6 @@ func NewGeneratedAPKDownloadID(value string) (GeneratedAPKDownloadID, error) {
 	if value == "" {
 		return "", fmt.Errorf("download ID is required")
 	}
-	if strings.Contains(value, "/") {
-		return "", fmt.Errorf("download ID cannot contain /")
-	}
 	return GeneratedAPKDownloadID(value), nil
 }
 
@@ -243,6 +240,9 @@ func ValidateGeneratedAPKOutputPath(path string, force bool) error {
 		}
 		if info.IsDir() {
 			return fmt.Errorf("output path %s is a directory", path)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("output path %s is not a regular file", path)
 		}
 		if !force {
 			return fmt.Errorf("output path %s already exists; pass --force to overwrite", path)

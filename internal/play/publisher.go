@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"google.golang.org/api/androidpublisher/v3"
@@ -578,25 +579,30 @@ func (p GooglePublisher) DownloadGeneratedAPK(ctx context.Context, options Gener
 	}
 	defer response.Body.Close()
 
-	flags := os.O_WRONLY | os.O_CREATE
-	if options.Force {
-		flags |= os.O_TRUNC
-	} else {
-		flags |= os.O_EXCL
-	}
-	file, err := os.OpenFile(options.OutputPath, flags, 0o644)
+	tempFile, err := createGeneratedAPKTempFile(options.OutputPath)
 	if err != nil {
-		return GeneratedAPKDownloadResult{}, fmt.Errorf("open output APK %s: %w", options.OutputPath, err)
+		return GeneratedAPKDownloadResult{}, err
 	}
+	tempPath := tempFile.Name()
+	committed := false
+	defer func() {
+		if !committed {
+			_ = os.Remove(tempPath)
+		}
+	}()
 
-	bytesWritten, err := io.Copy(file, response.Body)
+	bytesWritten, err := io.Copy(tempFile, response.Body)
 	if err != nil {
-		_ = file.Close()
-		return GeneratedAPKDownloadResult{}, fmt.Errorf("write output APK %s: %w", options.OutputPath, err)
+		_ = tempFile.Close()
+		return GeneratedAPKDownloadResult{}, fmt.Errorf("write temporary APK %s: %w", tempPath, err)
 	}
-	if err := file.Close(); err != nil {
-		return GeneratedAPKDownloadResult{}, fmt.Errorf("close output APK %s: %w", options.OutputPath, err)
+	if err := tempFile.Close(); err != nil {
+		return GeneratedAPKDownloadResult{}, fmt.Errorf("close temporary APK %s: %w", tempPath, err)
 	}
+	if err := publishGeneratedAPKTempFile(tempPath, options.OutputPath, options.Force); err != nil {
+		return GeneratedAPKDownloadResult{}, err
+	}
+	committed = true
 	plan, err := NewGeneratedAPKDownloadPlan(options)
 	if err != nil {
 		return GeneratedAPKDownloadResult{}, err
@@ -611,6 +617,32 @@ func (p GooglePublisher) DownloadGeneratedAPK(ctx context.Context, options Gener
 		BytesWritten: bytesWritten,
 		Plan:         plan,
 	}, nil
+}
+
+func createGeneratedAPKTempFile(outputPath string) (*os.File, error) {
+	outputDirectory := filepath.Dir(outputPath)
+	outputBase := filepath.Base(outputPath)
+	file, err := os.CreateTemp(outputDirectory, "."+outputBase+".tmp-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temporary APK in %s: %w", outputDirectory, err)
+	}
+	return file, nil
+}
+
+func publishGeneratedAPKTempFile(tempPath string, outputPath string, force bool) error {
+	if force {
+		if err := os.Rename(tempPath, outputPath); err != nil {
+			return fmt.Errorf("replace output APK %s: %w", outputPath, err)
+		}
+		return nil
+	}
+	if err := os.Link(tempPath, outputPath); err != nil {
+		return fmt.Errorf("create output APK %s: %w", outputPath, err)
+	}
+	if err := os.Remove(tempPath); err != nil {
+		return fmt.Errorf("remove temporary APK %s: %w", tempPath, err)
+	}
+	return nil
 }
 
 func (p GooglePublisher) ListSystemAPKVariants(ctx context.Context, options SystemAPKVariantListOptions) (SystemAPKVariantListResult, error) {

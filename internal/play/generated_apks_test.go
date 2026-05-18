@@ -165,6 +165,16 @@ func TestDownloadGeneratedAPKPassesOptionsToDownloader(t *testing.T) {
 	}
 }
 
+func TestGeneratedAPKDownloadIDAllowsOpaqueSlashes(t *testing.T) {
+	downloadID, err := NewGeneratedAPKDownloadID("bundle/split")
+	if err != nil {
+		t.Fatalf("NewGeneratedAPKDownloadID() error = %v", err)
+	}
+	if downloadID.String() != "bundle/split" {
+		t.Fatalf("downloadID = %q, want opaque value", downloadID)
+	}
+}
+
 func TestDownloadGeneratedAPKRejectsInvalidOptions(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "split.apk")
 	tests := []GeneratedAPKDownloadOptions{
@@ -172,7 +182,6 @@ func TestDownloadGeneratedAPKRejectsInvalidOptions(t *testing.T) {
 		{PackageName: "bad", VersionCode: 42, DownloadID: "split-download", OutputPath: outputPath},
 		{PackageName: "com.example.app", DownloadID: "split-download", OutputPath: outputPath},
 		{PackageName: "com.example.app", VersionCode: 42, OutputPath: outputPath},
-		{PackageName: "com.example.app", VersionCode: 42, DownloadID: "bad/id", OutputPath: outputPath},
 		{PackageName: "com.example.app", VersionCode: 42, DownloadID: "split-download", OutputPath: filepath.Join(t.TempDir(), "split.zip")},
 	}
 	for _, options := range tests {
