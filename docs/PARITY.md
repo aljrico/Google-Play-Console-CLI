@@ -24,7 +24,7 @@ Sources:
 | `doctor` | `auth doctor` | OAuth/service account credentials | implemented | Validates the configured service account JSON. |
 | `install-skills` | `skills` | N/A | planned | Useful later for agent workflows, not core CLI behavior. |
 | `init` | `init` | N/A | tested | `gpc init` creates `.gpc/` helper docs and a starter workflow template, with dry-run and force modes. |
-| `docs` | `docs` | N/A | tested | `gpc docs parity` prints the embedded parity matrix as JSON-wrapped content or raw markdown. |
+| `docs` | `docs` | N/A | tested | `gpc docs parity` prints the embedded parity matrix, and `gpc docs commands` generates a command reference from the Cobra command tree as JSON or markdown. |
 | `version` | `version` | N/A | implemented | Prints build metadata. |
 | `completion` | `completion` | N/A | implemented | Cobra generates shell completions for supported shells. |
 
