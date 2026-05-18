@@ -1209,6 +1209,56 @@ func TestPurchasesSubscriptionRejectsMissingTokenBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestOrdersGetRejectsMissingOrderIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"orders",
+		"get",
+		"--package",
+		"com.example.app",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected order ID validation error")
+	}
+	if !strings.Contains(err.Error(), "order ID") {
+		t.Fatalf("error = %v, want order ID validation", err)
+	}
+}
+
+func TestOrdersBatchGetRejectsDuplicateOrderIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"orders",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--order-id",
+		"GPA.123",
+		"--order-id",
+		"GPA.123",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected duplicate order ID validation error")
+	}
+	if !strings.Contains(err.Error(), "duplicated") {
+		t.Fatalf("error = %v, want duplicate order ID validation", err)
+	}
+}
+
 func writeRootTestFile(t *testing.T, name string) string {
 	t.Helper()
 	path := t.TempDir() + "/" + name

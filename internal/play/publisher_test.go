@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -842,6 +843,75 @@ func TestListAppRecoveriesSendsVersionCode(t *testing.T) {
 	}
 	if result.Actions[0].RemoteInAppUpdateData.PerBundle[0].RecoveredDeviceCount != "12" {
 		t.Fatalf("remote in-app update data = %#v, want recovered device count", result.Actions[0].RemoteInAppUpdateData)
+	}
+}
+
+func TestGetOrderUsesOrderEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/orders/GPA.123" {
+			t.Fatalf("path = %q, want order endpoint", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"orderId": "GPA.123",
+			"purchaseToken": "token-123",
+			"state": "PROCESSED",
+			"total": {"currencyCode": "USD", "units": "9", "nanos": 990000000},
+			"buyerAddress": {"buyerCountry": "US"},
+			"lineItems": [{
+				"productId": "premium",
+				"productTitle": "Premium",
+				"total": {"currencyCode": "USD", "units": "9", "nanos": 990000000}
+			}]
+		}`))
+	}))
+
+	result, err := publisher.GetOrder(context.Background(), OrderGetOptions{
+		PackageName: "com.example.app",
+		OrderID:     "GPA.123",
+	})
+	if err != nil {
+		t.Fatalf("GetOrder() error = %v", err)
+	}
+	if result.Order.OrderID != "GPA.123" || result.Order.Total.Units != 9 {
+		t.Fatalf("order = %#v, want GPA.123 total 9", result.Order)
+	}
+	if result.Order.BuyerAddress == nil || result.Order.BuyerAddress.Country != "US" {
+		t.Fatalf("buyer address = %#v, want US", result.Order.BuyerAddress)
+	}
+	if len(result.Order.LineItems) != 1 || result.Order.LineItems[0].ProductID != "premium" {
+		t.Fatalf("line items = %#v, want premium line item", result.Order.LineItems)
+	}
+}
+
+func TestBatchGetOrdersUsesRepeatedOrderIDs(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/orders:batchGet" {
+			t.Fatalf("path = %q, want orders batch endpoint", r.URL.Path)
+		}
+		got := r.URL.Query()["orderIds"]
+		want := []string{"GPA.123", "GPA.456"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("orderIds = %#v, want %#v", got, want)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"orders": [
+				{"orderId": "GPA.123", "state": "PROCESSED"},
+				{"orderId": "GPA.456", "state": "REFUNDED"}
+			]
+		}`))
+	}))
+
+	result, err := publisher.BatchGetOrders(context.Background(), OrderBatchGetOptions{
+		PackageName: "com.example.app",
+		OrderIDs:    []OrderID{"GPA.123", "GPA.456"},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetOrders() error = %v", err)
+	}
+	if len(result.Orders) != 2 || result.Orders[1].State != "REFUNDED" {
+		t.Fatalf("orders = %#v, want two orders", result.Orders)
 	}
 }
 

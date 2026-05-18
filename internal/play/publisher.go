@@ -322,6 +322,29 @@ func (p GooglePublisher) ListUsers(ctx context.Context, options UserListOptions)
 	return userListResultFromAPI(options.Developer, response), nil
 }
 
+func (p GooglePublisher) GetOrder(ctx context.Context, options OrderGetOptions) (OrderGetResult, error) {
+	apiOrder, err := p.service.Orders.Get(options.PackageName.String(), options.OrderID.String()).Context(ctx).Do()
+	if err != nil {
+		return OrderGetResult{}, fmt.Errorf("get order %s for %s: %w", options.OrderID, options.PackageName, err)
+	}
+	return OrderGetResult{
+		PackageName: options.PackageName,
+		OrderID:     options.OrderID,
+		Order:       orderFromAPI(apiOrder),
+	}, nil
+}
+
+func (p GooglePublisher) BatchGetOrders(ctx context.Context, options OrderBatchGetOptions) (OrderBatchGetResult, error) {
+	response, err := p.service.Orders.Batchget(options.PackageName.String()).
+		OrderIds(orderIDStrings(options.OrderIDs)...).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return OrderBatchGetResult{}, fmt.Errorf("batch get orders for %s: %w", options.PackageName, err)
+	}
+	return orderBatchGetResultFromAPI(options, response), nil
+}
+
 func (p GooglePublisher) ListAppRecoveries(ctx context.Context, options AppRecoveryListOptions) (AppRecoveryListResult, error) {
 	response, err := p.service.Apprecovery.List(options.PackageName.String()).
 		VersionCode(options.VersionCode).
@@ -1312,6 +1335,78 @@ func appRecoveryRemoteInAppUpdateDataFromAPI(apiData *androidpublisher.RemoteInA
 		})
 	}
 	return &AppRecoveryRemoteInAppUpdateData{PerBundle: perBundle}
+}
+
+func orderBatchGetResultFromAPI(options OrderBatchGetOptions, response *androidpublisher.BatchGetOrdersResponse) OrderBatchGetResult {
+	result := OrderBatchGetResult{
+		PackageName: options.PackageName,
+		OrderIDs:    append([]OrderID(nil), options.OrderIDs...),
+		Orders:      []Order{},
+	}
+	if response == nil {
+		return result
+	}
+	for _, apiOrder := range response.Orders {
+		if apiOrder == nil {
+			continue
+		}
+		result.Orders = append(result.Orders, orderFromAPI(apiOrder))
+	}
+	return result
+}
+
+func orderFromAPI(apiOrder *androidpublisher.Order) Order {
+	if apiOrder == nil {
+		return Order{LineItems: []OrderLineItem{}}
+	}
+	lineItems := make([]OrderLineItem, 0, len(apiOrder.LineItems))
+	for _, apiLineItem := range apiOrder.LineItems {
+		if apiLineItem == nil {
+			continue
+		}
+		lineItems = append(lineItems, orderLineItemFromAPI(apiLineItem))
+	}
+	return Order{
+		OrderID:                         apiOrder.OrderId,
+		PurchaseToken:                   apiOrder.PurchaseToken,
+		State:                           apiOrder.State,
+		CreateTime:                      apiOrder.CreateTime,
+		LastEventTime:                   apiOrder.LastEventTime,
+		BuyerAddress:                    buyerAddressFromAPI(apiOrder.BuyerAddress),
+		Total:                           moneyFromAPI(apiOrder.Total),
+		Tax:                             moneyFromAPI(apiOrder.Tax),
+		DeveloperRevenueInBuyerCurrency: moneyFromAPI(apiOrder.DeveloperRevenueInBuyerCurrency),
+		LineItems:                       lineItems,
+	}
+}
+
+func orderLineItemFromAPI(apiLineItem *androidpublisher.LineItem) OrderLineItem {
+	return OrderLineItem{
+		ProductID:    apiLineItem.ProductId,
+		ProductTitle: apiLineItem.ProductTitle,
+		ListingPrice: moneyFromAPI(apiLineItem.ListingPrice),
+		Tax:          moneyFromAPI(apiLineItem.Tax),
+		Total:        moneyFromAPI(apiLineItem.Total),
+	}
+}
+
+func buyerAddressFromAPI(apiAddress *androidpublisher.BuyerAddress) *BuyerAddress {
+	if apiAddress == nil {
+		return nil
+	}
+	return &BuyerAddress{
+		Country:  apiAddress.BuyerCountry,
+		State:    apiAddress.BuyerState,
+		Postcode: apiAddress.BuyerPostcode,
+	}
+}
+
+func orderIDStrings(orderIDs []OrderID) []string {
+	values := make([]string, 0, len(orderIDs))
+	for _, orderID := range orderIDs {
+		values = append(values, orderID.String())
+	}
+	return values
 }
 
 func userFromAPI(apiUser *androidpublisher.User) User {

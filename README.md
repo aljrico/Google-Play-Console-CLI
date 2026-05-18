@@ -55,6 +55,8 @@ gpc subscription-offers get --package com.example.app --product-id premium_month
 gpc purchases product --package com.example.app --token PURCHASE_TOKEN
 gpc purchases subscription --package com.example.app --token PURCHASE_TOKEN
 gpc purchases voided list --package com.example.app --max-results 25
+gpc orders get --package com.example.app --order-id GPA.1234-5678-9012-34567
+gpc orders batch-get --package com.example.app --order-id GPA.1234 --order-id GPA.5678
 gpc users list --developer 1234567890
 ```
 
@@ -88,6 +90,6 @@ gpc version --output markdown
 
 ## Status
 
-Early but functional. Auth/profile storage, the command taxonomy, core release workflows, localized listings, app-level details, review reading/replies, and read-only monetization catalog commands are in place.
+Early but functional. Auth/profile storage, the command taxonomy, core release workflows, localized listings, app-level details, review reading/replies, read-only monetization catalog commands, purchase checks, and order lookup are in place.
 
 See [docs/PARITY.md](docs/PARITY.md) for the working parity map against App Store Connect CLI.
