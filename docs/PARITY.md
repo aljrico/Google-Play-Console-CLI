@@ -135,7 +135,7 @@ Sources:
 | `webhooks` | `notifications` | Pub/Sub and Real-time developer notifications | planned | Likely separate setup from Android Publisher REST. |
 | `notify` | `notify` | N/A | planned | External notifications are CLI utility behavior. |
 | `migrate` | `migrate` | N/A | planned | Should support fastlane supply metadata migration. |
-| `diff` | `diff` | N/A | planned | Deterministic non-mutating plans are important for CI. |
+| `diff` | `diff` | N/A | tested | `gpc diff json FROM TO` compares local JSON payloads with deterministic JSON Pointer paths and optional `--fail-on-change` CI behavior. |
 | `capabilities` | `capabilities` | N/A | tested | `gpc capabilities` exposes this parity matrix as structured CLI output with status and section filters. |
 | `schema` | `schema` | Discovery document | tested | `gpc schema` fetches the Android Publisher discovery document and emits a stable resource/method summary, with resource and method filters. |
 | `snitch` | `snitch` | N/A | planned | Nice-to-have friction reporter. |
