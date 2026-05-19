@@ -38,15 +38,54 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
-          version: "~> v2"
+          version: "v2.15.4"
           args: check
 
       - name: Build snapshot release
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
-          version: "~> v2"
+          version: "v2.15.4"
           args: release --snapshot --clean --skip=publish
+
+      - name: Smoke test install script
+        run: |
+          case "$(uname -m)" in
+            arm64 | aarch64) install_arch="arm64" ;;
+            x86_64 | amd64) install_arch="x86_64" ;;
+            *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          archive="$(find dist -name "gpc_*_Darwin_${install_arch}.tar.gz" -print -quit)"
+          test -n "$archive"
+          version="${archive##*/gpc_}"
+          version="${version%_Darwin_*}"
+          install_dir="$RUNNER_TEMP/gpc-bin"
+          GPC_VERSION="v$version" \
+            GPC_BASE_URL="file://$PWD/dist" \
+            GPC_INSTALL_DIR="$install_dir" \
+            sh scripts/install.sh
+          "$install_dir/gpc" version
+
+      - name: Reject corrupted install script checksums
+        run: |
+          case "$(uname -m)" in
+            arm64 | aarch64) install_arch="arm64" ;;
+            x86_64 | amd64) install_arch="x86_64" ;;
+            *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          archive="$(find dist -name "gpc_*_Darwin_${install_arch}.tar.gz" -print -quit)"
+          test -n "$archive"
+          version="${archive##*/gpc_}"
+          version="${version%_Darwin_*}"
+          broken_release="$RUNNER_TEMP/broken-release"
+          mkdir -p "$broken_release"
+          cp "$archive" "$broken_release/"
+          sed 's/^[0-9a-f][0-9a-f]*/0000000000000000000000000000000000000000000000000000000000000000/' dist/checksums.txt > "$broken_release/checksums.txt"
+          if GPC_VERSION="v$version" GPC_BASE_URL="file://$broken_release" GPC_INSTALL_DIR="$RUNNER_TEMP/broken-bin" sh scripts/install.sh 2> "$RUNNER_TEMP/broken-install.log"; then
+            echo "expected checksum verification to fail" >&2
+            exit 1
+          fi
+          grep -q "checksum mismatch" "$RUNNER_TEMP/broken-install.log"
 
       - name: Smoke test generated Homebrew formula
         run: |
@@ -111,7 +150,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
-          version: "~> v2"
+          version: "v2.15.4"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

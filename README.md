@@ -151,7 +151,7 @@ gpc version --output markdown
 
 ## Releases
 
-Tagged releases are built with GoReleaser for macOS, Linux, and Windows on `amd64` and `arm64`. The release workflow publishes archives, checksums, and a Homebrew formula from `.goreleaser.yaml`.
+Tagged releases are built with GoReleaser v2.15.4 for macOS, Linux, and Windows on `amd64` and `arm64`. The release workflow publishes archives, checksums, and a Homebrew formula from `.goreleaser.yaml`.
 
 ```sh
 make release-check
@@ -162,7 +162,7 @@ git push origin v0.1.0
 
 Publishing the Homebrew formula requires `HOMEBREW_TAP_GITHUB_TOKEN` with write access to `aljrico/homebrew-tap`.
 
-Pull requests run a macOS packaging check that validates the GoReleaser config, builds a snapshot release, audits the generated formula, installs it locally, runs the formula test, and smokes `gpc version`.
+Pull requests run a macOS packaging check that validates the GoReleaser config, builds a snapshot release, tests the checksum-verifying install script, audits the generated formula, installs it locally, runs the formula test, and smokes `gpc version`.
 
 The install script supports `GPC_VERSION`, `GPC_INSTALL_DIR`, `GPC_REPO`, and `GPC_BASE_URL`, and verifies release archives against `checksums.txt` before installing.
 
