@@ -39,6 +39,7 @@ func newAppRecoveryAddTargetingCommand(out io.Writer, options *globalOptions, pa
 	cmd := &cobra.Command{
 		Use:   "add-targeting",
 		Short: "Add targeting to an app recovery action",
+		Long:  "Add targeting to an app recovery action. Google Play accepts exactly one targeting criterion per request: --all-users, one or more --sdk-level values, or one or more --region values.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, err := play.NewPackageName(*packageName)

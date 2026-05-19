@@ -2126,11 +2126,11 @@ func TestAddAppRecoveryTargetingUsesAddTargetingEndpoint(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatalf("Decode() error = %v", err)
 		}
-		if request.TargetingUpdate == nil || request.TargetingUpdate.AllUsers == nil || !request.TargetingUpdate.AllUsers.IsAllUsersRequested {
-			t.Fatalf("TargetingUpdate = %#v, want all users", request.TargetingUpdate)
+		if request.TargetingUpdate == nil || request.TargetingUpdate.Regions == nil {
+			t.Fatalf("TargetingUpdate = %#v, want regions", request.TargetingUpdate)
 		}
-		if !reflect.DeepEqual([]int64(request.TargetingUpdate.AndroidSdks.SdkLevels), []int64{26, 35}) {
-			t.Fatalf("SDKLevels = %#v, want 26 and 35", request.TargetingUpdate.AndroidSdks.SdkLevels)
+		if request.TargetingUpdate.AllUsers != nil || request.TargetingUpdate.AndroidSdks != nil {
+			t.Fatalf("TargetingUpdate = %#v, want only one union criterion", request.TargetingUpdate)
 		}
 		if !reflect.DeepEqual(request.TargetingUpdate.Regions.RegionCode, []string{"US", "BR"}) {
 			t.Fatalf("RegionCode = %#v, want US and BR", request.TargetingUpdate.Regions.RegionCode)
@@ -2142,8 +2142,6 @@ func TestAddAppRecoveryTargetingUsesAddTargetingEndpoint(t *testing.T) {
 	if err := publisher.AddAppRecoveryTargeting(context.Background(), AppRecoveryTargetingUpdateOptions{
 		PackageName:   "com.example.app",
 		AppRecoveryID: "7",
-		AllUsers:      true,
-		SDKLevels:     []int64{26, 35},
 		RegionCodes:   []string{"US", "BR"},
 		Confirm:       true,
 	}); err != nil {

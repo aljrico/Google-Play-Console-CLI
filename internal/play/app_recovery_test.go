@@ -104,9 +104,7 @@ func TestAddAppRecoveryTargetingDryRunDoesNotCallAdder(t *testing.T) {
 	result, err := AddAppRecoveryTargeting(context.Background(), nil, AppRecoveryTargetingUpdateOptions{
 		PackageName:   "com.example.app",
 		AppRecoveryID: "7",
-		AllUsers:      true,
 		SDKLevels:     []int64{26, 35},
-		RegionCodes:   []string{"US", "BR"},
 		DryRun:        true,
 	})
 	if err != nil {
@@ -115,7 +113,7 @@ func TestAddAppRecoveryTargetingDryRunDoesNotCallAdder(t *testing.T) {
 	if result.Applied {
 		t.Fatalf("Applied = true, want false")
 	}
-	if !reflect.DeepEqual(result.Plan.Steps, []string{"add app recovery targeting", "target all users", "target android sdk levels", "target regions"}) {
+	if !reflect.DeepEqual(result.Plan.Steps, []string{"add app recovery targeting", "target android sdk levels"}) {
 		t.Fatalf("Steps = %#v", result.Plan.Steps)
 	}
 }
@@ -147,6 +145,7 @@ func TestAddAppRecoveryTargetingRejectsInvalidOptions(t *testing.T) {
 		{PackageName: "bad", AppRecoveryID: "7", AllUsers: true, DryRun: true},
 		{PackageName: "com.example.app", AllUsers: true, DryRun: true},
 		{PackageName: "com.example.app", AppRecoveryID: "7", DryRun: true},
+		{PackageName: "com.example.app", AppRecoveryID: "7", AllUsers: true, RegionCodes: []string{"US"}, DryRun: true},
 		{PackageName: "com.example.app", AppRecoveryID: "7", SDKLevels: []int64{0}, DryRun: true},
 		{PackageName: "com.example.app", AppRecoveryID: "7", RegionCodes: []string{"us"}, DryRun: true},
 		{PackageName: "com.example.app", AppRecoveryID: "7", AllUsers: true},

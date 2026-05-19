@@ -246,8 +246,21 @@ func (o AppRecoveryTargetingUpdateOptions) Validate() error {
 	if err := o.AppRecoveryID.Validate(); err != nil {
 		return err
 	}
-	if !o.AllUsers && len(o.SDKLevels) == 0 && len(o.RegionCodes) == 0 {
+	targetingCriteriaCount := 0
+	if o.AllUsers {
+		targetingCriteriaCount++
+	}
+	if len(o.SDKLevels) > 0 {
+		targetingCriteriaCount++
+	}
+	if len(o.RegionCodes) > 0 {
+		targetingCriteriaCount++
+	}
+	if targetingCriteriaCount == 0 {
 		return fmt.Errorf("app recovery targeting requires --all-users, --sdk-level, or --region")
+	}
+	if targetingCriteriaCount > 1 {
+		return fmt.Errorf("app recovery targeting accepts exactly one of --all-users, --sdk-level, or --region")
 	}
 	for _, sdkLevel := range o.SDKLevels {
 		if sdkLevel <= 0 {

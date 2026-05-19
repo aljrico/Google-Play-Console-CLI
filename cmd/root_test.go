@@ -1703,11 +1703,8 @@ func TestAppRecoveryAddTargetingDryRunDoesNotRequireAuth(t *testing.T) {
 		"com.example.app",
 		"--id",
 		"7",
-		"--all-users",
 		"--sdk-level",
 		"26",
-		"--region",
-		"US",
 		"--dry-run",
 		"--output",
 		"json",
@@ -1717,7 +1714,7 @@ func TestAppRecoveryAddTargetingDryRunDoesNotRequireAuth(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	output := buf.String()
-	for _, want := range []string{`"dryRun":true`, `"applied":false`, `"appRecoveryId":"7"`, `"allUsers":true`, `"sdkLevels":[26]`, `"regionCodes":["US"]`} {
+	for _, want := range []string{`"dryRun":true`, `"applied":false`, `"appRecoveryId":"7"`, `"sdkLevels":[26]`} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
 		}
