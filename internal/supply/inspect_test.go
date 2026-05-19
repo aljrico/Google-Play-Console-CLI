@@ -147,6 +147,44 @@ func TestInspectRejectsSymlinkFile(t *testing.T) {
 	}
 }
 
+func TestConvertCreatesMetadataFileFromSupplyListings(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "fastlane", "metadata", "android")
+	writeFile(t, filepath.Join(directory, "en-US", "title.txt"), "Example\n")
+	writeFile(t, filepath.Join(directory, "en-US", "short_description.txt"), "Short\r\n")
+	writeFile(t, filepath.Join(directory, "en-US", "full_description.txt"), "Long\n\n")
+	writeFile(t, filepath.Join(directory, "en-US", "video.txt"), "https://youtu.be/example\n")
+	writeFile(t, filepath.Join(directory, "en-US", "changelogs", "42.txt"), "Bug fixes")
+	writeFile(t, filepath.Join(directory, "es-ES", "title.txt"), "Ejemplo")
+
+	metadata, err := Convert(context.Background(), ConvertOptions{Directory: directory})
+	if err != nil {
+		t.Fatalf("Convert() error = %v", err)
+	}
+	if metadata.Details != nil {
+		t.Fatalf("Details = %#v, want nil", metadata.Details)
+	}
+	if len(metadata.Listings) != 2 {
+		t.Fatalf("len(Listings) = %d, want 2", len(metadata.Listings))
+	}
+	firstListing := metadata.Listings[0]
+	if firstListing.Language != "en-US" {
+		t.Fatalf("first language = %s, want en-US", firstListing.Language)
+	}
+	if firstListing.Title == nil || *firstListing.Title != "Example" {
+		t.Fatalf("Title = %v, want Example", firstListing.Title)
+	}
+	if firstListing.ShortDescription == nil || *firstListing.ShortDescription != "Short" {
+		t.Fatalf("ShortDescription = %v, want Short", firstListing.ShortDescription)
+	}
+	if firstListing.FullDescription == nil || *firstListing.FullDescription != "Long" {
+		t.Fatalf("FullDescription = %v, want Long", firstListing.FullDescription)
+	}
+	if firstListing.Video == nil || *firstListing.Video != "https://youtu.be/example" {
+		t.Fatalf("Video = %v, want URL", firstListing.Video)
+	}
+}
+
 func TestInspectRejectsSymlinkImageSet(t *testing.T) {
 	root := t.TempDir()
 	directory := filepath.Join(root, "metadata")

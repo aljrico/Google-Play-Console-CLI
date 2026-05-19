@@ -61,6 +61,7 @@ gpc diff json ./metadata.old.json ./metadata.new.json --fail-on-change
 gpc workflow list
 gpc workflow run release-internal --dry-run
 gpc migrate supply inspect --directory fastlane/metadata/android
+gpc migrate supply convert --directory fastlane/metadata/android --pretty > play-metadata.json
 GPC_NOTIFY_WEBHOOK_URL="$WEBHOOK_URL" gpc notify send --message "Internal release staged" --dry-run
 gpc search "release upload" --limit 5
 gpc snitch report --title "Confusing release output" --command "gpc releases list --package com.example.app"
@@ -187,7 +188,7 @@ The install script supports `GPC_VERSION`, `GPC_INSTALL_DIR`, `GPC_REPO`, and `G
 
 ## Status
 
-Early but functional. Auth/profile storage, the command taxonomy, generated command/schema docs, core release workflows, localized listings, app-level details, file-based metadata apply, review reading/replies, read-only monetization catalog commands, purchase checks, order lookup, and guarded order refunds are in place.
+Early but functional. Auth/profile storage, the command taxonomy, generated command/schema docs, core release workflows, localized listings, app-level details, file-based metadata apply, fastlane supply metadata conversion, review reading/replies, read-only monetization catalog commands, purchase checks, order lookup, and guarded order refunds are in place.
 
 See [docs/PARITY.md](docs/PARITY.md) for the working parity map against App Store Connect CLI.
 See [docs/COMMANDS.md](docs/COMMANDS.md) for the generated command reference.

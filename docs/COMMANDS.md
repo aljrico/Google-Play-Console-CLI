@@ -931,7 +931,20 @@ gpc migrate supply
 
 ##### Commands
 
+- `gpc migrate supply convert`: Convert fastlane supply listings to gpc metadata JSON
 - `gpc migrate supply inspect`: Inventory a fastlane supply metadata directory
+
+##### gpc migrate supply convert
+
+Convert fastlane supply listings to gpc metadata JSON
+
+```sh
+gpc migrate supply convert [flags]
+```
+
+###### Flags
+
+- `--directory`: fastlane supply metadata directory (default `fastlane/metadata/android`)
 
 ##### gpc migrate supply inspect
 

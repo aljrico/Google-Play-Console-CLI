@@ -458,6 +458,45 @@ func TestMigrateSupplyInspectOutputsInventoryWithoutAuth(t *testing.T) {
 	}
 }
 
+func TestMigrateSupplyConvertOutputsMetadataWithoutAuth(t *testing.T) {
+	root := t.TempDir()
+	directory := root + "/fastlane/metadata/android"
+	writeRootTestPathContent(t, directory+"/en-US/title.txt", "Example\n")
+	writeRootTestPathContent(t, directory+"/en-US/short_description.txt", "Short\n")
+	writeRootTestPathContent(t, directory+"/es-ES/title.txt", "Ejemplo")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"migrate",
+		"supply",
+		"convert",
+		"--directory",
+		directory,
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"listings"`,
+		`"language":"en-US"`,
+		`"title":"Example"`,
+		`"shortDescription":"Short"`,
+		`"language":"es-ES"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestNotifySendDryRunOutputsPayloadWithoutAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	t.Setenv("GPC_NOTIFY_WEBHOOK_URL", "https://hooks.example.com/services/T000/B000/SECRET?token=secret#fragment")

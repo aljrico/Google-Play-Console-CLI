@@ -22,7 +22,25 @@ func newMigrateSupplyCommand(out io.Writer, options *globalOptions) *cobra.Comma
 		Use:   "supply",
 		Short: "Inspect fastlane supply metadata",
 	}
-	cmd.AddCommand(newMigrateSupplyInspectCommand(out, options))
+	cmd.AddCommand(newMigrateSupplyInspectCommand(out, options), newMigrateSupplyConvertCommand(out, options))
+	return cmd
+}
+
+func newMigrateSupplyConvertCommand(out io.Writer, options *globalOptions) *cobra.Command {
+	var directory string
+	cmd := &cobra.Command{
+		Use:   "convert",
+		Short: "Convert fastlane supply listings to gpc metadata JSON",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			metadata, err := supply.Convert(cmd.Context(), supply.ConvertOptions{Directory: directory})
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, metadata)
+		},
+	}
+	cmd.Flags().StringVar(&directory, "directory", supply.DefaultMetadataDirectory, "fastlane supply metadata directory")
 	return cmd
 }
 
