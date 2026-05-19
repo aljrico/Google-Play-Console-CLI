@@ -275,6 +275,11 @@ func (a *fakeMetadataApplier) CommitEdit(ctx context.Context, packageName Packag
 	return Edit{ID: editID}, nil
 }
 
+func (a *fakeMetadataApplier) CommitEditNoReview(ctx context.Context, packageName PackageName, editID string) (Edit, error) {
+	a.calls = append(a.calls, "commit-no-review")
+	return Edit{ID: editID}, nil
+}
+
 func (a *fakeMetadataApplier) DeleteEdit(ctx context.Context, packageName PackageName, editID string) error {
 	a.calls = append(a.calls, "delete")
 	return nil

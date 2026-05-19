@@ -165,6 +165,14 @@ func (p GooglePublisher) CommitEdit(ctx context.Context, packageName PackageName
 	return Edit{ID: edit.Id, ExpiryTimeSeconds: edit.ExpiryTimeSeconds}, nil
 }
 
+func (p GooglePublisher) CommitEditNoReview(ctx context.Context, packageName PackageName, editID string) (Edit, error) {
+	edit, err := p.service.Edits.Commit(packageName.String(), editID).ChangesNotSentForReview(true).Context(ctx).Do()
+	if err != nil {
+		return Edit{}, fmt.Errorf("commit edit %s for %s (changes not sent for review): %w", editID, packageName, err)
+	}
+	return Edit{ID: edit.Id, ExpiryTimeSeconds: edit.ExpiryTimeSeconds}, nil
+}
+
 func (p GooglePublisher) DeleteEdit(ctx context.Context, packageName PackageName, editID string) error {
 	if err := p.service.Edits.Delete(packageName.String(), editID).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete edit %s for %s: %w", editID, packageName, err)

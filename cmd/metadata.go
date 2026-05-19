@@ -22,9 +22,10 @@ func newMetadataCommand(out io.Writer, options *globalOptions) *cobra.Command {
 
 func newMetadataApplyCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	var (
-		filePath string
-		confirm  bool
-		dryRun   bool
+		filePath                string
+		confirm                 bool
+		dryRun                  bool
+		changesNotSentForReview bool
 	)
 
 	cmd := &cobra.Command{
@@ -37,10 +38,11 @@ func newMetadataApplyCommand(out io.Writer, options *globalOptions, packageName 
 				return err
 			}
 			requestOptions := play.MetadataApplyOptions{
-				PackageName: typedPackageName,
-				FilePath:    filePath,
-				Confirm:     confirm,
-				DryRun:      dryRun,
+				PackageName:             typedPackageName,
+				FilePath:                filePath,
+				Confirm:                 confirm,
+				DryRun:                  dryRun,
+				ChangesNotSentForReview: changesNotSentForReview,
 			}
 			if err := requestOptions.ValidateRequest(); err != nil {
 				return err
@@ -50,12 +52,13 @@ func newMetadataApplyCommand(out io.Writer, options *globalOptions, packageName 
 				return err
 			}
 			applyOptions := play.MetadataApplyOptions{
-				PackageName: typedPackageName,
-				FilePath:    filePath,
-				Details:     metadataFile.Details,
-				Listings:    metadataFile.Listings,
-				Confirm:     confirm,
-				DryRun:      dryRun,
+				PackageName:             typedPackageName,
+				FilePath:                filePath,
+				Details:                 metadataFile.Details,
+				Listings:                metadataFile.Listings,
+				Confirm:                 confirm,
+				DryRun:                  dryRun,
+				ChangesNotSentForReview: changesNotSentForReview,
 			}
 			if dryRun {
 				result, err := play.ApplyMetadata(cmd.Context(), nil, applyOptions)
@@ -81,5 +84,6 @@ func newMetadataApplyCommand(out io.Writer, options *globalOptions, packageName 
 	cmd.Flags().StringVar(&filePath, "file", "", "Path to metadata JSON")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned metadata update without calling Google Play")
+	cmd.Flags().BoolVar(&changesNotSentForReview, "changes-not-sent-for-review", false, "Skip auto-review on commit; changes must be sent for review from the Play Console UI (required for apps under review-only commit policies)")
 	return cmd
 }

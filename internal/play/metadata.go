@@ -55,12 +55,13 @@ func ParseMetadataFile(path string, content []byte) (MetadataFile, error) {
 }
 
 type MetadataApplyOptions struct {
-	PackageName PackageName `json:"packageName"`
-	FilePath    string      `json:"filePath"`
-	Details     *AppDetails `json:"details,omitempty"`
-	Listings    []Listing   `json:"listings,omitempty"`
-	Confirm     bool        `json:"confirm"`
-	DryRun      bool        `json:"dryRun"`
+	PackageName              PackageName `json:"packageName"`
+	FilePath                 string      `json:"filePath"`
+	Details                  *AppDetails `json:"details,omitempty"`
+	Listings                 []Listing   `json:"listings,omitempty"`
+	Confirm                  bool        `json:"confirm"`
+	DryRun                   bool        `json:"dryRun"`
+	ChangesNotSentForReview  bool        `json:"changesNotSentForReview,omitempty"`
 }
 
 func (o MetadataApplyOptions) Validate() error {
@@ -115,10 +116,11 @@ func (o MetadataApplyOptions) ValidateRequest() error {
 }
 
 type MetadataApplyPlan struct {
-	PackageName PackageName `json:"packageName"`
-	FilePath    string      `json:"filePath"`
-	Confirm     bool        `json:"confirm"`
-	Steps       []string    `json:"steps"`
+	PackageName              PackageName `json:"packageName"`
+	FilePath                 string      `json:"filePath"`
+	Confirm                  bool        `json:"confirm"`
+	ChangesNotSentForReview  bool        `json:"changesNotSentForReview,omitempty"`
+	Steps                    []string    `json:"steps"`
 }
 
 type MetadataApplyResult struct {
@@ -138,6 +140,7 @@ type MetadataApplier interface {
 	PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error)
 	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
 	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
+	CommitEditNoReview(ctx context.Context, packageName PackageName, editID string) (Edit, error)
 	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
 }
 
@@ -153,17 +156,24 @@ func NewMetadataApplyPlan(options MetadataApplyOptions) (MetadataApplyPlan, erro
 	for _, listing := range normalizedOptions.Listings {
 		steps = append(steps, fmt.Sprintf("patch %s listing", listing.Language))
 	}
-	steps = append(steps, "validate edit")
+	if !normalizedOptions.ChangesNotSentForReview {
+		steps = append(steps, "validate edit")
+	}
 	if normalizedOptions.Confirm {
-		steps = append(steps, "commit edit")
+		if normalizedOptions.ChangesNotSentForReview {
+			steps = append(steps, "commit edit (changes not sent for review)")
+		} else {
+			steps = append(steps, "commit edit")
+		}
 	} else {
 		steps = append(steps, "delete uncommitted edit")
 	}
 	return MetadataApplyPlan{
-		PackageName: normalizedOptions.PackageName,
-		FilePath:    normalizedOptions.FilePath,
-		Confirm:     normalizedOptions.Confirm,
-		Steps:       steps,
+		PackageName:             normalizedOptions.PackageName,
+		FilePath:                normalizedOptions.FilePath,
+		Confirm:                 normalizedOptions.Confirm,
+		ChangesNotSentForReview: normalizedOptions.ChangesNotSentForReview,
+		Steps:                   steps,
 	}, nil
 }
 
@@ -226,13 +236,20 @@ func ApplyMetadata(ctx context.Context, applier MetadataApplier, options Metadat
 	}
 	result.Listings = appliedListings
 
-	if err := applier.ValidateEdit(ctx, normalizedOptions.PackageName, edit.ID); err != nil {
-		return MetadataApplyResult{}, err
+	if !normalizedOptions.ChangesNotSentForReview {
+		if err := applier.ValidateEdit(ctx, normalizedOptions.PackageName, edit.ID); err != nil {
+			return MetadataApplyResult{}, err
+		}
 	}
 	if !normalizedOptions.Confirm {
 		return result, nil
 	}
-	committedEdit, err := applier.CommitEdit(ctx, normalizedOptions.PackageName, edit.ID)
+	var committedEdit Edit
+	if normalizedOptions.ChangesNotSentForReview {
+		committedEdit, err = applier.CommitEditNoReview(ctx, normalizedOptions.PackageName, edit.ID)
+	} else {
+		committedEdit, err = applier.CommitEdit(ctx, normalizedOptions.PackageName, edit.ID)
+	}
 	if err != nil {
 		return MetadataApplyResult{}, err
 	}
