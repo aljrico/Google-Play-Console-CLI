@@ -1470,6 +1470,72 @@ func (p GooglePublisher) UpdateSubscriptionOfferState(ctx context.Context, optio
 	return subscriptionOfferFromAPI(offer), nil
 }
 
+func (p GooglePublisher) BatchUpdateSubscriptionOfferStates(ctx context.Context, options SubscriptionOfferBatchStateUpdateOptions) (SubscriptionOfferBatchStateUpdateResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return SubscriptionOfferBatchStateUpdateResult{}, err
+	}
+	request := &androidpublisher.BatchUpdateSubscriptionOfferStatesRequest{
+		Requests: make([]*androidpublisher.UpdateSubscriptionOfferStateRequest, 0, len(options.Requests)),
+	}
+	for _, item := range options.Requests {
+		request.Requests = append(request.Requests, subscriptionOfferStateRequestToAPI(options, item))
+	}
+	response, err := p.service.Monetization.Subscriptions.BasePlans.Offers.BatchUpdateStates(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.BasePlanID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return SubscriptionOfferBatchStateUpdateResult{}, fmt.Errorf("batch %s subscription offers for %s/%s/%s: %w", options.Action, options.PackageName, options.ProductID, options.BasePlanID, err)
+	}
+	offers := subscriptionOffersFromBatchStateUpdateResponse(options, response)
+	return SubscriptionOfferBatchStateUpdateResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		BasePlanID:  options.BasePlanID,
+		Requests:    append([]SubscriptionOfferBatchMutationRequest(nil), options.Requests...),
+		Action:      options.Action,
+		Applied:     true,
+		Offers:      offers,
+	}, nil
+}
+
+func subscriptionOffersFromBatchStateUpdateResponse(options SubscriptionOfferBatchStateUpdateOptions, response *androidpublisher.BatchUpdateSubscriptionOfferStatesResponse) []SubscriptionOffer {
+	if response == nil {
+		return []SubscriptionOffer{}
+	}
+	byKey := make(map[string]SubscriptionOffer, len(response.SubscriptionOffers))
+	extras := make([]SubscriptionOffer, 0)
+	for _, apiOffer := range response.SubscriptionOffers {
+		offer := subscriptionOfferFromAPI(apiOffer)
+		key := subscriptionOfferKey(offer.ProductID, offer.BasePlanID, offer.OfferID)
+		if key == "//" {
+			continue
+		}
+		if _, ok := byKey[key]; ok {
+			extras = append(extras, offer)
+			continue
+		}
+		byKey[key] = offer
+	}
+	offers := make([]SubscriptionOffer, 0, len(response.SubscriptionOffers))
+	for _, request := range options.Requests {
+		key := subscriptionOfferKey(request.ProductID, request.BasePlanID, request.OfferID)
+		if offer, ok := byKey[key]; ok {
+			offers = append(offers, offer)
+			delete(byKey, key)
+		}
+	}
+	for _, offer := range byKey {
+		extras = append(extras, offer)
+	}
+	sort.Slice(extras, func(i, j int) bool {
+		return subscriptionOfferKey(extras[i].ProductID, extras[i].BasePlanID, extras[i].OfferID) < subscriptionOfferKey(extras[j].ProductID, extras[j].BasePlanID, extras[j].OfferID)
+	})
+	return append(offers, extras...)
+}
+
 func (p GooglePublisher) BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error) {
 	request := &androidpublisher.BatchGetSubscriptionOffersRequest{
 		Requests: make([]*androidpublisher.GetSubscriptionOfferRequest, 0, len(options.Requests)),
@@ -1500,6 +1566,34 @@ func (p GooglePublisher) GetProductPurchase(ctx context.Context, options Product
 		return ProductPurchase{}, fmt.Errorf("get product purchase %s for %s: %w", options.Token, options.PackageName, err)
 	}
 	return productPurchaseFromAPI(options, purchase), nil
+}
+
+func subscriptionOfferStateRequestToAPI(options SubscriptionOfferBatchStateUpdateOptions, item SubscriptionOfferBatchMutationRequest) *androidpublisher.UpdateSubscriptionOfferStateRequest {
+	latencyTolerance := productUpdateLatencyToleranceToAPI(options.LatencyTolerance)
+	switch options.Action {
+	case SubscriptionOfferStateActionActivate:
+		return &androidpublisher.UpdateSubscriptionOfferStateRequest{
+			ActivateSubscriptionOfferRequest: &androidpublisher.ActivateSubscriptionOfferRequest{
+				PackageName:      options.PackageName.String(),
+				ProductId:        item.ProductID.String(),
+				BasePlanId:       item.BasePlanID.String(),
+				OfferId:          item.OfferID.String(),
+				LatencyTolerance: latencyTolerance,
+			},
+		}
+	case SubscriptionOfferStateActionDeactivate:
+		return &androidpublisher.UpdateSubscriptionOfferStateRequest{
+			DeactivateSubscriptionOfferRequest: &androidpublisher.DeactivateSubscriptionOfferRequest{
+				PackageName:      options.PackageName.String(),
+				ProductId:        item.ProductID.String(),
+				BasePlanId:       item.BasePlanID.String(),
+				OfferId:          item.OfferID.String(),
+				LatencyTolerance: latencyTolerance,
+			},
+		}
+	default:
+		return &androidpublisher.UpdateSubscriptionOfferStateRequest{}
+	}
 }
 
 func subscriptionOfferBatchGetResultFromAPI(options SubscriptionOfferBatchGetOptions, response *androidpublisher.BatchGetSubscriptionOffersResponse) SubscriptionOfferBatchGetResult {

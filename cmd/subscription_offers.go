@@ -21,9 +21,97 @@ func newSubscriptionOffersCommand(out io.Writer, options *globalOptions) *cobra.
 		newSubscriptionOffersGetCommand(out, options, &packageName),
 		newSubscriptionOffersBatchGetCommand(out, options, &packageName),
 		newSubscriptionOffersDeleteCommand(out, options, &packageName),
+		newSubscriptionOffersBatchStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionActivate),
+		newSubscriptionOffersBatchStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionDeactivate),
 		newSubscriptionOffersStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionActivate),
 		newSubscriptionOffersStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionDeactivate),
 	)
+	return cmd
+}
+
+func newSubscriptionOffersBatchStateCommand(out io.Writer, options *globalOptions, packageName *string, action play.SubscriptionOfferStateAction) *cobra.Command {
+	var (
+		productID        string
+		basePlanID       string
+		offers           []string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-" + action.String(),
+		Short: action.String() + " multiple subscription offers",
+		Long: string(action) + " multiple subscription offers. Omit parent IDs to infer the narrowest valid parent path from --offer values. " +
+			"Use --product-id - when the batch spans products, and --base-plan-id - when it spans base plans.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			requests, err := parseSubscriptionOfferBatchMutationRequests(offers)
+			if err != nil {
+				return err
+			}
+			if len(requests) == 0 {
+				return play.SubscriptionOfferBatchStateUpdateOptions{PackageName: typedPackageName}.Validate()
+			}
+			resolvedProductID, resolvedBasePlanID := inferSubscriptionOfferBatchParent(productID, basePlanID, requests)
+			typedProductID, err := play.NewSubscriptionOfferListProductID(resolvedProductID)
+			if err != nil {
+				return err
+			}
+			typedBasePlanID, err := play.NewSubscriptionOfferListBasePlanID(resolvedBasePlanID)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			updateOptions := play.SubscriptionOfferBatchStateUpdateOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				BasePlanID:       typedBasePlanID,
+				Requests:         requests,
+				Action:           action,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if err := updateOptions.Validate(); err != nil {
+				return err
+			}
+			if dryRun {
+				result, err := play.BatchUpdateSubscriptionOfferStates(cmd.Context(), nil, updateOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchUpdateSubscriptionOfferStates(cmd.Context(), publisher, updateOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	addSubscriptionOfferParentFlags(
+		cmd,
+		&productID,
+		&basePlanID,
+		"Parent subscription product ID, or - for offers across products; inferred when omitted",
+		"Parent subscription base plan ID, or - for offers across base plans; inferred when omitted",
+	)
+	cmd.Flags().StringArrayVar(&offers, "offer", nil, "Offer to update as productId/basePlanId/offerId; repeatable, up to 100")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription offer batch state update")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription offer batch state update without calling Google Play")
 	return cmd
 }
 
@@ -357,4 +445,51 @@ func parseSubscriptionOfferBatchRequests(values []string) ([]play.SubscriptionOf
 		requests = append(requests, request)
 	}
 	return requests, nil
+}
+
+func parseSubscriptionOfferBatchMutationRequests(values []string) ([]play.SubscriptionOfferBatchMutationRequest, error) {
+	requests := make([]play.SubscriptionOfferBatchMutationRequest, 0, len(values))
+	for _, value := range values {
+		request, err := play.NewSubscriptionOfferBatchMutationRequest(value)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, nil
+}
+
+func inferSubscriptionOfferBatchParent(productID string, basePlanID string, requests []play.SubscriptionOfferBatchMutationRequest) (string, string) {
+	resolvedProductID := productID
+	resolvedBasePlanID := basePlanID
+	if len(requests) == 0 {
+		return resolvedProductID, resolvedBasePlanID
+	}
+	firstProductID := requests[0].ProductID.String()
+	firstBasePlanID := requests[0].BasePlanID.String()
+	oneProduct := true
+	oneBasePlan := true
+	for _, request := range requests[1:] {
+		if request.ProductID.String() != firstProductID {
+			oneProduct = false
+		}
+		if request.BasePlanID.String() != firstBasePlanID {
+			oneBasePlan = false
+		}
+	}
+	if resolvedProductID == "" {
+		if oneProduct {
+			resolvedProductID = firstProductID
+		} else {
+			resolvedProductID = play.SubscriptionOfferWildcardID
+		}
+	}
+	if resolvedBasePlanID == "" {
+		if oneBasePlan {
+			resolvedBasePlanID = firstBasePlanID
+		} else {
+			resolvedBasePlanID = play.SubscriptionOfferWildcardID
+		}
+	}
+	return resolvedProductID, resolvedBasePlanID
 }

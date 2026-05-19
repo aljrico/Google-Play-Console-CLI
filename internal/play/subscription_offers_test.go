@@ -273,6 +273,114 @@ func TestUpdateSubscriptionOfferStateDryRunBuildsPlanWithoutUpdater(t *testing.T
 	}
 }
 
+func TestBatchUpdateSubscriptionOfferStatesDryRunBuildsPlanWithoutUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchUpdateSubscriptionOfferStates(context.Background(), nil, SubscriptionOfferBatchStateUpdateOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		BasePlanID:  "-",
+		Requests: []SubscriptionOfferBatchMutationRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro"},
+			{ProductID: "premium", BasePlanID: "annual", OfferID: "winback"},
+		},
+		Action:           SubscriptionOfferStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchUpdateSubscriptionOfferStates() error = %v", err)
+	}
+	if !result.DryRun || result.Applied {
+		t.Fatalf("result = %#v, want dry-run batch state update", result)
+	}
+	if result.Action != SubscriptionOfferStateActionDeactivate {
+		t.Fatalf("Action = %q, want deactivate", result.Action)
+	}
+}
+
+func TestBatchUpdateSubscriptionOfferStatesRejectsOverbroadWildcardParent(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchUpdateSubscriptionOfferStates(context.Background(), nil, SubscriptionOfferBatchStateUpdateOptions{
+		PackageName: packageName,
+		ProductID:   "-",
+		BasePlanID:  "-",
+		Requests: []SubscriptionOfferBatchMutationRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro"},
+		},
+		Action:           SubscriptionOfferStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected overbroad wildcard parent validation error")
+	}
+}
+
+func TestBatchUpdateSubscriptionOfferStatesAllowsSharedBasePlanAcrossProducts(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchUpdateSubscriptionOfferStates(context.Background(), nil, SubscriptionOfferBatchStateUpdateOptions{
+		PackageName: packageName,
+		ProductID:   "-",
+		BasePlanID:  "monthly",
+		Requests: []SubscriptionOfferBatchMutationRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro"},
+			{ProductID: "vip", BasePlanID: "monthly", OfferID: "winback"},
+		},
+		Action:           SubscriptionOfferStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchUpdateSubscriptionOfferStates() error = %v", err)
+	}
+}
+
+func TestBatchUpdateSubscriptionOfferStatesPassesOptionsToUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	updater := &fakeSubscriptionOfferClient{
+		batchStateResult: SubscriptionOfferBatchStateUpdateResult{
+			Offers: []SubscriptionOffer{{OfferID: "intro", State: SubscriptionOfferStateActive}},
+		},
+	}
+	options := SubscriptionOfferBatchStateUpdateOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		Requests: []SubscriptionOfferBatchMutationRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro"},
+		},
+		Action:           SubscriptionOfferStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := BatchUpdateSubscriptionOfferStates(context.Background(), updater, options)
+	if err != nil {
+		t.Fatalf("BatchUpdateSubscriptionOfferStates() error = %v", err)
+	}
+	if !result.Applied || len(result.Offers) != 1 {
+		t.Fatalf("result = %#v, want applied offer", result)
+	}
+	if !reflect.DeepEqual(updater.batchStateOptions, options) {
+		t.Fatalf("batchStateOptions = %#v, want %#v", updater.batchStateOptions, options)
+	}
+}
+
 func TestDeleteSubscriptionOfferDryRunBuildsPlanWithoutDeleter(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -386,14 +494,16 @@ func TestUpdateSubscriptionOfferStatePassesOptionsToUpdater(t *testing.T) {
 }
 
 type fakeSubscriptionOfferClient struct {
-	listOptions   SubscriptionOfferListOptions
-	listResult    SubscriptionOfferListResult
-	batchOptions  SubscriptionOfferBatchGetOptions
-	batchResult   SubscriptionOfferBatchGetResult
-	deleteOptions SubscriptionOfferDeleteOptions
-	offerID       SubscriptionOfferID
-	offer         SubscriptionOffer
-	stateOptions  SubscriptionOfferStateUpdateOptions
+	listOptions       SubscriptionOfferListOptions
+	listResult        SubscriptionOfferListResult
+	batchOptions      SubscriptionOfferBatchGetOptions
+	batchResult       SubscriptionOfferBatchGetResult
+	batchStateOptions SubscriptionOfferBatchStateUpdateOptions
+	batchStateResult  SubscriptionOfferBatchStateUpdateResult
+	deleteOptions     SubscriptionOfferDeleteOptions
+	offerID           SubscriptionOfferID
+	offer             SubscriptionOffer
+	stateOptions      SubscriptionOfferStateUpdateOptions
 }
 
 func (c *fakeSubscriptionOfferClient) ListSubscriptionOffers(ctx context.Context, options SubscriptionOfferListOptions) (SubscriptionOfferListResult, error) {
@@ -409,6 +519,11 @@ func (c *fakeSubscriptionOfferClient) GetSubscriptionOffer(ctx context.Context, 
 func (c *fakeSubscriptionOfferClient) BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error) {
 	c.batchOptions = options
 	return c.batchResult, nil
+}
+
+func (c *fakeSubscriptionOfferClient) BatchUpdateSubscriptionOfferStates(ctx context.Context, options SubscriptionOfferBatchStateUpdateOptions) (SubscriptionOfferBatchStateUpdateResult, error) {
+	c.batchStateOptions = options
+	return c.batchStateResult, nil
 }
 
 func (c *fakeSubscriptionOfferClient) DeleteSubscriptionOffer(ctx context.Context, options SubscriptionOfferDeleteOptions) error {

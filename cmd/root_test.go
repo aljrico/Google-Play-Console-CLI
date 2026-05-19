@@ -5716,6 +5716,104 @@ func TestSubscriptionOffersDeactivateDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestSubscriptionOffersBatchDeactivateDryRunInfersParentsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-deactivate",
+		"--package",
+		"com.example.app",
+		"--offer",
+		"premium/monthly/intro",
+		"--offer",
+		"premium/annual/winback",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"action":"deactivate"`,
+		`"productId":"premium"`,
+		`"basePlanId":"-"`,
+		`"offerId":"intro"`,
+		`"latencyTolerance":"latencyTolerant"`,
+		`"dryRun":true`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersBatchActivateRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-activate",
+		"--package",
+		"com.example.app",
+		"--offer",
+		"premium/monthly/intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchActivateRejectsMissingOfferBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-activate",
+		"--package",
+		"com.example.app",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing offer validation error")
+	}
+	if !strings.Contains(err.Error(), "at least one subscription offer is required") {
+		t.Fatalf("error = %v, want missing offer validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestSubscriptionOffersDeleteDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

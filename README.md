@@ -150,6 +150,7 @@ gpc subscription-offers get --package com.example.app --product-id premium_month
 gpc subscription-offers delete --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id draft-intro --dry-run
 gpc subscription-offers deactivate --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro --dry-run
 gpc subscription-offers batch-get --package com.example.app --product-id - --base-plan-id - --offer premium_monthly/monthly/intro --offer premium_yearly/annual/winback
+gpc subscription-offers batch-deactivate --package com.example.app --offer premium_monthly/monthly/intro --offer premium_monthly/annual/winback --dry-run
 gpc purchases product --package com.example.app --token PURCHASE_TOKEN
 gpc purchases product acknowledge --package com.example.app --product-id coins_100 --token PURCHASE_TOKEN --dry-run
 gpc purchases product consume --package com.example.app --product-id coins_100 --token PURCHASE_TOKEN --dry-run

@@ -2173,6 +2173,8 @@ gpc subscription-offers
 #### Commands
 
 - `gpc subscription-offers activate`: activate a subscription offer
+- `gpc subscription-offers batch-activate`: activate multiple subscription offers
+- `gpc subscription-offers batch-deactivate`: deactivate multiple subscription offers
 - `gpc subscription-offers batch-get`: Get multiple subscription offers
 - `gpc subscription-offers deactivate`: deactivate a subscription offer
 - `gpc subscription-offers delete`: Delete a draft subscription offer
@@ -2195,6 +2197,40 @@ gpc subscription-offers activate [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--offer-id`: Subscription offer ID
 - `--product-id`: Parent subscription product ID
+
+#### gpc subscription-offers batch-activate
+
+activate multiple subscription offers
+
+```sh
+gpc subscription-offers batch-activate [flags]
+```
+
+##### Flags
+
+- `--base-plan-id`: Parent subscription base plan ID, or - for offers across base plans; inferred when omitted
+- `--confirm`: Apply the subscription offer batch state update (default `false`)
+- `--dry-run`: Print the planned subscription offer batch state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--offer`: Offer to update as productId/basePlanId/offerId; repeatable, up to 100 (default `[]`)
+- `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
+
+#### gpc subscription-offers batch-deactivate
+
+deactivate multiple subscription offers
+
+```sh
+gpc subscription-offers batch-deactivate [flags]
+```
+
+##### Flags
+
+- `--base-plan-id`: Parent subscription base plan ID, or - for offers across base plans; inferred when omitted
+- `--confirm`: Apply the subscription offer batch state update (default `false`)
+- `--dry-run`: Print the planned subscription offer batch state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--offer`: Offer to update as productId/basePlanId/offerId; repeatable, up to 100 (default `[]`)
+- `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
 
 #### gpc subscription-offers batch-get
 

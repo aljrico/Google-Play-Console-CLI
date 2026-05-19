@@ -269,6 +269,8 @@ type SubscriptionOfferBatchGetRequest struct {
 	OfferID    SubscriptionOfferID    `json:"offerId"`
 }
 
+type SubscriptionOfferBatchMutationRequest = SubscriptionOfferBatchGetRequest
+
 func NewSubscriptionOfferBatchGetRequest(value string) (SubscriptionOfferBatchGetRequest, error) {
 	parts := strings.Split(strings.TrimSpace(value), "/")
 	if len(parts) != 3 {
@@ -289,11 +291,26 @@ func NewSubscriptionOfferBatchGetRequest(value string) (SubscriptionOfferBatchGe
 	return SubscriptionOfferBatchGetRequest{ProductID: productID, BasePlanID: basePlanID, OfferID: offerID}, nil
 }
 
+func NewSubscriptionOfferBatchMutationRequest(value string) (SubscriptionOfferBatchMutationRequest, error) {
+	return NewSubscriptionOfferBatchGetRequest(value)
+}
+
 type SubscriptionOfferBatchGetOptions struct {
 	PackageName PackageName                        `json:"packageName"`
 	ProductID   SubscriptionProductID              `json:"productId"`
 	BasePlanID  SubscriptionBasePlanID             `json:"basePlanId"`
 	Requests    []SubscriptionOfferBatchGetRequest `json:"requests"`
+}
+
+type SubscriptionOfferBatchStateUpdateOptions struct {
+	PackageName      PackageName                             `json:"packageName"`
+	ProductID        SubscriptionProductID                   `json:"productId"`
+	BasePlanID       SubscriptionBasePlanID                  `json:"basePlanId"`
+	Requests         []SubscriptionOfferBatchMutationRequest `json:"requests"`
+	Action           SubscriptionOfferStateAction            `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance           `json:"latencyTolerance"`
+	Confirm          bool                                    `json:"confirm"`
+	DryRun           bool                                    `json:"dryRun"`
 }
 
 func (o SubscriptionOfferBatchGetOptions) Validate() error {
@@ -341,6 +358,96 @@ func (o SubscriptionOfferBatchGetOptions) Validate() error {
 	return nil
 }
 
+func (o SubscriptionOfferBatchStateUpdateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if err := validateSubscriptionOfferBatchMutationParents(o.ProductID, o.BasePlanID, o.Requests, "batch state update"); err != nil {
+		return err
+	}
+	if err := o.Action.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("subscription offer batch state update requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o SubscriptionOfferBatchStateUpdateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live subscription offer batch state update cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live subscription offer batch state update requires --confirm")
+	}
+	return nil
+}
+
+func validateSubscriptionOfferBatchMutationParents(productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, requests []SubscriptionOfferBatchMutationRequest, operation string) error {
+	if len(requests) == 0 {
+		return fmt.Errorf("at least one subscription offer is required")
+	}
+	if _, err := NewSubscriptionOfferListProductID(productID.String()); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionOfferListBasePlanID(basePlanID.String()); err != nil {
+		return err
+	}
+	if len(requests) > 100 {
+		return fmt.Errorf("subscription offer %s cannot exceed 100 offers", operation)
+	}
+	seen := map[string]struct{}{}
+	seenProducts := map[SubscriptionProductID]struct{}{}
+	seenBasePlans := map[SubscriptionBasePlanID]struct{}{}
+	for _, request := range requests {
+		if _, err := NewSubscriptionProductID(request.ProductID.String()); err != nil {
+			return err
+		}
+		if _, err := NewSubscriptionBasePlanID(request.BasePlanID.String()); err != nil {
+			return err
+		}
+		if _, err := NewSubscriptionOfferID(request.OfferID.String()); err != nil {
+			return err
+		}
+		if productID.String() != SubscriptionOfferWildcardID && request.ProductID != productID {
+			return fmt.Errorf("subscription offer %s/%s/%s does not match parent product ID %s", request.ProductID, request.BasePlanID, request.OfferID, productID)
+		}
+		if basePlanID.String() != SubscriptionOfferWildcardID && request.BasePlanID != basePlanID {
+			return fmt.Errorf("subscription offer %s/%s/%s does not match parent base plan ID %s", request.ProductID, request.BasePlanID, request.OfferID, basePlanID)
+		}
+		key := subscriptionOfferKey(request.ProductID, request.BasePlanID, request.OfferID)
+		if _, ok := seen[key]; ok {
+			return fmt.Errorf("subscription offer %s is duplicated", key)
+		}
+		seen[key] = struct{}{}
+		seenProducts[request.ProductID] = struct{}{}
+		seenBasePlans[request.BasePlanID] = struct{}{}
+	}
+	if len(seenProducts) == 1 && productID.String() == SubscriptionOfferWildcardID {
+		return fmt.Errorf("single-product offer %s requires parent product ID, not %q", operation, SubscriptionOfferWildcardID)
+	}
+	if len(seenProducts) > 1 && productID.String() != SubscriptionOfferWildcardID {
+		return fmt.Errorf("multi-product offer %s requires parent product ID %q", operation, SubscriptionOfferWildcardID)
+	}
+	if len(seenProducts) == 1 && len(seenBasePlans) == 1 && basePlanID.String() == SubscriptionOfferWildcardID {
+		return fmt.Errorf("single-base-plan offer %s requires parent base plan ID, not %q", operation, SubscriptionOfferWildcardID)
+	}
+	if len(seenProducts) == 1 && len(seenBasePlans) > 1 && basePlanID.String() != SubscriptionOfferWildcardID {
+		return fmt.Errorf("multi-base-plan offer %s requires parent base plan ID %q", operation, SubscriptionOfferWildcardID)
+	}
+	return nil
+}
+
 type SubscriptionOfferBatchGetResult struct {
 	PackageName PackageName                      `json:"packageName"`
 	ProductID   SubscriptionProductID            `json:"productId"`
@@ -349,8 +456,35 @@ type SubscriptionOfferBatchGetResult struct {
 	Options     SubscriptionOfferBatchGetOptions `json:"options"`
 }
 
+type SubscriptionOfferBatchStateUpdatePlan struct {
+	PackageName      PackageName                             `json:"packageName"`
+	ProductID        SubscriptionProductID                   `json:"productId"`
+	BasePlanID       SubscriptionBasePlanID                  `json:"basePlanId"`
+	Requests         []SubscriptionOfferBatchMutationRequest `json:"requests"`
+	Action           SubscriptionOfferStateAction            `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance           `json:"latencyTolerance"`
+	Confirm          bool                                    `json:"confirm"`
+	Steps            []string                                `json:"steps"`
+}
+
+type SubscriptionOfferBatchStateUpdateResult struct {
+	PackageName PackageName                             `json:"packageName"`
+	ProductID   SubscriptionProductID                   `json:"productId"`
+	BasePlanID  SubscriptionBasePlanID                  `json:"basePlanId"`
+	Requests    []SubscriptionOfferBatchMutationRequest `json:"requests"`
+	Action      SubscriptionOfferStateAction            `json:"action"`
+	DryRun      bool                                    `json:"dryRun"`
+	Applied     bool                                    `json:"applied"`
+	Offers      []SubscriptionOffer                     `json:"offers,omitempty"`
+	Plan        SubscriptionOfferBatchStateUpdatePlan   `json:"plan"`
+}
+
 type SubscriptionOfferBatchGetter interface {
 	BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error)
+}
+
+type SubscriptionOfferBatchStateUpdater interface {
+	BatchUpdateSubscriptionOfferStates(ctx context.Context, options SubscriptionOfferBatchStateUpdateOptions) (SubscriptionOfferBatchStateUpdateResult, error)
 }
 
 type SubscriptionOfferDeleter interface {
@@ -365,6 +499,50 @@ func BatchGetSubscriptionOffers(ctx context.Context, getter SubscriptionOfferBat
 		return SubscriptionOfferBatchGetResult{}, fmt.Errorf("subscription offer batch getter is required")
 	}
 	return getter.BatchGetSubscriptionOffers(ctx, options)
+}
+
+func BatchUpdateSubscriptionOfferStates(ctx context.Context, updater SubscriptionOfferBatchStateUpdater, options SubscriptionOfferBatchStateUpdateOptions) (SubscriptionOfferBatchStateUpdateResult, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionOfferBatchStateUpdateResult{}, err
+	}
+	requests := append([]SubscriptionOfferBatchMutationRequest(nil), options.Requests...)
+	result := SubscriptionOfferBatchStateUpdateResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		BasePlanID:  options.BasePlanID,
+		Requests:    requests,
+		Action:      options.Action,
+		DryRun:      options.DryRun,
+		Plan: SubscriptionOfferBatchStateUpdatePlan{
+			PackageName:      options.PackageName,
+			ProductID:        options.ProductID,
+			BasePlanID:       options.BasePlanID,
+			Requests:         requests,
+			Action:           options.Action,
+			LatencyTolerance: options.LatencyTolerance,
+			Confirm:          options.Confirm,
+			Steps:            subscriptionOfferBatchStateUpdateSteps(options),
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if updater == nil {
+		return SubscriptionOfferBatchStateUpdateResult{}, fmt.Errorf("subscription offer batch state updater is required")
+	}
+	updated, err := updater.BatchUpdateSubscriptionOfferStates(ctx, options)
+	if err != nil {
+		return SubscriptionOfferBatchStateUpdateResult{}, err
+	}
+	updated.PackageName = options.PackageName
+	updated.ProductID = options.ProductID
+	updated.BasePlanID = options.BasePlanID
+	updated.Plan = result.Plan
+	updated.Requests = requests
+	updated.Action = options.Action
+	updated.DryRun = false
+	updated.Applied = true
+	return updated, nil
 }
 
 type SubscriptionOfferDeleteOptions struct {
@@ -592,4 +770,11 @@ func subscriptionOfferStateUpdateSteps(options SubscriptionOfferStateUpdateOptio
 		return []string{fmt.Sprintf("plan %s subscription offer", options.Action)}
 	}
 	return []string{fmt.Sprintf("%s subscription offer", options.Action)}
+}
+
+func subscriptionOfferBatchStateUpdateSteps(options SubscriptionOfferBatchStateUpdateOptions) []string {
+	if options.DryRun {
+		return []string{fmt.Sprintf("plan batch %s subscription offers", options.Action)}
+	}
+	return []string{fmt.Sprintf("batch %s subscription offers", options.Action)}
 }
