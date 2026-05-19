@@ -59,6 +59,7 @@ func newRootCommand(out io.Writer) *cobra.Command {
 		newReleasesCommand(out, options),
 		newPublishCommand(out, options),
 		newListingsCommand(out, options),
+		newMetadataCommand(out, options),
 		newMigrateCommand(out, options),
 		newDetailsCommand(out, options),
 		newReviewsCommand(out, options),

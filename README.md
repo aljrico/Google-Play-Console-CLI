@@ -95,6 +95,7 @@ gpc images delete-all --package com.example.app --language en-US --type phoneScr
 gpc listings update --package com.example.app --language en-US --title "Example" --dry-run
 gpc listings delete --package com.example.app --language en-US --dry-run
 gpc details update --package com.example.app --contact-email support@example.com --dry-run
+gpc metadata apply --package com.example.app --file ./play-metadata.json --dry-run
 gpc data-safety update --package com.example.app --csv ./data-safety.csv --dry-run
 gpc reviews list --package com.example.app --max-results 25
 gpc reviews get --package com.example.app --review-id review-123
@@ -186,7 +187,7 @@ The install script supports `GPC_VERSION`, `GPC_INSTALL_DIR`, `GPC_REPO`, and `G
 
 ## Status
 
-Early but functional. Auth/profile storage, the command taxonomy, generated command/schema docs, core release workflows, localized listings, app-level details, review reading/replies, read-only monetization catalog commands, purchase checks, order lookup, and guarded order refunds are in place.
+Early but functional. Auth/profile storage, the command taxonomy, generated command/schema docs, core release workflows, localized listings, app-level details, file-based metadata apply, review reading/replies, read-only monetization catalog commands, purchase checks, order lookup, and guarded order refunds are in place.
 
 See [docs/PARITY.md](docs/PARITY.md) for the working parity map against App Store Connect CLI.
 See [docs/COMMANDS.md](docs/COMMANDS.md) for the generated command reference.

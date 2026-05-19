@@ -60,7 +60,7 @@ Sources:
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `localizations` | `listings` | `edits.listings` | tested | `gpc listings list`, `get`, partial `update`, `delete`, and `delete-all` cover localized store listing records. |
-| `metadata` | `metadata` | `edits.details`, `edits.listings` | tested | Metadata slices are covered through `gpc listings` and `gpc details`; file-based sync is still planned. |
+| `metadata` | `metadata` | `edits.details`, `edits.listings` | tested | `gpc metadata apply` applies app details and localized listings from one strict JSON file through a single edit with dry-run/confirm gating. |
 | `screenshots` | `images` | `edits.images` | tested | `gpc images list`, `upload`, `delete`, and `delete-all` manage localized screenshots/images with dry-run/confirm edit gating for mutations. |
 | `video-previews` | `videos` | Not clearly exposed in Android Publisher API | blocked | Play video preview management may require Console UI or another API surface. |
 | `background-assets` | `images` | `edits.images` | tested | Feature graphics, icons, TV banners, and screenshots are covered by `gpc images list`, `upload`, `delete`, and `delete-all`. |

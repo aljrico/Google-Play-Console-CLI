@@ -37,6 +37,7 @@ gpc [flags]
 - `gpc install-skills`: Install bundled gpc agent skills
 - `gpc internal-sharing`: Upload artifacts to Google Play internal app sharing
 - `gpc listings`: Manage localized Google Play store listings
+- `gpc metadata`: Apply app details and localized listings from a file
 - `gpc migrate`: Inspect local metadata for migration
 - `gpc notifications`: Inspect Google Play notification payloads
 - `gpc notify`: Send release workflow notifications
@@ -877,6 +878,36 @@ gpc listings update [flags]
 - `--short-description`: Localized short description
 - `--title`: Localized app title
 - `--video`: Promotional YouTube video URL
+
+### gpc metadata
+
+Apply app details and localized listings from a file
+
+```sh
+gpc metadata
+```
+
+#### Flags
+
+- `--package`: Android package name, for example com.example.app
+
+#### Commands
+
+- `gpc metadata apply`: Apply a JSON metadata file through one Google Play edit
+
+#### gpc metadata apply
+
+Apply a JSON metadata file through one Google Play edit
+
+```sh
+gpc metadata apply [flags]
+```
+
+##### Flags
+
+- `--confirm`: Commit the edit after validation (default `false`)
+- `--dry-run`: Print the planned metadata update without calling Google Play (default `false`)
+- `--file`: Path to metadata JSON
 
 ### gpc migrate
 
