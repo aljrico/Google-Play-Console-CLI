@@ -20,6 +20,7 @@ func newVitalsCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	cmd.AddCommand(
 		newVitalsMetricSetCommand(out, options, &packageName),
 		newVitalsErrorsCommand(out, options, &packageName),
+		newVitalsAnomaliesCommand(out, options, &packageName),
 	)
 	return cmd
 }
@@ -307,6 +308,57 @@ func newVitalsErrorsReportsSearchCommand(out io.Writer, options *globalOptions, 
 	cmd.Flags().StringVar(&endDate, "end-date", "", "End date, exclusive, in YYYY-MM-DD format")
 	cmd.Flags().StringVar(&timeZone, "time-zone", "", "Time zone for the interval; only UTC is supported when set")
 	cmd.Flags().Int64Var(&pageSize, "page-size", 0, "Maximum reports to return, capped by Google at 100")
+	cmd.Flags().StringVar(&pageToken, "page-token", "", "Pagination token from a previous response")
+	return cmd
+}
+
+func newVitalsAnomaliesCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "anomalies",
+		Short: "List Android vitals anomalies",
+	}
+	cmd.AddCommand(newVitalsAnomaliesListCommand(out, options, packageName))
+	return cmd
+}
+
+func newVitalsAnomaliesListCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		filter    string
+		pageSize  int64
+		pageToken string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List Android vitals anomalies",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			listOptions := reporting.AnomalyListOptions{
+				PackageName: typedPackageName,
+				Filter:      filter,
+				PageSize:    pageSize,
+				PageToken:   pageToken,
+			}
+			if err := listOptions.Validate(); err != nil {
+				return err
+			}
+			client, err := reporting.NewClientFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := reporting.ListAnomalies(cmd.Context(), client, listOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&filter, "filter", "", "AIP-160 anomaly filter, for example activeBetween(\"2026-05-01T00:00:00Z\", \"2026-05-19T00:00:00Z\")")
+	cmd.Flags().Int64Var(&pageSize, "page-size", 0, "Maximum anomalies to return, capped by Google at 100")
 	cmd.Flags().StringVar(&pageToken, "page-token", "", "Pagination token from a previous response")
 	return cmd
 }

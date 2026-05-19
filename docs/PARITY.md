@@ -85,7 +85,7 @@ Sources:
 | `pricing` | `pricing` | `monetization.convertRegionPrices`, product/subscription pricing APIs | tested | `gpc pricing convert-region-prices` calculates Play regional prices from an explicit source price. Product and subscription price mutations remain planned. |
 | `finance` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |
 | `analytics` | `reports` | Separate reporting APIs, not Android Publisher REST | planned | Needs separate API/client research. |
-| `insights` | `insights` | Built from reports | planned | Derived command, not a direct API mapping. |
+| `insights` | `vitals anomalies` / `insights` | Play Developer Reporting API plus derived reports | tested | `gpc vitals anomalies list` exposes Play-detected metric anomalies. Higher-level derived insight summaries remain planned. |
 | `orders` | `orders` | `orders` | tested | `gpc orders get` and `batch-get` inspect order details by ID; `refund` applies guarded refunds only with `--confirm`, with optional revoke and dry-run planning. |
 | `purchases` | `purchases` | `purchases.products`, `purchases.productsv2`, `purchases.subscriptionsv2`, `voidedpurchases` | tested | `gpc purchases product` and `subscription` cover read-only purchase-token status, `gpc purchases product acknowledge` and `consume` apply guarded product purchase mutations, `gpc purchases subscription revoke` handles guarded full/prorated revocation, and `gpc purchases voided list` covers voided purchase reporting. Legacy subscription acknowledge/cancel and item-based revocation remain planned. |
 
@@ -95,7 +95,7 @@ Sources:
 | --- | --- | --- | --- | --- |
 | `review` | `review` | No clear public review-submission lifecycle API | blocked | Track/release state is available, but review queue control appears limited. |
 | `reviews` | `reviews` | `reviews` | tested | `gpc reviews list`, `get`, and guarded `reply` cover Play review reading and developer replies. Google limits this API to recent reviews with comments; reply text is capped at 350 characters and requires review-reply access. |
-| `performance` | `vitals` | Play Developer Reporting API | tested | `gpc vitals metric-set get` inspects Android vitals metric-set metadata and freshness windows; `gpc vitals metric-set query` fetches metric rows with explicit metrics, dimensions, filters, timeline, cohort, and pagination. |
+| `performance` | `vitals` | Play Developer Reporting API | tested | `gpc vitals metric-set get` inspects Android vitals metric-set metadata and freshness windows; `gpc vitals metric-set query` fetches metric rows with explicit metrics, dimensions, filters, timeline, cohort, and pagination; `gpc vitals anomalies list` lists detected metric anomalies. |
 | `crashes` | `vitals` | Play Developer Reporting API | tested | `gpc vitals metric-set get --metric-set crash-rate` and `error-count` cover crash/error metric-set metadata, `gpc vitals metric-set query` can query crash/error metric rows, `gpc vitals errors issues search` searches grouped issues, and `gpc vitals errors reports search` searches individual crash/ANR/non-fatal reports. |
 
 ## Team And Access

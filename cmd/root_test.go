@@ -158,6 +158,7 @@ func TestDocsCommandsOutputsJSONReferenceWithoutAuth(t *testing.T) {
 		`"path":"gpc vitals metric-set query"`,
 		`"path":"gpc vitals errors issues search"`,
 		`"path":"gpc vitals errors reports search"`,
+		`"path":"gpc vitals anomalies list"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -194,6 +195,7 @@ func TestDocsCommandsOutputsMarkdownReference(t *testing.T) {
 		"`gpc vitals metric-set query`",
 		"`gpc vitals errors issues search`",
 		"`gpc vitals errors reports search`",
+		"`gpc vitals anomalies list`",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -2542,6 +2544,32 @@ func TestVitalsErrorsReportsSearchRejectsUnsupportedTimeZoneBeforeAuth(t *testin
 	}
 	if !strings.Contains(err.Error(), "only support UTC") {
 		t.Fatalf("error = %v, want timezone validation", err)
+	}
+}
+
+func TestVitalsAnomaliesListRejectsNegativePageSizeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"vitals",
+		"anomalies",
+		"list",
+		"--package",
+		"com.example.app",
+		"--page-size",
+		"-1",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected page size validation error")
+	}
+	if !strings.Contains(err.Error(), "page size cannot be negative") {
+		t.Fatalf("error = %v, want page size validation", err)
 	}
 }
 
