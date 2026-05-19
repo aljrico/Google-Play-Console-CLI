@@ -1422,6 +1422,7 @@ gpc releases promote [flags]
 - `--confirm`: Commit the edit after validation (default `false`)
 - `--dry-run`: Print the planned promotion workflow without calling Google Play (default `false`)
 - `--from`: Source track name (default `internal`)
+- `--release-note`: Localized release note as language=text, repeatable (default `[]`)
 - `--status`: Target release status: completed, draft, halted, inProgress (default `draft`)
 - `--to`: Target track name (default `production`)
 - `--user-fraction`: Staged rollout fraction for inProgress or halted releases (default `0`)

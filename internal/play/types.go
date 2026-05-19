@@ -171,13 +171,8 @@ func (o PublishInternalOptions) Validate() error {
 	if _, err := NewReleaseStatus(o.Status.String()); err != nil {
 		return err
 	}
-	for _, note := range o.ReleaseNotes {
-		if _, err := NewListingLanguage(note.Language.String()); err != nil {
-			return err
-		}
-		if note.Text == "" {
-			return fmt.Errorf("release note text is required")
-		}
+	if err := ValidateReleaseNotes(o.ReleaseNotes); err != nil {
+		return err
 	}
 	switch o.Status {
 	case ReleaseStatusInProgress:
@@ -195,6 +190,24 @@ func (o PublishInternalOptions) Validate() error {
 		if o.UserFraction != nil {
 			return fmt.Errorf("user fraction can only be set when status is inProgress or halted")
 		}
+	}
+	return nil
+}
+
+func ValidateReleaseNotes(notes []ReleaseNote) error {
+	seenLanguages := make(map[ListingLanguage]struct{}, len(notes))
+	for _, note := range notes {
+		language, err := NewListingLanguage(note.Language.String())
+		if err != nil {
+			return err
+		}
+		if note.Text == "" {
+			return fmt.Errorf("release note text is required")
+		}
+		if _, ok := seenLanguages[language]; ok {
+			return fmt.Errorf("duplicate release note language %s", language)
+		}
+		seenLanguages[language] = struct{}{}
 	}
 	return nil
 }

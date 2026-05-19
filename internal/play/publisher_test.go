@@ -152,6 +152,46 @@ func TestAppendTrackReleaseSendsReleaseNotes(t *testing.T) {
 	}
 }
 
+func TestPromoteTrackReleaseOverridesReleaseNotes(t *testing.T) {
+	var sawUpdate bool
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/androidpublisher/v3/applications/com.example.app/edits/edit-123/tracks/internal":
+			_, _ = w.Write([]byte(`{"track":"internal","releases":[{"status":"completed","versionCodes":["42"],"releaseNotes":[{"language":"en-US","text":"Internal note."}]}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/androidpublisher/v3/applications/com.example.app/edits/edit-123/tracks/production":
+			_, _ = w.Write([]byte(`{"track":"production","releases":[]}`))
+		case r.Method == http.MethodPut && r.URL.Path == "/androidpublisher/v3/applications/com.example.app/edits/edit-123/tracks/production":
+			sawUpdate = true
+			var apiTrack androidpublisher.Track
+			if err := json.NewDecoder(r.Body).Decode(&apiTrack); err != nil {
+				t.Fatalf("Decode() error = %v", err)
+			}
+			if len(apiTrack.Releases) != 1 || len(apiTrack.Releases[0].ReleaseNotes) != 1 {
+				t.Fatalf("Track body = %#v, want replacement release note", apiTrack)
+			}
+			note := apiTrack.Releases[0].ReleaseNotes[0]
+			if note.Language != "en-US" || note.Text != "Production note." {
+				t.Fatalf("release note = %#v, want production note", note)
+			}
+			_, _ = w.Write([]byte(`{"track":"production","releases":[]}`))
+		default:
+			t.Fatalf("method/path = %s %s, want promotion track calls", r.Method, r.URL.Path)
+		}
+	}))
+
+	release, err := publisher.PromoteTrackRelease(context.Background(), "com.example.app", "edit-123", TrackInternal, TrackProduction, 42, ReleaseStatusDraft, nil, []ReleaseNote{{Language: "en-US", Text: "Production note."}})
+	if err != nil {
+		t.Fatalf("PromoteTrackRelease() error = %v", err)
+	}
+	if len(release.ReleaseNotes) != 1 || release.ReleaseNotes[0].Text != "Production note." {
+		t.Fatalf("ReleaseNotes = %#v, want production note", release.ReleaseNotes)
+	}
+	if !sawUpdate {
+		t.Fatal("expected production track update")
+	}
+}
+
 func TestGetTestersUsesTrackTesterEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

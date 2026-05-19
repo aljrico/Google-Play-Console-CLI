@@ -36,12 +36,12 @@ Sources:
 | `versions` | `releases` | `applications.tracks.releases`, `edits.tracks` | implemented | `gpc releases list` reads releases for a track through `edits.tracks`; upload, promote, halt, and resume cover the first mutation workflows. |
 | `builds` | `artifacts` / `releases upload` | `edits.apks`, `edits.bundles`, `generatedapks` | tested | `gpc releases upload` uploads APKs or AABs through an edit and assigns the uploaded version code to the requested track. |
 | `build-bundles` | `generated-apks` / `releases upload` | `edits.bundles`, `generatedapks` | tested | `gpc releases upload` uploads AABs, `gpc generated-apks list` inspects generated APK download metadata, and `gpc generated-apks download` downloads a selected generated APK by download ID with overwrite protection. |
-| `release` | `releases` | `edits`, `edits.tracks`, `applications.tracks.releases` | implemented | `gpc releases upload`, `promote`, `halt`, and `resume` insert edits, update tracks, validate, and commit only with `--confirm`; promotion requires an explicit version code and defaults target status to draft. |
+| `release` | `releases` | `edits`, `edits.tracks`, `applications.tracks.releases` | implemented | `gpc releases upload`, `promote`, `halt`, and `resume` insert edits, update tracks, validate, and commit only with `--confirm`; promotion requires an explicit version code, defaults target status to draft, and can replace localized target release notes. |
 | `publish` | `publish` | `edits`, `edits.tracks` | implemented | `gpc publish internal` supports AAB upload planning and live validate/commit flow, appending through the raw Google track model to preserve existing release metadata. |
 | `status` | `status` | `applications.tracks.releases`, `edits.tracks` | tested | `gpc status` summarizes non-draft releases by track and can include draft releases on request. |
 | `submit` | `publish` / `releases` | `edits.commit`, `edits.validate` | implemented | Release upload and promotion validate by default and commit only with `--confirm`. |
 | `validate` | `validate` | `edits.validate` | tested | `gpc validate` creates a temporary edit, validates it, and deletes the edit afterwards. |
-| `release-notes` | `releases upload --release-note` | `edits.tracks.releases.releaseNotes` | tested | Upload accepts repeatable localized `language=text` release notes and maps them to Play track releases. |
+| `release-notes` | `releases --release-note` | `edits.tracks.releases.releaseNotes` | tested | Upload and promote accept repeatable localized `language=text` release notes and map them to Play track releases. |
 
 ## Tracks, Testing, And Distribution
 

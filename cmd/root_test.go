@@ -2204,6 +2204,8 @@ func TestReleasesPromoteDryRun(t *testing.T) {
 		"production",
 		"--version-code",
 		"42",
+		"--release-note",
+		"en-US=Production rollout.",
 		"--dry-run",
 		"--output",
 		"json",
@@ -2214,6 +2216,9 @@ func TestReleasesPromoteDryRun(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), `"toTrack":"production"`) {
 		t.Fatalf("release promote dry-run output = %s", buf.String())
+	}
+	if !strings.Contains(buf.String(), `"text":"Production rollout."`) {
+		t.Fatalf("release promote dry-run output = %s, want release note", buf.String())
 	}
 }
 

@@ -28,6 +28,35 @@ func TestPromoteReleaseDryRunDoesNotRequirePromoter(t *testing.T) {
 	}
 }
 
+func TestPromoteReleaseDryRunIncludesReleaseNotes(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := PromoteRelease(context.Background(), nil, PromoteReleaseOptions{
+		PackageName: packageName,
+		FromTrack:   TrackInternal,
+		ToTrack:     TrackProduction,
+		VersionCode: 42,
+		Status:      ReleaseStatusDraft,
+		ReleaseNotes: []ReleaseNote{
+			{Language: "en-US", Text: "Production rollout."},
+		},
+		DryRun: true,
+	})
+	if err != nil {
+		t.Fatalf("PromoteRelease() error = %v", err)
+	}
+	if len(result.Plan.ReleaseNotes) != 1 || result.Plan.ReleaseNotes[0].Text != "Production rollout." {
+		t.Fatalf("ReleaseNotes = %#v, want production note", result.Plan.ReleaseNotes)
+	}
+	wantSteps := []string{"insert edit", "read internal track", "copy version code 42 to production track as draft", "replace release notes", "validate edit", "delete uncommitted edit"}
+	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
+		t.Fatalf("steps = %#v, want %#v", result.Plan.Steps, wantSteps)
+	}
+}
+
 func TestPromoteReleaseRejectsSameTrack(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -137,7 +166,8 @@ func TestPromoteReleaseRequiresUserFractionForStagedTarget(t *testing.T) {
 }
 
 type fakePromoter struct {
-	calls []string
+	calls        []string
+	releaseNotes []ReleaseNote
 }
 
 func (p *fakePromoter) InsertEdit(ctx context.Context, packageName PackageName) (Edit, error) {
@@ -145,9 +175,10 @@ func (p *fakePromoter) InsertEdit(ctx context.Context, packageName PackageName) 
 	return Edit{ID: "edit-123"}, nil
 }
 
-func (p *fakePromoter) PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, versionCode int64, status ReleaseStatus, userFraction *float64) (TrackRelease, error) {
+func (p *fakePromoter) PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, versionCode int64, status ReleaseStatus, userFraction *float64, releaseNotes []ReleaseNote) (TrackRelease, error) {
 	p.calls = append(p.calls, "promote")
-	return TrackRelease{Status: status, VersionCodes: []int64{versionCode}}, nil
+	p.releaseNotes = releaseNotes
+	return TrackRelease{Status: status, VersionCodes: []int64{versionCode}, ReleaseNotes: releaseNotes}, nil
 }
 
 func (p *fakePromoter) ValidateEdit(ctx context.Context, packageName PackageName, editID string) error {

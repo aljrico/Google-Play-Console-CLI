@@ -1072,7 +1072,7 @@ func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName Pac
 	return trackFromAPI(updatedTrack), nil
 }
 
-func (p GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, versionCode int64, status ReleaseStatus, userFraction *float64) (TrackRelease, error) {
+func (p GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, versionCode int64, status ReleaseStatus, userFraction *float64, releaseNotes []ReleaseNote) (TrackRelease, error) {
 	source, err := p.service.Edits.Tracks.Get(packageName.String(), editID, sourceTrack.String()).Context(ctx).Do()
 	if err != nil {
 		return TrackRelease{}, fmt.Errorf("get %s track for %s: %w", sourceTrack, packageName, err)
@@ -1082,6 +1082,9 @@ func (p GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName Pa
 		return TrackRelease{}, fmt.Errorf("find version code %d on %s track for %s: %w", versionCode, sourceTrack, packageName, err)
 	}
 	setReleaseStatus(apiRelease, status, userFraction)
+	if len(releaseNotes) > 0 {
+		apiRelease.ReleaseNotes = releaseNotesToAPI(releaseNotes)
+	}
 
 	target, err := p.service.Edits.Tracks.Get(packageName.String(), editID, targetTrack.String()).Context(ctx).Do()
 	if err != nil {
@@ -1138,13 +1141,19 @@ func releaseToAPI(release TrackRelease) *androidpublisher.TrackRelease {
 		apiRelease.UserFraction = *release.UserFraction
 		apiRelease.ForceSendFields = append(apiRelease.ForceSendFields, "UserFraction")
 	}
-	for _, note := range release.ReleaseNotes {
-		apiRelease.ReleaseNotes = append(apiRelease.ReleaseNotes, &androidpublisher.LocalizedText{
+	apiRelease.ReleaseNotes = releaseNotesToAPI(release.ReleaseNotes)
+	return apiRelease
+}
+
+func releaseNotesToAPI(notes []ReleaseNote) []*androidpublisher.LocalizedText {
+	apiNotes := make([]*androidpublisher.LocalizedText, 0, len(notes))
+	for _, note := range notes {
+		apiNotes = append(apiNotes, &androidpublisher.LocalizedText{
 			Language: note.Language.String(),
 			Text:     note.Text,
 		})
 	}
-	return apiRelease
+	return apiNotes
 }
 
 func selectReleaseByVersionCode(track *androidpublisher.Track, versionCode int64) (*androidpublisher.TrackRelease, error) {

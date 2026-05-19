@@ -172,6 +172,7 @@ func newReleasesPromoteCommand(out io.Writer, options *globalOptions, packageNam
 		versionCode  int64
 		status       string
 		userFraction float64
+		releaseNotes []string
 		confirm      bool
 		dryRun       bool
 	)
@@ -197,15 +198,20 @@ func newReleasesPromoteCommand(out io.Writer, options *globalOptions, packageNam
 			if err != nil {
 				return err
 			}
+			typedReleaseNotes, err := parseReleaseNotes(releaseNotes)
+			if err != nil {
+				return err
+			}
 
 			promoteOptions := play.PromoteReleaseOptions{
-				PackageName: typedPackageName,
-				FromTrack:   typedFromTrack,
-				ToTrack:     typedToTrack,
-				VersionCode: versionCode,
-				Status:      typedStatus,
-				Confirm:     confirm,
-				DryRun:      dryRun,
+				PackageName:  typedPackageName,
+				FromTrack:    typedFromTrack,
+				ToTrack:      typedToTrack,
+				VersionCode:  versionCode,
+				Status:       typedStatus,
+				ReleaseNotes: typedReleaseNotes,
+				Confirm:      confirm,
+				DryRun:       dryRun,
 			}
 			if cmd.Flags().Changed("user-fraction") {
 				promoteOptions.UserFraction = &userFraction
@@ -234,6 +240,7 @@ func newReleasesPromoteCommand(out io.Writer, options *globalOptions, packageNam
 	cmd.Flags().Int64Var(&versionCode, "version-code", 0, "Version code to promote")
 	cmd.Flags().StringVar(&status, "status", play.ReleaseStatusDraft.String(), "Target release status: completed, draft, halted, inProgress")
 	cmd.Flags().Float64Var(&userFraction, "user-fraction", 0, "Staged rollout fraction for inProgress or halted releases")
+	cmd.Flags().StringArrayVar(&releaseNotes, "release-note", nil, "Localized release note as language=text, repeatable")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned promotion workflow without calling Google Play")
 	return cmd

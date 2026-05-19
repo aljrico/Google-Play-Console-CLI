@@ -8,7 +8,7 @@ import (
 
 type TrackPromoter interface {
 	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
-	PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, versionCode int64, status ReleaseStatus, userFraction *float64) (TrackRelease, error)
+	PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, versionCode int64, status ReleaseStatus, userFraction *float64, releaseNotes []ReleaseNote) (TrackRelease, error)
 	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
 	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
 	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
@@ -21,6 +21,7 @@ type PromoteReleaseOptions struct {
 	VersionCode  int64         `json:"versionCode"`
 	Status       ReleaseStatus `json:"status"`
 	UserFraction *float64      `json:"userFraction,omitempty"`
+	ReleaseNotes []ReleaseNote `json:"releaseNotes,omitempty"`
 	Confirm      bool          `json:"confirm"`
 	DryRun       bool          `json:"dryRun"`
 }
@@ -42,6 +43,9 @@ func (o PromoteReleaseOptions) Validate() error {
 		return fmt.Errorf("version code is required")
 	}
 	if _, err := NewReleaseStatus(o.Status.String()); err != nil {
+		return err
+	}
+	if err := ValidateReleaseNotes(o.ReleaseNotes); err != nil {
 		return err
 	}
 	switch o.Status {
@@ -71,6 +75,7 @@ type PromotePlan struct {
 	VersionCode  int64         `json:"versionCode"`
 	Status       ReleaseStatus `json:"status"`
 	UserFraction *float64      `json:"userFraction,omitempty"`
+	ReleaseNotes []ReleaseNote `json:"releaseNotes,omitempty"`
 	Confirm      bool          `json:"confirm"`
 	Steps        []string      `json:"steps"`
 }
@@ -84,8 +89,11 @@ func NewPromotePlan(options PromoteReleaseOptions) (PromotePlan, error) {
 		"insert edit",
 		fmt.Sprintf("read %s track", options.FromTrack),
 		fmt.Sprintf("copy version code %d to %s track as %s", options.VersionCode, options.ToTrack, options.Status),
-		"validate edit",
 	}
+	if len(options.ReleaseNotes) > 0 {
+		steps = append(steps, "replace release notes")
+	}
+	steps = append(steps, "validate edit")
 	if options.Confirm {
 		steps = append(steps, "commit edit")
 	} else {
@@ -99,6 +107,7 @@ func NewPromotePlan(options PromoteReleaseOptions) (PromotePlan, error) {
 		VersionCode:  options.VersionCode,
 		Status:       options.Status,
 		UserFraction: options.UserFraction,
+		ReleaseNotes: options.ReleaseNotes,
 		Confirm:      options.Confirm,
 		Steps:        steps,
 	}, nil
@@ -152,7 +161,7 @@ func PromoteRelease(ctx context.Context, promoter TrackPromoter, options Promote
 		}
 	}()
 
-	release, err := promoter.PromoteTrackRelease(ctx, options.PackageName, edit.ID, options.FromTrack, options.ToTrack, options.VersionCode, options.Status, options.UserFraction)
+	release, err := promoter.PromoteTrackRelease(ctx, options.PackageName, edit.ID, options.FromTrack, options.ToTrack, options.VersionCode, options.Status, options.UserFraction, options.ReleaseNotes)
 	if err != nil {
 		return PromoteResult{}, err
 	}
