@@ -1615,12 +1615,17 @@ gpc one-time-product-offers create [flags]
 
 - `--confirm`: Create the one-time product offer (default `false`)
 - `--dry-run`: Print the planned one-time product offer creation without calling Google Play (default `false`)
+- `--end-time`: Basic discounted offer end time as RFC3339
 - `--from-json`: Path to a Google Play API or gpc JSON one-time product offer body
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--offer-id`: One-time product offer ID
+- `--offer-tag`: Basic create offer tag; repeatable (default `[]`)
 - `--product-id`: Parent one-time product ID
 - `--purchase-option-id`: Parent one-time product purchase option ID
+- `--redemption-limit`: Basic discounted offer redemption limit from 0 to 50 (default `0`)
 - `--regions-version`: Google Play regions version required by oneTimeProductOffers.batchUpdate
+- `--relative-discount`: Basic create regional relative discount as REGION:0.5, where 0.5 means the user pays 50% of the purchase option price; repeatable (default `[]`)
+- `--start-time`: Basic discounted offer start time as RFC3339
 
 #### gpc one-time-product-offers deactivate
 

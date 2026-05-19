@@ -6441,6 +6441,202 @@ func TestOneTimeProductOffersCreateDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestOneTimeProductOffersCreateBasicRelativeDiscountDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"intro",
+		"--offer-tag",
+		"public",
+		"--start-time",
+		"2026-06-01T00:00:00Z",
+		"--end-time",
+		"2026-07-01T00:00:00Z",
+		"--redemption-limit",
+		"5",
+		"--relative-discount",
+		"us:0.5",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"productId":"coins_100"`,
+		`"purchaseOptionId":"buy"`,
+		`"offerId":"intro"`,
+		`"type":"discounted"`,
+		`"offerTags":["public"]`,
+		`"startTime":"2026-06-01T00:00:00Z"`,
+		`"endTime":"2026-07-01T00:00:00Z"`,
+		`"redemptionLimit":5`,
+		`"regionCode":"US"`,
+		`"availability":"available"`,
+		`"relativeDiscount":0.5`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestOneTimeProductOffersCreateRejectsJSONWithBasicFlagsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "offer.json")
+	if err := os.WriteFile(bodyPath, []byte(`{
+		"discountedOffer":{"startTime":"2026-06-01T00:00:00Z","endTime":"2026-07-01T00:00:00Z"},
+		"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","relativeDiscount":0.5}]
+	}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"intro",
+		"--from-json",
+		bodyPath,
+		"--relative-discount",
+		"US:0.5",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected from-json and basic flags validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("error = %v, want combination validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestOneTimeProductOffersCreateBasicFlagsRejectsInvalidTimeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	for _, tc := range []struct {
+		name string
+		flag string
+	}{
+		{name: "start", flag: "--start-time"},
+		{name: "end", flag: "--end-time"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			cmd := newRootCommand(&buf)
+			cmd.SetArgs([]string{
+				"one-time-product-offers",
+				"create",
+				"--package",
+				"com.example.app",
+				"--product-id",
+				"coins_100",
+				"--purchase-option-id",
+				"buy",
+				"--offer-id",
+				"intro",
+				"--relative-discount",
+				"US:0.5",
+				tc.flag,
+				"not-a-time",
+				"--regions-version",
+				"2026/05",
+				"--dry-run",
+				"--output",
+				"json",
+			})
+
+			err := cmd.Execute()
+			if err == nil {
+				t.Fatal("expected RFC3339 validation error")
+			}
+			if !strings.Contains(err.Error(), "must be RFC3339") {
+				t.Fatalf("error = %v, want RFC3339 validation", err)
+			}
+			if strings.Contains(err.Error(), "no active auth profile") {
+				t.Fatalf("error = %v, did not expect auth error", err)
+			}
+		})
+	}
+}
+
+func TestOneTimeProductOffersCreateBasicFlagsRejectsInvalidRelativeDiscountBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"intro",
+		"--relative-discount",
+		"US:0",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected relative discount validation error")
+	}
+	if !strings.Contains(err.Error(), "relative discount must be greater than 0 and less than 1") {
+		t.Fatalf("error = %v, want relative discount range validation", err)
+	}
+	if strings.Contains(err.Error(), "requires exactly one") {
+		t.Fatalf("error = %v, did not expect downstream price mode error", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestOneTimeProductOffersCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "offer.json")

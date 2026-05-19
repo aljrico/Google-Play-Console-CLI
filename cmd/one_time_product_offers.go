@@ -3,8 +3,10 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
 	"github.com/aljrico/Google-Play-Console-CLI/internal/play"
@@ -45,6 +47,11 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 		purchaseOptionID string
 		offerID          string
 		fromJSON         string
+		offerTags        []string
+		startTime        string
+		endTime          string
+		redemptionLimit  int64
+		relativeDiscount []string
 		regionsVersion   string
 		latencyTolerance string
 		confirm          bool
@@ -55,6 +62,7 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 		Use:   "create",
 		Short: "Create a one-time product offer",
 		Long: "Create a one-time product offer from a Google Play API OneTimeProductOffer JSON body or gpc one-time product offer JSON output. " +
+			"Basic flags build one discounted offer with regional relative discounts; use JSON for absolute discounts, no-override regions, or pre-order offers. " +
 			"Parent IDs come from flags and override the JSON body; output-only state and regionsVersion are ignored.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -74,7 +82,19 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 			if err != nil {
 				return err
 			}
-			offer, err := readOneTimeProductOfferJSON(fromJSON)
+			offer, err := oneTimeProductOfferCreateBody(oneTimeProductOfferCreateBodyOptions{
+				FromJSON:         fromJSON,
+				OfferTags:        offerTags,
+				StartTime:        startTime,
+				EndTime:          endTime,
+				RedemptionLimit:  redemptionLimit,
+				RelativeDiscount: relativeDiscount,
+				BasicFlagsSet: cmd.Flags().Changed("offer-tag") ||
+					cmd.Flags().Changed("start-time") ||
+					cmd.Flags().Changed("end-time") ||
+					cmd.Flags().Changed("redemption-limit") ||
+					cmd.Flags().Changed("relative-discount"),
+			})
 			if err != nil {
 				return err
 			}
@@ -118,11 +138,105 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 	cmd.Flags().StringVar(&purchaseOptionID, "purchase-option-id", "", "Parent one-time product purchase option ID")
 	cmd.Flags().StringVar(&offerID, "offer-id", "", "One-time product offer ID")
 	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or gpc JSON one-time product offer body")
+	cmd.Flags().StringArrayVar(&offerTags, "offer-tag", nil, "Basic create offer tag; repeatable")
+	cmd.Flags().StringVar(&startTime, "start-time", "", "Basic discounted offer start time as RFC3339")
+	cmd.Flags().StringVar(&endTime, "end-time", "", "Basic discounted offer end time as RFC3339")
+	cmd.Flags().Int64Var(&redemptionLimit, "redemption-limit", 0, "Basic discounted offer redemption limit from 0 to 50")
+	cmd.Flags().StringArrayVar(&relativeDiscount, "relative-discount", nil, "Basic create regional relative discount as REGION:0.5, where 0.5 means the user pays 50% of the purchase option price; repeatable")
 	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by oneTimeProductOffers.batchUpdate")
 	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Create the one-time product offer")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product offer creation without calling Google Play")
 	return cmd
+}
+
+type oneTimeProductOfferCreateBodyOptions struct {
+	FromJSON         string
+	OfferTags        []string
+	StartTime        string
+	EndTime          string
+	RedemptionLimit  int64
+	RelativeDiscount []string
+	BasicFlagsSet    bool
+}
+
+func oneTimeProductOfferCreateBody(options oneTimeProductOfferCreateBodyOptions) (play.OneTimeProductOffer, error) {
+	if strings.TrimSpace(options.FromJSON) != "" {
+		if options.UsesBasicFlags() {
+			return play.OneTimeProductOffer{}, fmt.Errorf("--from-json cannot be combined with basic create flags")
+		}
+		return readOneTimeProductOfferJSON(options.FromJSON)
+	}
+	if !options.UsesBasicFlags() {
+		return play.OneTimeProductOffer{}, fmt.Errorf("one-time product offer create requires --from-json or basic create flags")
+	}
+	regionalConfigs, err := parseOneTimeProductOfferCreateRelativeDiscounts(options.RelativeDiscount)
+	if err != nil {
+		return play.OneTimeProductOffer{}, err
+	}
+	if err := validateOneTimeProductOfferCreateRFC3339("start time", options.StartTime); err != nil {
+		return play.OneTimeProductOffer{}, err
+	}
+	if err := validateOneTimeProductOfferCreateRFC3339("end time", options.EndTime); err != nil {
+		return play.OneTimeProductOffer{}, err
+	}
+	return play.OneTimeProductOffer{
+		Type:      play.OneTimeProductOfferTypeDiscounted,
+		OfferTags: append([]string(nil), options.OfferTags...),
+		DiscountedOffer: &play.OneTimeProductDiscountedOffer{
+			StartTime:       options.StartTime,
+			EndTime:         options.EndTime,
+			RedemptionLimit: options.RedemptionLimit,
+		},
+		RegionalConfigs: regionalConfigs,
+	}, nil
+}
+
+func (o oneTimeProductOfferCreateBodyOptions) UsesBasicFlags() bool {
+	return o.BasicFlagsSet
+}
+
+func parseOneTimeProductOfferCreateRelativeDiscounts(values []string) ([]play.OneTimeProductOfferRegion, error) {
+	if len(values) == 0 {
+		return nil, fmt.Errorf("basic one-time product offer create requires at least one --relative-discount")
+	}
+	regions := make([]play.OneTimeProductOfferRegion, 0, len(values))
+	for _, value := range values {
+		region, rawDiscount, ok := strings.Cut(strings.TrimSpace(value), ":")
+		if !ok {
+			return nil, errOneTimeProductOfferCreateRelativeDiscountFormat()
+		}
+		discount, err := strconv.ParseFloat(strings.TrimSpace(rawDiscount), 64)
+		if err != nil {
+			return nil, errOneTimeProductOfferCreateRelativeDiscountFormat()
+		}
+		if math.IsNaN(discount) || math.IsInf(discount, 0) || discount <= 0 || discount >= 1 {
+			return nil, fmt.Errorf("one-time product offer create relative discount must be greater than 0 and less than 1")
+		}
+		regions = append(regions, play.OneTimeProductOfferRegion{
+			RegionCode:       strings.ToUpper(strings.TrimSpace(region)),
+			Availability:     play.OneTimeProductOfferAvailabilityAvailable.String(),
+			RelativeDiscount: discount,
+		})
+	}
+	return regions, nil
+}
+
+func validateOneTimeProductOfferCreateRFC3339(fieldName, value string) error {
+	if value == "" {
+		return nil
+	}
+	if strings.TrimSpace(value) != value {
+		return fmt.Errorf("one-time product offer create %s cannot have leading or trailing whitespace", fieldName)
+	}
+	if _, err := time.Parse(time.RFC3339, value); err != nil {
+		return fmt.Errorf("one-time product offer create %s must be RFC3339: %w", fieldName, err)
+	}
+	return nil
+}
+
+func errOneTimeProductOfferCreateRelativeDiscountFormat() error {
+	return fmt.Errorf("one-time product offer create relative discount must use REGION:0.5")
 }
 
 func readOneTimeProductOfferJSON(path string) (play.OneTimeProductOffer, error) {
