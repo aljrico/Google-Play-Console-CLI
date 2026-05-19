@@ -273,6 +273,72 @@ func TestUpdateSubscriptionOfferStateDryRunBuildsPlanWithoutUpdater(t *testing.T
 	}
 }
 
+func TestDeleteSubscriptionOfferDryRunBuildsPlanWithoutDeleter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := DeleteSubscriptionOffer(context.Background(), nil, SubscriptionOfferDeleteOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		OfferID:     "intro",
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteSubscriptionOffer() error = %v", err)
+	}
+	if !result.DryRun || result.Deleted {
+		t.Fatalf("result = %#v, want dry-run deletion plan", result)
+	}
+	if !reflect.DeepEqual(result.Plan.Steps, []string{"delete subscription offer"}) {
+		t.Fatalf("steps = %#v, want delete step", result.Plan.Steps)
+	}
+}
+
+func TestDeleteSubscriptionOfferRequiresConfirmOrDryRun(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = DeleteSubscriptionOffer(context.Background(), nil, SubscriptionOfferDeleteOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		OfferID:     "intro",
+	})
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+}
+
+func TestDeleteSubscriptionOfferPassesOptionsToDeleter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	deleter := &fakeSubscriptionOfferClient{}
+
+	result, err := DeleteSubscriptionOffer(context.Background(), deleter, SubscriptionOfferDeleteOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		OfferID:     "intro",
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteSubscriptionOffer() error = %v", err)
+	}
+	if !result.Deleted {
+		t.Fatal("Deleted = false, want true")
+	}
+	if deleter.deleteOptions.OfferID != "intro" {
+		t.Fatalf("deleteOptions = %#v, want intro", deleter.deleteOptions)
+	}
+}
+
 func TestUpdateSubscriptionOfferStateRequiresConfirmOrDryRun(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -320,13 +386,14 @@ func TestUpdateSubscriptionOfferStatePassesOptionsToUpdater(t *testing.T) {
 }
 
 type fakeSubscriptionOfferClient struct {
-	listOptions  SubscriptionOfferListOptions
-	listResult   SubscriptionOfferListResult
-	batchOptions SubscriptionOfferBatchGetOptions
-	batchResult  SubscriptionOfferBatchGetResult
-	offerID      SubscriptionOfferID
-	offer        SubscriptionOffer
-	stateOptions SubscriptionOfferStateUpdateOptions
+	listOptions   SubscriptionOfferListOptions
+	listResult    SubscriptionOfferListResult
+	batchOptions  SubscriptionOfferBatchGetOptions
+	batchResult   SubscriptionOfferBatchGetResult
+	deleteOptions SubscriptionOfferDeleteOptions
+	offerID       SubscriptionOfferID
+	offer         SubscriptionOffer
+	stateOptions  SubscriptionOfferStateUpdateOptions
 }
 
 func (c *fakeSubscriptionOfferClient) ListSubscriptionOffers(ctx context.Context, options SubscriptionOfferListOptions) (SubscriptionOfferListResult, error) {
@@ -342,6 +409,11 @@ func (c *fakeSubscriptionOfferClient) GetSubscriptionOffer(ctx context.Context, 
 func (c *fakeSubscriptionOfferClient) BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error) {
 	c.batchOptions = options
 	return c.batchResult, nil
+}
+
+func (c *fakeSubscriptionOfferClient) DeleteSubscriptionOffer(ctx context.Context, options SubscriptionOfferDeleteOptions) error {
+	c.deleteOptions = options
+	return nil
 }
 
 func (c *fakeSubscriptionOfferClient) UpdateSubscriptionOfferState(ctx context.Context, options SubscriptionOfferStateUpdateOptions) (SubscriptionOffer, error) {

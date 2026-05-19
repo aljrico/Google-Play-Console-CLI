@@ -1963,6 +1963,7 @@ gpc subscription-offers
 - `gpc subscription-offers activate`: activate a subscription offer
 - `gpc subscription-offers batch-get`: Get multiple subscription offers
 - `gpc subscription-offers deactivate`: deactivate a subscription offer
+- `gpc subscription-offers delete`: Delete a draft subscription offer
 - `gpc subscription-offers get`: Get one subscription offer
 - `gpc subscription-offers list`: List subscription offers
 
@@ -2011,6 +2012,22 @@ gpc subscription-offers deactivate [flags]
 - `--confirm`: Apply the subscription offer state update (default `false`)
 - `--dry-run`: Print the planned subscription offer state update without calling Google Play (default `false`)
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--offer-id`: Subscription offer ID
+- `--product-id`: Parent subscription product ID
+
+#### gpc subscription-offers delete
+
+Delete a draft subscription offer
+
+```sh
+gpc subscription-offers delete [flags]
+```
+
+##### Flags
+
+- `--base-plan-id`: Parent subscription base plan ID
+- `--confirm`: Apply the subscription offer deletion (default `false`)
+- `--dry-run`: Print the planned subscription offer deletion without calling Google Play (default `false`)
 - `--offer-id`: Subscription offer ID
 - `--product-id`: Parent subscription product ID
 

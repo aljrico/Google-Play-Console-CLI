@@ -1154,6 +1154,21 @@ func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName P
 	return subscriptionOfferFromAPI(offer), nil
 }
 
+func (p GooglePublisher) DeleteSubscriptionOffer(ctx context.Context, options SubscriptionOfferDeleteOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	if err := p.service.Monetization.Subscriptions.BasePlans.Offers.Delete(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.BasePlanID.String(),
+		options.OfferID.String(),
+	).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("delete subscription offer %s for %s/%s/%s: %w", options.OfferID, options.PackageName, options.ProductID, options.BasePlanID, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) UpdateSubscriptionOfferState(ctx context.Context, options SubscriptionOfferStateUpdateOptions) (SubscriptionOffer, error) {
 	if err := options.ValidateLive(); err != nil {
 		return SubscriptionOffer{}, err

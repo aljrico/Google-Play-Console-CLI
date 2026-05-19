@@ -20,6 +20,7 @@ func newSubscriptionOffersCommand(out io.Writer, options *globalOptions) *cobra.
 		newSubscriptionOffersListCommand(out, options, &packageName),
 		newSubscriptionOffersGetCommand(out, options, &packageName),
 		newSubscriptionOffersBatchGetCommand(out, options, &packageName),
+		newSubscriptionOffersDeleteCommand(out, options, &packageName),
 		newSubscriptionOffersStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionActivate),
 		newSubscriptionOffersStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionDeactivate),
 	)
@@ -242,6 +243,70 @@ func newSubscriptionOffersGetCommand(out io.Writer, options *globalOptions, pack
 		"Parent subscription base plan ID",
 	)
 	cmd.Flags().StringVar(&offerID, "offer-id", "", "Subscription offer ID")
+	return cmd
+}
+
+func newSubscriptionOffersDeleteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID  string
+		basePlanID string
+		offerID    string
+		confirm    bool
+		dryRun     bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "delete",
+		Short: "Delete a draft subscription offer",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, typedProductID, typedBasePlanID, err := parseSubscriptionOfferGetParent(*packageName, productID, basePlanID)
+			if err != nil {
+				return err
+			}
+			typedOfferID, err := play.NewSubscriptionOfferID(offerID)
+			if err != nil {
+				return err
+			}
+			deleteOptions := play.SubscriptionOfferDeleteOptions{
+				PackageName: typedPackageName,
+				ProductID:   typedProductID,
+				BasePlanID:  typedBasePlanID,
+				OfferID:     typedOfferID,
+				Confirm:     confirm,
+				DryRun:      dryRun,
+			}
+			if err := deleteOptions.Validate(); err != nil {
+				return err
+			}
+			if dryRun {
+				result, err := play.DeleteSubscriptionOffer(cmd.Context(), nil, deleteOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.DeleteSubscriptionOffer(cmd.Context(), publisher, deleteOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	addSubscriptionOfferParentFlags(
+		cmd,
+		&productID,
+		&basePlanID,
+		"Parent subscription product ID",
+		"Parent subscription base plan ID",
+	)
+	cmd.Flags().StringVar(&offerID, "offer-id", "", "Subscription offer ID")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription offer deletion")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription offer deletion without calling Google Play")
 	return cmd
 }
 
