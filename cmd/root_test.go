@@ -4737,6 +4737,112 @@ func TestOneTimeProductsPatchRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestOneTimeProductsBatchPatchListingsDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-products",
+		"batch-patch-listings",
+		"--package",
+		"com.example.app",
+		"--listing",
+		"coins_100,en-US,100 coins,Buy coins.",
+		"--listing",
+		"coins_500,es-ES,500 monedas,Compra monedas.",
+		"--regions-version",
+		"2026/05",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"productId":"coins_100"`,
+		`"languageCode":"es-ES"`,
+		`"title":"500 monedas"`,
+		`"updateMask":"listings"`,
+		`"latencyTolerance":"latencyTolerant"`,
+		`"dryRun":true`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestOneTimeProductsBatchPatchListingsRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-products",
+		"batch-patch-listings",
+		"--package",
+		"com.example.app",
+		"--listing",
+		"coins_100,en-US,100 coins,Buy coins.",
+		"--regions-version",
+		"2026/05",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestOneTimeProductsBatchPatchListingsRejectsMultipleCSVRecordsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-products",
+		"batch-patch-listings",
+		"--package",
+		"com.example.app",
+		"--listing",
+		"coins_100,en-US,100 coins,Buy coins.\ncoins_500,en-US,500 coins,Buy more coins.",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected CSV record validation error")
+	}
+	if !strings.Contains(err.Error(), "exactly one CSV record") {
+		t.Fatalf("error = %v, want CSV record validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestOneTimeProductsDeleteDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

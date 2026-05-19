@@ -568,6 +568,78 @@ func (p GooglePublisher) PatchOneTimeProduct(ctx context.Context, options OneTim
 	return oneTimeProductFromGeneratedAPI(product)
 }
 
+func (p GooglePublisher) BatchPatchOneTimeProductListings(ctx context.Context, options OneTimeProductBatchPatchListingsOptions) (OneTimeProductBatchPatchListingsResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return OneTimeProductBatchPatchListingsResult{}, err
+	}
+	requestsByProduct := oneTimeProductBatchListingPatchRequestsByProduct(options.Requests)
+	request := &androidpublisher.BatchUpdateOneTimeProductsRequest{
+		Requests: make([]*androidpublisher.UpdateOneTimeProductRequest, 0, len(requestsByProduct)),
+	}
+	for _, productPatch := range requestsByProduct {
+		current, err := p.service.Monetization.Onetimeproducts.Get(options.PackageName.String(), productPatch.ProductID.String()).Context(ctx).Do()
+		if err != nil {
+			return OneTimeProductBatchPatchListingsResult{}, fmt.Errorf("get one-time product %s for %s before batch patch: %w", productPatch.ProductID, options.PackageName, err)
+		}
+		currentProduct, err := oneTimeProductFromGeneratedAPI(current)
+		if err != nil {
+			return OneTimeProductBatchPatchListingsResult{}, fmt.Errorf("decode one-time product %s for %s before batch patch: %w", productPatch.ProductID, options.PackageName, err)
+		}
+		mergedListings := mergeOneTimeProductListingPatches(currentProduct.Listings, productPatch.Requests)
+		request.Requests = append(request.Requests, &androidpublisher.UpdateOneTimeProductRequest{
+			OneTimeProduct: &androidpublisher.OneTimeProduct{
+				PackageName: options.PackageName.String(),
+				ProductId:   productPatch.ProductID.String(),
+				Listings:    oneTimeProductListingsToAPI(mergedListings),
+			},
+			UpdateMask:       oneTimeProductPatchUpdateMask,
+			RegionsVersion:   &androidpublisher.RegionsVersion{Version: options.RegionsVersion},
+			LatencyTolerance: productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+		})
+	}
+	response, err := p.service.Monetization.Onetimeproducts.BatchUpdate(options.PackageName.String(), request).Context(ctx).Do()
+	if err != nil {
+		return OneTimeProductBatchPatchListingsResult{}, fmt.Errorf("batch patch one-time product listings for %s: %w", options.PackageName, err)
+	}
+	products := make([]OneTimeProduct, 0)
+	if response != nil {
+		products = make([]OneTimeProduct, 0, len(response.OneTimeProducts))
+		for _, apiProduct := range response.OneTimeProducts {
+			product, err := oneTimeProductFromGeneratedAPI(apiProduct)
+			if err != nil {
+				return OneTimeProductBatchPatchListingsResult{}, err
+			}
+			products = append(products, product)
+		}
+	}
+	return OneTimeProductBatchPatchListingsResult{
+		PackageName: options.PackageName,
+		DryRun:      false,
+		Applied:     true,
+		Products:    products,
+	}, nil
+}
+
+type oneTimeProductBatchListingPatchProduct struct {
+	ProductID OneTimeProductID
+	Requests  []OneTimeProductBatchPatchListingRequest
+}
+
+func oneTimeProductBatchListingPatchRequestsByProduct(requests []OneTimeProductBatchPatchListingRequest) []oneTimeProductBatchListingPatchProduct {
+	byProduct := map[OneTimeProductID]int{}
+	products := make([]oneTimeProductBatchListingPatchProduct, 0)
+	for _, request := range requests {
+		index, ok := byProduct[request.ProductID]
+		if !ok {
+			byProduct[request.ProductID] = len(products)
+			products = append(products, oneTimeProductBatchListingPatchProduct{ProductID: request.ProductID})
+			index = len(products) - 1
+		}
+		products[index].Requests = append(products[index].Requests, request)
+	}
+	return products
+}
+
 func (p GooglePublisher) DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
@@ -2782,6 +2854,31 @@ func mergeOneTimeProductListings(current []OneTimeProductListing, options OneTim
 	for _, listing := range current {
 		if listing.LanguageCode == patch.LanguageCode {
 			merged = append(merged, mergeOneTimeProductListing(listing, options))
+			replaced = true
+			continue
+		}
+		merged = append(merged, listing)
+	}
+	if !replaced {
+		merged = append(merged, patch)
+	}
+	return merged
+}
+
+func mergeOneTimeProductListingPatches(current []OneTimeProductListing, patches []OneTimeProductBatchPatchListingRequest) []OneTimeProductListing {
+	merged := append([]OneTimeProductListing(nil), current...)
+	for _, patch := range patches {
+		merged = mergeOneTimeProductListingPatch(merged, patch.Listing)
+	}
+	return merged
+}
+
+func mergeOneTimeProductListingPatch(current []OneTimeProductListing, patch OneTimeProductListing) []OneTimeProductListing {
+	merged := make([]OneTimeProductListing, 0, len(current)+1)
+	replaced := false
+	for _, listing := range current {
+		if listing.LanguageCode == patch.LanguageCode {
+			merged = append(merged, patch)
 			replaced = true
 			continue
 		}

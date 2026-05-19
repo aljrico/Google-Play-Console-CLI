@@ -3343,6 +3343,83 @@ func TestGooglePublisherPatchOneTimeProductMergesListing(t *testing.T) {
 	}
 }
 
+func TestGooglePublisherBatchPatchOneTimeProductListingsUsesBatchUpdateEndpoint(t *testing.T) {
+	var getCount int
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			getCount++
+			w.Header().Set("Content-Type", "application/json")
+			switch r.URL.Path {
+			case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100":
+				_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"coins_100","listings":[{"languageCode":"en-US","title":"Old title","description":"Old description"}]}`)
+			case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_500":
+				_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"coins_500","listings":[{"languageCode":"pt-BR","title":"500 moedas","description":"Comprar moedas"}]}`)
+			default:
+				t.Fatalf("path = %q, want one-time product get endpoint", r.URL.Path)
+			}
+		case http.MethodPost:
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts:batchUpdate" {
+				t.Fatalf("path = %q, want one-time product batch update endpoint", r.URL.Path)
+			}
+			var request androidpublisher.BatchUpdateOneTimeProductsRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatalf("Decode() error = %v", err)
+			}
+			if len(request.Requests) != 2 {
+				t.Fatalf("len(Requests) = %d, want two product update requests", len(request.Requests))
+			}
+			first := request.Requests[0]
+			if first.UpdateMask != oneTimeProductPatchUpdateMask || first.RegionsVersion.Version != "2026/05" {
+				t.Fatalf("first request = %#v, want listing update mask and regions version", first)
+			}
+			if first.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+				t.Fatalf("LatencyTolerance = %q, want tolerant", first.LatencyTolerance)
+			}
+			if len(first.OneTimeProduct.Listings) != 2 {
+				t.Fatalf("first listings = %#v, want merged en-US and es-ES", first.OneTimeProduct.Listings)
+			}
+			if first.OneTimeProduct.Listings[0].Description != "Fresh description" {
+				t.Fatalf("first listing = %#v, want patched description", first.OneTimeProduct.Listings[0])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProducts":[{"packageName":"com.example.app","productId":"coins_100","listings":[{"languageCode":"en-US","title":"Old title","description":"Fresh description"}]},{"packageName":"com.example.app","productId":"coins_500","listings":[{"languageCode":"pt-BR","title":"500 moedas","description":"Comprar moedas"},{"languageCode":"es-ES","title":"500 monedas","description":"Comprar monedas"}]}]}`)
+		default:
+			t.Fatalf("method = %s, want GET or POST", r.Method)
+		}
+	}))
+
+	result, err := publisher.BatchPatchOneTimeProductListings(context.Background(), OneTimeProductBatchPatchListingsOptions{
+		PackageName: "com.example.app",
+		Requests: []OneTimeProductBatchPatchListingRequest{
+			{
+				ProductID: "coins_100",
+				Listing:   OneTimeProductListing{LanguageCode: "en-US", Title: "Old title", Description: "Fresh description"},
+			},
+			{
+				ProductID: "coins_100",
+				Listing:   OneTimeProductListing{LanguageCode: "es-ES", Title: "100 monedas", Description: "Comprar monedas"},
+			},
+			{
+				ProductID: "coins_500",
+				Listing:   OneTimeProductListing{LanguageCode: "es-ES", Title: "500 monedas", Description: "Comprar monedas"},
+			},
+		},
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchOneTimeProductListings() error = %v", err)
+	}
+	if getCount != 2 {
+		t.Fatalf("getCount = %d, want one preflight get per product", getCount)
+	}
+	if len(result.Products) != 2 || result.Products[0].Listings[0].Description != "Fresh description" {
+		t.Fatalf("result = %#v, want patched products", result)
+	}
+}
+
 func TestGooglePublisherDeleteOneTimeProductUsesMonetizationEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {

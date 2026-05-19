@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"encoding/csv"
+	"fmt"
 	"io"
+	"strings"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
 	"github.com/aljrico/Google-Play-Console-CLI/internal/play"
@@ -21,11 +24,119 @@ func newOneTimeProductsCommand(out io.Writer, options *globalOptions) *cobra.Com
 		newOneTimeProductsGetCommand(out, options, &packageName),
 		newOneTimeProductsBatchGetCommand(out, options, &packageName),
 		newOneTimeProductsPatchCommand(out, options, &packageName),
+		newOneTimeProductsBatchPatchListingsCommand(out, options, &packageName),
 		newOneTimeProductsDeleteCommand(out, options, &packageName),
 		newOneTimeProductsBatchDeleteCommand(out, options, &packageName),
 		newOneTimeProductsPurchaseOptionCommand(out, options, &packageName),
 	)
 	return cmd
+}
+
+func newOneTimeProductsBatchPatchListingsCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		listings         []string
+		regionsVersion   string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-patch-listings",
+		Short: "Batch patch localized one-time product listings",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			requests, err := parseOneTimeProductBatchListingPatches(listings)
+			if err != nil {
+				return err
+			}
+			patchOptions := play.OneTimeProductBatchPatchListingsOptions{
+				PackageName:      typedPackageName,
+				Requests:         requests,
+				RegionsVersion:   regionsVersion,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.BatchPatchOneTimeProductListings(cmd.Context(), nil, patchOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewOneTimeProductBatchPatchListingsPlan(patchOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchPatchOneTimeProductListings(cmd.Context(), publisher, patchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringArrayVar(&listings, "listing", nil, "CSV listing patch productId,language,title,description; repeat for multiple localized listings")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by oneTimeProducts.batchUpdate")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the one-time product listing batch patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product listing batch patch without calling Google Play")
+	return cmd
+}
+
+func parseOneTimeProductBatchListingPatches(values []string) ([]play.OneTimeProductBatchPatchListingRequest, error) {
+	requests := make([]play.OneTimeProductBatchPatchListingRequest, 0, len(values))
+	for _, value := range values {
+		request, err := parseOneTimeProductBatchListingPatch(value)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, nil
+}
+
+func parseOneTimeProductBatchListingPatch(value string) (play.OneTimeProductBatchPatchListingRequest, error) {
+	reader := csv.NewReader(strings.NewReader(value))
+	reader.TrimLeadingSpace = true
+	records, err := reader.ReadAll()
+	if err != nil {
+		return play.OneTimeProductBatchPatchListingRequest{}, fmt.Errorf("parse one-time product listing CSV: %w", err)
+	}
+	if len(records) != 1 {
+		return play.OneTimeProductBatchPatchListingRequest{}, fmt.Errorf("one-time product listing must contain exactly one CSV record")
+	}
+	fields := records[0]
+	if len(fields) != 4 {
+		return play.OneTimeProductBatchPatchListingRequest{}, fmt.Errorf("one-time product listing must be CSV productId,language,title,description")
+	}
+	productID, err := play.NewOneTimeProductID(fields[0])
+	if err != nil {
+		return play.OneTimeProductBatchPatchListingRequest{}, err
+	}
+	language, err := play.NewListingLanguage(fields[1])
+	if err != nil {
+		return play.OneTimeProductBatchPatchListingRequest{}, err
+	}
+	return play.OneTimeProductBatchPatchListingRequest{
+		ProductID: productID,
+		Listing: play.OneTimeProductListing{
+			LanguageCode: language.String(),
+			Title:        fields[2],
+			Description:  fields[3],
+		},
+	}, nil
 }
 
 func newOneTimeProductsPurchaseOptionCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
