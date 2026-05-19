@@ -95,8 +95,8 @@ Sources:
 | --- | --- | --- | --- | --- |
 | `review` | `review` | No clear public review-submission lifecycle API | blocked | Track/release state is available, but review queue control appears limited. |
 | `reviews` | `reviews` | `reviews` | tested | `gpc reviews list`, `get`, and guarded `reply` cover Play review reading and developer replies. Google limits this API to recent reviews with comments; reply text is capped at 350 characters and requires review-reply access. |
-| `performance` | `vitals` / `quality` | Separate reporting APIs | planned | Android vitals is outside the core Android Publisher REST surface. |
-| `crashes` | `vitals` / `quality` | Separate reporting APIs | planned | Needs separate API/client research. |
+| `performance` | `vitals` | Play Developer Reporting API | tested | `gpc vitals metric-set get` inspects Android vitals metric-set metadata and freshness windows for performance/stability metric sets. Metric queries remain planned. |
+| `crashes` | `vitals` | Play Developer Reporting API | tested | `gpc vitals metric-set get --metric-set crash-rate` and `error-count` cover crash/error metric-set metadata. Issue/report listing and metric queries remain planned. |
 
 ## Team And Access
 

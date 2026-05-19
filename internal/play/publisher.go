@@ -10,33 +10,18 @@ import (
 	"path/filepath"
 	"strconv"
 
-	oauth2google "golang.org/x/oauth2/google"
 	"google.golang.org/api/androidpublisher/v3"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 
-	"github.com/aljrico/Google-Play-Console-CLI/internal/config"
+	"github.com/aljrico/Google-Play-Console-CLI/internal/googleclient"
 )
 
 func NewPublisherFromActiveProfile(ctx context.Context) (*GooglePublisher, error) {
-	store, err := config.Load()
+	httpClient, err := googleclient.ActiveProfileHTTPClient(ctx, androidpublisher.AndroidpublisherScope)
 	if err != nil {
 		return nil, err
 	}
-	profile, ok := store.Profiles[store.ActiveProfile]
-	if !ok || store.ActiveProfile == "" {
-		return nil, fmt.Errorf("no active auth profile; run gpc auth login")
-	}
-
-	credentialsJSON, err := os.ReadFile(profile.ServiceAccountFile)
-	if err != nil {
-		return nil, fmt.Errorf("read service account file %s: %w", profile.ServiceAccountFile, err)
-	}
-	jwtConfig, err := oauth2google.JWTConfigFromJSON(credentialsJSON, androidpublisher.AndroidpublisherScope)
-	if err != nil {
-		return nil, fmt.Errorf("parse service account file %s: %w", profile.ServiceAccountFile, err)
-	}
-	httpClient := jwtConfig.Client(ctx)
 	service, err := androidpublisher.NewService(ctx, option.WithHTTPClient(httpClient))
 	if err != nil {
 		return nil, fmt.Errorf("create Google Play API service: %w", err)

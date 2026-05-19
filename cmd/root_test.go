@@ -2295,6 +2295,32 @@ func TestOneTimeProductOffersGetRejectsInvalidOfferIDBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestVitalsMetricSetGetRejectsUnsupportedMetricSetBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"vitals",
+		"metric-set",
+		"get",
+		"--package",
+		"com.example.app",
+		"--metric-set",
+		"crashes",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected metric set validation error")
+	}
+	if !strings.Contains(err.Error(), "unsupported vitals metric set") {
+		t.Fatalf("error = %v, want metric set validation", err)
+	}
+}
+
 func TestSubscriptionsGetRejectsInvalidProductIDBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

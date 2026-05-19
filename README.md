@@ -73,6 +73,7 @@ gpc data-safety update --package com.example.app --csv ./data-safety.csv --dry-r
 gpc reviews list --package com.example.app --max-results 25
 gpc reviews get --package com.example.app --review-id review-123
 gpc reviews reply --package com.example.app --review-id review-123 --text "Thanks for the feedback." --dry-run
+gpc vitals metric-set get --package com.example.app --metric-set crash-rate
 gpc in-app-products list --package com.example.app
 gpc in-app-products get --package com.example.app --sku coins_100
 gpc one-time-products list --package com.example.app --page-size 50
@@ -102,6 +103,8 @@ gpc grants create --developer 1234567890 --user-email user@example.com --package
 ```
 
 Review APIs follow Google Play's limits: list responses are recent reviews with comments, reply text is capped at 350 characters, and live replies require a service account with review-reply access.
+
+`vitals` uses the Play Developer Reporting API, which is separate from Android Publisher and requires the service account to have reporting access.
 
 `in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources.
 
