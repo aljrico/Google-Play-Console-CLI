@@ -3,6 +3,8 @@ package reporting
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/play"
@@ -12,19 +14,18 @@ import (
 type AggregationPeriod string
 
 const (
-	AggregationPeriodHourly    AggregationPeriod = "HOURLY"
-	AggregationPeriodDaily     AggregationPeriod = "DAILY"
-	AggregationPeriodFullRange AggregationPeriod = "FULL_RANGE"
+	AggregationPeriodHourly AggregationPeriod = "HOURLY"
+	AggregationPeriodDaily  AggregationPeriod = "DAILY"
 )
 
 func NewAggregationPeriod(value string) (AggregationPeriod, error) {
 	switch AggregationPeriod(value) {
-	case AggregationPeriodHourly, AggregationPeriodDaily, AggregationPeriodFullRange:
+	case AggregationPeriodHourly, AggregationPeriodDaily:
 		return AggregationPeriod(value), nil
 	case "":
 		return "", fmt.Errorf("aggregation period is required")
 	default:
-		return "", fmt.Errorf("unsupported aggregation period %q; supported values: HOURLY, DAILY, FULL_RANGE", value)
+		return "", fmt.Errorf("unsupported aggregation period %q; supported values: HOURLY, DAILY", value)
 	}
 }
 
@@ -90,6 +91,34 @@ func (d QueryDate) toAPI() *playdeveloperreporting.GoogleTypeDateTime {
 	return apiDateTime
 }
 
+func (d QueryDate) Before(other QueryDate) bool {
+	return d.dateTime().Before(other.dateTime())
+}
+
+func (d QueryDate) dateTime() time.Time {
+	return time.Date(int(d.Year), time.Month(d.Month), int(d.Day), 0, 0, 0, 0, time.UTC)
+}
+
+func validateQueryTimeZone(aggregationPeriod AggregationPeriod, timeZone string) error {
+	if timeZone == "" {
+		return nil
+	}
+	if _, err := time.LoadLocation(timeZone); err != nil {
+		return fmt.Errorf("invalid time zone %q: %w", timeZone, err)
+	}
+	switch aggregationPeriod {
+	case AggregationPeriodHourly:
+		if timeZone != "UTC" {
+			return fmt.Errorf("HOURLY aggregation only supports UTC time zone")
+		}
+	case AggregationPeriodDaily:
+		if timeZone != "America/Los_Angeles" {
+			return fmt.Errorf("DAILY aggregation only supports America/Los_Angeles time zone")
+		}
+	}
+	return nil
+}
+
 type MetricQueryOptions struct {
 	PackageName       play.PackageName  `json:"packageName"`
 	MetricSet         MetricSet         `json:"metricSet"`
@@ -111,6 +140,10 @@ func (o MetricQueryOptions) Validate() error {
 	if _, err := NewMetricSet(o.MetricSet.String()); err != nil {
 		return err
 	}
+	support, ok := metricQuerySupportByMetricSet[o.MetricSet]
+	if !ok {
+		return fmt.Errorf("unsupported vitals metric set %q", o.MetricSet)
+	}
 	if len(o.Metrics) == 0 {
 		return fmt.Errorf("at least one metric is required")
 	}
@@ -118,26 +151,59 @@ func (o MetricQueryOptions) Validate() error {
 		if metric == "" {
 			return fmt.Errorf("metric cannot be empty")
 		}
+		if !support.Metrics.Contains(metric) {
+			return fmt.Errorf("metric %q is not supported for vitals metric set %s; supported values: %s", metric, o.MetricSet, support.Metrics.Text())
+		}
+		if o.AggregationPeriod == AggregationPeriodHourly && support.UnsupportedHourlyMetrics.Contains(metric) {
+			return fmt.Errorf("metric %q is not supported with HOURLY aggregation for vitals metric set %s", metric, o.MetricSet)
+		}
+	}
+	aggregationPeriod, err := NewAggregationPeriod(o.AggregationPeriod.String())
+	if err != nil {
+		return err
+	}
+	if !support.AggregationPeriods.Contains(aggregationPeriod.String()) {
+		return fmt.Errorf("aggregation period %s is not supported for vitals metric set %s; supported values: %s", aggregationPeriod, o.MetricSet, support.AggregationPeriods.Text())
+	}
+	userCohort, err := NewUserCohort(o.UserCohort.String())
+	if err != nil {
+		return err
+	}
+	if userCohort != "" && !support.UserCohorts.Contains(userCohort.String()) {
+		if len(support.UserCohorts) == 0 {
+			return fmt.Errorf("user cohort is not supported for vitals metric set %s", o.MetricSet)
+		}
+		return fmt.Errorf("user cohort %s is not supported for vitals metric set %s; supported values: %s", userCohort, o.MetricSet, support.UserCohorts.Text())
+	}
+	dimensions := support.Dimensions
+	if userCohort == UserCohortOSBeta {
+		dimensions = support.OSBetaDimensions
 	}
 	for _, dimension := range o.Dimensions {
 		if dimension == "" {
 			return fmt.Errorf("dimension cannot be empty")
 		}
-	}
-	if _, err := NewAggregationPeriod(o.AggregationPeriod.String()); err != nil {
-		return err
-	}
-	if _, err := NewUserCohort(o.UserCohort.String()); err != nil {
-		return err
-	}
-	if o.MetricSet == MetricSetErrorCount && o.UserCohort != "" {
-		return fmt.Errorf("user cohort is not supported for vitals metric set %s", o.MetricSet)
+		if !dimensions.Contains(dimension) {
+			return fmt.Errorf("dimension %q is not supported for vitals metric set %s; supported values: %s", dimension, o.MetricSet, dimensions.Text())
+		}
 	}
 	if o.StartDate.Year == 0 || o.StartDate.Month == 0 || o.StartDate.Day == 0 {
 		return fmt.Errorf("start date is required")
 	}
 	if o.EndDate.Year == 0 || o.EndDate.Month == 0 || o.EndDate.Day == 0 {
 		return fmt.Errorf("end date is required")
+	}
+	if !o.StartDate.Before(o.EndDate) {
+		return fmt.Errorf("start date must be before end date")
+	}
+	if err := validateQueryTimeZone(o.AggregationPeriod, o.StartDate.TimeZone); err != nil {
+		return err
+	}
+	if err := validateQueryTimeZone(o.AggregationPeriod, o.EndDate.TimeZone); err != nil {
+		return err
+	}
+	if o.StartDate.TimeZone != o.EndDate.TimeZone {
+		return fmt.Errorf("start and end time zones must match")
 	}
 	if o.PageSize < 0 {
 		return fmt.Errorf("page size cannot be negative")
@@ -162,10 +228,10 @@ type MetricRow struct {
 }
 
 type DimensionValue struct {
-	Dimension   string `json:"dimension"`
-	StringValue string `json:"stringValue,omitempty"`
-	Int64Value  int64  `json:"int64Value,omitempty"`
-	ValueLabel  string `json:"valueLabel,omitempty"`
+	Dimension   string  `json:"dimension"`
+	StringValue string  `json:"stringValue,omitempty"`
+	Int64Value  *string `json:"int64Value,omitempty"`
+	ValueLabel  string  `json:"valueLabel,omitempty"`
 }
 
 type MetricValue struct {
@@ -401,11 +467,19 @@ func dimensionValuesFromAPI(apiDimensions []*playdeveloperreporting.GooglePlayDe
 		dimensions = append(dimensions, DimensionValue{
 			Dimension:   apiDimension.Dimension,
 			StringValue: apiDimension.StringValue,
-			Int64Value:  apiDimension.Int64Value,
+			Int64Value:  int64ValueFromAPI(apiDimension.Dimension, apiDimension.Int64Value),
 			ValueLabel:  apiDimension.ValueLabel,
 		})
 	}
 	return dimensions
+}
+
+func int64ValueFromAPI(dimension string, value int64) *string {
+	if !numericDimensions.Contains(dimension) {
+		return nil
+	}
+	formatted := strconv.FormatInt(value, 10)
+	return &formatted
 }
 
 func metricValuesFromAPI(apiMetrics []*playdeveloperreporting.GooglePlayDeveloperReportingV1beta1MetricValue) []MetricValue {
@@ -438,4 +512,200 @@ func decimalConfidenceIntervalFromAPI(apiInterval *playdeveloperreporting.Google
 		LowerBound: decimalFromAPI(apiInterval.LowerBound),
 		UpperBound: decimalFromAPI(apiInterval.UpperBound),
 	}
+}
+
+type stringSet []string
+
+func (s stringSet) Contains(value string) bool {
+	for _, item := range s {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
+func (s stringSet) Text() string {
+	return strings.Join(s, ", ")
+}
+
+type metricQuerySupport struct {
+	Metrics                  stringSet
+	UnsupportedHourlyMetrics stringSet
+	Dimensions               stringSet
+	OSBetaDimensions         stringSet
+	AggregationPeriods       stringSet
+	UserCohorts              stringSet
+}
+
+var metricQuerySupportByMetricSet = map[MetricSet]metricQuerySupport{
+	MetricSetANRRate: {
+		Metrics: stringSet{
+			"anrRate",
+			"anrRate7dUserWeighted",
+			"anrRate28dUserWeighted",
+			"userPerceivedAnrRate",
+			"userPerceivedAnrRate7dUserWeighted",
+			"userPerceivedAnrRate28dUserWeighted",
+			"distinctUsers",
+		},
+		UnsupportedHourlyMetrics: stringSet{
+			"anrRate7dUserWeighted",
+			"anrRate28dUserWeighted",
+			"userPerceivedAnrRate7dUserWeighted",
+			"userPerceivedAnrRate28dUserWeighted",
+		},
+		Dimensions:         deviceMetricDimensions,
+		OSBetaDimensions:   betaMetricDimensions,
+		AggregationPeriods: stringSet{AggregationPeriodDaily.String(), AggregationPeriodHourly.String()},
+		UserCohorts:        allUserCohorts,
+	},
+	MetricSetCrashRate: {
+		Metrics: stringSet{
+			"crashRate",
+			"crashRate7dUserWeighted",
+			"crashRate28dUserWeighted",
+			"userPerceivedCrashRate",
+			"userPerceivedCrashRate7dUserWeighted",
+			"userPerceivedCrashRate28dUserWeighted",
+			"distinctUsers",
+		},
+		UnsupportedHourlyMetrics: stringSet{
+			"crashRate28dUserWeighted",
+			"userPerceivedCrashRate7dUserWeighted",
+			"userPerceivedCrashRate28dUserWeighted",
+		},
+		Dimensions:         deviceMetricDimensions,
+		OSBetaDimensions:   betaMetricDimensions,
+		AggregationPeriods: stringSet{AggregationPeriodDaily.String(), AggregationPeriodHourly.String()},
+		UserCohorts:        allUserCohorts,
+	},
+	MetricSetErrorCount: {
+		Metrics: stringSet{
+			"errorReportCount",
+			"distinctUsers",
+		},
+		Dimensions: stringSet{
+			"apiLevel",
+			"versionCode",
+			"deviceModel",
+			"deviceType",
+			"reportType",
+			"issueId",
+			"deviceRamBucket",
+			"deviceSocMake",
+			"deviceSocModel",
+			"deviceCpuMake",
+			"deviceCpuModel",
+			"deviceGpuMake",
+			"deviceGpuModel",
+			"deviceGpuVersion",
+			"deviceVulkanVersion",
+			"deviceGlEsVersion",
+			"deviceScreenSize",
+			"deviceScreenDpi",
+		},
+		AggregationPeriods: stringSet{AggregationPeriodDaily.String()},
+	},
+	MetricSetExcessiveWakeupRate: {
+		Metrics: stringSet{
+			"excessiveWakeupRate",
+			"excessiveWakeupRate7dUserWeighted",
+			"excessiveWakeupRate28dUserWeighted",
+			"distinctUsers",
+		},
+		Dimensions:         deviceMetricDimensions,
+		AggregationPeriods: stringSet{AggregationPeriodDaily.String()},
+		UserCohorts:        osPublicOnlyUserCohort,
+	},
+	MetricSetLMKRate: {
+		Metrics: stringSet{
+			"userPerceivedLmkRate",
+			"userPerceivedLmkRate7dUserWeighted",
+			"userPerceivedLmkRate28dUserWeighted",
+			"distinctUsers",
+		},
+		Dimensions:         deviceMetricDimensions,
+		OSBetaDimensions:   betaMetricDimensions,
+		AggregationPeriods: stringSet{AggregationPeriodDaily.String()},
+		UserCohorts:        allUserCohorts,
+	},
+	MetricSetSlowRenderingRate: {
+		Metrics: stringSet{
+			"slowRenderingRate20Fps",
+			"slowRenderingRate20Fps7dUserWeighted",
+			"slowRenderingRate20Fps28dUserWeighted",
+			"slowRenderingRate30Fps",
+			"slowRenderingRate30Fps7dUserWeighted",
+			"slowRenderingRate30Fps28dUserWeighted",
+			"distinctUsers",
+		},
+		Dimensions:         deviceMetricDimensions,
+		AggregationPeriods: stringSet{AggregationPeriodDaily.String()},
+		UserCohorts:        osPublicOnlyUserCohort,
+	},
+	MetricSetSlowStartRate: {
+		Metrics: stringSet{
+			"slowStartRate",
+			"slowStartRate7dUserWeighted",
+			"slowStartRate28dUserWeighted",
+			"distinctUsers",
+		},
+		Dimensions:         deviceMetricDimensions,
+		AggregationPeriods: stringSet{AggregationPeriodDaily.String()},
+		UserCohorts:        osPublicOnlyUserCohort,
+	},
+	MetricSetStuckBackgroundWakeLockRate: {
+		Metrics: stringSet{
+			"stuckBgWakelockRate",
+			"stuckBgWakelockRate7dUserWeighted",
+			"stuckBgWakelockRate28dUserWeighted",
+			"distinctUsers",
+		},
+		Dimensions:         deviceMetricDimensions,
+		AggregationPeriods: stringSet{AggregationPeriodDaily.String()},
+		UserCohorts:        osPublicOnlyUserCohort,
+	},
+}
+
+var deviceMetricDimensions = stringSet{
+	"apiLevel",
+	"versionCode",
+	"deviceModel",
+	"deviceBrand",
+	"deviceType",
+	"countryCode",
+	"deviceRamBucket",
+	"deviceSocMake",
+	"deviceSocModel",
+	"deviceCpuMake",
+	"deviceCpuModel",
+	"deviceGpuMake",
+	"deviceGpuModel",
+	"deviceGpuVersion",
+	"deviceVulkanVersion",
+	"deviceGlEsVersion",
+	"deviceScreenSize",
+	"deviceScreenDpi",
+}
+
+var betaMetricDimensions = stringSet{
+	"versionCode",
+	"osBuild",
+}
+
+var numericDimensions = stringSet{
+	"apiLevel",
+	"versionCode",
+	"deviceRamBucket",
+}
+
+var allUserCohorts = stringSet{
+	UserCohortOSPublic.String(),
+	UserCohortOSBeta.String(),
+	UserCohortAppTesters.String(),
+}
+
+var osPublicOnlyUserCohort = stringSet{
+	UserCohortOSPublic.String(),
 }

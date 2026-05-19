@@ -2413,6 +2413,74 @@ func TestVitalsMetricSetQueryRejectsInvalidStartDateBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestVitalsMetricSetQueryRejectsInvalidRangeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"vitals",
+		"metric-set",
+		"query",
+		"--package",
+		"com.example.app",
+		"--metric-set",
+		"crash-rate",
+		"--metric",
+		"crashRate",
+		"--aggregation",
+		"DAILY",
+		"--start-date",
+		"2026-05-19",
+		"--end-date",
+		"2026-05-01",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected date range validation error")
+	}
+	if !strings.Contains(err.Error(), "start date must be before end date") {
+		t.Fatalf("error = %v, want date range validation", err)
+	}
+}
+
+func TestVitalsMetricSetQueryRejectsUnsupportedAggregationBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"vitals",
+		"metric-set",
+		"query",
+		"--package",
+		"com.example.app",
+		"--metric-set",
+		"error-count",
+		"--metric",
+		"errorReportCount",
+		"--aggregation",
+		"HOURLY",
+		"--start-date",
+		"2026-05-01",
+		"--end-date",
+		"2026-05-19",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected aggregation validation error")
+	}
+	if !strings.Contains(err.Error(), "aggregation period HOURLY is not supported") {
+		t.Fatalf("error = %v, want aggregation validation", err)
+	}
+}
+
 func TestSubscriptionsGetRejectsInvalidProductIDBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

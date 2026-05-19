@@ -146,7 +146,7 @@ func newVitalsMetricSetQueryCommand(out io.Writer, options *globalOptions, packa
 	cmd.Flags().StringArrayVar(&metrics, "metric", nil, "Metric to request; repeat for multiple metrics")
 	cmd.Flags().StringArrayVar(&dimensions, "dimension", nil, "Dimension to break down by; repeat for multiple dimensions")
 	cmd.Flags().StringVar(&filter, "filter", "", "AIP-160 filter expression over supported dimensions")
-	cmd.Flags().StringVar(&aggregationPeriod, "aggregation", "", "Aggregation period: HOURLY, DAILY, or FULL_RANGE")
+	cmd.Flags().StringVar(&aggregationPeriod, "aggregation", "", "Aggregation period: DAILY, or HOURLY where the metric set supports it")
 	cmd.Flags().StringVar(&startDate, "start-date", "", "Start date, inclusive, in YYYY-MM-DD format")
 	cmd.Flags().StringVar(&endDate, "end-date", "", "End date, exclusive, in YYYY-MM-DD format")
 	cmd.Flags().StringVar(&timeZone, "time-zone", "", "IANA time zone for daily aggregation, for example America/Los_Angeles")
