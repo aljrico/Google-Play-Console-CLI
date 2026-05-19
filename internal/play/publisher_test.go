@@ -6140,6 +6140,62 @@ func TestCreateSubscriptionSendsPrepaidBasePlanBody(t *testing.T) {
 	}
 }
 
+func TestCreateSubscriptionSendsInstallmentsBasePlanBody(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions" {
+			t.Fatalf("path = %q, want subscription create endpoint", r.URL.Path)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		var request androidpublisher.Subscription
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if len(request.BasePlans) != 1 {
+			t.Fatalf("len(BasePlans) = %d, want 1", len(request.BasePlans))
+		}
+		basePlan := request.BasePlans[0]
+		if basePlan.AutoRenewingBasePlanType != nil || basePlan.PrepaidBasePlanType != nil {
+			t.Fatalf("base plan = %#v, did not expect auto-renewing or prepaid type", basePlan)
+		}
+		if basePlan.InstallmentsBasePlanType == nil {
+			t.Fatalf("InstallmentsBasePlanType = nil, body = %s", body)
+		}
+		installments := basePlan.InstallmentsBasePlanType
+		if installments.BillingPeriodDuration != "P1M" || installments.CommittedPaymentsCount != 12 || installments.RenewalType != "RENEWAL_TYPE_RENEWS_WITHOUT_COMMITMENT" {
+			t.Fatalf("InstallmentsBasePlanType = %#v, want billing period, payments, and renewal type", installments)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","listings":[{"languageCode":"en-US","title":"Premium"}],"basePlans":[{"basePlanId":"monthly-installments","state":"DRAFT","installmentsBasePlanType":{"billingPeriodDuration":"P1M","committedPaymentsCount":12,"renewalType":"RENEWAL_TYPE_RENEWS_WITHOUT_COMMITMENT"},"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"4","nanos":990000000}}]}]}`)
+	}))
+
+	subscription := validSubscriptionForCreate()
+	subscription.BasePlans[0].BasePlanID = "monthly-installments"
+	subscription.BasePlans[0].Type = SubscriptionBasePlanTypeInstallments
+	subscription.BasePlans[0].GracePeriodDuration = ""
+	subscription.BasePlans[0].CommittedPaymentsCount = 12
+	subscription.BasePlans[0].RenewalType = "RENEWAL_TYPE_RENEWS_WITHOUT_COMMITMENT"
+	subscription.BasePlans[0].LegacyCompatible = false
+	result, err := publisher.CreateSubscription(context.Background(), SubscriptionCreateOptions{
+		PackageName:    "com.example.app",
+		ProductID:      "premium",
+		Subscription:   subscription,
+		RegionsVersion: "2026/05",
+		Confirm:        true,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubscription() error = %v", err)
+	}
+	if len(result.BasePlans) != 1 || result.BasePlans[0].Type != SubscriptionBasePlanTypeInstallments {
+		t.Fatalf("result = %#v, want installments draft subscription", result)
+	}
+}
+
 func TestCreateSubscriptionOfferSendsTypedOfferBody(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

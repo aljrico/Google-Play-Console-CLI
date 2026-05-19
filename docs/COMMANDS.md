@@ -2899,9 +2899,11 @@ gpc subscriptions create [flags]
 
 - `--base-plan-id`: Basic create base plan ID
 - `--billing-period`: Basic create billing period: P1W, P4W, P1M, P3M, P6M, or P1Y
+- `--committed-payments`: Basic installments committed payments count (default `0`)
 - `--confirm`: Create the draft subscription (default `false`)
 - `--dry-run`: Print the planned subscription creation without calling Google Play (default `false`)
 - `--from-json`: Path to a Google Play API or gpc JSON subscription body
+- `--installments`: Build a basic installments base plan instead of an auto-renewing base plan (default `false`)
 - `--legacy-compatible`: Mark the basic auto-renewing base plan as legacy compatible (default `true`)
 - `--listing`: Basic create listing as CSV language,title,description; repeatable (default `[]`)
 - `--offer-tag`: Basic create base plan offer tag; repeatable (default `[]`)
@@ -2909,6 +2911,7 @@ gpc subscriptions create [flags]
 - `--price`: Basic create regional price as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
 - `--product-id`: Subscription product ID
 - `--regions-version`: Google Play regions version required by subscriptions.create
+- `--renewal-type`: Basic installments renewal type: RENEWAL_TYPE_RENEWS_WITHOUT_COMMITMENT or RENEWAL_TYPE_RENEWS_WITH_COMMITMENT
 - `--time-extension`: Basic prepaid time extension: TIME_EXTENSION_ACTIVE or TIME_EXTENSION_INACTIVE
 
 #### gpc subscriptions delete

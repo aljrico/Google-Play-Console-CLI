@@ -34,26 +34,29 @@ func newSubscriptionsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 
 func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	var (
-		productID        string
-		fromJSON         string
-		prepaid          bool
-		listings         []string
-		basePlanID       string
-		billingPeriod    string
-		timeExtension    string
-		prices           []string
-		offerTags        []string
-		legacyCompatible bool
-		regionsVersion   string
-		confirm          bool
-		dryRun           bool
+		productID         string
+		fromJSON          string
+		prepaid           bool
+		installments      bool
+		listings          []string
+		basePlanID        string
+		billingPeriod     string
+		timeExtension     string
+		committedPayments int64
+		renewalType       string
+		prices            []string
+		offerTags         []string
+		legacyCompatible  bool
+		regionsVersion    string
+		confirm           bool
+		dryRun            bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a draft subscription",
 		Long: "Create a draft subscription from a Google Play API Subscription JSON body or gpc subscription JSON output. " +
-			"Basic flags build one auto-renewing or prepaid base plan; use JSON for installments, compliance, restricted countries, or other advanced fields. " +
+			"Basic flags build one auto-renewing, prepaid, or installments base plan; use JSON for compliance, restricted countries, or other advanced fields. " +
 			"Immutable package and product IDs come from flags and override JSON bodies; output-only subscription and base-plan state is ignored.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -66,22 +69,30 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 				return err
 			}
 			subscription, err := subscriptionCreateBody(subscriptionCreateBodyOptions{
-				FromJSON:         fromJSON,
-				Prepaid:          prepaid,
-				Listings:         listings,
-				BasePlanID:       basePlanID,
-				BillingPeriod:    billingPeriod,
-				TimeExtension:    timeExtension,
-				TimeExtensionSet: cmd.Flags().Changed("time-extension"),
-				Prices:           prices,
-				OfferTags:        offerTags,
-				LegacyCompatible: legacyCompatible,
-				LegacySet:        cmd.Flags().Changed("legacy-compatible"),
+				FromJSON:             fromJSON,
+				Prepaid:              prepaid,
+				Installments:         installments,
+				Listings:             listings,
+				BasePlanID:           basePlanID,
+				BillingPeriod:        billingPeriod,
+				TimeExtension:        timeExtension,
+				TimeExtensionSet:     cmd.Flags().Changed("time-extension"),
+				CommittedPayments:    committedPayments,
+				CommittedPaymentsSet: cmd.Flags().Changed("committed-payments"),
+				RenewalType:          renewalType,
+				RenewalTypeSet:       cmd.Flags().Changed("renewal-type"),
+				Prices:               prices,
+				OfferTags:            offerTags,
+				LegacyCompatible:     legacyCompatible,
+				LegacySet:            cmd.Flags().Changed("legacy-compatible"),
 				BasicFlagsSet: cmd.Flags().Changed("prepaid") ||
+					cmd.Flags().Changed("installments") ||
 					cmd.Flags().Changed("listing") ||
 					cmd.Flags().Changed("base-plan-id") ||
 					cmd.Flags().Changed("billing-period") ||
 					cmd.Flags().Changed("time-extension") ||
+					cmd.Flags().Changed("committed-payments") ||
+					cmd.Flags().Changed("renewal-type") ||
 					cmd.Flags().Changed("price") ||
 					cmd.Flags().Changed("offer-tag") ||
 					cmd.Flags().Changed("legacy-compatible"),
@@ -121,10 +132,13 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID")
 	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or gpc JSON subscription body")
 	cmd.Flags().BoolVar(&prepaid, "prepaid", false, "Build a basic prepaid base plan instead of an auto-renewing base plan")
+	cmd.Flags().BoolVar(&installments, "installments", false, "Build a basic installments base plan instead of an auto-renewing base plan")
 	cmd.Flags().StringArrayVar(&listings, "listing", nil, "Basic create listing as CSV language,title,description; repeatable")
 	cmd.Flags().StringVar(&basePlanID, "base-plan-id", "", "Basic create base plan ID")
 	cmd.Flags().StringVar(&billingPeriod, "billing-period", "", "Basic create billing period: P1W, P4W, P1M, P3M, P6M, or P1Y")
 	cmd.Flags().StringVar(&timeExtension, "time-extension", "", "Basic prepaid time extension: TIME_EXTENSION_ACTIVE or TIME_EXTENSION_INACTIVE")
+	cmd.Flags().Int64Var(&committedPayments, "committed-payments", 0, "Basic installments committed payments count")
+	cmd.Flags().StringVar(&renewalType, "renewal-type", "", "Basic installments renewal type: RENEWAL_TYPE_RENEWS_WITHOUT_COMMITMENT or RENEWAL_TYPE_RENEWS_WITH_COMMITMENT")
 	cmd.Flags().StringArrayVar(&prices, "price", nil, "Basic create regional price as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
 	cmd.Flags().StringArrayVar(&offerTags, "offer-tag", nil, "Basic create base plan offer tag; repeatable")
 	cmd.Flags().BoolVar(&legacyCompatible, "legacy-compatible", true, "Mark the basic auto-renewing base plan as legacy compatible")
@@ -135,18 +149,23 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 }
 
 type subscriptionCreateBodyOptions struct {
-	FromJSON         string
-	Prepaid          bool
-	Listings         []string
-	BasePlanID       string
-	BillingPeriod    string
-	TimeExtension    string
-	TimeExtensionSet bool
-	Prices           []string
-	OfferTags        []string
-	LegacyCompatible bool
-	LegacySet        bool
-	BasicFlagsSet    bool
+	FromJSON             string
+	Prepaid              bool
+	Installments         bool
+	Listings             []string
+	BasePlanID           string
+	BillingPeriod        string
+	TimeExtension        string
+	TimeExtensionSet     bool
+	CommittedPayments    int64
+	CommittedPaymentsSet bool
+	RenewalType          string
+	RenewalTypeSet       bool
+	Prices               []string
+	OfferTags            []string
+	LegacyCompatible     bool
+	LegacySet            bool
+	BasicFlagsSet        bool
 }
 
 func subscriptionCreateBody(options subscriptionCreateBodyOptions) (play.Subscription, error) {
@@ -173,25 +192,53 @@ func subscriptionCreateBody(options subscriptionCreateBodyOptions) (play.Subscri
 	}
 	basePlanType := play.SubscriptionBasePlanTypeAutoRenewing
 	legacyCompatible := options.LegacyCompatible
+	if options.Prepaid && options.Installments {
+		return play.Subscription{}, fmt.Errorf("--prepaid and --installments cannot be used together")
+	}
 	if options.Prepaid {
 		if options.LegacySet {
 			return play.Subscription{}, fmt.Errorf("--legacy-compatible cannot be used with --prepaid")
 		}
+		if options.CommittedPaymentsSet {
+			return play.Subscription{}, fmt.Errorf("--committed-payments requires --installments")
+		}
+		if options.RenewalTypeSet {
+			return play.Subscription{}, fmt.Errorf("--renewal-type requires --installments")
+		}
 		basePlanType = play.SubscriptionBasePlanTypePrepaid
 		legacyCompatible = false
-	} else if options.TimeExtensionSet {
-		return play.Subscription{}, fmt.Errorf("--time-extension requires --prepaid")
+	} else if options.Installments {
+		if options.LegacySet {
+			return play.Subscription{}, fmt.Errorf("--legacy-compatible cannot be used with --installments")
+		}
+		if options.TimeExtensionSet {
+			return play.Subscription{}, fmt.Errorf("--time-extension requires --prepaid")
+		}
+		basePlanType = play.SubscriptionBasePlanTypeInstallments
+		legacyCompatible = false
+	} else {
+		if options.TimeExtensionSet {
+			return play.Subscription{}, fmt.Errorf("--time-extension requires --prepaid")
+		}
+		if options.CommittedPaymentsSet {
+			return play.Subscription{}, fmt.Errorf("--committed-payments requires --installments")
+		}
+		if options.RenewalTypeSet {
+			return play.Subscription{}, fmt.Errorf("--renewal-type requires --installments")
+		}
 	}
 	return play.Subscription{
 		Listings: listings,
 		BasePlans: []play.SubscriptionBasePlan{{
-			BasePlanID:            basePlanID.String(),
-			Type:                  basePlanType,
-			BillingPeriodDuration: options.BillingPeriod,
-			TimeExtension:         options.TimeExtension,
-			LegacyCompatible:      legacyCompatible,
-			OfferTags:             append([]string(nil), options.OfferTags...),
-			RegionalConfigs:       regionalConfigs,
+			BasePlanID:             basePlanID.String(),
+			Type:                   basePlanType,
+			BillingPeriodDuration:  options.BillingPeriod,
+			TimeExtension:          options.TimeExtension,
+			CommittedPaymentsCount: options.CommittedPayments,
+			RenewalType:            options.RenewalType,
+			LegacyCompatible:       legacyCompatible,
+			OfferTags:              append([]string(nil), options.OfferTags...),
+			RegionalConfigs:        regionalConfigs,
 		}},
 	}, nil
 }
