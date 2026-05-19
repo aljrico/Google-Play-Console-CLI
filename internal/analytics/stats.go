@@ -4,11 +4,12 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"math/big"
 	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/aljrico/Google-Play-Console-CLI/internal/decimal"
 )
 
 type StatsSummaryOptions struct {
@@ -16,27 +17,39 @@ type StatsSummaryOptions struct {
 }
 
 type StatsSummary struct {
-	File        string        `json:"file"`
-	Rows        int           `json:"rows"`
-	PackageName string        `json:"packageName,omitempty"`
-	StartDate   string        `json:"startDate,omitempty"`
-	EndDate     string        `json:"endDate,omitempty"`
-	Metrics     []MetricTotal `json:"metrics"`
+	File        string          `json:"file"`
+	Rows        int             `json:"rows"`
+	PackageName string          `json:"packageName,omitempty"`
+	StartDate   string          `json:"startDate,omitempty"`
+	EndDate     string          `json:"endDate,omitempty"`
+	Metrics     []MetricSummary `json:"metrics"`
 }
 
-type MetricTotal struct {
-	Name  string `json:"name"`
-	Total string `json:"total"`
+type MetricSummary struct {
+	Name        string `json:"name"`
+	Aggregation string `json:"aggregation"`
+	Value       string `json:"value"`
 }
 
 var dimensionHeaders = map[string]bool{
-	"date":           true,
-	"package name":   true,
-	"country/region": true,
-	"traffic source": true,
-	"search term":    true,
-	"utm campaign":   true,
-	"utm source":     true,
+	"android os version": true,
+	"app version":        true,
+	"app version code":   true,
+	"app version name":   true,
+	"carrier":            true,
+	"country":            true,
+	"country/region":     true,
+	"date":               true,
+	"device":             true,
+	"device model":       true,
+	"form factor":        true,
+	"installer":          true,
+	"language":           true,
+	"package name":       true,
+	"search term":        true,
+	"traffic source":     true,
+	"utm campaign":       true,
+	"utm source":         true,
 }
 
 func SummarizeStats(options StatsSummaryOptions) (StatsSummary, error) {
@@ -64,7 +77,7 @@ func SummarizeStats(options StatsSummaryOptions) (StatsSummary, error) {
 	if indexes.packageName < 0 {
 		return StatsSummary{}, fmt.Errorf("analytics report requires a Package name column")
 	}
-	totals := map[string]decimalAmount{}
+	accumulators := map[string]metricAccumulator{}
 	rowCount := 0
 	packageName := ""
 	startDate := ""
@@ -110,17 +123,22 @@ func SummarizeStats(options StatsSummaryOptions) (StatsSummary, error) {
 			if value == "" {
 				continue
 			}
-			amount, err := parseAmount(value)
+			amount, err := decimal.Parse(value)
 			if err != nil {
 				return StatsSummary{}, fmt.Errorf("analytics report row %d metric %s: %w", rowIndex, metric.name, err)
 			}
-			totals[metric.name] = totals[metric.name].Add(amount)
+			accumulator := accumulators[metric.name]
+			accumulator.name = metric.name
+			accumulator.aggregation = metric.aggregation
+			accumulator.value = accumulator.value.Add(amount)
+			accumulator.count++
+			accumulators[metric.name] = accumulator
 		}
 		rowCount++
 	}
-	metrics := make([]MetricTotal, 0, len(totals))
-	for name, total := range totals {
-		metrics = append(metrics, MetricTotal{Name: name, Total: total.String()})
+	metrics := make([]MetricSummary, 0, len(accumulators))
+	for _, accumulator := range accumulators {
+		metrics = append(metrics, accumulator.Summary())
 	}
 	sort.Slice(metrics, func(i, j int) bool {
 		return metrics[i].Name < metrics[j].Name
@@ -142,8 +160,9 @@ type statsIndexes struct {
 }
 
 type metricIndex struct {
-	name  string
-	index int
+	name        string
+	index       int
+	aggregation metricAggregation
 }
 
 func statsColumnIndexes(headers []string) statsIndexes {
@@ -157,101 +176,54 @@ func statsColumnIndexes(headers []string) statsIndexes {
 			indexes.packageName = index
 		default:
 			if !dimensionHeaders[name] {
-				indexes.metrics = append(indexes.metrics, metricIndex{name: strings.TrimPrefix(strings.TrimSpace(header), "\ufeff"), index: index})
+				indexes.metrics = append(indexes.metrics, metricIndex{
+					name:        strings.TrimPrefix(strings.TrimSpace(header), "\ufeff"),
+					index:       index,
+					aggregation: aggregationForHeader(name),
+				})
 			}
 		}
 	}
 	return indexes
 }
 
-type decimalAmount struct {
-	value *big.Int
-	scale int
+type metricAggregation string
+
+const (
+	metricAggregationAverage metricAggregation = "average"
+	metricAggregationSum     metricAggregation = "sum"
+)
+
+type metricAccumulator struct {
+	name        string
+	aggregation metricAggregation
+	value       decimal.Amount
+	count       int
 }
 
-func parseAmount(value string) (decimalAmount, error) {
-	cleanValue := strings.ReplaceAll(strings.TrimSpace(value), ",", "")
-	if cleanValue == "" {
-		return decimalAmount{}, fmt.Errorf("value is required")
+func (a metricAccumulator) Summary() MetricSummary {
+	value := a.value.String()
+	if a.aggregation == metricAggregationAverage {
+		value = a.value.Average(a.count)
 	}
-	if strings.Contains(cleanValue, "%") {
-		cleanValue = strings.TrimSuffix(cleanValue, "%")
+	return MetricSummary{
+		Name:        a.name,
+		Aggregation: string(a.aggregation),
+		Value:       value,
 	}
-	sign := 1
-	if strings.HasPrefix(cleanValue, "-") {
-		sign = -1
-		cleanValue = strings.TrimPrefix(cleanValue, "-")
-	}
-	if cleanValue == "" {
-		return decimalAmount{}, fmt.Errorf("invalid decimal %q", value)
-	}
-	parts := strings.Split(cleanValue, ".")
-	if len(parts) > 2 {
-		return decimalAmount{}, fmt.Errorf("invalid decimal %q", value)
-	}
-	digits := parts[0]
-	scale := 0
-	if len(parts) == 2 {
-		scale = len(parts[1])
-		digits += parts[1]
-	}
-	if strings.Trim(digits, "0123456789") != "" {
-		return decimalAmount{}, fmt.Errorf("invalid decimal %q", value)
-	}
-	amount := new(big.Int)
-	amount.SetString(digits, 10)
-	if sign < 0 {
-		amount.Neg(amount)
-	}
-	return decimalAmount{value: amount, scale: scale}, nil
 }
 
-func (a decimalAmount) Add(b decimalAmount) decimalAmount {
-	if a.value == nil {
-		return b
+func aggregationForHeader(name string) metricAggregation {
+	if strings.Contains(name, "average") ||
+		strings.Contains(name, "avg") ||
+		strings.Contains(name, "conversion") ||
+		strings.Contains(name, "percentage") ||
+		strings.Contains(name, "rating") ||
+		strings.Contains(name, "rate") ||
+		strings.Contains(name, "%") {
+		return metricAggregationAverage
 	}
-	if b.value == nil {
-		return a
-	}
-	scale := max(a.scale, b.scale)
-	left := scaleDecimal(a.value, scale-a.scale)
-	right := scaleDecimal(b.value, scale-b.scale)
-	return decimalAmount{value: left.Add(left, right), scale: scale}
-}
-
-func (a decimalAmount) String() string {
-	if a.value == nil {
-		return "0"
-	}
-	value := new(big.Int).Set(a.value)
-	sign := ""
-	if value.Sign() < 0 {
-		sign = "-"
-		value.Abs(value)
-	}
-	text := value.String()
-	if a.scale > 0 {
-		for len(text) <= a.scale {
-			text = "0" + text
-		}
-		split := len(text) - a.scale
-		text = text[:split] + "." + text[split:]
-	}
-	text = strings.TrimRight(text, "0")
-	text = strings.TrimRight(text, ".")
-	if text == "" || text == "0" {
-		return "0"
-	}
-	return sign + text
-}
-
-func scaleDecimal(value *big.Int, places int) *big.Int {
-	scaled := new(big.Int).Set(value)
-	if places <= 0 {
-		return scaled
-	}
-	multiplier := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(places)), nil)
-	return scaled.Mul(scaled, multiplier)
+	return metricAggregationSum
 }
 
 func cleanHeader(header string) string {

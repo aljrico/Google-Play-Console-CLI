@@ -4,11 +4,11 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"math/big"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/aljrico/Google-Play-Console-CLI/internal/decimal"
 )
 
 type ReportSummaryOptions struct {
@@ -54,8 +54,6 @@ var reportSchemas = []reportSchema{
 	{reportType: "estimated-sales", transactionHeader: "financial status", amountHeader: "charged amount", currencyHeader: "currency of sale"},
 }
 
-var decimalPattern = regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
-
 func SummarizeReport(options ReportSummaryOptions) (ReportSummary, error) {
 	if strings.TrimSpace(options.File) == "" {
 		return ReportSummary{}, fmt.Errorf("file is required")
@@ -78,7 +76,7 @@ func SummarizeReport(options ReportSummaryOptions) (ReportSummary, error) {
 	if err != nil {
 		return ReportSummary{}, err
 	}
-	totals := map[string]decimalAmount{}
+	totals := map[string]decimal.Amount{}
 	counts := map[string]int{}
 	currencies := map[string]string{}
 	rowCount := 0
@@ -100,7 +98,7 @@ func SummarizeReport(options ReportSummaryOptions) (ReportSummary, error) {
 		if transactionType == "" {
 			return ReportSummary{}, fmt.Errorf("finance report row %d transaction type is required", rowIndex)
 		}
-		amount, err := parseAmount(record[indexes.amount])
+		amount, err := decimal.Parse(record[indexes.amount])
 		if err != nil {
 			return ReportSummary{}, fmt.Errorf("finance report row %d amount: %w", rowIndex, err)
 		}
@@ -184,90 +182,6 @@ func findColumns(headers []string) (columnIndexes, error) {
 func normalizeHeader(header string) string {
 	header = strings.TrimPrefix(strings.TrimSpace(header), "\ufeff")
 	return strings.ToLower(strings.Join(strings.Fields(header), " "))
-}
-
-type decimalAmount struct {
-	value *big.Int
-	scale int
-}
-
-func parseAmount(value string) (decimalAmount, error) {
-	cleanValue := strings.ReplaceAll(strings.TrimSpace(value), ",", "")
-	if cleanValue == "" {
-		return decimalAmount{}, fmt.Errorf("value is required")
-	}
-	if !decimalPattern.MatchString(cleanValue) {
-		return decimalAmount{}, fmt.Errorf("invalid decimal %q", value)
-	}
-	sign := 1
-	if strings.HasPrefix(cleanValue, "-") {
-		sign = -1
-		cleanValue = strings.TrimPrefix(cleanValue, "-")
-	}
-	scale := 0
-	parts := strings.Split(cleanValue, ".")
-	digits := parts[0]
-	if len(parts) == 2 {
-		scale = len(parts[1])
-		digits += parts[1]
-	}
-	amount := new(big.Int)
-	amount.SetString(digits, 10)
-	if sign < 0 {
-		amount.Neg(amount)
-	}
-	return decimalAmount{value: amount, scale: scale}, nil
-}
-
-func (a decimalAmount) Add(b decimalAmount) decimalAmount {
-	if a.value == nil {
-		return b
-	}
-	if b.value == nil {
-		return a
-	}
-	scale := max(a.scale, b.scale)
-	left := scaleDecimal(a.value, scale-a.scale)
-	right := scaleDecimal(b.value, scale-b.scale)
-	return decimalAmount{value: left.Add(left, right), scale: scale}
-}
-
-func (a decimalAmount) String() string {
-	if a.value == nil {
-		return "0"
-	}
-	value := new(big.Int).Set(a.value)
-	sign := ""
-	if value.Sign() < 0 {
-		sign = "-"
-		value.Abs(value)
-	}
-	text := value.String()
-	if a.scale > 0 {
-		for len(text) <= a.scale {
-			text = "0" + text
-		}
-		split := len(text) - a.scale
-		text = text[:split] + "." + text[split:]
-	}
-	text = strings.TrimRight(text, "0")
-	text = strings.TrimRight(text, ".")
-	if text == "" {
-		return "0"
-	}
-	if text == "0" {
-		return "0"
-	}
-	return sign + text
-}
-
-func scaleDecimal(value *big.Int, places int) *big.Int {
-	scaled := new(big.Int).Set(value)
-	if places <= 0 {
-		return scaled
-	}
-	multiplier := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(places)), nil)
-	return scaled.Mul(scaled, multiplier)
 }
 
 func isEmptyRecord(record []string) bool {

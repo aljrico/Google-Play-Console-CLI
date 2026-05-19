@@ -815,7 +815,7 @@ func TestAnalyticsStatsSummarizeOutputsTotalsWithoutAuth(t *testing.T) {
 		`"packageName":"com.example.app"`,
 		`"startDate":"2026-05-01"`,
 		`"endDate":"2026-05-02"`,
-		`"name":"Store listing visitors","total":"25"`,
+		`"name":"Store listing visitors","aggregation":"sum","value":"25"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
