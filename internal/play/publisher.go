@@ -38,7 +38,7 @@ type GooglePublisher struct {
 	basePath   string
 }
 
-func (p GooglePublisher) doJSON(req *http.Request, target any) error {
+func (p *GooglePublisher) doJSON(req *http.Request, target any) error {
 	httpClient := p.httpClient
 	if httpClient == nil {
 		return fmt.Errorf("Google Play HTTP client is required")
@@ -58,7 +58,7 @@ func (p GooglePublisher) doJSON(req *http.Request, target any) error {
 	return nil
 }
 
-func (p GooglePublisher) doNoContent(req *http.Request) error {
+func (p *GooglePublisher) doNoContent(req *http.Request) error {
 	httpClient := p.httpClient
 	if httpClient == nil {
 		return fmt.Errorf("Google Play HTTP client is required")
@@ -74,7 +74,7 @@ func (p GooglePublisher) doNoContent(req *http.Request) error {
 	return nil
 }
 
-func (p GooglePublisher) InsertEdit(ctx context.Context, packageName PackageName) (Edit, error) {
+func (p *GooglePublisher) InsertEdit(ctx context.Context, packageName PackageName) (Edit, error) {
 	edit, err := p.service.Edits.Insert(packageName.String(), &androidpublisher.AppEdit{}).Context(ctx).Do()
 	if err != nil {
 		return Edit{}, fmt.Errorf("insert edit for %s: %w", packageName, err)
@@ -82,7 +82,7 @@ func (p GooglePublisher) InsertEdit(ctx context.Context, packageName PackageName
 	return Edit{ID: edit.Id, ExpiryTimeSeconds: edit.ExpiryTimeSeconds}, nil
 }
 
-func (p GooglePublisher) UploadBundle(ctx context.Context, packageName PackageName, editID string, bundlePath string) (BundleArtifact, error) {
+func (p *GooglePublisher) UploadBundle(ctx context.Context, packageName PackageName, editID string, bundlePath string) (BundleArtifact, error) {
 	file, err := os.Open(bundlePath)
 	if err != nil {
 		return BundleArtifact{}, fmt.Errorf("open bundle %s: %w", bundlePath, err)
@@ -99,7 +99,7 @@ func (p GooglePublisher) UploadBundle(ctx context.Context, packageName PackageNa
 	return BundleArtifact{VersionCode: bundle.VersionCode, SHA1: bundle.Sha1, SHA256: bundle.Sha256}, nil
 }
 
-func (p GooglePublisher) UploadAPK(ctx context.Context, packageName PackageName, editID string, apkPath string) (APKArtifact, error) {
+func (p *GooglePublisher) UploadAPK(ctx context.Context, packageName PackageName, editID string, apkPath string) (APKArtifact, error) {
 	file, err := os.Open(apkPath)
 	if err != nil {
 		return APKArtifact{}, fmt.Errorf("open APK %s: %w", apkPath, err)
@@ -116,7 +116,7 @@ func (p GooglePublisher) UploadAPK(ctx context.Context, packageName PackageName,
 	return apkArtifactFromAPI(apk), nil
 }
 
-func (p GooglePublisher) UploadInternalSharingAPK(ctx context.Context, packageName PackageName, path string) (InternalSharingArtifact, error) {
+func (p *GooglePublisher) UploadInternalSharingAPK(ctx context.Context, packageName PackageName, path string) (InternalSharingArtifact, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return InternalSharingArtifact{}, fmt.Errorf("open APK %s: %w", path, err)
@@ -133,7 +133,7 @@ func (p GooglePublisher) UploadInternalSharingAPK(ctx context.Context, packageNa
 	return internalSharingArtifactFromAPI(artifact), nil
 }
 
-func (p GooglePublisher) UploadInternalSharingBundle(ctx context.Context, packageName PackageName, path string) (InternalSharingArtifact, error) {
+func (p *GooglePublisher) UploadInternalSharingBundle(ctx context.Context, packageName PackageName, path string) (InternalSharingArtifact, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return InternalSharingArtifact{}, fmt.Errorf("open bundle %s: %w", path, err)
@@ -150,7 +150,7 @@ func (p GooglePublisher) UploadInternalSharingBundle(ctx context.Context, packag
 	return internalSharingArtifactFromAPI(artifact), nil
 }
 
-func (p GooglePublisher) ValidateEdit(ctx context.Context, packageName PackageName, editID string) error {
+func (p *GooglePublisher) ValidateEdit(ctx context.Context, packageName PackageName, editID string) error {
 	if _, err := p.service.Edits.Validate(packageName.String(), editID).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("validate edit %s for %s: %w", editID, packageName, err)
 	}
@@ -161,11 +161,11 @@ type CommitEditOptions struct {
 	ChangesNotSentForReview bool
 }
 
-func (p GooglePublisher) CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error) {
+func (p *GooglePublisher) CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error) {
 	return p.CommitEditWithOptions(ctx, packageName, editID, CommitEditOptions{})
 }
 
-func (p GooglePublisher) CommitEditWithOptions(ctx context.Context, packageName PackageName, editID string, opts CommitEditOptions) (Edit, error) {
+func (p *GooglePublisher) CommitEditWithOptions(ctx context.Context, packageName PackageName, editID string, opts CommitEditOptions) (Edit, error) {
 	call := p.service.Edits.Commit(packageName.String(), editID).Context(ctx)
 	if opts.ChangesNotSentForReview {
 		call = call.ChangesNotSentForReview(true)
@@ -177,14 +177,14 @@ func (p GooglePublisher) CommitEditWithOptions(ctx context.Context, packageName 
 	return Edit{ID: edit.Id, ExpiryTimeSeconds: edit.ExpiryTimeSeconds}, nil
 }
 
-func (p GooglePublisher) DeleteEdit(ctx context.Context, packageName PackageName, editID string) error {
+func (p *GooglePublisher) DeleteEdit(ctx context.Context, packageName PackageName, editID string) error {
 	if err := p.service.Edits.Delete(packageName.String(), editID).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete edit %s for %s: %w", editID, packageName, err)
 	}
 	return nil
 }
 
-func (p GooglePublisher) ListTracks(ctx context.Context, packageName PackageName, editID string) ([]Track, error) {
+func (p *GooglePublisher) ListTracks(ctx context.Context, packageName PackageName, editID string) ([]Track, error) {
 	response, err := p.service.Edits.Tracks.List(packageName.String(), editID).Context(ctx).Do()
 	if err != nil {
 		return nil, fmt.Errorf("list tracks for %s: %w", packageName, err)
@@ -196,7 +196,7 @@ func (p GooglePublisher) ListTracks(ctx context.Context, packageName PackageName
 	return tracks, nil
 }
 
-func (p GooglePublisher) GetTesters(ctx context.Context, packageName PackageName, editID string, track TrackName) (TrackTesters, error) {
+func (p *GooglePublisher) GetTesters(ctx context.Context, packageName PackageName, editID string, track TrackName) (TrackTesters, error) {
 	testers, err := p.service.Edits.Testers.Get(packageName.String(), editID, track.String()).Context(ctx).Do()
 	if err != nil {
 		return TrackTesters{}, fmt.Errorf("get %s testers for %s: %w", track, packageName, err)
@@ -204,7 +204,7 @@ func (p GooglePublisher) GetTesters(ctx context.Context, packageName PackageName
 	return testersFromAPI(packageName, track, testers), nil
 }
 
-func (p GooglePublisher) UpdateTesters(ctx context.Context, packageName PackageName, editID string, track TrackName, googleGroups []TesterGoogleGroup) (TrackTesters, error) {
+func (p *GooglePublisher) UpdateTesters(ctx context.Context, packageName PackageName, editID string, track TrackName, googleGroups []TesterGoogleGroup) (TrackTesters, error) {
 	apiTesters := testersToAPI(googleGroups)
 	updatedTesters, err := p.service.Edits.Testers.Update(packageName.String(), editID, track.String(), apiTesters).Context(ctx).Do()
 	if err != nil {
@@ -213,7 +213,7 @@ func (p GooglePublisher) UpdateTesters(ctx context.Context, packageName PackageN
 	return testersFromAPI(packageName, track, updatedTesters), nil
 }
 
-func (p GooglePublisher) ListListings(ctx context.Context, packageName PackageName, editID string) ([]Listing, error) {
+func (p *GooglePublisher) ListListings(ctx context.Context, packageName PackageName, editID string) ([]Listing, error) {
 	response, err := p.service.Edits.Listings.List(packageName.String(), editID).Context(ctx).Do()
 	if err != nil {
 		return nil, fmt.Errorf("list listings for %s: %w", packageName, err)
@@ -225,7 +225,7 @@ func (p GooglePublisher) ListListings(ctx context.Context, packageName PackageNa
 	return listings, nil
 }
 
-func (p GooglePublisher) GetListing(ctx context.Context, packageName PackageName, editID string, language ListingLanguage) (Listing, error) {
+func (p *GooglePublisher) GetListing(ctx context.Context, packageName PackageName, editID string, language ListingLanguage) (Listing, error) {
 	listing, err := p.service.Edits.Listings.Get(packageName.String(), editID, language.String()).Context(ctx).Do()
 	if err != nil {
 		return Listing{}, fmt.Errorf("get %s listing for %s: %w", language, packageName, err)
@@ -233,7 +233,7 @@ func (p GooglePublisher) GetListing(ctx context.Context, packageName PackageName
 	return listingFromAPI(listing), nil
 }
 
-func (p GooglePublisher) PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
+func (p *GooglePublisher) PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
 	apiListing := listingToAPI(listing)
 	updatedListing, err := p.service.Edits.Listings.Patch(packageName.String(), editID, listing.Language.String(), apiListing).Context(ctx).Do()
 	if err != nil {
@@ -242,7 +242,7 @@ func (p GooglePublisher) PatchListing(ctx context.Context, packageName PackageNa
 	return listingFromAPI(updatedListing), nil
 }
 
-func (p GooglePublisher) ListImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) ([]StoreImage, error) {
+func (p *GooglePublisher) ListImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) ([]StoreImage, error) {
 	response, err := p.service.Edits.Images.List(packageName.String(), editID, language.String(), imageType.String()).Context(ctx).Do()
 	if err != nil {
 		return nil, fmt.Errorf("list %s images for %s %s listing: %w", imageType, packageName, language, err)
@@ -257,7 +257,7 @@ func (p GooglePublisher) ListImages(ctx context.Context, packageName PackageName
 	return images, nil
 }
 
-func (p GooglePublisher) UploadImage(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType, path string) (StoreImage, error) {
+func (p *GooglePublisher) UploadImage(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType, path string) (StoreImage, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return StoreImage{}, fmt.Errorf("open image %s: %w", path, err)
@@ -277,14 +277,14 @@ func (p GooglePublisher) UploadImage(ctx context.Context, packageName PackageNam
 	return imageFromAPI(response.Image), nil
 }
 
-func (p GooglePublisher) DeleteImage(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType, imageID string) error {
+func (p *GooglePublisher) DeleteImage(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType, imageID string) error {
 	if err := p.service.Edits.Images.Delete(packageName.String(), editID, language.String(), imageType.String(), imageID).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete %s image %s for %s %s listing: %w", imageType, imageID, packageName, language, err)
 	}
 	return nil
 }
 
-func (p GooglePublisher) DeleteAllImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) ([]StoreImage, error) {
+func (p *GooglePublisher) DeleteAllImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) ([]StoreImage, error) {
 	response, err := p.service.Edits.Images.Deleteall(packageName.String(), editID, language.String(), imageType.String()).Context(ctx).Do()
 	if err != nil {
 		return nil, fmt.Errorf("delete all %s images for %s %s listing: %w", imageType, packageName, language, err)
@@ -302,7 +302,7 @@ func (p GooglePublisher) DeleteAllImages(ctx context.Context, packageName Packag
 	return images, nil
 }
 
-func (p GooglePublisher) GetAppDetails(ctx context.Context, packageName PackageName, editID string) (AppDetails, error) {
+func (p *GooglePublisher) GetAppDetails(ctx context.Context, packageName PackageName, editID string) (AppDetails, error) {
 	details, err := p.service.Edits.Details.Get(packageName.String(), editID).Context(ctx).Do()
 	if err != nil {
 		return AppDetails{}, fmt.Errorf("get app details for %s: %w", packageName, err)
@@ -310,7 +310,7 @@ func (p GooglePublisher) GetAppDetails(ctx context.Context, packageName PackageN
 	return appDetailsFromAPI(details), nil
 }
 
-func (p GooglePublisher) PatchAppDetails(ctx context.Context, packageName PackageName, editID string, details AppDetails) (AppDetails, error) {
+func (p *GooglePublisher) PatchAppDetails(ctx context.Context, packageName PackageName, editID string, details AppDetails) (AppDetails, error) {
 	apiDetails := appDetailsToAPI(details)
 	updatedDetails, err := p.service.Edits.Details.Patch(packageName.String(), editID, apiDetails).Context(ctx).Do()
 	if err != nil {
@@ -319,21 +319,21 @@ func (p GooglePublisher) PatchAppDetails(ctx context.Context, packageName Packag
 	return appDetailsFromAPI(updatedDetails), nil
 }
 
-func (p GooglePublisher) DeleteListing(ctx context.Context, packageName PackageName, editID string, language ListingLanguage) error {
+func (p *GooglePublisher) DeleteListing(ctx context.Context, packageName PackageName, editID string, language ListingLanguage) error {
 	if err := p.service.Edits.Listings.Delete(packageName.String(), editID, language.String()).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete %s listing for %s: %w", language, packageName, err)
 	}
 	return nil
 }
 
-func (p GooglePublisher) DeleteAllListings(ctx context.Context, packageName PackageName, editID string) error {
+func (p *GooglePublisher) DeleteAllListings(ctx context.Context, packageName PackageName, editID string) error {
 	if err := p.service.Edits.Listings.Deleteall(packageName.String(), editID).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete all listings for %s: %w", packageName, err)
 	}
 	return nil
 }
 
-func (p GooglePublisher) ListReviews(ctx context.Context, options ReviewListOptions) (ReviewListResult, error) {
+func (p *GooglePublisher) ListReviews(ctx context.Context, options ReviewListOptions) (ReviewListResult, error) {
 	call := p.service.Reviews.List(options.PackageName.String()).Context(ctx)
 	if options.MaxResults > 0 {
 		call.MaxResults(options.MaxResults)
@@ -354,7 +354,7 @@ func (p GooglePublisher) ListReviews(ctx context.Context, options ReviewListOpti
 	return reviewListResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) GetReview(ctx context.Context, packageName PackageName, reviewID ReviewID, translationLanguage string) (Review, error) {
+func (p *GooglePublisher) GetReview(ctx context.Context, packageName PackageName, reviewID ReviewID, translationLanguage string) (Review, error) {
 	call := p.service.Reviews.Get(packageName.String(), reviewID.String()).Context(ctx)
 	if translationLanguage != "" {
 		call.TranslationLanguage(translationLanguage)
@@ -366,7 +366,7 @@ func (p GooglePublisher) GetReview(ctx context.Context, packageName PackageName,
 	return reviewFromAPI(review), nil
 }
 
-func (p GooglePublisher) ReplyToReview(ctx context.Context, packageName PackageName, reviewID ReviewID, text string) (DeveloperReply, error) {
+func (p *GooglePublisher) ReplyToReview(ctx context.Context, packageName PackageName, reviewID ReviewID, text string) (DeveloperReply, error) {
 	request := &androidpublisher.ReviewsReplyRequest{
 		ReplyText:       text,
 		ForceSendFields: []string{"ReplyText"},
@@ -384,7 +384,7 @@ func (p GooglePublisher) ReplyToReview(ctx context.Context, packageName PackageN
 	}, nil
 }
 
-func (p GooglePublisher) ListInAppProducts(ctx context.Context, options InAppProductListOptions) (InAppProductListResult, error) {
+func (p *GooglePublisher) ListInAppProducts(ctx context.Context, options InAppProductListOptions) (InAppProductListResult, error) {
 	call := p.service.Inappproducts.List(options.PackageName.String()).Context(ctx)
 	if options.Token != "" {
 		call.Token(options.Token)
@@ -396,7 +396,7 @@ func (p GooglePublisher) ListInAppProducts(ctx context.Context, options InAppPro
 	return inAppProductListResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) GetInAppProduct(ctx context.Context, packageName PackageName, sku InAppProductSKU) (InAppProduct, error) {
+func (p *GooglePublisher) GetInAppProduct(ctx context.Context, packageName PackageName, sku InAppProductSKU) (InAppProduct, error) {
 	product, err := p.service.Inappproducts.Get(packageName.String(), sku.String()).Context(ctx).Do()
 	if err != nil {
 		return InAppProduct{}, fmt.Errorf("get in-app product %s for %s: %w", sku, packageName, err)
@@ -404,7 +404,7 @@ func (p GooglePublisher) GetInAppProduct(ctx context.Context, packageName Packag
 	return inAppProductFromAPI(product), nil
 }
 
-func (p GooglePublisher) BatchGetInAppProducts(ctx context.Context, options InAppProductBatchGetOptions) (InAppProductBatchGetResult, error) {
+func (p *GooglePublisher) BatchGetInAppProducts(ctx context.Context, options InAppProductBatchGetOptions) (InAppProductBatchGetResult, error) {
 	skus := make([]string, 0, len(options.SKUs))
 	for _, sku := range options.SKUs {
 		skus = append(skus, sku.String())
@@ -419,7 +419,7 @@ func (p GooglePublisher) BatchGetInAppProducts(ctx context.Context, options InAp
 	return inAppProductBatchGetResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) DeleteInAppProduct(ctx context.Context, options InAppProductDeleteOptions) error {
+func (p *GooglePublisher) DeleteInAppProduct(ctx context.Context, options InAppProductDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -432,7 +432,7 @@ func (p GooglePublisher) DeleteInAppProduct(ctx context.Context, options InAppPr
 	return nil
 }
 
-func (p GooglePublisher) BatchDeleteInAppProducts(ctx context.Context, options InAppProductBatchDeleteOptions) error {
+func (p *GooglePublisher) BatchDeleteInAppProducts(ctx context.Context, options InAppProductBatchDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -453,7 +453,7 @@ func (p GooglePublisher) BatchDeleteInAppProducts(ctx context.Context, options I
 	return nil
 }
 
-func (p GooglePublisher) CreateInAppProduct(ctx context.Context, options InAppProductCreateOptions) (InAppProduct, error) {
+func (p *GooglePublisher) CreateInAppProduct(ctx context.Context, options InAppProductCreateOptions) (InAppProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return InAppProduct{}, err
 	}
@@ -467,7 +467,7 @@ func (p GooglePublisher) CreateInAppProduct(ctx context.Context, options InAppPr
 	return inAppProductFromAPI(product), nil
 }
 
-func (p GooglePublisher) PatchInAppProduct(ctx context.Context, options InAppProductPatchOptions) (InAppProduct, error) {
+func (p *GooglePublisher) PatchInAppProduct(ctx context.Context, options InAppProductPatchOptions) (InAppProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return InAppProduct{}, err
 	}
@@ -482,7 +482,7 @@ func (p GooglePublisher) PatchInAppProduct(ctx context.Context, options InAppPro
 	return inAppProductFromAPI(product), nil
 }
 
-func (p GooglePublisher) ListOneTimeProducts(ctx context.Context, options OneTimeProductListOptions) (OneTimeProductListResult, error) {
+func (p *GooglePublisher) ListOneTimeProducts(ctx context.Context, options OneTimeProductListOptions) (OneTimeProductListResult, error) {
 	requestURL := googleapi.ResolveRelative(p.basePath, "androidpublisher/v3/applications/{packageName}/oneTimeProducts")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
@@ -507,7 +507,7 @@ func (p GooglePublisher) ListOneTimeProducts(ctx context.Context, options OneTim
 	return oneTimeProductListResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) GetOneTimeProduct(ctx context.Context, packageName PackageName, productID OneTimeProductID) (OneTimeProduct, error) {
+func (p *GooglePublisher) GetOneTimeProduct(ctx context.Context, packageName PackageName, productID OneTimeProductID) (OneTimeProduct, error) {
 	requestURL := googleapi.ResolveRelative(p.basePath, "androidpublisher/v3/applications/{packageName}/oneTimeProducts/{productId}")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
@@ -529,7 +529,7 @@ func (p GooglePublisher) GetOneTimeProduct(ctx context.Context, packageName Pack
 	return oneTimeProductFromAPI(product), nil
 }
 
-func (p GooglePublisher) BatchGetOneTimeProducts(ctx context.Context, options OneTimeProductBatchGetOptions) (OneTimeProductBatchGetResult, error) {
+func (p *GooglePublisher) BatchGetOneTimeProducts(ctx context.Context, options OneTimeProductBatchGetOptions) (OneTimeProductBatchGetResult, error) {
 	if err := options.Validate(); err != nil {
 		return OneTimeProductBatchGetResult{}, err
 	}
@@ -547,7 +547,7 @@ func (p GooglePublisher) BatchGetOneTimeProducts(ctx context.Context, options On
 	return oneTimeProductBatchGetResultFromAPI(options, response)
 }
 
-func (p GooglePublisher) CreateOneTimeProduct(ctx context.Context, options OneTimeProductCreateOptions) (OneTimeProduct, error) {
+func (p *GooglePublisher) CreateOneTimeProduct(ctx context.Context, options OneTimeProductCreateOptions) (OneTimeProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProduct{}, err
 	}
@@ -580,7 +580,7 @@ func isGoogleNotFound(err error) bool {
 	return ok && apiError.Code == http.StatusNotFound
 }
 
-func (p GooglePublisher) PatchOneTimeProduct(ctx context.Context, options OneTimeProductPatchOptions) (OneTimeProduct, error) {
+func (p *GooglePublisher) PatchOneTimeProduct(ctx context.Context, options OneTimeProductPatchOptions) (OneTimeProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProduct{}, err
 	}
@@ -613,7 +613,7 @@ func (p GooglePublisher) PatchOneTimeProduct(ctx context.Context, options OneTim
 	return oneTimeProductFromGeneratedAPI(product)
 }
 
-func (p GooglePublisher) BatchPatchOneTimeProductListings(ctx context.Context, options OneTimeProductBatchPatchListingsOptions) (OneTimeProductBatchPatchListingsResult, error) {
+func (p *GooglePublisher) BatchPatchOneTimeProductListings(ctx context.Context, options OneTimeProductBatchPatchListingsOptions) (OneTimeProductBatchPatchListingsResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProductBatchPatchListingsResult{}, err
 	}
@@ -685,7 +685,7 @@ func oneTimeProductBatchListingPatchRequestsByProduct(requests []OneTimeProductB
 	return products
 }
 
-func (p GooglePublisher) DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error {
+func (p *GooglePublisher) DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -701,7 +701,7 @@ func (p GooglePublisher) DeleteOneTimeProduct(ctx context.Context, options OneTi
 	return nil
 }
 
-func (p GooglePublisher) BatchDeleteOneTimeProducts(ctx context.Context, options OneTimeProductBatchDeleteOptions) error {
+func (p *GooglePublisher) BatchDeleteOneTimeProducts(ctx context.Context, options OneTimeProductBatchDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -725,7 +725,7 @@ func (p GooglePublisher) BatchDeleteOneTimeProducts(ctx context.Context, options
 	return nil
 }
 
-func (p GooglePublisher) BatchDeletePurchaseOptions(ctx context.Context, options PurchaseOptionBatchDeleteOptions) error {
+func (p *GooglePublisher) BatchDeletePurchaseOptions(ctx context.Context, options PurchaseOptionBatchDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -757,7 +757,7 @@ func (p GooglePublisher) BatchDeletePurchaseOptions(ctx context.Context, options
 	return nil
 }
 
-func (p GooglePublisher) BatchPatchPurchaseOptionAvailability(ctx context.Context, options PurchaseOptionBatchPatchAvailabilityOptions) (PurchaseOptionBatchPatchAvailabilityResult, error) {
+func (p *GooglePublisher) BatchPatchPurchaseOptionAvailability(ctx context.Context, options PurchaseOptionBatchPatchAvailabilityOptions) (PurchaseOptionBatchPatchAvailabilityResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return PurchaseOptionBatchPatchAvailabilityResult{}, err
 	}
@@ -812,7 +812,7 @@ func (p GooglePublisher) BatchPatchPurchaseOptionAvailability(ctx context.Contex
 	}, nil
 }
 
-func (p GooglePublisher) BatchPatchPurchaseOptionPrices(ctx context.Context, options PurchaseOptionBatchPatchPriceOptions) (PurchaseOptionBatchPatchPriceResult, error) {
+func (p *GooglePublisher) BatchPatchPurchaseOptionPrices(ctx context.Context, options PurchaseOptionBatchPatchPriceOptions) (PurchaseOptionBatchPatchPriceResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return PurchaseOptionBatchPatchPriceResult{}, err
 	}
@@ -907,7 +907,7 @@ func purchaseOptionPricePatchRequestsByProduct(requests []PurchaseOptionPricePat
 	return products
 }
 
-func (p GooglePublisher) UpdatePurchaseOptionState(ctx context.Context, options PurchaseOptionStateUpdateOptions) (OneTimeProduct, error) {
+func (p *GooglePublisher) UpdatePurchaseOptionState(ctx context.Context, options PurchaseOptionStateUpdateOptions) (OneTimeProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProduct{}, err
 	}
@@ -934,7 +934,7 @@ func (p GooglePublisher) UpdatePurchaseOptionState(ctx context.Context, options 
 	return product, nil
 }
 
-func (p GooglePublisher) ListOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferListOptions) (OneTimeProductOfferListResult, error) {
+func (p *GooglePublisher) ListOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferListOptions) (OneTimeProductOfferListResult, error) {
 	call := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.List(
 		options.PackageName.String(),
 		options.ProductID.String(),
@@ -953,7 +953,7 @@ func (p GooglePublisher) ListOneTimeProductOffers(ctx context.Context, options O
 	return oneTimeProductOfferListResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) GetOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error) {
+func (p *GooglePublisher) GetOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error) {
 	request := batchGetOneTimeProductOffersRequestToAPI(options.PackageName, []OneTimeProductOfferBatchGetRequest{{
 		ProductID:        options.ProductID,
 		PurchaseOptionID: options.PurchaseOptionID,
@@ -974,7 +974,7 @@ func (p GooglePublisher) GetOneTimeProductOffer(ctx context.Context, options One
 	return oneTimeProductOfferFromAPI(response.OneTimeProductOffers[0]), nil
 }
 
-func (p GooglePublisher) BatchGetOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchGetOptions) (OneTimeProductOfferBatchGetResult, error) {
+func (p *GooglePublisher) BatchGetOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchGetOptions) (OneTimeProductOfferBatchGetResult, error) {
 	request := batchGetOneTimeProductOffersRequestToAPI(options.PackageName, options.Requests)
 	response, err := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.BatchGet(
 		options.PackageName.String(),
@@ -988,7 +988,7 @@ func (p GooglePublisher) BatchGetOneTimeProductOffers(ctx context.Context, optio
 	return oneTimeProductOfferBatchGetResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) CreateOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferCreateOptions) (OneTimeProductOffer, error) {
+func (p *GooglePublisher) CreateOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferCreateOptions) (OneTimeProductOffer, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProductOffer{}, err
 	}
@@ -1025,7 +1025,7 @@ func (p GooglePublisher) CreateOneTimeProductOffer(ctx context.Context, options 
 	return offers[0], nil
 }
 
-func (p GooglePublisher) BatchDeleteOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchDeleteOptions) error {
+func (p *GooglePublisher) BatchDeleteOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -1054,7 +1054,7 @@ func (p GooglePublisher) BatchDeleteOneTimeProductOffers(ctx context.Context, op
 	return nil
 }
 
-func (p GooglePublisher) BatchUpdateOneTimeProductOfferStates(ctx context.Context, options OneTimeProductOfferBatchStateUpdateOptions) (OneTimeProductOfferBatchStateUpdateResult, error) {
+func (p *GooglePublisher) BatchUpdateOneTimeProductOfferStates(ctx context.Context, options OneTimeProductOfferBatchStateUpdateOptions) (OneTimeProductOfferBatchStateUpdateResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProductOfferBatchStateUpdateResult{}, err
 	}
@@ -1091,7 +1091,7 @@ func (p GooglePublisher) BatchUpdateOneTimeProductOfferStates(ctx context.Contex
 	}, nil
 }
 
-func (p GooglePublisher) BatchPatchOneTimeProductOfferAvailability(ctx context.Context, options OneTimeProductOfferBatchPatchAvailabilityOptions) (OneTimeProductOfferBatchPatchAvailabilityResult, error) {
+func (p *GooglePublisher) BatchPatchOneTimeProductOfferAvailability(ctx context.Context, options OneTimeProductOfferBatchPatchAvailabilityOptions) (OneTimeProductOfferBatchPatchAvailabilityResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProductOfferBatchPatchAvailabilityResult{}, err
 	}
@@ -1140,7 +1140,7 @@ func (p GooglePublisher) BatchPatchOneTimeProductOfferAvailability(ctx context.C
 	}, nil
 }
 
-func (p GooglePublisher) BatchPatchOneTimeProductOfferRelativeDiscounts(ctx context.Context, options OneTimeProductOfferBatchPatchRelativeDiscountsOptions) (OneTimeProductOfferBatchPatchRelativeDiscountsResult, error) {
+func (p *GooglePublisher) BatchPatchOneTimeProductOfferRelativeDiscounts(ctx context.Context, options OneTimeProductOfferBatchPatchRelativeDiscountsOptions) (OneTimeProductOfferBatchPatchRelativeDiscountsResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProductOfferBatchPatchRelativeDiscountsResult{}, err
 	}
@@ -1189,7 +1189,7 @@ func (p GooglePublisher) BatchPatchOneTimeProductOfferRelativeDiscounts(ctx cont
 	}, nil
 }
 
-func (p GooglePublisher) BatchPatchOneTimeProductOfferAbsoluteDiscounts(ctx context.Context, options OneTimeProductOfferBatchPatchAbsoluteDiscountsOptions) (OneTimeProductOfferBatchPatchAbsoluteDiscountsResult, error) {
+func (p *GooglePublisher) BatchPatchOneTimeProductOfferAbsoluteDiscounts(ctx context.Context, options OneTimeProductOfferBatchPatchAbsoluteDiscountsOptions) (OneTimeProductOfferBatchPatchAbsoluteDiscountsResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProductOfferBatchPatchAbsoluteDiscountsResult{}, err
 	}
@@ -1238,7 +1238,7 @@ func (p GooglePublisher) BatchPatchOneTimeProductOfferAbsoluteDiscounts(ctx cont
 	}, nil
 }
 
-func (p GooglePublisher) BatchPatchOneTimeProductOfferNoOverrides(ctx context.Context, options OneTimeProductOfferBatchPatchNoOverridesOptions) (OneTimeProductOfferBatchPatchNoOverridesResult, error) {
+func (p *GooglePublisher) BatchPatchOneTimeProductOfferNoOverrides(ctx context.Context, options OneTimeProductOfferBatchPatchNoOverridesOptions) (OneTimeProductOfferBatchPatchNoOverridesResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProductOfferBatchPatchNoOverridesResult{}, err
 	}
@@ -1287,11 +1287,11 @@ func (p GooglePublisher) BatchPatchOneTimeProductOfferNoOverrides(ctx context.Co
 	}, nil
 }
 
-func (p GooglePublisher) getOneTimeProductOfferForAvailabilityPatch(ctx context.Context, packageName PackageName, productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, offerID OneTimeProductOfferID) (*androidpublisher.OneTimeProductOffer, error) {
+func (p *GooglePublisher) getOneTimeProductOfferForAvailabilityPatch(ctx context.Context, packageName PackageName, productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, offerID OneTimeProductOfferID) (*androidpublisher.OneTimeProductOffer, error) {
 	return p.getOneTimeProductOfferForRegionalPatch(ctx, packageName, productID, purchaseOptionID, offerID, "availability")
 }
 
-func (p GooglePublisher) getOneTimeProductOfferForRegionalPatch(ctx context.Context, packageName PackageName, productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, offerID OneTimeProductOfferID, patchKind string) (*androidpublisher.OneTimeProductOffer, error) {
+func (p *GooglePublisher) getOneTimeProductOfferForRegionalPatch(ctx context.Context, packageName PackageName, productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, offerID OneTimeProductOfferID, patchKind string) (*androidpublisher.OneTimeProductOffer, error) {
 	request := batchGetOneTimeProductOffersRequestToAPI(packageName, []OneTimeProductOfferBatchGetRequest{{
 		ProductID:        productID,
 		PurchaseOptionID: purchaseOptionID,
@@ -1312,7 +1312,7 @@ func (p GooglePublisher) getOneTimeProductOfferForRegionalPatch(ctx context.Cont
 	return response.OneTimeProductOffers[0], nil
 }
 
-func (p GooglePublisher) oneTimeProductOfferExists(ctx context.Context, packageName PackageName, productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, offerID OneTimeProductOfferID) (bool, error) {
+func (p *GooglePublisher) oneTimeProductOfferExists(ctx context.Context, packageName PackageName, productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, offerID OneTimeProductOfferID) (bool, error) {
 	request := batchGetOneTimeProductOffersRequestToAPI(packageName, []OneTimeProductOfferBatchGetRequest{{
 		ProductID:        productID,
 		PurchaseOptionID: purchaseOptionID,
@@ -1330,7 +1330,7 @@ func (p GooglePublisher) oneTimeProductOfferExists(ctx context.Context, packageN
 	return response != nil && len(response.OneTimeProductOffers) > 0, nil
 }
 
-func (p GooglePublisher) UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error) {
+func (p *GooglePublisher) UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProductOffer{}, err
 	}
@@ -1548,7 +1548,7 @@ func oneTimeProductOffersFromBatchUpdateResponse(response *androidpublisher.Batc
 	return offers
 }
 
-func (p GooglePublisher) ListSubscriptions(ctx context.Context, options SubscriptionListOptions) (SubscriptionListResult, error) {
+func (p *GooglePublisher) ListSubscriptions(ctx context.Context, options SubscriptionListOptions) (SubscriptionListResult, error) {
 	call := p.service.Monetization.Subscriptions.List(options.PackageName.String()).Context(ctx)
 	if options.PageSize > 0 {
 		call.PageSize(options.PageSize)
@@ -1566,7 +1566,7 @@ func (p GooglePublisher) ListSubscriptions(ctx context.Context, options Subscrip
 	return subscriptionListResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) GetSubscription(ctx context.Context, packageName PackageName, productID SubscriptionProductID) (Subscription, error) {
+func (p *GooglePublisher) GetSubscription(ctx context.Context, packageName PackageName, productID SubscriptionProductID) (Subscription, error) {
 	subscription, err := p.service.Monetization.Subscriptions.Get(packageName.String(), productID.String()).Context(ctx).Do()
 	if err != nil {
 		return Subscription{}, fmt.Errorf("get subscription %s for %s: %w", productID, packageName, err)
@@ -1574,7 +1574,7 @@ func (p GooglePublisher) GetSubscription(ctx context.Context, packageName Packag
 	return subscriptionFromAPI(subscription), nil
 }
 
-func (p GooglePublisher) CreateSubscription(ctx context.Context, options SubscriptionCreateOptions) (Subscription, error) {
+func (p *GooglePublisher) CreateSubscription(ctx context.Context, options SubscriptionCreateOptions) (Subscription, error) {
 	if err := options.ValidateLive(); err != nil {
 		return Subscription{}, err
 	}
@@ -1592,7 +1592,7 @@ func (p GooglePublisher) CreateSubscription(ctx context.Context, options Subscri
 	return subscriptionFromAPI(subscription), nil
 }
 
-func (p GooglePublisher) BatchGetSubscriptions(ctx context.Context, options SubscriptionBatchGetOptions) (SubscriptionBatchGetResult, error) {
+func (p *GooglePublisher) BatchGetSubscriptions(ctx context.Context, options SubscriptionBatchGetOptions) (SubscriptionBatchGetResult, error) {
 	productIDs := make([]string, 0, len(options.ProductIDs))
 	for _, productID := range options.ProductIDs {
 		productIDs = append(productIDs, productID.String())
@@ -1607,7 +1607,7 @@ func (p GooglePublisher) BatchGetSubscriptions(ctx context.Context, options Subs
 	return subscriptionBatchGetResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) DeleteSubscription(ctx context.Context, options SubscriptionDeleteOptions) error {
+func (p *GooglePublisher) DeleteSubscription(ctx context.Context, options SubscriptionDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -1617,7 +1617,7 @@ func (p GooglePublisher) DeleteSubscription(ctx context.Context, options Subscri
 	return nil
 }
 
-func (p GooglePublisher) DeleteBasePlan(ctx context.Context, options BasePlanDeleteOptions) error {
+func (p *GooglePublisher) DeleteBasePlan(ctx context.Context, options BasePlanDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -1631,7 +1631,7 @@ func (p GooglePublisher) DeleteBasePlan(ctx context.Context, options BasePlanDel
 	return nil
 }
 
-func (p GooglePublisher) PatchSubscription(ctx context.Context, options SubscriptionPatchOptions) (Subscription, error) {
+func (p *GooglePublisher) PatchSubscription(ctx context.Context, options SubscriptionPatchOptions) (Subscription, error) {
 	if err := options.ValidateLive(); err != nil {
 		return Subscription{}, err
 	}
@@ -1657,7 +1657,7 @@ func (p GooglePublisher) PatchSubscription(ctx context.Context, options Subscrip
 	return subscriptionFromAPI(subscription), nil
 }
 
-func (p GooglePublisher) BatchPatchSubscriptionListings(ctx context.Context, options SubscriptionBatchPatchListingsOptions) (SubscriptionBatchPatchListingsResult, error) {
+func (p *GooglePublisher) BatchPatchSubscriptionListings(ctx context.Context, options SubscriptionBatchPatchListingsOptions) (SubscriptionBatchPatchListingsResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return SubscriptionBatchPatchListingsResult{}, err
 	}
@@ -1741,7 +1741,7 @@ func basePlanPricePatchRequestsByProduct(requests []BasePlanPricePatchRequest) [
 	return products
 }
 
-func (p GooglePublisher) UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error) {
+func (p *GooglePublisher) UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error) {
 	if err := options.ValidateLive(); err != nil {
 		return Subscription{}, err
 	}
@@ -1784,7 +1784,7 @@ func (p GooglePublisher) UpdateBasePlanState(ctx context.Context, options BasePl
 	return subscriptionFromAPI(subscription), nil
 }
 
-func (p GooglePublisher) BatchUpdateBasePlanStates(ctx context.Context, options BasePlanBatchStateUpdateOptions) (BasePlanBatchStateUpdateResult, error) {
+func (p *GooglePublisher) BatchUpdateBasePlanStates(ctx context.Context, options BasePlanBatchStateUpdateOptions) (BasePlanBatchStateUpdateResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return BasePlanBatchStateUpdateResult{}, err
 	}
@@ -1820,7 +1820,7 @@ func (p GooglePublisher) BatchUpdateBasePlanStates(ctx context.Context, options 
 	}, nil
 }
 
-func (p GooglePublisher) BatchMigrateBasePlanPrices(ctx context.Context, options BasePlanBatchPriceMigrationOptions) (BasePlanBatchPriceMigrationResult, error) {
+func (p *GooglePublisher) BatchMigrateBasePlanPrices(ctx context.Context, options BasePlanBatchPriceMigrationOptions) (BasePlanBatchPriceMigrationResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return BasePlanBatchPriceMigrationResult{}, err
 	}
@@ -1848,7 +1848,7 @@ func (p GooglePublisher) BatchMigrateBasePlanPrices(ctx context.Context, options
 	}, nil
 }
 
-func (p GooglePublisher) BatchPatchBasePlanPrices(ctx context.Context, options BasePlanBatchPatchPriceOptions) (BasePlanBatchPatchPriceResult, error) {
+func (p *GooglePublisher) BatchPatchBasePlanPrices(ctx context.Context, options BasePlanBatchPatchPriceOptions) (BasePlanBatchPatchPriceResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return BasePlanBatchPatchPriceResult{}, err
 	}
@@ -1975,7 +1975,7 @@ func deactivateBasePlanRequestToAPI(options BasePlanBatchStateUpdateOptions, ite
 	}
 }
 
-func (p GooglePublisher) ListSubscriptionOffers(ctx context.Context, options SubscriptionOfferListOptions) (SubscriptionOfferListResult, error) {
+func (p *GooglePublisher) ListSubscriptionOffers(ctx context.Context, options SubscriptionOfferListOptions) (SubscriptionOfferListResult, error) {
 	call := p.service.Monetization.Subscriptions.BasePlans.Offers.List(
 		options.PackageName.String(),
 		options.ProductID.String(),
@@ -2009,7 +2009,7 @@ func subscriptionBatchGetResultFromAPI(options SubscriptionBatchGetOptions, resp
 	return result
 }
 
-func (p GooglePublisher) ListUsers(ctx context.Context, options UserListOptions) (UserListResult, error) {
+func (p *GooglePublisher) ListUsers(ctx context.Context, options UserListOptions) (UserListResult, error) {
 	if err := options.Validate(); err != nil {
 		return UserListResult{}, err
 	}
@@ -2027,7 +2027,7 @@ func (p GooglePublisher) ListUsers(ctx context.Context, options UserListOptions)
 	return userListResultFromAPI(options.Developer, response), nil
 }
 
-func (p GooglePublisher) CreateUser(ctx context.Context, options UserCreateOptions) (User, error) {
+func (p *GooglePublisher) CreateUser(ctx context.Context, options UserCreateOptions) (User, error) {
 	if err := options.ValidateLive(); err != nil {
 		return User{}, err
 	}
@@ -2040,7 +2040,7 @@ func (p GooglePublisher) CreateUser(ctx context.Context, options UserCreateOptio
 	return userFromAPI(apiUser), nil
 }
 
-func (p GooglePublisher) PatchUser(ctx context.Context, options UserPatchOptions) (User, error) {
+func (p *GooglePublisher) PatchUser(ctx context.Context, options UserPatchOptions) (User, error) {
 	if err := options.ValidateLive(); err != nil {
 		return User{}, err
 	}
@@ -2054,7 +2054,7 @@ func (p GooglePublisher) PatchUser(ctx context.Context, options UserPatchOptions
 	return userFromAPI(apiUser), nil
 }
 
-func (p GooglePublisher) DeleteUser(ctx context.Context, options UserDeleteOptions) error {
+func (p *GooglePublisher) DeleteUser(ctx context.Context, options UserDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -2064,7 +2064,7 @@ func (p GooglePublisher) DeleteUser(ctx context.Context, options UserDeleteOptio
 	return nil
 }
 
-func (p GooglePublisher) ListDeviceTierConfigs(ctx context.Context, options DeviceTierConfigListOptions) (DeviceTierConfigListResult, error) {
+func (p *GooglePublisher) ListDeviceTierConfigs(ctx context.Context, options DeviceTierConfigListOptions) (DeviceTierConfigListResult, error) {
 	call := p.service.Applications.DeviceTierConfigs.List(options.PackageName.String()).Context(ctx)
 	if options.PageSize != 0 {
 		call.PageSize(options.PageSize)
@@ -2079,7 +2079,7 @@ func (p GooglePublisher) ListDeviceTierConfigs(ctx context.Context, options Devi
 	return deviceTierConfigListResultFromAPI(options.PackageName, response), nil
 }
 
-func (p GooglePublisher) GetDeviceTierConfig(ctx context.Context, options DeviceTierConfigGetOptions) (DeviceTierConfigGetResult, error) {
+func (p *GooglePublisher) GetDeviceTierConfig(ctx context.Context, options DeviceTierConfigGetOptions) (DeviceTierConfigGetResult, error) {
 	apiConfig, err := p.service.Applications.DeviceTierConfigs.Get(options.PackageName.String(), options.DeviceTierConfigID).Context(ctx).Do()
 	if err != nil {
 		return DeviceTierConfigGetResult{}, fmt.Errorf("get device tier config %d for %s: %w", options.DeviceTierConfigID, options.PackageName, err)
@@ -2090,7 +2090,7 @@ func (p GooglePublisher) GetDeviceTierConfig(ctx context.Context, options Device
 	}, nil
 }
 
-func (p GooglePublisher) UpdateDataSafety(ctx context.Context, packageName PackageName, safetyLabels string) error {
+func (p *GooglePublisher) UpdateDataSafety(ctx context.Context, packageName PackageName, safetyLabels string) error {
 	request := &androidpublisher.SafetyLabelsUpdateRequest{
 		SafetyLabels: safetyLabels,
 	}
@@ -2100,7 +2100,7 @@ func (p GooglePublisher) UpdateDataSafety(ctx context.Context, packageName Packa
 	return nil
 }
 
-func (p GooglePublisher) CreateGrant(ctx context.Context, options GrantCreateOptions) (Grant, error) {
+func (p *GooglePublisher) CreateGrant(ctx context.Context, options GrantCreateOptions) (Grant, error) {
 	apiGrant, err := p.service.Grants.Create(options.Parent(), grantToAPI(Grant{
 		Name:        options.GrantName(),
 		PackageName: options.PackageName,
@@ -2112,7 +2112,7 @@ func (p GooglePublisher) CreateGrant(ctx context.Context, options GrantCreateOpt
 	return grantFromAPI(apiGrant), nil
 }
 
-func (p GooglePublisher) PatchGrant(ctx context.Context, options GrantPatchOptions) (Grant, error) {
+func (p *GooglePublisher) PatchGrant(ctx context.Context, options GrantPatchOptions) (Grant, error) {
 	apiGrant, err := p.service.Grants.Patch(options.Name.String(), grantToAPI(Grant{
 		Name:        options.Name,
 		Permissions: options.Permissions,
@@ -2123,14 +2123,14 @@ func (p GooglePublisher) PatchGrant(ctx context.Context, options GrantPatchOptio
 	return grantFromAPI(apiGrant), nil
 }
 
-func (p GooglePublisher) DeleteGrant(ctx context.Context, options GrantDeleteOptions) error {
+func (p *GooglePublisher) DeleteGrant(ctx context.Context, options GrantDeleteOptions) error {
 	if err := p.service.Grants.Delete(options.Name.String()).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("delete grant %s: %w", options.Name, err)
 	}
 	return nil
 }
 
-func (p GooglePublisher) GetOrder(ctx context.Context, options OrderGetOptions) (OrderGetResult, error) {
+func (p *GooglePublisher) GetOrder(ctx context.Context, options OrderGetOptions) (OrderGetResult, error) {
 	apiOrder, err := p.service.Orders.Get(options.PackageName.String(), options.OrderID.String()).Context(ctx).Do()
 	if err != nil {
 		return OrderGetResult{}, fmt.Errorf("get order %s for %s: %w", options.OrderID, options.PackageName, err)
@@ -2142,7 +2142,7 @@ func (p GooglePublisher) GetOrder(ctx context.Context, options OrderGetOptions) 
 	}, nil
 }
 
-func (p GooglePublisher) BatchGetOrders(ctx context.Context, options OrderBatchGetOptions) (OrderBatchGetResult, error) {
+func (p *GooglePublisher) BatchGetOrders(ctx context.Context, options OrderBatchGetOptions) (OrderBatchGetResult, error) {
 	response, err := p.service.Orders.Batchget(options.PackageName.String()).
 		OrderIds(orderIDStrings(options.OrderIDs)...).
 		Context(ctx).
@@ -2153,7 +2153,7 @@ func (p GooglePublisher) BatchGetOrders(ctx context.Context, options OrderBatchG
 	return orderBatchGetResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) RefundOrder(ctx context.Context, options OrderRefundOptions) error {
+func (p *GooglePublisher) RefundOrder(ctx context.Context, options OrderRefundOptions) error {
 	call := p.service.Orders.Refund(options.PackageName.String(), options.OrderID.String()).Context(ctx)
 	if options.Revoke {
 		call.Revoke(true)
@@ -2164,7 +2164,7 @@ func (p GooglePublisher) RefundOrder(ctx context.Context, options OrderRefundOpt
 	return nil
 }
 
-func (p GooglePublisher) ConvertRegionPrices(ctx context.Context, options RegionPriceConversionOptions) (RegionPriceConversionResult, error) {
+func (p *GooglePublisher) ConvertRegionPrices(ctx context.Context, options RegionPriceConversionOptions) (RegionPriceConversionResult, error) {
 	request := &androidpublisher.ConvertRegionPricesRequest{
 		Price: &androidpublisher.Money{
 			CurrencyCode: options.Currency.String(),
@@ -2181,7 +2181,7 @@ func (p GooglePublisher) ConvertRegionPrices(ctx context.Context, options Region
 	return regionPriceConversionResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) ListAppRecoveries(ctx context.Context, options AppRecoveryListOptions) (AppRecoveryListResult, error) {
+func (p *GooglePublisher) ListAppRecoveries(ctx context.Context, options AppRecoveryListOptions) (AppRecoveryListResult, error) {
 	response, err := p.service.Apprecovery.List(options.PackageName.String()).
 		VersionCode(options.VersionCode).
 		Context(ctx).
@@ -2192,7 +2192,7 @@ func (p GooglePublisher) ListAppRecoveries(ctx context.Context, options AppRecov
 	return appRecoveryListResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) CreateAppRecovery(ctx context.Context, options AppRecoveryCreateOptions) (AppRecoveryAction, error) {
+func (p *GooglePublisher) CreateAppRecovery(ctx context.Context, options AppRecoveryCreateOptions) (AppRecoveryAction, error) {
 	if err := options.ValidateLive(); err != nil {
 		return AppRecoveryAction{}, err
 	}
@@ -2205,7 +2205,7 @@ func (p GooglePublisher) CreateAppRecovery(ctx context.Context, options AppRecov
 	return appRecoveryActionFromAPI(action), nil
 }
 
-func (p GooglePublisher) AddAppRecoveryTargeting(ctx context.Context, options AppRecoveryTargetingUpdateOptions) error {
+func (p *GooglePublisher) AddAppRecoveryTargeting(ctx context.Context, options AppRecoveryTargetingUpdateOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -2219,7 +2219,7 @@ func (p GooglePublisher) AddAppRecoveryTargeting(ctx context.Context, options Ap
 	return nil
 }
 
-func (p GooglePublisher) DeployAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
+func (p *GooglePublisher) DeployAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -2231,7 +2231,7 @@ func (p GooglePublisher) DeployAppRecovery(ctx context.Context, options AppRecov
 	return nil
 }
 
-func (p GooglePublisher) CancelAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
+func (p *GooglePublisher) CancelAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -2243,7 +2243,7 @@ func (p GooglePublisher) CancelAppRecovery(ctx context.Context, options AppRecov
 	return nil
 }
 
-func (p GooglePublisher) ListGeneratedAPKs(ctx context.Context, options GeneratedAPKListOptions) (GeneratedAPKListResult, error) {
+func (p *GooglePublisher) ListGeneratedAPKs(ctx context.Context, options GeneratedAPKListOptions) (GeneratedAPKListResult, error) {
 	response, err := p.service.Generatedapks.List(options.PackageName.String(), options.VersionCode).
 		Context(ctx).
 		Do()
@@ -2253,7 +2253,7 @@ func (p GooglePublisher) ListGeneratedAPKs(ctx context.Context, options Generate
 	return generatedAPKListResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) DownloadGeneratedAPK(ctx context.Context, options GeneratedAPKDownloadOptions) (GeneratedAPKDownloadResult, error) {
+func (p *GooglePublisher) DownloadGeneratedAPK(ctx context.Context, options GeneratedAPKDownloadOptions) (GeneratedAPKDownloadResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return GeneratedAPKDownloadResult{}, err
 	}
@@ -2354,7 +2354,7 @@ func publishGeneratedAPKTempFile(tempPath string, outputPath string, force bool)
 	return nil
 }
 
-func (p GooglePublisher) ListSystemAPKVariants(ctx context.Context, options SystemAPKVariantListOptions) (SystemAPKVariantListResult, error) {
+func (p *GooglePublisher) ListSystemAPKVariants(ctx context.Context, options SystemAPKVariantListOptions) (SystemAPKVariantListResult, error) {
 	response, err := p.service.Systemapks.Variants.List(options.PackageName.String(), options.VersionCode).
 		Context(ctx).
 		Do()
@@ -2364,7 +2364,7 @@ func (p GooglePublisher) ListSystemAPKVariants(ctx context.Context, options Syst
 	return systemAPKVariantListResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName PackageName, productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, offerID SubscriptionOfferID) (SubscriptionOffer, error) {
+func (p *GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName PackageName, productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, offerID SubscriptionOfferID) (SubscriptionOffer, error) {
 	offer, err := p.service.Monetization.Subscriptions.BasePlans.Offers.Get(
 		packageName.String(),
 		productID.String(),
@@ -2377,7 +2377,7 @@ func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName P
 	return subscriptionOfferFromAPI(offer), nil
 }
 
-func (p GooglePublisher) CreateSubscriptionOffer(ctx context.Context, options SubscriptionOfferCreateOptions) (SubscriptionOffer, error) {
+func (p *GooglePublisher) CreateSubscriptionOffer(ctx context.Context, options SubscriptionOfferCreateOptions) (SubscriptionOffer, error) {
 	if err := options.ValidateLive(); err != nil {
 		return SubscriptionOffer{}, err
 	}
@@ -2397,7 +2397,7 @@ func (p GooglePublisher) CreateSubscriptionOffer(ctx context.Context, options Su
 	return subscriptionOfferFromAPI(offer), nil
 }
 
-func (p GooglePublisher) DeleteSubscriptionOffer(ctx context.Context, options SubscriptionOfferDeleteOptions) error {
+func (p *GooglePublisher) DeleteSubscriptionOffer(ctx context.Context, options SubscriptionOfferDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -2412,7 +2412,7 @@ func (p GooglePublisher) DeleteSubscriptionOffer(ctx context.Context, options Su
 	return nil
 }
 
-func (p GooglePublisher) UpdateSubscriptionOfferState(ctx context.Context, options SubscriptionOfferStateUpdateOptions) (SubscriptionOffer, error) {
+func (p *GooglePublisher) UpdateSubscriptionOfferState(ctx context.Context, options SubscriptionOfferStateUpdateOptions) (SubscriptionOffer, error) {
 	if err := options.ValidateLive(); err != nil {
 		return SubscriptionOffer{}, err
 	}
@@ -2459,7 +2459,7 @@ func (p GooglePublisher) UpdateSubscriptionOfferState(ctx context.Context, optio
 	return subscriptionOfferFromAPI(offer), nil
 }
 
-func (p GooglePublisher) BatchUpdateSubscriptionOfferStates(ctx context.Context, options SubscriptionOfferBatchStateUpdateOptions) (SubscriptionOfferBatchStateUpdateResult, error) {
+func (p *GooglePublisher) BatchUpdateSubscriptionOfferStates(ctx context.Context, options SubscriptionOfferBatchStateUpdateOptions) (SubscriptionOfferBatchStateUpdateResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return SubscriptionOfferBatchStateUpdateResult{}, err
 	}
@@ -2490,7 +2490,7 @@ func (p GooglePublisher) BatchUpdateSubscriptionOfferStates(ctx context.Context,
 	}, nil
 }
 
-func (p GooglePublisher) BatchPatchSubscriptionOfferAvailability(ctx context.Context, options SubscriptionOfferBatchPatchAvailabilityOptions) (SubscriptionOfferBatchPatchAvailabilityResult, error) {
+func (p *GooglePublisher) BatchPatchSubscriptionOfferAvailability(ctx context.Context, options SubscriptionOfferBatchPatchAvailabilityOptions) (SubscriptionOfferBatchPatchAvailabilityResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return SubscriptionOfferBatchPatchAvailabilityResult{}, err
 	}
@@ -2541,7 +2541,7 @@ func (p GooglePublisher) BatchPatchSubscriptionOfferAvailability(ctx context.Con
 	}, nil
 }
 
-func (p GooglePublisher) BatchPatchSubscriptionOfferPhaseRelativeDiscounts(ctx context.Context, options SubscriptionOfferBatchPatchPhaseRelativeDiscountsOptions) (SubscriptionOfferBatchPatchPhaseRelativeDiscountsResult, error) {
+func (p *GooglePublisher) BatchPatchSubscriptionOfferPhaseRelativeDiscounts(ctx context.Context, options SubscriptionOfferBatchPatchPhaseRelativeDiscountsOptions) (SubscriptionOfferBatchPatchPhaseRelativeDiscountsResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return SubscriptionOfferBatchPatchPhaseRelativeDiscountsResult{}, err
 	}
@@ -2596,7 +2596,7 @@ func (p GooglePublisher) BatchPatchSubscriptionOfferPhaseRelativeDiscounts(ctx c
 	}, nil
 }
 
-func (p GooglePublisher) BatchPatchSubscriptionOfferPhaseAbsoluteDiscounts(ctx context.Context, options SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsOptions) (SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsResult, error) {
+func (p *GooglePublisher) BatchPatchSubscriptionOfferPhaseAbsoluteDiscounts(ctx context.Context, options SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsOptions) (SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsResult{}, err
 	}
@@ -2651,7 +2651,7 @@ func (p GooglePublisher) BatchPatchSubscriptionOfferPhaseAbsoluteDiscounts(ctx c
 	}, nil
 }
 
-func (p GooglePublisher) BatchPatchSubscriptionOfferPhasePrices(ctx context.Context, options SubscriptionOfferBatchPatchPhasePricesOptions) (SubscriptionOfferBatchPatchPhasePricesResult, error) {
+func (p *GooglePublisher) BatchPatchSubscriptionOfferPhasePrices(ctx context.Context, options SubscriptionOfferBatchPatchPhasePricesOptions) (SubscriptionOfferBatchPatchPhasePricesResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return SubscriptionOfferBatchPatchPhasePricesResult{}, err
 	}
@@ -2706,7 +2706,7 @@ func (p GooglePublisher) BatchPatchSubscriptionOfferPhasePrices(ctx context.Cont
 	}, nil
 }
 
-func (p GooglePublisher) BatchPatchSubscriptionOfferPhaseFree(ctx context.Context, options SubscriptionOfferBatchPatchPhaseFreeOptions) (SubscriptionOfferBatchPatchPhaseFreeResult, error) {
+func (p *GooglePublisher) BatchPatchSubscriptionOfferPhaseFree(ctx context.Context, options SubscriptionOfferBatchPatchPhaseFreeOptions) (SubscriptionOfferBatchPatchPhaseFreeResult, error) {
 	if err := options.ValidateLive(); err != nil {
 		return SubscriptionOfferBatchPatchPhaseFreeResult{}, err
 	}
@@ -3146,7 +3146,7 @@ func subscriptionOffersFromBatchStateUpdateResponse(options SubscriptionOfferBat
 	return append(offers, extras...)
 }
 
-func (p GooglePublisher) BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error) {
+func (p *GooglePublisher) BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error) {
 	request := &androidpublisher.BatchGetSubscriptionOffersRequest{
 		Requests: make([]*androidpublisher.GetSubscriptionOfferRequest, 0, len(options.Requests)),
 	}
@@ -3170,7 +3170,7 @@ func (p GooglePublisher) BatchGetSubscriptionOffers(ctx context.Context, options
 	return subscriptionOfferBatchGetResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) GetProductPurchase(ctx context.Context, options ProductPurchaseOptions) (ProductPurchase, error) {
+func (p *GooglePublisher) GetProductPurchase(ctx context.Context, options ProductPurchaseOptions) (ProductPurchase, error) {
 	purchase, err := p.service.Purchases.Productsv2.Getproductpurchasev2(options.PackageName.String(), options.Token.String()).Context(ctx).Do()
 	if err != nil {
 		return ProductPurchase{}, fmt.Errorf("get product purchase %s for %s: %w", options.Token, options.PackageName, err)
@@ -3252,7 +3252,7 @@ func subscriptionOfferKey(productID SubscriptionProductID, basePlanID Subscripti
 	return productID.String() + "/" + basePlanID.String() + "/" + offerID.String()
 }
 
-func (p GooglePublisher) AcknowledgeProductPurchase(ctx context.Context, options ProductPurchaseMutationOptions) error {
+func (p *GooglePublisher) AcknowledgeProductPurchase(ctx context.Context, options ProductPurchaseMutationOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -3268,7 +3268,7 @@ func (p GooglePublisher) AcknowledgeProductPurchase(ctx context.Context, options
 	return nil
 }
 
-func (p GooglePublisher) ConsumeProductPurchase(ctx context.Context, options ProductPurchaseMutationOptions) error {
+func (p *GooglePublisher) ConsumeProductPurchase(ctx context.Context, options ProductPurchaseMutationOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -3280,7 +3280,7 @@ func (p GooglePublisher) ConsumeProductPurchase(ctx context.Context, options Pro
 	return nil
 }
 
-func (p GooglePublisher) GetSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error) {
+func (p *GooglePublisher) GetSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error) {
 	purchase, err := p.service.Purchases.Subscriptionsv2.Get(options.PackageName.String(), options.Token.String()).Context(ctx).Do()
 	if err != nil {
 		return SubscriptionPurchase{}, fmt.Errorf("get subscription purchase %s for %s: %w", options.Token, options.PackageName, err)
@@ -3288,7 +3288,7 @@ func (p GooglePublisher) GetSubscriptionPurchase(ctx context.Context, options Su
 	return subscriptionPurchaseFromAPI(options.PackageName, options.Token, purchase), nil
 }
 
-func (p GooglePublisher) AcknowledgeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseMutationOptions) error {
+func (p *GooglePublisher) AcknowledgeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseMutationOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -3307,7 +3307,7 @@ func (p GooglePublisher) AcknowledgeSubscriptionPurchase(ctx context.Context, op
 	return nil
 }
 
-func (p GooglePublisher) CancelSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseMutationOptions) error {
+func (p *GooglePublisher) CancelSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseMutationOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -3339,7 +3339,7 @@ func (p GooglePublisher) CancelSubscriptionPurchase(ctx context.Context, options
 	return nil
 }
 
-func (p GooglePublisher) RevokeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseRevokeOptions) error {
+func (p *GooglePublisher) RevokeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseRevokeOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
@@ -3351,7 +3351,7 @@ func (p GooglePublisher) RevokeSubscriptionPurchase(ctx context.Context, options
 	return nil
 }
 
-func (p GooglePublisher) ListVoidedPurchases(ctx context.Context, options VoidedPurchaseListOptions) (VoidedPurchaseListResult, error) {
+func (p *GooglePublisher) ListVoidedPurchases(ctx context.Context, options VoidedPurchaseListOptions) (VoidedPurchaseListResult, error) {
 	call := p.service.Purchases.Voidedpurchases.List(options.PackageName.String()).Context(ctx)
 	if options.MaxResults > 0 {
 		call.MaxResults(options.MaxResults)
@@ -3381,7 +3381,7 @@ func (p GooglePublisher) ListVoidedPurchases(ctx context.Context, options Voided
 	return voidedPurchaseListResultFromAPI(options, response), nil
 }
 
-func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName PackageName, editID string, trackName TrackName, release TrackRelease) (Track, error) {
+func (p *GooglePublisher) AppendTrackRelease(ctx context.Context, packageName PackageName, editID string, trackName TrackName, release TrackRelease) (Track, error) {
 	apiTrack, err := p.service.Edits.Tracks.Get(packageName.String(), editID, trackName.String()).Context(ctx).Do()
 	if err != nil {
 		return Track{}, fmt.Errorf("get %s track for %s: %w", trackName, packageName, err)
@@ -3399,7 +3399,7 @@ func (p GooglePublisher) AppendTrackRelease(ctx context.Context, packageName Pac
 	return trackFromAPI(updatedTrack), nil
 }
 
-func (p GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, versionCode int64, status ReleaseStatus, userFraction *float64, releaseNotes []ReleaseNote) (TrackRelease, error) {
+func (p *GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName PackageName, editID string, sourceTrack TrackName, targetTrack TrackName, versionCode int64, status ReleaseStatus, userFraction *float64, releaseNotes []ReleaseNote) (TrackRelease, error) {
 	source, err := p.service.Edits.Tracks.Get(packageName.String(), editID, sourceTrack.String()).Context(ctx).Do()
 	if err != nil {
 		return TrackRelease{}, fmt.Errorf("get %s track for %s: %w", sourceTrack, packageName, err)
@@ -3429,7 +3429,7 @@ func (p GooglePublisher) PromoteTrackRelease(ctx context.Context, packageName Pa
 	return releaseFromAPI(apiRelease), nil
 }
 
-func (p GooglePublisher) UpdateTrackReleaseStatus(ctx context.Context, packageName PackageName, editID string, trackName TrackName, versionCode int64, status ReleaseStatus, userFraction *float64) (TrackRelease, error) {
+func (p *GooglePublisher) UpdateTrackReleaseStatus(ctx context.Context, packageName PackageName, editID string, trackName TrackName, versionCode int64, status ReleaseStatus, userFraction *float64) (TrackRelease, error) {
 	apiTrack, err := p.service.Edits.Tracks.Get(packageName.String(), editID, trackName.String()).Context(ctx).Do()
 	if err != nil {
 		return TrackRelease{}, fmt.Errorf("get %s track for %s: %w", trackName, packageName, err)

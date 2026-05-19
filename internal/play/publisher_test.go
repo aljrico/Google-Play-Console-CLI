@@ -6869,7 +6869,7 @@ func TestBatchPatchBasePlanPricesRejectsMissingRegion(t *testing.T) {
 	}
 }
 
-func newTestPublisher(t *testing.T, handler http.Handler) GooglePublisher {
+func newTestPublisher(t *testing.T, handler http.Handler) *GooglePublisher {
 	t.Helper()
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
@@ -6882,7 +6882,7 @@ func newTestPublisher(t *testing.T, handler http.Handler) GooglePublisher {
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
-	return GooglePublisher{service: service, httpClient: server.Client(), basePath: server.URL + "/"}
+	return &GooglePublisher{service: service, httpClient: server.Client(), basePath: server.URL + "/"}
 }
 
 func assertQueryValue(t *testing.T, query map[string][]string, key string, want string) {
