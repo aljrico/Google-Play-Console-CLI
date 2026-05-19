@@ -34,6 +34,9 @@ jobs:
       - name: Run tests
         run: go test ./...
 
+      - name: Verify generated docs
+        run: make docs-check
+
       - name: Check GoReleaser config
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -135,6 +138,9 @@ jobs:
 
       - name: Run tests
         run: go test ./...
+
+      - name: Verify generated docs
+        run: make docs-check
 
       - name: Verify module files are tidy
         run: |

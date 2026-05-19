@@ -10,7 +10,7 @@ LDFLAGS := -s -w \
 	-X github.com/aljrico/Google-Play-Console-CLI/cmd.commit=$(COMMIT) \
 	-X github.com/aljrico/Google-Play-Console-CLI/cmd.date=$(DATE)
 
-.PHONY: build test lint release-check snapshot install clean
+.PHONY: build test lint docs docs-check release-check snapshot install clean
 
 build:
 	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/$(BINARY) .
@@ -21,6 +21,19 @@ test:
 lint:
 	gofmt -w .
 	go vet ./...
+
+docs:
+	go run . docs commands --output markdown > docs/COMMANDS.md
+
+docs-check:
+	@tmp="$$(mktemp)"; \
+	go run . docs commands --output markdown > "$$tmp"; \
+	cmp -s "$$tmp" docs/COMMANDS.md || { \
+		echo "docs/COMMANDS.md is stale; run make docs" >&2; \
+		rm -f "$$tmp"; \
+		exit 1; \
+	}; \
+	rm -f "$$tmp"
 
 release-check:
 	@command -v goreleaser >/dev/null || { echo "goreleaser is required; install it from https://goreleaser.com/install" >&2; exit 127; }

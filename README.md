@@ -171,3 +171,4 @@ The install script supports `GPC_VERSION`, `GPC_INSTALL_DIR`, `GPC_REPO`, and `G
 Early but functional. Auth/profile storage, the command taxonomy, generated command/schema docs, core release workflows, localized listings, app-level details, review reading/replies, read-only monetization catalog commands, purchase checks, order lookup, and guarded order refunds are in place.
 
 See [docs/PARITY.md](docs/PARITY.md) for the working parity map against App Store Connect CLI.
+See [docs/COMMANDS.md](docs/COMMANDS.md) for the generated command reference.
