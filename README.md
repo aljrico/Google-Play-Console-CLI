@@ -25,6 +25,12 @@ brew tap aljrico/tap
 brew install gpc
 ```
 
+Or with the install script on macOS/Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/aljrico/Google-Play-Console-CLI/main/scripts/install.sh | sh
+```
+
 ### Authenticate
 
 ```sh
@@ -157,6 +163,8 @@ git push origin v0.1.0
 Publishing the Homebrew formula requires `HOMEBREW_TAP_GITHUB_TOKEN` with write access to `aljrico/homebrew-tap`.
 
 Pull requests run a macOS packaging check that validates the GoReleaser config, builds a snapshot release, audits the generated formula, installs it locally, runs the formula test, and smokes `gpc version`.
+
+The install script supports `GPC_VERSION`, `GPC_INSTALL_DIR`, `GPC_REPO`, and `GPC_BASE_URL`, and verifies release archives against `checksums.txt` before installing.
 
 ## Status
 
