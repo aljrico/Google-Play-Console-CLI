@@ -586,6 +586,36 @@ func TestInAppProductListResultFromAPIMapsPagination(t *testing.T) {
 	}
 }
 
+func TestBatchGetInAppProductsUsesRepeatedSKUs(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/inappproducts:batchGet" {
+			t.Fatalf("path = %q, want in-app products batchGet endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		if got := r.URL.Query()["sku"]; !reflect.DeepEqual(got, []string{"coins_100", "coins_500"}) {
+			t.Fatalf("sku query = %#v, want requested SKUs", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"inappproduct":[
+			{"packageName":"com.example.app","sku":"coins_100","status":"active"},
+			{"packageName":"com.example.app","sku":"coins_500","status":"inactive"}
+		]}`)
+	}))
+
+	result, err := publisher.BatchGetInAppProducts(context.Background(), InAppProductBatchGetOptions{
+		PackageName: "com.example.app",
+		SKUs:        []InAppProductSKU{"coins_100", "coins_500"},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetInAppProducts() error = %v", err)
+	}
+	if len(result.Products) != 2 || result.Products[0].SKU != "coins_100" || result.Products[1].SKU != "coins_500" {
+		t.Fatalf("Products = %#v, want response order", result.Products)
+	}
+}
+
 func TestGooglePublisherPatchInAppProductSendsStatusPatch(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPatch {

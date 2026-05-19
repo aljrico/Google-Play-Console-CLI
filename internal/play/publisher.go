@@ -391,6 +391,21 @@ func (p GooglePublisher) GetInAppProduct(ctx context.Context, packageName Packag
 	return inAppProductFromAPI(product), nil
 }
 
+func (p GooglePublisher) BatchGetInAppProducts(ctx context.Context, options InAppProductBatchGetOptions) (InAppProductBatchGetResult, error) {
+	skus := make([]string, 0, len(options.SKUs))
+	for _, sku := range options.SKUs {
+		skus = append(skus, sku.String())
+	}
+	response, err := p.service.Inappproducts.BatchGet(options.PackageName.String()).
+		Sku(skus...).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return InAppProductBatchGetResult{}, fmt.Errorf("batch get in-app products for %s: %w", options.PackageName, err)
+	}
+	return inAppProductBatchGetResultFromAPI(options, response), nil
+}
+
 func (p GooglePublisher) CreateInAppProduct(ctx context.Context, options InAppProductCreateOptions) (InAppProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return InAppProduct{}, err
@@ -1879,6 +1894,21 @@ func inAppProductListResultFromAPI(options InAppProductListOptions, response *an
 			NextPageToken:     response.TokenPagination.NextPageToken,
 			PreviousPageToken: response.TokenPagination.PreviousPageToken,
 		}
+	}
+	return result
+}
+
+func inAppProductBatchGetResultFromAPI(options InAppProductBatchGetOptions, response *androidpublisher.InappproductsBatchGetResponse) InAppProductBatchGetResult {
+	result := InAppProductBatchGetResult{
+		PackageName: options.PackageName,
+		Products:    []InAppProduct{},
+		Options:     options,
+	}
+	if response == nil {
+		return result
+	}
+	for _, apiProduct := range response.Inappproduct {
+		result.Products = append(result.Products, inAppProductFromAPI(apiProduct))
 	}
 	return result
 }

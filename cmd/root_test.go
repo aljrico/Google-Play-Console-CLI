@@ -3526,6 +3526,62 @@ func TestInAppProductsGetRejectsMissingSKUBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestInAppProductsBatchGetRejectsMissingSKUBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected SKU validation error")
+	}
+	if !strings.Contains(err.Error(), "at least one in-app product SKU") {
+		t.Fatalf("error = %v, want SKU validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestInAppProductsBatchGetRejectsDuplicateSKUBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--sku",
+		"coins_100",
+		"--sku",
+		"coins_100",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected duplicate SKU validation error")
+	}
+	if !strings.Contains(err.Error(), "duplicated") {
+		t.Fatalf("error = %v, want duplicate validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
 func TestInAppProductsCreateDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

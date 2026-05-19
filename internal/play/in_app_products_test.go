@@ -70,6 +70,63 @@ func TestGetInAppProductRejectsMissingSKU(t *testing.T) {
 	}
 }
 
+func TestBatchGetInAppProductsPassesOptionsToGetter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	getter := &fakeInAppProductClient{
+		batchResult: InAppProductBatchGetResult{
+			PackageName: packageName,
+			Products:    []InAppProduct{{SKU: "coins_100"}},
+		},
+	}
+	options := InAppProductBatchGetOptions{
+		PackageName: packageName,
+		SKUs:        []InAppProductSKU{"coins_100", "coins_500"},
+	}
+
+	result, err := BatchGetInAppProducts(context.Background(), getter, options)
+	if err != nil {
+		t.Fatalf("BatchGetInAppProducts() error = %v", err)
+	}
+	if len(result.Products) != 1 {
+		t.Fatalf("len(Products) = %d, want 1", len(result.Products))
+	}
+	if !reflect.DeepEqual(getter.batchOptions, options) {
+		t.Fatalf("batchOptions = %#v, want %#v", getter.batchOptions, options)
+	}
+}
+
+func TestBatchGetInAppProductsRejectsMissingSKU(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchGetInAppProducts(context.Background(), nil, InAppProductBatchGetOptions{
+		PackageName: packageName,
+	})
+	if err == nil {
+		t.Fatal("expected SKU validation error")
+	}
+}
+
+func TestBatchGetInAppProductsRejectsDuplicateSKU(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchGetInAppProducts(context.Background(), nil, InAppProductBatchGetOptions{
+		PackageName: packageName,
+		SKUs:        []InAppProductSKU{"coins_100", "coins_100"},
+	})
+	if err == nil {
+		t.Fatal("expected duplicate SKU validation error")
+	}
+}
+
 func TestNewProductPriceParsesCurrencyAndMicros(t *testing.T) {
 	price, err := NewProductPrice("usd:1990000")
 	if err != nil {
@@ -476,6 +533,8 @@ func TestPatchInAppProductRejectsLegacySubscription(t *testing.T) {
 type fakeInAppProductClient struct {
 	listOptions   InAppProductListOptions
 	listResult    InAppProductListResult
+	batchOptions  InAppProductBatchGetOptions
+	batchResult   InAppProductBatchGetResult
 	createOptions InAppProductCreateOptions
 	patchOptions  InAppProductPatchOptions
 	sku           InAppProductSKU
@@ -490,6 +549,11 @@ func (c *fakeInAppProductClient) ListInAppProducts(ctx context.Context, options 
 func (c *fakeInAppProductClient) GetInAppProduct(ctx context.Context, packageName PackageName, sku InAppProductSKU) (InAppProduct, error) {
 	c.sku = sku
 	return c.product, nil
+}
+
+func (c *fakeInAppProductClient) BatchGetInAppProducts(ctx context.Context, options InAppProductBatchGetOptions) (InAppProductBatchGetResult, error) {
+	c.batchOptions = options
+	return c.batchResult, nil
 }
 
 func (c *fakeInAppProductClient) CreateInAppProduct(ctx context.Context, options InAppProductCreateOptions) (InAppProduct, error) {

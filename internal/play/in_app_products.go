@@ -162,6 +162,37 @@ type InAppProductListResult struct {
 	Options     InAppProductListOptions `json:"options"`
 }
 
+type InAppProductBatchGetOptions struct {
+	PackageName PackageName       `json:"packageName"`
+	SKUs        []InAppProductSKU `json:"skus"`
+}
+
+func (o InAppProductBatchGetOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if len(o.SKUs) == 0 {
+		return fmt.Errorf("at least one in-app product SKU is required")
+	}
+	seen := map[InAppProductSKU]struct{}{}
+	for _, sku := range o.SKUs {
+		if _, err := NewInAppProductSKU(sku.String()); err != nil {
+			return err
+		}
+		if _, ok := seen[sku]; ok {
+			return fmt.Errorf("in-app product SKU %q is duplicated", sku)
+		}
+		seen[sku] = struct{}{}
+	}
+	return nil
+}
+
+type InAppProductBatchGetResult struct {
+	PackageName PackageName                 `json:"packageName"`
+	Products    []InAppProduct              `json:"products"`
+	Options     InAppProductBatchGetOptions `json:"options"`
+}
+
 type InAppProductCreateOptions struct {
 	PackageName     PackageName         `json:"packageName"`
 	SKU             InAppProductSKU     `json:"sku"`
@@ -345,6 +376,10 @@ type InAppProductGetter interface {
 	GetInAppProduct(ctx context.Context, packageName PackageName, sku InAppProductSKU) (InAppProduct, error)
 }
 
+type InAppProductBatchGetter interface {
+	BatchGetInAppProducts(ctx context.Context, options InAppProductBatchGetOptions) (InAppProductBatchGetResult, error)
+}
+
 func GetInAppProduct(ctx context.Context, getter InAppProductGetter, options InAppProductGetOptions) (InAppProduct, error) {
 	if err := options.Validate(); err != nil {
 		return InAppProduct{}, err
@@ -353,6 +388,16 @@ func GetInAppProduct(ctx context.Context, getter InAppProductGetter, options InA
 		return InAppProduct{}, fmt.Errorf("in-app product getter is required")
 	}
 	return getter.GetInAppProduct(ctx, options.PackageName, options.SKU)
+}
+
+func BatchGetInAppProducts(ctx context.Context, getter InAppProductBatchGetter, options InAppProductBatchGetOptions) (InAppProductBatchGetResult, error) {
+	if err := options.Validate(); err != nil {
+		return InAppProductBatchGetResult{}, err
+	}
+	if getter == nil {
+		return InAppProductBatchGetResult{}, fmt.Errorf("in-app product batch getter is required")
+	}
+	return getter.BatchGetInAppProducts(ctx, options)
 }
 
 type InAppProductPatchOptions struct {

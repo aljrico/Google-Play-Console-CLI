@@ -735,10 +735,23 @@ gpc in-app-products
 
 #### Commands
 
+- `gpc in-app-products batch-get`: Get multiple legacy in-app products
 - `gpc in-app-products create`: Create a legacy managed in-app product
 - `gpc in-app-products get`: Get one legacy in-app product
 - `gpc in-app-products list`: List legacy in-app products
 - `gpc in-app-products patch`: Patch a legacy managed in-app product
+
+#### gpc in-app-products batch-get
+
+Get multiple legacy in-app products
+
+```sh
+gpc in-app-products batch-get [flags]
+```
+
+##### Flags
+
+- `--sku`: In-app product SKU; repeatable (default `[]`)
 
 #### gpc in-app-products create
 

@@ -118,6 +118,7 @@ gpc vitals errors reports search --package com.example.app --filter "errorIssueI
 gpc vitals anomalies list --package com.example.app --filter 'activeBetween("2026-05-01T00:00:00Z", "2026-05-19T00:00:00Z")'
 gpc in-app-products list --package com.example.app
 gpc in-app-products get --package com.example.app --sku coins_100
+gpc in-app-products batch-get --package com.example.app --sku coins_100 --sku coins_500
 gpc in-app-products create --package com.example.app --sku coins_100 --default-language en-US --default-price USD:1990000 --title "100 coins" --description "A small coin pack." --dry-run
 gpc in-app-products patch --package com.example.app --sku coins_100 --status inactive --dry-run
 gpc in-app-products patch --package com.example.app --sku coins_100 --listing-language en-US --default-price USD:2990000 --title "100 coins" --description "A better coin pack." --dry-run

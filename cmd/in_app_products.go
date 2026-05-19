@@ -19,9 +19,48 @@ func newInAppProductsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 	cmd.AddCommand(
 		newInAppProductsListCommand(out, options, &packageName),
 		newInAppProductsGetCommand(out, options, &packageName),
+		newInAppProductsBatchGetCommand(out, options, &packageName),
 		newInAppProductsCreateCommand(out, options, &packageName),
 		newInAppProductsPatchCommand(out, options, &packageName),
 	)
+	return cmd
+}
+
+func newInAppProductsBatchGetCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var skus []string
+
+	cmd := &cobra.Command{
+		Use:   "batch-get",
+		Short: "Get multiple legacy in-app products",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedSKUs, err := parseInAppProductSKUs(skus)
+			if err != nil {
+				return err
+			}
+			batchOptions := play.InAppProductBatchGetOptions{
+				PackageName: typedPackageName,
+				SKUs:        typedSKUs,
+			}
+			if err := batchOptions.Validate(); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchGetInAppProducts(cmd.Context(), publisher, batchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringArrayVar(&skus, "sku", nil, "In-app product SKU; repeatable")
 	return cmd
 }
 
@@ -57,6 +96,18 @@ func newInAppProductsListCommand(out io.Writer, options *globalOptions, packageN
 	}
 	cmd.Flags().StringVar(&token, "token", "", "Pagination token from a previous response")
 	return cmd
+}
+
+func parseInAppProductSKUs(values []string) ([]play.InAppProductSKU, error) {
+	skus := make([]play.InAppProductSKU, 0, len(values))
+	for _, value := range values {
+		sku, err := play.NewInAppProductSKU(value)
+		if err != nil {
+			return nil, err
+		}
+		skus = append(skus, sku)
+	}
+	return skus, nil
 }
 
 func newInAppProductsGetCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
