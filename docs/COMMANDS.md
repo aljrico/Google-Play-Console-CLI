@@ -1181,8 +1181,29 @@ gpc notify
 
 #### Commands
 
+- `gpc notify discord`: Send a Discord incoming webhook notification
 - `gpc notify send`: Send a JSON notification webhook
 - `gpc notify slack`: Send a Slack incoming webhook notification
+
+#### gpc notify discord
+
+Send a Discord incoming webhook notification
+
+```sh
+gpc notify discord [flags]
+```
+
+##### Flags
+
+- `--confirm`: Send the Discord webhook (default `false`)
+- `--dry-run`: Print the Discord payload without sending (default `false`)
+- `--field`: Notification field as name=value; repeatable (default `[]`)
+- `--message`: Notification message
+- `--severity`: Notification severity label
+- `--title`: Notification title
+- `--webhook-url`: HTTPS Discord incoming webhook URL; http is allowed only for loopback hosts
+- `--webhook-url-env`: Environment variable containing the Discord incoming webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-file`: File containing the Discord incoming webhook URL
 
 #### gpc notify send
 

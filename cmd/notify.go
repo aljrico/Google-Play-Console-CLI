@@ -13,7 +13,7 @@ func newNotifyCommand(out io.Writer, options *globalOptions) *cobra.Command {
 		Use:   "notify",
 		Short: "Send release workflow notifications",
 	}
-	cmd.AddCommand(newNotifySendCommand(out, options), newNotifySlackCommand(out, options))
+	cmd.AddCommand(newNotifySendCommand(out, options), newNotifyDiscordCommand(out, options), newNotifySlackCommand(out, options))
 	return cmd
 }
 
@@ -67,6 +67,33 @@ func newNotifySlackCommand(out io.Writer, options *globalOptions) *cobra.Command
 		WebhookURLFile: "File containing the Slack incoming webhook URL",
 		Confirm:        "Send the Slack webhook",
 		DryRun:         "Print the Slack payload without sending",
+	})
+	return cmd
+}
+
+func newNotifyDiscordCommand(out io.Writer, options *globalOptions) *cobra.Command {
+	sendOptions := newNotifySendOptions("notify discord")
+	cmd := &cobra.Command{
+		Use:   "discord",
+		Short: "Send a Discord incoming webhook notification",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := notify.SendDiscord(cmd.Context(), nil, sendOptions)
+			if result.Webhook == "" {
+				return err
+			}
+			if writeErr := output.Write(out, options.output, options.pretty, result); writeErr != nil {
+				return writeErr
+			}
+			return err
+		},
+	}
+	addNotifyFlags(cmd, &sendOptions, notifyFlagHelp{
+		WebhookURL:     "HTTPS Discord incoming webhook URL; http is allowed only for loopback hosts",
+		WebhookURLEnv:  "Environment variable containing the Discord incoming webhook URL",
+		WebhookURLFile: "File containing the Discord incoming webhook URL",
+		Confirm:        "Send the Discord webhook",
+		DryRun:         "Print the Discord payload without sending",
 	})
 	return cmd
 }

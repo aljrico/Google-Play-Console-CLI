@@ -678,6 +678,95 @@ func TestNotifySlackPostsWebhook(t *testing.T) {
 	}
 }
 
+func TestNotifyDiscordDryRunOutputsDiscordPayloadWithoutAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_NOTIFY_WEBHOOK_URL", "https://discord.com/api/webhooks/123/SECRET?token=secret#fragment")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"notify",
+		"discord",
+		"--title",
+		"Release",
+		"--message",
+		"Internal release staged",
+		"--field",
+		"track=internal",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"delivered":false`,
+		`"content":"**Release**\nInternal release staged\ntrack: internal"`,
+		`redacted=true`,
+		`#redacted`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	for _, leaked := range []string{"123", "SECRET", "token=secret", "fragment"} {
+		if strings.Contains(output, leaked) {
+			t.Fatalf("output = %s, leaked %s", output, leaked)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestNotifyDiscordPostsWebhook(t *testing.T) {
+	var gotPayload map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"notify",
+		"discord",
+		"--webhook-url",
+		server.URL + "/hook?token=secret",
+		"--message",
+		"Release shipped",
+		"--confirm",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if gotPayload["content"] != "Release shipped" {
+		t.Fatalf("payload = %#v", gotPayload)
+	}
+	output := buf.String()
+	for _, want := range []string{`"delivered":true`, `"statusCode":204`, `redacted=true`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "secret") || strings.Contains(output, "/hook") {
+		t.Fatalf("output = %s, leaked webhook secret", output)
+	}
+}
+
 func TestNotifySendTransportErrorDoesNotLeakWebhookSecret(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
