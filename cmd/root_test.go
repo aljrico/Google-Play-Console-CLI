@@ -6602,6 +6602,62 @@ func TestOneTimeProductOffersCreateBasicNoOverrideDryRunDoesNotRequireAuth(t *te
 	}
 }
 
+func TestOneTimeProductOffersCreateBasicPreOrderDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"preorder",
+		"--pre-order",
+		"--start-time",
+		"2026-06-01T00:00:00Z",
+		"--end-time",
+		"2026-07-01T00:00:00Z",
+		"--release-time",
+		"2026-08-01T00:00:00Z",
+		"--price-change-behavior",
+		"PRE_ORDER_PRICE_CHANGE_BEHAVIOR_NEW_ORDERS_ONLY",
+		"--no-override",
+		"us",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"type":"preOrder"`,
+		`"preOrderOffer":{"startTime":"2026-06-01T00:00:00Z","endTime":"2026-07-01T00:00:00Z","releaseTime":"2026-08-01T00:00:00Z","priceChangeBehavior":"PRE_ORDER_PRICE_CHANGE_BEHAVIOR_NEW_ORDERS_ONLY"}`,
+		`"regionCode":"US"`,
+		`"availability":"available"`,
+		`"noOverride":true`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestOneTimeProductOffersCreateBasicMixedDiscountModesDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
@@ -6688,6 +6744,131 @@ func TestOneTimeProductOffersCreateBasicFlagsRejectsDuplicateDiscountRegionBefor
 	}
 	if strings.Contains(err.Error(), "no active auth profile") {
 		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestOneTimeProductOffersCreateBasicFlagsRejectsReleaseTimeWithoutPreOrderBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"intro",
+		"--relative-discount",
+		"US:0.5",
+		"--release-time",
+		"not-a-time",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected release-time validation error")
+	}
+	if !strings.Contains(err.Error(), "--release-time requires --pre-order") {
+		t.Fatalf("error = %v, want release-time pre-order validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestOneTimeProductOffersCreateBasicFlagsRejectsRedemptionLimitWithPreOrderBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"preorder",
+		"--pre-order",
+		"--start-time",
+		"2026-06-01T00:00:00Z",
+		"--end-time",
+		"2026-07-01T00:00:00Z",
+		"--release-time",
+		"2026-08-01T00:00:00Z",
+		"--price-change-behavior",
+		"PRE_ORDER_PRICE_CHANGE_BEHAVIOR_NEW_ORDERS_ONLY",
+		"--no-override",
+		"US",
+		"--redemption-limit",
+		"0",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected redemption-limit validation error")
+	}
+	if !strings.Contains(err.Error(), "--redemption-limit cannot be used with --pre-order") {
+		t.Fatalf("error = %v, want redemption-limit pre-order validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestOneTimeProductOffersCreateBasicFlagsRejectsPriceBehaviorWithoutPreOrderBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"intro",
+		"--relative-discount",
+		"US:0.5",
+		"--price-change-behavior=",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected price-change-behavior validation error")
+	}
+	if !strings.Contains(err.Error(), "--price-change-behavior requires --pre-order") {
+		t.Fatalf("error = %v, want price-change-behavior pre-order validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
 	}
 }
 

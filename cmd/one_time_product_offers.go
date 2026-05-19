@@ -47,9 +47,12 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 		purchaseOptionID string
 		offerID          string
 		fromJSON         string
+		preOrder         bool
 		offerTags        []string
 		startTime        string
 		endTime          string
+		releaseTime      string
+		priceBehavior    string
 		redemptionLimit  int64
 		relativeDiscount []string
 		absoluteDiscount []string
@@ -64,7 +67,7 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 		Use:   "create",
 		Short: "Create a one-time product offer",
 		Long: "Create a one-time product offer from a Google Play API OneTimeProductOffer JSON body or gpc one-time product offer JSON output. " +
-			"Basic flags build one discounted offer with regional relative discounts, absolute discounts, or no-override regions; use JSON for pre-order offers. " +
+			"Basic flags build one discounted or pre-order offer with regional relative discounts, absolute discounts, or no-override regions. " +
 			"Parent IDs come from flags and override the JSON body; output-only state and regionsVersion are ignored.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -86,16 +89,25 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 			}
 			offer, err := oneTimeProductOfferCreateBody(oneTimeProductOfferCreateBodyOptions{
 				FromJSON:         fromJSON,
+				PreOrder:         preOrder,
 				OfferTags:        offerTags,
 				StartTime:        startTime,
 				EndTime:          endTime,
+				ReleaseTime:      releaseTime,
+				ReleaseTimeSet:   cmd.Flags().Changed("release-time"),
+				PriceBehavior:    priceBehavior,
+				PriceBehaviorSet: cmd.Flags().Changed("price-change-behavior"),
 				RedemptionLimit:  redemptionLimit,
+				RedemptionSet:    cmd.Flags().Changed("redemption-limit"),
 				RelativeDiscount: relativeDiscount,
 				AbsoluteDiscount: absoluteDiscount,
 				NoOverride:       noOverride,
-				BasicFlagsSet: cmd.Flags().Changed("offer-tag") ||
+				BasicFlagsSet: cmd.Flags().Changed("pre-order") ||
+					cmd.Flags().Changed("offer-tag") ||
 					cmd.Flags().Changed("start-time") ||
 					cmd.Flags().Changed("end-time") ||
+					cmd.Flags().Changed("release-time") ||
+					cmd.Flags().Changed("price-change-behavior") ||
 					cmd.Flags().Changed("redemption-limit") ||
 					cmd.Flags().Changed("relative-discount") ||
 					cmd.Flags().Changed("absolute-discount") ||
@@ -144,9 +156,12 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 	cmd.Flags().StringVar(&purchaseOptionID, "purchase-option-id", "", "Parent one-time product purchase option ID")
 	cmd.Flags().StringVar(&offerID, "offer-id", "", "One-time product offer ID")
 	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or gpc JSON one-time product offer body")
+	cmd.Flags().BoolVar(&preOrder, "pre-order", false, "Build a basic pre-order offer instead of a discounted offer")
 	cmd.Flags().StringArrayVar(&offerTags, "offer-tag", nil, "Basic create offer tag; repeatable")
-	cmd.Flags().StringVar(&startTime, "start-time", "", "Basic discounted offer start time as RFC3339")
-	cmd.Flags().StringVar(&endTime, "end-time", "", "Basic discounted offer end time as RFC3339")
+	cmd.Flags().StringVar(&startTime, "start-time", "", "Basic offer start time as RFC3339")
+	cmd.Flags().StringVar(&endTime, "end-time", "", "Basic offer end time as RFC3339")
+	cmd.Flags().StringVar(&releaseTime, "release-time", "", "Basic pre-order offer release time as RFC3339")
+	cmd.Flags().StringVar(&priceBehavior, "price-change-behavior", "", "Basic pre-order price behavior: PRE_ORDER_PRICE_CHANGE_BEHAVIOR_TWO_POINT_LOWEST or PRE_ORDER_PRICE_CHANGE_BEHAVIOR_NEW_ORDERS_ONLY")
 	cmd.Flags().Int64Var(&redemptionLimit, "redemption-limit", 0, "Basic discounted offer redemption limit from 0 to 50")
 	cmd.Flags().StringArrayVar(&relativeDiscount, "relative-discount", nil, "Basic create regional relative discount as REGION:0.5, where 0.5 means the user pays 50% of the purchase option price; repeatable")
 	cmd.Flags().StringArrayVar(&absoluteDiscount, "absolute-discount", nil, "Basic create regional absolute discount as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
@@ -160,10 +175,16 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 
 type oneTimeProductOfferCreateBodyOptions struct {
 	FromJSON         string
+	PreOrder         bool
 	OfferTags        []string
 	StartTime        string
 	EndTime          string
+	ReleaseTime      string
+	ReleaseTimeSet   bool
+	PriceBehavior    string
+	PriceBehaviorSet bool
 	RedemptionLimit  int64
+	RedemptionSet    bool
 	RelativeDiscount []string
 	AbsoluteDiscount []string
 	NoOverride       []string
@@ -180,6 +201,15 @@ func oneTimeProductOfferCreateBody(options oneTimeProductOfferCreateBodyOptions)
 	if !options.UsesBasicFlags() {
 		return play.OneTimeProductOffer{}, fmt.Errorf("one-time product offer create requires --from-json or basic create flags")
 	}
+	if !options.PreOrder && options.ReleaseTimeSet {
+		return play.OneTimeProductOffer{}, fmt.Errorf("--release-time requires --pre-order")
+	}
+	if !options.PreOrder && options.PriceBehaviorSet {
+		return play.OneTimeProductOffer{}, fmt.Errorf("--price-change-behavior requires --pre-order")
+	}
+	if options.PreOrder && options.RedemptionSet {
+		return play.OneTimeProductOffer{}, fmt.Errorf("--redemption-limit cannot be used with --pre-order")
+	}
 	regionalConfigs, err := oneTimeProductOfferCreateRegionalConfigs(options.RelativeDiscount, options.AbsoluteDiscount, options.NoOverride)
 	if err != nil {
 		return play.OneTimeProductOffer{}, err
@@ -189,6 +219,22 @@ func oneTimeProductOfferCreateBody(options oneTimeProductOfferCreateBodyOptions)
 	}
 	if err := validateOneTimeProductOfferCreateRFC3339("end time", options.EndTime); err != nil {
 		return play.OneTimeProductOffer{}, err
+	}
+	if err := validateOneTimeProductOfferCreateRFC3339("release time", options.ReleaseTime); err != nil {
+		return play.OneTimeProductOffer{}, err
+	}
+	if options.PreOrder {
+		return play.OneTimeProductOffer{
+			Type:      play.OneTimeProductOfferTypePreOrder,
+			OfferTags: append([]string(nil), options.OfferTags...),
+			PreOrderOffer: &play.OneTimeProductPreOrderOffer{
+				StartTime:           options.StartTime,
+				EndTime:             options.EndTime,
+				ReleaseTime:         options.ReleaseTime,
+				PriceChangeBehavior: options.PriceBehavior,
+			},
+			RegionalConfigs: regionalConfigs,
+		}, nil
 	}
 	return play.OneTimeProductOffer{
 		Type:      play.OneTimeProductOfferTypeDiscounted,

@@ -1616,18 +1616,21 @@ gpc one-time-product-offers create [flags]
 - `--absolute-discount`: Basic create regional absolute discount as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
 - `--confirm`: Create the one-time product offer (default `false`)
 - `--dry-run`: Print the planned one-time product offer creation without calling Google Play (default `false`)
-- `--end-time`: Basic discounted offer end time as RFC3339
+- `--end-time`: Basic offer end time as RFC3339
 - `--from-json`: Path to a Google Play API or gpc JSON one-time product offer body
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--no-override`: Basic create regional no-override price mode as REGION; repeatable (default `[]`)
 - `--offer-id`: One-time product offer ID
 - `--offer-tag`: Basic create offer tag; repeatable (default `[]`)
+- `--pre-order`: Build a basic pre-order offer instead of a discounted offer (default `false`)
+- `--price-change-behavior`: Basic pre-order price behavior: PRE_ORDER_PRICE_CHANGE_BEHAVIOR_TWO_POINT_LOWEST or PRE_ORDER_PRICE_CHANGE_BEHAVIOR_NEW_ORDERS_ONLY
 - `--product-id`: Parent one-time product ID
 - `--purchase-option-id`: Parent one-time product purchase option ID
 - `--redemption-limit`: Basic discounted offer redemption limit from 0 to 50 (default `0`)
 - `--regions-version`: Google Play regions version required by oneTimeProductOffers.batchUpdate
 - `--relative-discount`: Basic create regional relative discount as REGION:0.5, where 0.5 means the user pays 50% of the purchase option price; repeatable (default `[]`)
-- `--start-time`: Basic discounted offer start time as RFC3339
+- `--release-time`: Basic pre-order offer release time as RFC3339
+- `--start-time`: Basic offer start time as RFC3339
 
 #### gpc one-time-product-offers deactivate
 

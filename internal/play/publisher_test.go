@@ -4153,6 +4153,86 @@ func TestGooglePublisherCreateOneTimeProductOfferSerializesNoOverrideRegion(t *t
 	}
 }
 
+func TestGooglePublisherCreateOneTimeProductOfferSerializesPreOrderBody(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchGet", r.Method)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProductOffers":[]}`)
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchUpdate":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchUpdate", r.Method)
+			}
+			rawBody, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("ReadAll() error = %v", err)
+			}
+			var request androidpublisher.BatchUpdateOneTimeProductOffersRequest
+			if err := json.Unmarshal(rawBody, &request); err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+			if len(request.Requests) != 1 {
+				t.Fatalf("len(Requests) = %d, want 1", len(request.Requests))
+			}
+			update := request.Requests[0]
+			if !update.AllowMissing {
+				t.Fatal("AllowMissing = false, want true")
+			}
+			if update.UpdateMask != oneTimeProductOfferCreateUpdateMask {
+				t.Fatalf("UpdateMask = %q, want create mask", update.UpdateMask)
+			}
+			if update.OneTimeProductOffer.DiscountedOffer != nil {
+				t.Fatalf("DiscountedOffer = %#v, want nil", update.OneTimeProductOffer.DiscountedOffer)
+			}
+			apiOffer := update.OneTimeProductOffer.PreOrderOffer
+			if apiOffer == nil {
+				t.Fatalf("PreOrderOffer = nil, body = %s", rawBody)
+			}
+			if apiOffer.ReleaseTime != "2026-08-01T00:00:00Z" || apiOffer.PriceChangeBehavior != "PRE_ORDER_PRICE_CHANGE_BEHAVIOR_NEW_ORDERS_ONLY" {
+				t.Fatalf("PreOrderOffer = %#v, want release time and behavior", apiOffer)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"preorder","preOrderOffer":{"startTime":"2026-06-01T00:00:00Z","endTime":"2026-07-01T00:00:00Z","releaseTime":"2026-08-01T00:00:00Z","priceChangeBehavior":"PRE_ORDER_PRICE_CHANGE_BEHAVIOR_NEW_ORDERS_ONLY"},"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","noOverride":{}}]}]}`)
+		default:
+			t.Fatalf("path = %q, want offer batchGet or batchUpdate", r.URL.Path)
+		}
+	}))
+
+	offer := validOneTimeProductOfferForCreate()
+	offer.Type = OneTimeProductOfferTypePreOrder
+	offer.DiscountedOffer = nil
+	offer.PreOrderOffer = &OneTimeProductPreOrderOffer{
+		StartTime:           "2026-06-01T00:00:00Z",
+		EndTime:             "2026-07-01T00:00:00Z",
+		ReleaseTime:         "2026-08-01T00:00:00Z",
+		PriceChangeBehavior: "PRE_ORDER_PRICE_CHANGE_BEHAVIOR_NEW_ORDERS_ONLY",
+	}
+	offer.RegionalConfigs = []OneTimeProductOfferRegion{{
+		RegionCode:   "US",
+		Availability: "available",
+		NoOverride:   true,
+	}}
+	created, err := publisher.CreateOneTimeProductOffer(context.Background(), OneTimeProductOfferCreateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		OfferID:          "preorder",
+		Offer:            offer,
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateOneTimeProductOffer() error = %v", err)
+	}
+	if created.Type != OneTimeProductOfferTypePreOrder || created.PreOrderOffer == nil {
+		t.Fatalf("created offer = %#v, want pre-order", created)
+	}
+}
+
 func TestGooglePublisherCreateOneTimeProductOfferRejectsExistingOffer(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet" {
