@@ -156,6 +156,7 @@ func TestDocsCommandsOutputsJSONReferenceWithoutAuth(t *testing.T) {
 		`"path":"gpc purchases product acknowledge"`,
 		`"path":"gpc releases"`,
 		`"path":"gpc vitals metric-set query"`,
+		`"path":"gpc vitals errors issues search"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -190,6 +191,7 @@ func TestDocsCommandsOutputsMarkdownReference(t *testing.T) {
 		"`gpc purchases product acknowledge`",
 		"`gpc releases`",
 		"`gpc vitals metric-set query`",
+		"`gpc vitals errors issues search`",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -2478,6 +2480,35 @@ func TestVitalsMetricSetQueryRejectsUnsupportedAggregationBeforeAuth(t *testing.
 	}
 	if !strings.Contains(err.Error(), "aggregation period HOURLY is not supported") {
 		t.Fatalf("error = %v, want aggregation validation", err)
+	}
+}
+
+func TestVitalsErrorsIssuesSearchRejectsInvalidRangeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"vitals",
+		"errors",
+		"issues",
+		"search",
+		"--package",
+		"com.example.app",
+		"--start-date",
+		"2026-05-19",
+		"--end-date",
+		"2026-05-01",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected date range validation error")
+	}
+	if !strings.Contains(err.Error(), "start date must be before end date") {
+		t.Fatalf("error = %v, want date range validation", err)
 	}
 }
 
