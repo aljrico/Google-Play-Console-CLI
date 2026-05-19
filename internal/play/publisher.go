@@ -467,6 +467,22 @@ func (p GooglePublisher) GetOneTimeProduct(ctx context.Context, packageName Pack
 	return oneTimeProductFromAPI(product), nil
 }
 
+func (p GooglePublisher) DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	err := p.service.Monetization.Onetimeproducts.Delete(
+		options.PackageName.String(),
+		options.ProductID.String(),
+	).LatencyTolerance(options.LatencyTolerance.String()).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return fmt.Errorf("delete one-time product %s for %s: %w", options.ProductID, options.PackageName, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) UpdatePurchaseOptionState(ctx context.Context, options PurchaseOptionStateUpdateOptions) (OneTimeProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProduct{}, err

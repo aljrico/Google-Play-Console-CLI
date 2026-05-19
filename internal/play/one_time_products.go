@@ -213,6 +213,10 @@ type OneTimeProductGetter interface {
 	GetOneTimeProduct(ctx context.Context, packageName PackageName, productID OneTimeProductID) (OneTimeProduct, error)
 }
 
+type OneTimeProductDeleter interface {
+	DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error
+}
+
 func GetOneTimeProduct(ctx context.Context, getter OneTimeProductGetter, options OneTimeProductGetOptions) (OneTimeProduct, error) {
 	if err := options.Validate(); err != nil {
 		return OneTimeProduct{}, err
@@ -221,6 +225,91 @@ func GetOneTimeProduct(ctx context.Context, getter OneTimeProductGetter, options
 		return OneTimeProduct{}, fmt.Errorf("one-time product getter is required")
 	}
 	return getter.GetOneTimeProduct(ctx, options.PackageName, options.ProductID)
+}
+
+type OneTimeProductDeleteOptions struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        OneTimeProductID              `json:"productId"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	DryRun           bool                          `json:"dryRun"`
+}
+
+func (o OneTimeProductDeleteOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("one-time product deletion requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o OneTimeProductDeleteOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live one-time product deletion cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live one-time product deletion requires --confirm")
+	}
+	return nil
+}
+
+type OneTimeProductDeletePlan struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        OneTimeProductID              `json:"productId"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	Steps            []string                      `json:"steps"`
+}
+
+type OneTimeProductDeleteResult struct {
+	PackageName PackageName              `json:"packageName"`
+	ProductID   OneTimeProductID         `json:"productId"`
+	DryRun      bool                     `json:"dryRun"`
+	Deleted     bool                     `json:"deleted"`
+	Plan        OneTimeProductDeletePlan `json:"plan"`
+}
+
+func DeleteOneTimeProduct(ctx context.Context, deleter OneTimeProductDeleter, options OneTimeProductDeleteOptions) (OneTimeProductDeleteResult, error) {
+	if err := options.Validate(); err != nil {
+		return OneTimeProductDeleteResult{}, err
+	}
+	result := OneTimeProductDeleteResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		DryRun:      options.DryRun,
+		Plan: OneTimeProductDeletePlan{
+			PackageName:      options.PackageName,
+			ProductID:        options.ProductID,
+			LatencyTolerance: options.LatencyTolerance,
+			Confirm:          options.Confirm,
+			Steps:            []string{"delete one-time product"},
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if deleter == nil {
+		return OneTimeProductDeleteResult{}, fmt.Errorf("one-time product deleter is required")
+	}
+	if err := deleter.DeleteOneTimeProduct(ctx, options); err != nil {
+		return OneTimeProductDeleteResult{}, err
+	}
+	result.Deleted = true
+	return result, nil
 }
 
 type PurchaseOptionStateUpdateOptions struct {

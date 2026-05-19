@@ -2869,6 +2869,45 @@ func TestGetOneTimeProductUsesMonetizationEndpoint(t *testing.T) {
 	}
 }
 
+func TestGooglePublisherDeleteOneTimeProductUsesMonetizationEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Fatalf("method = %s, want DELETE", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100" {
+			t.Fatalf("path = %q, want one-time product delete endpoint", r.URL.Path)
+		}
+		assertQueryValue(t, r.URL.Query(), "latencyTolerance", "latencyTolerant")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	err := publisher.DeleteOneTimeProduct(context.Background(), OneTimeProductDeleteOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteOneTimeProduct() error = %v", err)
+	}
+}
+
+func TestGooglePublisherDeleteOneTimeProductRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	err := publisher.DeleteOneTimeProduct(context.Background(), OneTimeProductDeleteOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+}
+
 func TestUpdatePurchaseOptionStateUsesBatchUpdateStatesEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

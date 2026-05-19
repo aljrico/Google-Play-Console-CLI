@@ -121,6 +121,7 @@ gpc in-app-products patch --package com.example.app --sku coins_100 --status ina
 gpc in-app-products patch --package com.example.app --sku coins_100 --listing-language en-US --default-price USD:2990000 --title "100 coins" --description "A better coin pack." --dry-run
 gpc one-time-products list --package com.example.app --page-size 50
 gpc one-time-products get --package com.example.app --product-id coins_100
+gpc one-time-products delete --package com.example.app --product-id coins_100 --dry-run
 gpc one-time-products purchase-option deactivate --package com.example.app --product-id coins_100 --purchase-option-id buy --dry-run
 gpc one-time-product-offers list --package com.example.app --product-id coins_100 --purchase-option-id buy
 gpc one-time-product-offers get --package com.example.app --product-id coins_100 --purchase-option-id buy --offer-id intro
