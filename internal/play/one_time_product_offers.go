@@ -618,6 +618,12 @@ func oneTimeProductOfferBatchDeleteSteps(options OneTimeProductOfferBatchDeleteO
 }
 
 func oneTimeProductOfferBatchStateUpdateSteps(options OneTimeProductOfferBatchStateUpdateOptions) []string {
+	if options.Action == OneTimeProductOfferStateActionCancel {
+		if options.DryRun {
+			return []string{"plan batch cancel pre-order one-time product offers and pending orders"}
+		}
+		return []string{"batch cancel pre-order one-time product offers and pending orders"}
+	}
 	if options.DryRun {
 		return []string{fmt.Sprintf("plan batch %s one-time product offers", options.Action)}
 	}

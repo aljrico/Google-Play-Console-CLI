@@ -1306,7 +1306,7 @@ gpc one-time-product-offers
 
 - `gpc one-time-product-offers activate`: activate a one-time product offer
 - `gpc one-time-product-offers batch-activate`: activate multiple one-time product offers
-- `gpc one-time-product-offers batch-cancel`: cancel multiple one-time product offers
+- `gpc one-time-product-offers batch-cancel`: Cancel multiple pre-order one-time product offers and pending orders
 - `gpc one-time-product-offers batch-deactivate`: deactivate multiple one-time product offers
 - `gpc one-time-product-offers batch-delete`: Delete multiple one-time product offers
 - `gpc one-time-product-offers batch-get`: Get multiple one-time product offers
@@ -1351,7 +1351,7 @@ gpc one-time-product-offers batch-activate [flags]
 
 #### gpc one-time-product-offers batch-cancel
 
-cancel multiple one-time product offers
+Cancel multiple pre-order one-time product offers and pending orders
 
 ```sh
 gpc one-time-product-offers batch-cancel [flags]
@@ -1359,8 +1359,8 @@ gpc one-time-product-offers batch-cancel [flags]
 
 ##### Flags
 
-- `--confirm`: Apply the one-time product offer batch state update (default `false`)
-- `--dry-run`: Print the planned one-time product offer batch state update without calling Google Play (default `false`)
+- `--confirm`: Cancel the pre-order offers and their pending orders (default `false`)
+- `--dry-run`: Print the planned pre-order offer cancellation without calling Google Play (default `false`)
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--offer`: Offer to update as productId/purchaseOptionId/offerId; repeatable, up to 100 (default `[]`)
 - `--product-id`: Parent one-time product ID, or - for offers across products; inferred when omitted

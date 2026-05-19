@@ -4969,6 +4969,35 @@ func TestOneTimeProductOffersBatchActivateRequiresConfirmOrDryRunBeforeAuth(t *t
 	}
 }
 
+func TestOneTimeProductOffersBatchCancelDryRunCallsOutPendingOrders(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"batch-cancel",
+		"--package",
+		"com.example.app",
+		"--offer",
+		"coins_100/buy/preorder",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "pending orders") {
+		t.Fatalf("output = %s, want pending orders warning in plan", output)
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth error", output)
+	}
+}
+
 func TestOneTimeProductOffersDeactivateDryRunPrintsPlanBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

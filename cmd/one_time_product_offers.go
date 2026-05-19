@@ -43,8 +43,8 @@ func newOneTimeProductOffersBatchStateCommand(out io.Writer, options *globalOpti
 
 	cmd := &cobra.Command{
 		Use:   "batch-" + action.String(),
-		Short: action.String() + " multiple one-time product offers",
-		Long: string(action) + " multiple one-time product offers. Omit parent IDs to infer the narrowest valid parent path from --offer values. " +
+		Short: oneTimeProductOfferBatchStateShort(action),
+		Long: oneTimeProductOfferBatchStateLong(action) + " Omit parent IDs to infer the narrowest valid parent path from --offer values. " +
 			"Use --product-id - when the batch spans products, and --purchase-option-id - when it spans purchase options.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -109,9 +109,37 @@ func newOneTimeProductOffersBatchStateCommand(out io.Writer, options *globalOpti
 	)
 	cmd.Flags().StringArrayVar(&offers, "offer", nil, "Offer to update as productId/purchaseOptionId/offerId; repeatable, up to 100")
 	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
-	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the one-time product offer batch state update")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product offer batch state update without calling Google Play")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, oneTimeProductOfferBatchStateConfirmHelp(action))
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, oneTimeProductOfferBatchStateDryRunHelp(action))
 	return cmd
+}
+
+func oneTimeProductOfferBatchStateShort(action play.OneTimeProductOfferStateAction) string {
+	if action == play.OneTimeProductOfferStateActionCancel {
+		return "Cancel multiple pre-order one-time product offers and pending orders"
+	}
+	return action.String() + " multiple one-time product offers"
+}
+
+func oneTimeProductOfferBatchStateLong(action play.OneTimeProductOfferStateAction) string {
+	if action == play.OneTimeProductOfferStateActionCancel {
+		return "Cancel multiple pre-order one-time product offers. Google Play cancels pending orders for the cancelled offers."
+	}
+	return string(action) + " multiple one-time product offers."
+}
+
+func oneTimeProductOfferBatchStateConfirmHelp(action play.OneTimeProductOfferStateAction) string {
+	if action == play.OneTimeProductOfferStateActionCancel {
+		return "Cancel the pre-order offers and their pending orders"
+	}
+	return "Apply the one-time product offer batch state update"
+}
+
+func oneTimeProductOfferBatchStateDryRunHelp(action play.OneTimeProductOfferStateAction) string {
+	if action == play.OneTimeProductOfferStateActionCancel {
+		return "Print the planned pre-order offer cancellation without calling Google Play"
+	}
+	return "Print the planned one-time product offer batch state update without calling Google Play"
 }
 
 func newOneTimeProductOffersBatchDeleteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
