@@ -706,6 +706,7 @@ func TestNotifyDiscordDryRunOutputsDiscordPayloadWithoutAuth(t *testing.T) {
 		`"dryRun":true`,
 		`"delivered":false`,
 		`"content":"**Release**\nInternal release staged\ntrack: internal"`,
+		`"allowed_mentions":{"parse":[]}`,
 		`redacted=true`,
 		`#redacted`,
 	} {
@@ -729,10 +730,13 @@ func TestNotifyDiscordPostsWebhook(t *testing.T) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("method = %s, want POST", r.Method)
 		}
+		if got := r.URL.Query().Get("wait"); got != "true" {
+			t.Fatalf("wait = %q, want true", got)
+		}
 		if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
 			t.Fatalf("Decode() error = %v", err)
 		}
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
@@ -757,7 +761,7 @@ func TestNotifyDiscordPostsWebhook(t *testing.T) {
 		t.Fatalf("payload = %#v", gotPayload)
 	}
 	output := buf.String()
-	for _, want := range []string{`"delivered":true`, `"statusCode":204`, `redacted=true`} {
+	for _, want := range []string{`"delivered":true`, `"statusCode":200`, `redacted=true`} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
 		}

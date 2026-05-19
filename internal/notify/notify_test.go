@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -173,6 +174,9 @@ func TestSendDiscordDryRunBuildsDiscordContentPayload(t *testing.T) {
 			t.Fatalf("Discord content = %q, want %q", result.Payload.Content, want)
 		}
 	}
+	if result.Payload.AllowedMentions.Parse == nil || len(result.Payload.AllowedMentions.Parse) != 0 {
+		t.Fatalf("AllowedMentions.Parse = %#v, want empty mention parse list", result.Payload.AllowedMentions.Parse)
+	}
 	for _, leaked := range []string{"123", "SECRET", "secret", "fragment-secret"} {
 		if strings.Contains(result.Webhook, leaked) {
 			t.Fatalf("Webhook = %q, leaked %q", result.Webhook, leaked)
@@ -189,10 +193,13 @@ func TestSendDiscordPostsDiscordWebhook(t *testing.T) {
 		if got := r.Header.Get("Content-Type"); got != "application/json" {
 			t.Fatalf("Content-Type = %q, want application/json", got)
 		}
+		if got := r.URL.Query().Get("wait"); got != "true" {
+			t.Fatalf("wait = %q, want true", got)
+		}
 		if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
 			t.Fatalf("Decode() error = %v", err)
 		}
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
@@ -205,14 +212,49 @@ func TestSendDiscordPostsDiscordWebhook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendDiscord() error = %v", err)
 	}
-	if !result.Delivered || result.StatusCode != http.StatusNoContent {
-		t.Fatalf("result = %#v, want delivered 204", result)
+	if !result.Delivered || result.StatusCode != http.StatusOK {
+		t.Fatalf("result = %#v, want delivered 200", result)
 	}
 	if gotPayload.Content != "Release shipped" {
 		t.Fatalf("payload = %#v", gotPayload)
 	}
+	if gotPayload.AllowedMentions.Parse == nil || len(gotPayload.AllowedMentions.Parse) != 0 {
+		t.Fatalf("AllowedMentions.Parse = %#v, want empty mention parse list", gotPayload.AllowedMentions.Parse)
+	}
 	if strings.Contains(result.Webhook, "secret") {
 		t.Fatalf("Webhook = %q, leaked query secret", result.Webhook)
+	}
+}
+
+func TestSendDiscordRejectsContentAboveDiscordLimit(t *testing.T) {
+	_, err := SendDiscord(context.Background(), failingDiscordSender{}, SendOptions{
+		CommandPath: "notify discord",
+		WebhookURL:  "https://discord.com/api/webhooks/123/SECRET",
+		Message:     strings.Repeat("a", 2001),
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("SendDiscord() error = nil, want content length validation")
+	}
+	if !strings.Contains(err.Error(), "2000 characters") {
+		t.Fatalf("error = %v, want content length validation", err)
+	}
+}
+
+func TestDiscordWebhookURLWithWaitPreservesAndOverridesQuery(t *testing.T) {
+	waitURL, err := DiscordWebhookURLWithWait("https://discord.com/api/webhooks/123/SECRET?thread_id=abc&wait=false")
+	if err != nil {
+		t.Fatalf("DiscordWebhookURLWithWait() error = %v", err)
+	}
+	parsedURL, err := url.Parse(waitURL)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if got := parsedURL.Query().Get("thread_id"); got != "abc" {
+		t.Fatalf("thread_id = %q, want abc", got)
+	}
+	if got := parsedURL.Query().Get("wait"); got != "true" {
+		t.Fatalf("wait = %q, want true", got)
 	}
 }
 

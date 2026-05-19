@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const defaultHTTPTimeout = 30 * time.Second
@@ -34,7 +35,12 @@ type SlackPayload struct {
 }
 
 type DiscordPayload struct {
-	Content string `json:"content"`
+	Content         string                 `json:"content"`
+	AllowedMentions DiscordAllowedMentions `json:"allowed_mentions"`
+}
+
+type DiscordAllowedMentions struct {
+	Parse []string `json:"parse"`
 }
 
 type SendOptions struct {
@@ -306,7 +312,16 @@ func (o SendOptions) DiscordPayload() (DiscordPayload, error) {
 	if err != nil {
 		return DiscordPayload{}, err
 	}
-	return DiscordPayload{Content: DiscordText(payload)}, nil
+	content := DiscordText(payload)
+	if utf8.RuneCountInString(content) > 2000 {
+		return DiscordPayload{}, fmt.Errorf("Discord notification content cannot exceed 2000 characters")
+	}
+	return DiscordPayload{
+		Content: content,
+		AllowedMentions: DiscordAllowedMentions{
+			Parse: []string{},
+		},
+	}, nil
 }
 
 func SlackText(payload Payload) string {
@@ -376,7 +391,11 @@ func (s WebhookSender) SendSlack(ctx context.Context, webhookURL string, payload
 }
 
 func (s WebhookSender) SendDiscord(ctx context.Context, webhookURL string, payload DiscordPayload) (int, error) {
-	return s.sendJSON(ctx, webhookURL, payload)
+	waitURL, err := DiscordWebhookURLWithWait(webhookURL)
+	if err != nil {
+		return 0, err
+	}
+	return s.sendJSON(ctx, waitURL, payload)
 }
 
 func (s WebhookSender) sendJSON(ctx context.Context, webhookURL string, payload any) (int, error) {
@@ -399,6 +418,17 @@ func (s WebhookSender) sendJSON(ctx context.Context, webhookURL string, payload 
 		return response.StatusCode, fmt.Errorf("notification webhook returned status %d", response.StatusCode)
 	}
 	return response.StatusCode, nil
+}
+
+func DiscordWebhookURLWithWait(webhookURL string) (string, error) {
+	parsedURL, err := url.Parse(webhookURL)
+	if err != nil {
+		return "", fmt.Errorf("parse Discord webhook URL: %s", RedactedURL(webhookURL))
+	}
+	query := parsedURL.Query()
+	query.Set("wait", "true")
+	parsedURL.RawQuery = query.Encode()
+	return parsedURL.String(), nil
 }
 
 func RedactedURL(rawURL string) string {
