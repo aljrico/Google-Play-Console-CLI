@@ -2645,6 +2645,10 @@ gpc subscription-offers create [flags]
 - `--regions-version`: Google Play regions version required by subscriptionOffers.create
 - `--relative-discount`: Basic create regional phase relative discount as REGION:0.5, where 0.5 means the user pays 50% of the base plan price; repeatable (default `[]`)
 - `--targeting-acquisition-scope`: Basic create acquisition targeting scope: any-subscription-in-app or this-subscription
+- `--targeting-upgrade-billing-period`: Basic create upgrade targeting billing period duration as an ISO 8601 period
+- `--targeting-upgrade-once-per-user`: Basic create upgrade targeting once-per-user rule (default `false`)
+- `--targeting-upgrade-product-id`: Basic create upgrade targeting subscription product ID when scope is specific-subscription-in-app
+- `--targeting-upgrade-scope`: Basic create upgrade targeting scope: this-subscription or specific-subscription-in-app
 
 #### gpc subscription-offers deactivate
 

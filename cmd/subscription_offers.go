@@ -140,6 +140,10 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 		absoluteDiscounts []string
 		otherRegionsFree  bool
 		acquisitionScope  string
+		upgradeScope      string
+		upgradeProductID  string
+		upgradePeriod     string
+		upgradeOnce       bool
 		phaseDuration     string
 		phaseRecurrence   int64
 		regionsVersion    string
@@ -151,7 +155,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 		Use:   "create",
 		Short: "Create a draft subscription offer",
 		Long: "Create a draft subscription offer from a Google Play API SubscriptionOffer JSON body or gpc subscription offer JSON output. " +
-			"Basic flags build one free, paid-price, relative-discount, or absolute-discount phase across explicit regions, with optional free other-regions config and acquisition targeting; use JSON for multi-phase offers, upgrade targeting, or paid other-regions config. " +
+			"Basic flags build one free, paid-price, relative-discount, or absolute-discount phase across explicit regions, with optional free other-regions config and acquisition or upgrade targeting; use JSON for multi-phase offers or paid other-regions config. " +
 			"Immutable parent IDs come from flags and override the JSON body; output-only state is ignored because Google creates draft offers.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -180,6 +184,10 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 				AbsoluteDiscounts: absoluteDiscounts,
 				OtherRegionsFree:  otherRegionsFree,
 				AcquisitionScope:  acquisitionScope,
+				UpgradeScope:      upgradeScope,
+				UpgradeProductID:  upgradeProductID,
+				UpgradePeriod:     upgradePeriod,
+				UpgradeOnce:       upgradeOnce,
 				PhaseDuration:     phaseDuration,
 				PhaseRecurrence:   phaseRecurrence,
 				BasicFlagsSet: cmd.Flags().Changed("offer-tag") ||
@@ -189,6 +197,10 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 					cmd.Flags().Changed("absolute-discount") ||
 					cmd.Flags().Changed("other-regions-free") ||
 					cmd.Flags().Changed("targeting-acquisition-scope") ||
+					cmd.Flags().Changed("targeting-upgrade-scope") ||
+					cmd.Flags().Changed("targeting-upgrade-product-id") ||
+					cmd.Flags().Changed("targeting-upgrade-billing-period") ||
+					cmd.Flags().Changed("targeting-upgrade-once-per-user") ||
 					cmd.Flags().Changed("phase-duration") ||
 					cmd.Flags().Changed("phase-recurrence"),
 			})
@@ -242,6 +254,10 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 	cmd.Flags().StringArrayVar(&absoluteDiscounts, "absolute-discount", nil, "Basic create regional phase absolute discount as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
 	cmd.Flags().BoolVar(&otherRegionsFree, "other-regions-free", false, "Basic create free phase mode for other regions")
 	cmd.Flags().StringVar(&acquisitionScope, "targeting-acquisition-scope", "", "Basic create acquisition targeting scope: any-subscription-in-app or this-subscription")
+	cmd.Flags().StringVar(&upgradeScope, "targeting-upgrade-scope", "", "Basic create upgrade targeting scope: this-subscription or specific-subscription-in-app")
+	cmd.Flags().StringVar(&upgradeProductID, "targeting-upgrade-product-id", "", "Basic create upgrade targeting subscription product ID when scope is specific-subscription-in-app")
+	cmd.Flags().StringVar(&upgradePeriod, "targeting-upgrade-billing-period", "", "Basic create upgrade targeting billing period duration as an ISO 8601 period")
+	cmd.Flags().BoolVar(&upgradeOnce, "targeting-upgrade-once-per-user", false, "Basic create upgrade targeting once-per-user rule")
 	cmd.Flags().StringVar(&phaseDuration, "phase-duration", "", "Basic create phase duration as an ISO 8601 period, for example P7D or P1M")
 	cmd.Flags().Int64Var(&phaseRecurrence, "phase-recurrence", 1, "Basic create phase recurrence count")
 	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by subscriptionOffers.create")
@@ -259,6 +275,10 @@ type subscriptionOfferCreateBodyOptions struct {
 	AbsoluteDiscounts []string
 	OtherRegionsFree  bool
 	AcquisitionScope  string
+	UpgradeScope      string
+	UpgradeProductID  string
+	UpgradePeriod     string
+	UpgradeOnce       bool
 	PhaseDuration     string
 	PhaseRecurrence   int64
 	BasicFlagsSet     bool
@@ -284,7 +304,13 @@ func subscriptionOfferCreateBody(options subscriptionOfferCreateBodyOptions) (pl
 		offerOtherRegionsConfig = &play.SubscriptionOfferOtherRegionsConfig{NewSubscriberAvailability: true}
 		phaseOtherRegionsConfig = &play.SubscriptionOfferPhaseOtherRegionsConfig{Free: true}
 	}
-	targeting, err := subscriptionOfferCreateAcquisitionTargeting(options.AcquisitionScope)
+	targeting, err := subscriptionOfferCreateTargeting(subscriptionOfferCreateTargetingOptions{
+		AcquisitionScope: options.AcquisitionScope,
+		UpgradeScope:     options.UpgradeScope,
+		UpgradeProductID: options.UpgradeProductID,
+		UpgradePeriod:    options.UpgradePeriod,
+		UpgradeOnce:      options.UpgradeOnce,
+	})
 	if err != nil {
 		return play.SubscriptionOffer{}, err
 	}
@@ -383,8 +409,33 @@ func parseSubscriptionOfferCreatePhaseRegions(freeRegions []string, priceValues 
 	return regionalConfigs, phaseConfigs, nil
 }
 
+type subscriptionOfferCreateTargetingOptions struct {
+	AcquisitionScope string
+	UpgradeScope     string
+	UpgradeProductID string
+	UpgradePeriod    string
+	UpgradeOnce      bool
+}
+
+func subscriptionOfferCreateTargeting(options subscriptionOfferCreateTargetingOptions) (*play.SubscriptionOfferTargeting, error) {
+	acquisitionScope := strings.TrimSpace(options.AcquisitionScope)
+	upgradeScope := strings.TrimSpace(options.UpgradeScope)
+	upgradeProductID := strings.TrimSpace(options.UpgradeProductID)
+	upgradePeriod := strings.TrimSpace(options.UpgradePeriod)
+	if acquisitionScope != "" && (upgradeScope != "" || upgradeProductID != "" || upgradePeriod != "" || options.UpgradeOnce) {
+		return nil, fmt.Errorf("subscription offer create targeting cannot combine acquisition and upgrade targeting")
+	}
+	if acquisitionScope != "" {
+		return subscriptionOfferCreateAcquisitionTargeting(acquisitionScope)
+	}
+	if upgradeScope != "" || upgradeProductID != "" || upgradePeriod != "" || options.UpgradeOnce {
+		return subscriptionOfferCreateUpgradeTargeting(upgradeScope, upgradeProductID, upgradePeriod, options.UpgradeOnce)
+	}
+	return nil, nil
+}
+
 func subscriptionOfferCreateAcquisitionTargeting(scope string) (*play.SubscriptionOfferTargeting, error) {
-	switch strings.TrimSpace(scope) {
+	switch scope {
 	case "":
 		return nil, nil
 	case "any-subscription-in-app":
@@ -402,6 +453,36 @@ func subscriptionOfferCreateAcquisitionTargeting(scope string) (*play.Subscripti
 	default:
 		return nil, fmt.Errorf("subscription offer create acquisition targeting scope must be any-subscription-in-app or this-subscription")
 	}
+}
+
+func subscriptionOfferCreateUpgradeTargeting(scope string, productID string, billingPeriod string, oncePerUser bool) (*play.SubscriptionOfferTargeting, error) {
+	var targetingScope *play.SubscriptionOfferTargetingScope
+	switch scope {
+	case "this-subscription":
+		if productID != "" {
+			return nil, fmt.Errorf("subscription offer create upgrade product ID requires specific-subscription-in-app scope")
+		}
+		targetingScope = &play.SubscriptionOfferTargetingScope{ThisSubscription: true}
+	case "specific-subscription-in-app":
+		if productID == "" {
+			return nil, fmt.Errorf("subscription offer create upgrade product ID is required for specific-subscription-in-app scope")
+		}
+		if _, err := play.NewSubscriptionProductID(productID); err != nil {
+			return nil, err
+		}
+		targetingScope = &play.SubscriptionOfferTargetingScope{SpecificSubscriptionInApp: productID}
+	case "":
+		return nil, fmt.Errorf("subscription offer create upgrade targeting requires --targeting-upgrade-scope")
+	default:
+		return nil, fmt.Errorf("subscription offer create upgrade targeting scope must be this-subscription or specific-subscription-in-app")
+	}
+	return &play.SubscriptionOfferTargeting{
+		Upgrade: &play.SubscriptionOfferUpgradeTargeting{
+			Scope:                 targetingScope,
+			BillingPeriodDuration: billingPeriod,
+			OncePerUser:           oncePerUser,
+		},
+	}, nil
 }
 
 func errSubscriptionOfferCreatePriceFormat() error {

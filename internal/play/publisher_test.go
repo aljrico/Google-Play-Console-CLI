@@ -6412,6 +6412,64 @@ func TestCreateSubscriptionOfferSendsAcquisitionTargetingBody(t *testing.T) {
 	}
 }
 
+func TestCreateSubscriptionOfferSendsUpgradeTargetingBody(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		var request androidpublisher.SubscriptionOffer
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if request.Targeting == nil || request.Targeting.UpgradeRule == nil || request.Targeting.UpgradeRule.Scope == nil {
+			t.Fatalf("Targeting = %#v, want upgrade targeting", request.Targeting)
+		}
+		if request.Targeting.UpgradeRule.Scope.SpecificSubscriptionInApp != "basic" {
+			t.Fatalf("upgrade scope = %#v, want specific subscription", request.Targeting.UpgradeRule.Scope)
+		}
+		if request.Targeting.UpgradeRule.BillingPeriodDuration != "P1M" || !request.Targeting.UpgradeRule.OncePerUser {
+			t.Fatalf("upgrade rule = %#v, want period and once-per-user", request.Targeting.UpgradeRule)
+		}
+		if request.Targeting.AcquisitionRule != nil {
+			t.Fatalf("Targeting = %#v, did not expect acquisition rule", request.Targeting)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","basePlanId":"monthly","offerId":"upgrade-intro","state":"DRAFT","regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}],"phases":[{"duration":"P7D","recurrenceCount":1,"regionalConfigs":[{"regionCode":"US","free":{}}]}],"targeting":{"upgradeRule":{"scope":{"specificSubscriptionInApp":"basic"},"billingPeriodDuration":"P1M","oncePerUser":true}}}`)
+	}))
+
+	offer := SubscriptionOffer{
+		RegionalConfigs: []SubscriptionOfferRegionalConfig{{RegionCode: "US", NewSubscriberAvailability: true}},
+		Phases: []SubscriptionOfferPhase{{
+			Duration:        "P7D",
+			RecurrenceCount: 1,
+			RegionalConfigs: []SubscriptionOfferPhaseRegionalConfig{{RegionCode: "US", Free: true}},
+		}},
+		Targeting: &SubscriptionOfferTargeting{
+			Upgrade: &SubscriptionOfferUpgradeTargeting{
+				Scope:                 &SubscriptionOfferTargetingScope{SpecificSubscriptionInApp: "basic"},
+				BillingPeriodDuration: "P1M",
+				OncePerUser:           true,
+			},
+		},
+	}
+	result, err := publisher.CreateSubscriptionOffer(context.Background(), SubscriptionOfferCreateOptions{
+		PackageName:    "com.example.app",
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		OfferID:        "upgrade-intro",
+		Offer:          offer,
+		RegionsVersion: "2026/05",
+		Confirm:        true,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubscriptionOffer() error = %v", err)
+	}
+	if result.Targeting == nil || result.Targeting.Upgrade == nil || result.Targeting.Upgrade.Scope == nil || result.Targeting.Upgrade.Scope.SpecificSubscriptionInApp != "basic" {
+		t.Fatalf("result = %#v, want created draft offer with upgrade targeting", result)
+	}
+}
+
 func TestBatchUpdateSubscriptionOfferStatesRejectsDryRunBeforeRequest(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)

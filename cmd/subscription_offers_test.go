@@ -627,6 +627,96 @@ func TestSubscriptionOffersCreateRejectsInvalidAcquisitionTargetingScope(t *test
 	}
 }
 
+func TestSubscriptionOffersCreateBasicUpgradeTargetingDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"upgrade-intro",
+		"--free-region",
+		"US",
+		"--targeting-upgrade-scope",
+		"specific-subscription-in-app",
+		"--targeting-upgrade-product-id",
+		"basic",
+		"--targeting-upgrade-billing-period",
+		"P1M",
+		"--targeting-upgrade-once-per-user",
+		"--phase-duration",
+		"P7D",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"offerId":"upgrade-intro"`,
+		`"upgrade":{"scope":{"specificSubscriptionInApp":"basic"},"billingPeriodDuration":"P1M","oncePerUser":true}`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersCreateRejectsMixedTargeting(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--free-region",
+		"US",
+		"--targeting-acquisition-scope",
+		"this-subscription",
+		"--targeting-upgrade-scope",
+		"this-subscription",
+		"--phase-duration",
+		"P7D",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected mixed targeting validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot combine acquisition and upgrade targeting") {
+		t.Fatalf("error = %v, want mixed targeting validation", err)
+	}
+}
+
 func TestSubscriptionOffersCreateBasicPricePhaseDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
