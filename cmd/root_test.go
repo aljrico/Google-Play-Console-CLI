@@ -155,6 +155,7 @@ func TestDocsCommandsOutputsJSONReferenceWithoutAuth(t *testing.T) {
 		`"path":"gpc users create"`,
 		`"path":"gpc purchases product acknowledge"`,
 		`"path":"gpc releases"`,
+		`"path":"gpc vitals metric-set query"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -188,6 +189,7 @@ func TestDocsCommandsOutputsMarkdownReference(t *testing.T) {
 		"`gpc users create`",
 		"`gpc purchases product acknowledge`",
 		"`gpc releases`",
+		"`gpc vitals metric-set query`",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -2342,6 +2344,72 @@ func TestVitalsMetricSetGetRejectsMissingMetricSetBeforeAuth(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "vitals metric set is required") {
 		t.Fatalf("error = %v, want required metric set validation", err)
+	}
+}
+
+func TestVitalsMetricSetQueryRejectsMissingMetricBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"vitals",
+		"metric-set",
+		"query",
+		"--package",
+		"com.example.app",
+		"--metric-set",
+		"crash-rate",
+		"--aggregation",
+		"DAILY",
+		"--start-date",
+		"2026-05-01",
+		"--end-date",
+		"2026-05-19",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected metric validation error")
+	}
+	if !strings.Contains(err.Error(), "at least one metric is required") {
+		t.Fatalf("error = %v, want metric validation", err)
+	}
+}
+
+func TestVitalsMetricSetQueryRejectsInvalidStartDateBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"vitals",
+		"metric-set",
+		"query",
+		"--package",
+		"com.example.app",
+		"--metric-set",
+		"crash-rate",
+		"--metric",
+		"crashRate",
+		"--aggregation",
+		"DAILY",
+		"--start-date",
+		"2026/05/01",
+		"--end-date",
+		"2026-05-19",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected start date validation error")
+	}
+	if !strings.Contains(err.Error(), "must use YYYY-MM-DD") {
+		t.Fatalf("error = %v, want start date validation", err)
 	}
 }
 
