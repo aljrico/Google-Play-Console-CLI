@@ -1090,6 +1090,7 @@ gpc one-time-products
 
 - `gpc one-time-products get`: Get a one-time product
 - `gpc one-time-products list`: List one-time products
+- `gpc one-time-products purchase-option`: Manage one-time product purchase options
 
 #### gpc one-time-products get
 
@@ -1115,6 +1116,51 @@ gpc one-time-products list [flags]
 
 - `--page-size`: Maximum one-time products to return, capped at 1000 (default `0`)
 - `--page-token`: Pagination token from a previous response
+
+#### gpc one-time-products purchase-option
+
+Manage one-time product purchase options
+
+```sh
+gpc one-time-products purchase-option
+```
+
+##### Commands
+
+- `gpc one-time-products purchase-option activate`: activate a one-time product purchase option
+- `gpc one-time-products purchase-option deactivate`: deactivate a one-time product purchase option
+
+##### gpc one-time-products purchase-option activate
+
+activate a one-time product purchase option
+
+```sh
+gpc one-time-products purchase-option activate [flags]
+```
+
+###### Flags
+
+- `--confirm`: Apply the purchase option state update (default `false`)
+- `--dry-run`: Print the planned purchase option state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: One-time product ID
+- `--purchase-option-id`: One-time product purchase option ID
+
+##### gpc one-time-products purchase-option deactivate
+
+deactivate a one-time product purchase option
+
+```sh
+gpc one-time-products purchase-option deactivate [flags]
+```
+
+###### Flags
+
+- `--confirm`: Apply the purchase option state update (default `false`)
+- `--dry-run`: Print the planned purchase option state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: One-time product ID
+- `--purchase-option-id`: One-time product purchase option ID
 
 ### gpc orders
 

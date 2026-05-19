@@ -437,6 +437,30 @@ func (p GooglePublisher) GetOneTimeProduct(ctx context.Context, packageName Pack
 	return oneTimeProductFromAPI(product), nil
 }
 
+func (p GooglePublisher) UpdatePurchaseOptionState(ctx context.Context, options PurchaseOptionStateUpdateOptions) (OneTimeProduct, error) {
+	request := &androidpublisher.BatchUpdatePurchaseOptionStatesRequest{
+		Requests: []*androidpublisher.UpdatePurchaseOptionStateRequest{
+			purchaseOptionStateRequestToAPI(options),
+		},
+	}
+	response, err := p.service.Monetization.Onetimeproducts.PurchaseOptions.BatchUpdateStates(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return OneTimeProduct{}, fmt.Errorf("%s purchase option %s for %s/%s: %w", options.Action, options.PurchaseOptionID, options.PackageName, options.ProductID, err)
+	}
+	if response == nil || len(response.OneTimeProducts) == 0 {
+		return OneTimeProduct{}, fmt.Errorf("%s purchase option %s for %s/%s: empty response", options.Action, options.PurchaseOptionID, options.PackageName, options.ProductID)
+	}
+	product, err := oneTimeProductFromGeneratedAPI(response.OneTimeProducts[0])
+	if err != nil {
+		return OneTimeProduct{}, err
+	}
+	return product, nil
+}
+
 func (p GooglePublisher) ListOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferListOptions) (OneTimeProductOfferListResult, error) {
 	call := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.List(
 		options.PackageName.String(),
@@ -1675,6 +1699,56 @@ func oneTimeProductFromAPI(apiProduct rawOneTimeProduct) OneTimeProduct {
 		RegionsVersion:           regionsVersionFromAPI(apiProduct.RegionsVersion),
 		RestrictedCountries:      rawRestrictedCountriesFromAPI(apiProduct.RestrictedPaymentCountries),
 		TaxAndComplianceSettings: oneTimeProductTaxComplianceSettingsFromAPI(apiProduct.TaxAndComplianceSettings),
+	}
+}
+
+func oneTimeProductFromGeneratedAPI(apiProduct *androidpublisher.OneTimeProduct) (OneTimeProduct, error) {
+	if apiProduct == nil {
+		return OneTimeProduct{}, fmt.Errorf("one-time product response is empty")
+	}
+	content, err := json.Marshal(apiProduct)
+	if err != nil {
+		return OneTimeProduct{}, fmt.Errorf("marshal one-time product response: %w", err)
+	}
+	var rawProduct rawOneTimeProduct
+	if err := json.Unmarshal(content, &rawProduct); err != nil {
+		return OneTimeProduct{}, fmt.Errorf("decode one-time product response: %w", err)
+	}
+	return oneTimeProductFromAPI(rawProduct), nil
+}
+
+func purchaseOptionStateRequestToAPI(options PurchaseOptionStateUpdateOptions) *androidpublisher.UpdatePurchaseOptionStateRequest {
+	latencyTolerance := productUpdateLatencyToleranceToAPI(options.LatencyTolerance)
+	switch options.Action {
+	case PurchaseOptionStateActionActivate:
+		return &androidpublisher.UpdatePurchaseOptionStateRequest{
+			ActivatePurchaseOptionRequest: &androidpublisher.ActivatePurchaseOptionRequest{
+				PackageName:      options.PackageName.String(),
+				ProductId:        options.ProductID.String(),
+				PurchaseOptionId: options.PurchaseOptionID.String(),
+				LatencyTolerance: latencyTolerance,
+			},
+		}
+	case PurchaseOptionStateActionDeactivate:
+		return &androidpublisher.UpdatePurchaseOptionStateRequest{
+			DeactivatePurchaseOptionRequest: &androidpublisher.DeactivatePurchaseOptionRequest{
+				PackageName:      options.PackageName.String(),
+				ProductId:        options.ProductID.String(),
+				PurchaseOptionId: options.PurchaseOptionID.String(),
+				LatencyTolerance: latencyTolerance,
+			},
+		}
+	default:
+		return &androidpublisher.UpdatePurchaseOptionStateRequest{}
+	}
+}
+
+func productUpdateLatencyToleranceToAPI(latencyTolerance ProductUpdateLatencyTolerance) string {
+	switch latencyTolerance {
+	case ProductUpdateLatencyToleranceTolerant:
+		return "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT"
+	default:
+		return "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_SENSITIVE"
 	}
 }
 

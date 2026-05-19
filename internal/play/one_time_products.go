@@ -73,6 +73,48 @@ type OneTimeProductPurchaseOption struct {
 	TaxAndComplianceSettings *OneTimeProductPurchaseOptionTaxComplianceSettings `json:"taxAndComplianceSettings,omitempty"`
 }
 
+type ProductUpdateLatencyTolerance string
+
+const (
+	ProductUpdateLatencyToleranceSensitive ProductUpdateLatencyTolerance = "latencySensitive"
+	ProductUpdateLatencyToleranceTolerant  ProductUpdateLatencyTolerance = "latencyTolerant"
+)
+
+func NewProductUpdateLatencyTolerance(value string) (ProductUpdateLatencyTolerance, error) {
+	switch ProductUpdateLatencyTolerance(value) {
+	case "", ProductUpdateLatencyToleranceSensitive:
+		return ProductUpdateLatencyToleranceSensitive, nil
+	case ProductUpdateLatencyToleranceTolerant:
+		return ProductUpdateLatencyToleranceTolerant, nil
+	default:
+		return "", fmt.Errorf("unsupported latency tolerance %q; supported values: latencySensitive, latencyTolerant", value)
+	}
+}
+
+func (t ProductUpdateLatencyTolerance) String() string {
+	return string(t)
+}
+
+type PurchaseOptionStateAction string
+
+const (
+	PurchaseOptionStateActionActivate   PurchaseOptionStateAction = "activate"
+	PurchaseOptionStateActionDeactivate PurchaseOptionStateAction = "deactivate"
+)
+
+func (a PurchaseOptionStateAction) String() string {
+	return string(a)
+}
+
+func (a PurchaseOptionStateAction) Validate() error {
+	switch a {
+	case PurchaseOptionStateActionActivate, PurchaseOptionStateActionDeactivate:
+		return nil
+	default:
+		return fmt.Errorf("unsupported purchase option state action %q", a)
+	}
+}
+
 type OneTimeProductRegionalConfig struct {
 	RegionCode   string `json:"regionCode"`
 	Availability string `json:"availability,omitempty"`
@@ -179,4 +221,115 @@ func GetOneTimeProduct(ctx context.Context, getter OneTimeProductGetter, options
 		return OneTimeProduct{}, fmt.Errorf("one-time product getter is required")
 	}
 	return getter.GetOneTimeProduct(ctx, options.PackageName, options.ProductID)
+}
+
+type PurchaseOptionStateUpdateOptions struct {
+	PackageName      PackageName                    `json:"packageName"`
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+	Action           PurchaseOptionStateAction      `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance  `json:"latencyTolerance"`
+	Confirm          bool                           `json:"confirm"`
+	DryRun           bool                           `json:"dryRun"`
+}
+
+func (o PurchaseOptionStateUpdateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductPurchaseOptionID(o.PurchaseOptionID.String()); err != nil {
+		return err
+	}
+	if err := o.Action.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("purchase option state update requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+type PurchaseOptionStateUpdatePlan struct {
+	PackageName      PackageName                    `json:"packageName"`
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+	Action           PurchaseOptionStateAction      `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance  `json:"latencyTolerance"`
+	Confirm          bool                           `json:"confirm"`
+	Steps            []string                       `json:"steps"`
+}
+
+type PurchaseOptionStateUpdateResult struct {
+	PackageName      PackageName                    `json:"packageName"`
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+	Action           PurchaseOptionStateAction      `json:"action"`
+	DryRun           bool                           `json:"dryRun"`
+	Applied          bool                           `json:"applied"`
+	Product          *OneTimeProduct                `json:"product,omitempty"`
+	Plan             PurchaseOptionStateUpdatePlan  `json:"plan"`
+}
+
+type PurchaseOptionStateUpdater interface {
+	UpdatePurchaseOptionState(ctx context.Context, options PurchaseOptionStateUpdateOptions) (OneTimeProduct, error)
+}
+
+func NewPurchaseOptionStateUpdatePlan(options PurchaseOptionStateUpdateOptions) (PurchaseOptionStateUpdatePlan, error) {
+	if err := options.Validate(); err != nil {
+		return PurchaseOptionStateUpdatePlan{}, err
+	}
+	return PurchaseOptionStateUpdatePlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		Action:           options.Action,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            purchaseOptionStateUpdateSteps(options),
+	}, nil
+}
+
+func UpdatePurchaseOptionState(ctx context.Context, updater PurchaseOptionStateUpdater, options PurchaseOptionStateUpdateOptions) (PurchaseOptionStateUpdateResult, error) {
+	plan, err := NewPurchaseOptionStateUpdatePlan(options)
+	if err != nil {
+		return PurchaseOptionStateUpdateResult{}, err
+	}
+	result := PurchaseOptionStateUpdateResult{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		Action:           options.Action,
+		DryRun:           options.DryRun,
+		Applied:          false,
+		Plan:             plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if updater == nil {
+		return PurchaseOptionStateUpdateResult{}, fmt.Errorf("purchase option state updater is required")
+	}
+	product, err := updater.UpdatePurchaseOptionState(ctx, options)
+	if err != nil {
+		return PurchaseOptionStateUpdateResult{}, err
+	}
+	result.Applied = true
+	result.Product = &product
+	return result, nil
+}
+
+func purchaseOptionStateUpdateSteps(options PurchaseOptionStateUpdateOptions) []string {
+	if options.DryRun {
+		return []string{fmt.Sprintf("plan %s purchase option", options.Action)}
+	}
+	return []string{fmt.Sprintf("%s purchase option", options.Action)}
 }

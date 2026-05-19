@@ -103,11 +103,84 @@ func TestGetOneTimeProductRejectsMissingProductID(t *testing.T) {
 	}
 }
 
+func TestUpdatePurchaseOptionStateDryRunBuildsPlanWithoutUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := UpdatePurchaseOptionState(context.Background(), nil, PurchaseOptionStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Action:           PurchaseOptionStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("UpdatePurchaseOptionState() error = %v", err)
+	}
+	if !result.DryRun {
+		t.Fatal("DryRun = false, want true")
+	}
+	wantSteps := []string{"plan activate purchase option"}
+	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
+		t.Fatalf("steps = %#v, want %#v", result.Plan.Steps, wantSteps)
+	}
+}
+
+func TestUpdatePurchaseOptionStateRequiresConfirmOrDryRun(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewPurchaseOptionStateUpdatePlan(PurchaseOptionStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Action:           PurchaseOptionStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+	})
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+}
+
+func TestUpdatePurchaseOptionStatePassesOptionsToUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	updater := &fakeOneTimeProductClient{
+		product: OneTimeProduct{ProductID: "coins_100"},
+	}
+
+	result, err := UpdatePurchaseOptionState(context.Background(), updater, PurchaseOptionStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Action:           PurchaseOptionStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("UpdatePurchaseOptionState() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatal("Applied = false, want true")
+	}
+	if updater.stateOptions.Action != PurchaseOptionStateActionDeactivate {
+		t.Fatalf("Action = %q, want deactivate", updater.stateOptions.Action)
+	}
+}
+
 type fakeOneTimeProductClient struct {
-	listOptions OneTimeProductListOptions
-	listResult  OneTimeProductListResult
-	productID   OneTimeProductID
-	product     OneTimeProduct
+	listOptions  OneTimeProductListOptions
+	listResult   OneTimeProductListResult
+	productID    OneTimeProductID
+	product      OneTimeProduct
+	stateOptions PurchaseOptionStateUpdateOptions
 }
 
 func (c *fakeOneTimeProductClient) ListOneTimeProducts(ctx context.Context, options OneTimeProductListOptions) (OneTimeProductListResult, error) {
@@ -117,5 +190,10 @@ func (c *fakeOneTimeProductClient) ListOneTimeProducts(ctx context.Context, opti
 
 func (c *fakeOneTimeProductClient) GetOneTimeProduct(ctx context.Context, packageName PackageName, productID OneTimeProductID) (OneTimeProduct, error) {
 	c.productID = productID
+	return c.product, nil
+}
+
+func (c *fakeOneTimeProductClient) UpdatePurchaseOptionState(ctx context.Context, options PurchaseOptionStateUpdateOptions) (OneTimeProduct, error) {
+	c.stateOptions = options
 	return c.product, nil
 }

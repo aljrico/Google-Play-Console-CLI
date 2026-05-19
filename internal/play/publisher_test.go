@@ -2484,6 +2484,56 @@ func TestGetOneTimeProductUsesMonetizationEndpoint(t *testing.T) {
 	}
 }
 
+func TestUpdatePurchaseOptionStateUsesBatchUpdateStatesEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions:batchUpdateStates" {
+			t.Fatalf("path = %q, want purchase option state endpoint", r.URL.Path)
+		}
+		var request androidpublisher.BatchUpdatePurchaseOptionStatesRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if len(request.Requests) != 1 || request.Requests[0].DeactivatePurchaseOptionRequest == nil {
+			t.Fatalf("request = %#v, want deactivate request", request)
+		}
+		deactivate := request.Requests[0].DeactivatePurchaseOptionRequest
+		if deactivate.PackageName != "com.example.app" || deactivate.ProductId != "coins_100" || deactivate.PurchaseOptionId != "buy" {
+			t.Fatalf("deactivate request = %#v, want identifiers", deactivate)
+		}
+		if deactivate.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+			t.Fatalf("LatencyTolerance = %q, want tolerant", deactivate.LatencyTolerance)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{
+			"oneTimeProducts": [
+				{
+					"packageName": "com.example.app",
+					"productId": "coins_100",
+					"purchaseOptions": [{"purchaseOptionId": "buy", "state": "INACTIVE", "buyOption": {}}]
+				}
+			]
+		}`)
+	}))
+
+	product, err := publisher.UpdatePurchaseOptionState(context.Background(), PurchaseOptionStateUpdateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Action:           PurchaseOptionStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("UpdatePurchaseOptionState() error = %v", err)
+	}
+	if len(product.PurchaseOptions) != 1 || product.PurchaseOptions[0].State != "INACTIVE" {
+		t.Fatalf("PurchaseOptions = %#v, want inactive", product.PurchaseOptions)
+	}
+}
+
 func TestListOneTimeProductOffersUsesMonetizationEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers" {
