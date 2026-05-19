@@ -891,6 +891,107 @@ func TestSubscriptionListResultFromAPIMapsNextPageToken(t *testing.T) {
 	}
 }
 
+func TestGooglePublisherPatchSubscriptionMergesListingsBeforePatch(t *testing.T) {
+	var requestCount int
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		switch requestCount {
+		case 1:
+			if r.Method != http.MethodGet {
+				t.Fatalf("method = %s, want GET", r.Method)
+			}
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium" {
+				t.Fatalf("path = %q, want subscription get endpoint", r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{
+				"packageName": "com.example.app",
+				"productId": "premium",
+				"listings": [
+					{"languageCode": "en-US", "title": "Premium", "description": "Old English"},
+					{"languageCode": "es-ES", "title": "Premium ES", "description": "Spanish"}
+				]
+			}`)
+		case 2:
+			if r.Method != http.MethodPatch {
+				t.Fatalf("method = %s, want PATCH", r.Method)
+			}
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium" {
+				t.Fatalf("path = %q, want subscription patch endpoint", r.URL.Path)
+			}
+			if got := r.URL.Query().Get("updateMask"); got != "listings" {
+				t.Fatalf("updateMask = %q, want listings", got)
+			}
+			if got := r.URL.Query().Get("latencyTolerance"); got != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+				t.Fatalf("latencyTolerance = %q, want tolerant", got)
+			}
+			var request androidpublisher.Subscription
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatalf("Decode() error = %v", err)
+			}
+			if len(request.Listings) != 2 {
+				t.Fatalf("len(Listings) = %d, want merged listings", len(request.Listings))
+			}
+			if request.Listings[0].LanguageCode != "en-US" || request.Listings[0].Description != "New English" {
+				t.Fatalf("Listings[0] = %#v, want patched English listing", request.Listings[0])
+			}
+			if request.Listings[1].LanguageCode != "es-ES" || request.Listings[1].Description != "Spanish" {
+				t.Fatalf("Listings[1] = %#v, want preserved Spanish listing", request.Listings[1])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{
+				"packageName": "com.example.app",
+				"productId": "premium",
+				"listings": [
+					{"languageCode": "en-US", "title": "Premium", "description": "New English"},
+					{"languageCode": "es-ES", "title": "Premium ES", "description": "Spanish"}
+				]
+			}`)
+		default:
+			t.Fatalf("unexpected request %d: %s %s", requestCount, r.Method, r.URL.Path)
+		}
+	}))
+
+	subscription, err := publisher.PatchSubscription(context.Background(), SubscriptionPatchOptions{
+		PackageName: "com.example.app",
+		ProductID:   "premium",
+		Listing: SubscriptionListing{
+			LanguageCode: "en-US",
+			Title:        "Premium",
+			Description:  "New English",
+			Benefits:     []string{"Everything"},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("PatchSubscription() error = %v", err)
+	}
+	if requestCount != 2 {
+		t.Fatalf("requestCount = %d, want get plus patch", requestCount)
+	}
+	if len(subscription.Listings) != 2 || subscription.Listings[0].Description != "New English" {
+		t.Fatalf("Listings = %#v, want patched listing", subscription.Listings)
+	}
+}
+
+func TestGooglePublisherPatchSubscriptionRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	_, err := publisher.PatchSubscription(context.Background(), SubscriptionPatchOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "premium",
+		Listing:          SubscriptionListing{LanguageCode: "en-US", Title: "Premium"},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+}
+
 func TestSubscriptionOfferFromAPIMapsCatalogFields(t *testing.T) {
 	offer := subscriptionOfferFromAPI(&androidpublisher.SubscriptionOffer{
 		PackageName: "com.example.app",

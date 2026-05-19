@@ -2100,6 +2100,7 @@ gpc subscriptions
 - `gpc subscriptions delete`: Delete a draft-only monetization subscription
 - `gpc subscriptions get`: Get one monetization subscription
 - `gpc subscriptions list`: List monetization subscriptions
+- `gpc subscriptions patch`: Patch a subscription listing
 
 #### gpc subscriptions base-plan
 
@@ -2197,6 +2198,25 @@ gpc subscriptions list [flags]
 - `--page-size`: Maximum subscriptions to return, capped at 1000 (default `0`)
 - `--page-token`: Pagination token from a previous response
 - `--show-archived`: Deprecated by Google; subscription archiving is no longer supported (default `false`)
+
+#### gpc subscriptions patch
+
+Patch a subscription listing
+
+```sh
+gpc subscriptions patch [flags]
+```
+
+##### Flags
+
+- `--benefit`: Localized subscription benefit; repeatable, up to 4 (default `[]`)
+- `--confirm`: Apply the subscription listing patch (default `false`)
+- `--description`: Localized subscription description
+- `--dry-run`: Print the planned subscription listing patch without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--listing-language`: BCP-47 language code for the listing to patch, for example en-US
+- `--product-id`: Subscription product ID
+- `--title`: Localized subscription title
 
 ### gpc system-apks
 

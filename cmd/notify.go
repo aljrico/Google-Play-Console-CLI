@@ -18,7 +18,7 @@ func newNotifyCommand(out io.Writer, options *globalOptions) *cobra.Command {
 }
 
 func newNotifySendCommand(out io.Writer, options *globalOptions) *cobra.Command {
-	sendOptions := notify.SendOptions{WebhookURLEnv: notify.DefaultWebhookURLEnv}
+	sendOptions := newNotifySendOptions("notify send")
 	cmd := &cobra.Command{
 		Use:   "send",
 		Short: "Send a JSON notification webhook",
@@ -34,20 +34,18 @@ func newNotifySendCommand(out io.Writer, options *globalOptions) *cobra.Command 
 			return err
 		},
 	}
-	cmd.Flags().StringVar(&sendOptions.WebhookURL, "webhook-url", "", "HTTPS webhook URL; http is allowed only for loopback hosts")
-	cmd.Flags().StringVar(&sendOptions.WebhookURLEnv, "webhook-url-env", notify.DefaultWebhookURLEnv, "Environment variable containing the webhook URL")
-	cmd.Flags().StringVar(&sendOptions.WebhookURLFile, "webhook-url-file", "", "File containing the webhook URL")
-	cmd.Flags().StringVar(&sendOptions.Title, "title", "", "Notification title")
-	cmd.Flags().StringVar(&sendOptions.Message, "message", "", "Notification message")
-	cmd.Flags().StringVar(&sendOptions.Severity, "severity", "", "Notification severity label")
-	cmd.Flags().StringArrayVar(&sendOptions.Fields, "field", nil, "Notification field as name=value; repeatable")
-	cmd.Flags().BoolVar(&sendOptions.Confirm, "confirm", false, "Send the notification webhook")
-	cmd.Flags().BoolVar(&sendOptions.DryRun, "dry-run", false, "Print the notification payload without sending")
+	addNotifyFlags(cmd, &sendOptions, notifyFlagHelp{
+		WebhookURL:     "HTTPS webhook URL; http is allowed only for loopback hosts",
+		WebhookURLEnv:  "Environment variable containing the webhook URL",
+		WebhookURLFile: "File containing the webhook URL",
+		Confirm:        "Send the notification webhook",
+		DryRun:         "Print the notification payload without sending",
+	})
 	return cmd
 }
 
 func newNotifySlackCommand(out io.Writer, options *globalOptions) *cobra.Command {
-	sendOptions := notify.SendOptions{WebhookURLEnv: notify.DefaultWebhookURLEnv}
+	sendOptions := newNotifySendOptions("notify slack")
 	cmd := &cobra.Command{
 		Use:   "slack",
 		Short: "Send a Slack incoming webhook notification",
@@ -63,14 +61,39 @@ func newNotifySlackCommand(out io.Writer, options *globalOptions) *cobra.Command
 			return err
 		},
 	}
-	cmd.Flags().StringVar(&sendOptions.WebhookURL, "webhook-url", "", "HTTPS Slack incoming webhook URL; http is allowed only for loopback hosts")
-	cmd.Flags().StringVar(&sendOptions.WebhookURLEnv, "webhook-url-env", notify.DefaultWebhookURLEnv, "Environment variable containing the Slack incoming webhook URL")
-	cmd.Flags().StringVar(&sendOptions.WebhookURLFile, "webhook-url-file", "", "File containing the Slack incoming webhook URL")
+	addNotifyFlags(cmd, &sendOptions, notifyFlagHelp{
+		WebhookURL:     "HTTPS Slack incoming webhook URL; http is allowed only for loopback hosts",
+		WebhookURLEnv:  "Environment variable containing the Slack incoming webhook URL",
+		WebhookURLFile: "File containing the Slack incoming webhook URL",
+		Confirm:        "Send the Slack webhook",
+		DryRun:         "Print the Slack payload without sending",
+	})
+	return cmd
+}
+
+type notifyFlagHelp struct {
+	WebhookURL     string
+	WebhookURLEnv  string
+	WebhookURLFile string
+	Confirm        string
+	DryRun         string
+}
+
+func newNotifySendOptions(commandPath string) notify.SendOptions {
+	return notify.SendOptions{
+		CommandPath:   commandPath,
+		WebhookURLEnv: notify.DefaultWebhookURLEnv,
+	}
+}
+
+func addNotifyFlags(cmd *cobra.Command, sendOptions *notify.SendOptions, help notifyFlagHelp) {
+	cmd.Flags().StringVar(&sendOptions.WebhookURL, "webhook-url", "", help.WebhookURL)
+	cmd.Flags().StringVar(&sendOptions.WebhookURLEnv, "webhook-url-env", notify.DefaultWebhookURLEnv, help.WebhookURLEnv)
+	cmd.Flags().StringVar(&sendOptions.WebhookURLFile, "webhook-url-file", "", help.WebhookURLFile)
 	cmd.Flags().StringVar(&sendOptions.Title, "title", "", "Notification title")
 	cmd.Flags().StringVar(&sendOptions.Message, "message", "", "Notification message")
 	cmd.Flags().StringVar(&sendOptions.Severity, "severity", "", "Notification severity label")
 	cmd.Flags().StringArrayVar(&sendOptions.Fields, "field", nil, "Notification field as name=value; repeatable")
-	cmd.Flags().BoolVar(&sendOptions.Confirm, "confirm", false, "Send the Slack webhook")
-	cmd.Flags().BoolVar(&sendOptions.DryRun, "dry-run", false, "Print the Slack payload without sending")
-	return cmd
+	cmd.Flags().BoolVar(&sendOptions.Confirm, "confirm", false, help.Confirm)
+	cmd.Flags().BoolVar(&sendOptions.DryRun, "dry-run", false, help.DryRun)
 }

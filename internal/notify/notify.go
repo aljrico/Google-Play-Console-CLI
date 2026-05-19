@@ -34,6 +34,7 @@ type SlackPayload struct {
 }
 
 type SendOptions struct {
+	CommandPath    string   `json:"-"`
 	WebhookURL     string   `json:"webhookUrl,omitempty"`
 	WebhookURLEnv  string   `json:"webhookUrlEnv,omitempty"`
 	WebhookURLFile string   `json:"webhookUrlFile,omitempty"`
@@ -148,7 +149,7 @@ func (o SendOptions) ResolvedWebhookURL() (string, error) {
 		return "", fmt.Errorf("--confirm and --dry-run cannot be used together")
 	}
 	if !o.Confirm && !o.DryRun {
-		return "", fmt.Errorf("notify send requires --confirm or --dry-run")
+		return "", fmt.Errorf("%s requires --confirm or --dry-run", o.commandPath())
 	}
 	if strings.TrimSpace(o.WebhookURLFile) != o.WebhookURLFile {
 		return "", fmt.Errorf("webhook URL file cannot have leading or trailing whitespace")
@@ -208,6 +209,13 @@ func (o SendOptions) ValidateWebhookURL(webhookURL string) error {
 		return fmt.Errorf("severity cannot have leading or trailing whitespace")
 	}
 	return nil
+}
+
+func (o SendOptions) commandPath() string {
+	if o.CommandPath == "" {
+		return "notify send"
+	}
+	return o.CommandPath
 }
 
 func (o SendOptions) webhookURLEnv() string {

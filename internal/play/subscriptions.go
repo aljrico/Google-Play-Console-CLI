@@ -3,6 +3,7 @@ package play
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 type SubscriptionProductID string
@@ -344,6 +345,80 @@ type BasePlanStateUpdateOptions struct {
 	DryRun           bool                          `json:"dryRun"`
 }
 
+type SubscriptionPatchOptions struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        SubscriptionProductID         `json:"productId"`
+	Listing          SubscriptionListing           `json:"listing"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	DryRun           bool                          `json:"dryRun"`
+}
+
+func (o SubscriptionPatchOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if err := validateSubscriptionListing(o.Listing); err != nil {
+		return err
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("subscription patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o SubscriptionPatchOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live subscription patch cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live subscription patch requires --confirm")
+	}
+	return nil
+}
+
+func validateSubscriptionListing(listing SubscriptionListing) error {
+	if _, err := NewListingLanguage(listing.LanguageCode); err != nil {
+		return err
+	}
+	if strings.TrimSpace(listing.Title) == "" {
+		return fmt.Errorf("subscription listing title is required")
+	}
+	if strings.TrimSpace(listing.Title) != listing.Title {
+		return fmt.Errorf("subscription listing title cannot have leading or trailing whitespace")
+	}
+	if strings.TrimSpace(listing.Description) != listing.Description {
+		return fmt.Errorf("subscription listing description cannot have leading or trailing whitespace")
+	}
+	if len(listing.Description) > 200 {
+		return fmt.Errorf("subscription listing description cannot exceed 200 characters")
+	}
+	if len(listing.Benefits) > 4 {
+		return fmt.Errorf("subscription listing cannot have more than 4 benefits")
+	}
+	for index, benefit := range listing.Benefits {
+		if strings.TrimSpace(benefit) == "" {
+			return fmt.Errorf("subscription listing benefit %d is required", index+1)
+		}
+		if strings.TrimSpace(benefit) != benefit {
+			return fmt.Errorf("subscription listing benefit %d cannot have leading or trailing whitespace", index+1)
+		}
+	}
+	return nil
+}
+
 func (o BasePlanStateUpdateOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
@@ -403,8 +478,79 @@ type BasePlanStateUpdateResult struct {
 	Plan         BasePlanStateUpdatePlan `json:"plan"`
 }
 
+type SubscriptionPatchPlan struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        SubscriptionProductID         `json:"productId"`
+	Listing          SubscriptionListing           `json:"listing"`
+	UpdateMask       string                        `json:"updateMask"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	Steps            []string                      `json:"steps"`
+}
+
+type SubscriptionPatchResult struct {
+	PackageName  PackageName           `json:"packageName"`
+	ProductID    SubscriptionProductID `json:"productId"`
+	DryRun       bool                  `json:"dryRun"`
+	Applied      bool                  `json:"applied"`
+	Desired      Subscription          `json:"desiredSubscription"`
+	Subscription *Subscription         `json:"subscription,omitempty"`
+	Plan         SubscriptionPatchPlan `json:"plan"`
+}
+
 type BasePlanStateUpdater interface {
 	UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error)
+}
+
+type SubscriptionPatcher interface {
+	PatchSubscription(ctx context.Context, options SubscriptionPatchOptions) (Subscription, error)
+}
+
+func NewSubscriptionPatchPlan(options SubscriptionPatchOptions) (SubscriptionPatchPlan, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionPatchPlan{}, err
+	}
+	return SubscriptionPatchPlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		Listing:          options.Listing,
+		UpdateMask:       subscriptionPatchUpdateMask,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            subscriptionPatchSteps(options),
+	}, nil
+}
+
+func PatchSubscription(ctx context.Context, patcher SubscriptionPatcher, options SubscriptionPatchOptions) (SubscriptionPatchResult, error) {
+	plan, err := NewSubscriptionPatchPlan(options)
+	if err != nil {
+		return SubscriptionPatchResult{}, err
+	}
+	result := SubscriptionPatchResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		DryRun:      options.DryRun,
+		Applied:     false,
+		Desired: Subscription{
+			PackageName: options.PackageName,
+			ProductID:   options.ProductID,
+			Listings:    []SubscriptionListing{options.Listing},
+		},
+		Plan: plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if patcher == nil {
+		return SubscriptionPatchResult{}, fmt.Errorf("subscription patcher is required")
+	}
+	subscription, err := patcher.PatchSubscription(ctx, options)
+	if err != nil {
+		return SubscriptionPatchResult{}, err
+	}
+	result.Applied = true
+	result.Subscription = &subscription
+	return result, nil
 }
 
 func NewBasePlanStateUpdatePlan(options BasePlanStateUpdateOptions) (BasePlanStateUpdatePlan, error) {
@@ -456,4 +602,13 @@ func basePlanStateUpdateSteps(options BasePlanStateUpdateOptions) []string {
 		return []string{fmt.Sprintf("plan %s base plan", options.Action)}
 	}
 	return []string{fmt.Sprintf("%s base plan", options.Action)}
+}
+
+const subscriptionPatchUpdateMask = "listings"
+
+func subscriptionPatchSteps(options SubscriptionPatchOptions) []string {
+	if options.DryRun {
+		return []string{"plan subscription listing patch"}
+	}
+	return []string{"fetch current subscription", "merge localized listing", "patch subscription listings"}
 }

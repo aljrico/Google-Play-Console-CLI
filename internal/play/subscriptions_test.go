@@ -268,12 +268,108 @@ func TestUpdateBasePlanStatePassesOptionsToUpdater(t *testing.T) {
 	}
 }
 
+func TestPatchSubscriptionDryRunBuildsPlanWithoutPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := PatchSubscription(context.Background(), nil, SubscriptionPatchOptions{
+		PackageName:      packageName,
+		ProductID:        "premium",
+		Listing:          SubscriptionListing{LanguageCode: "en-US", Title: "Premium", Description: "Full access"},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("PatchSubscription() error = %v", err)
+	}
+	if !result.DryRun || result.Applied {
+		t.Fatalf("result = %#v, want dry-run patch plan", result)
+	}
+	if result.Plan.UpdateMask != "listings" {
+		t.Fatalf("UpdateMask = %q, want listings", result.Plan.UpdateMask)
+	}
+	wantSteps := []string{"plan subscription listing patch"}
+	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
+		t.Fatalf("steps = %#v, want %#v", result.Plan.Steps, wantSteps)
+	}
+}
+
+func TestPatchSubscriptionRequiresConfirmOrDryRun(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = PatchSubscription(context.Background(), nil, SubscriptionPatchOptions{
+		PackageName:      packageName,
+		ProductID:        "premium",
+		Listing:          SubscriptionListing{LanguageCode: "en-US", Title: "Premium"},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+	})
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+}
+
+func TestPatchSubscriptionRejectsTooManyBenefits(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewSubscriptionPatchPlan(SubscriptionPatchOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		Listing: SubscriptionListing{
+			LanguageCode: "en-US",
+			Title:        "Premium",
+			Benefits:     []string{"one", "two", "three", "four", "five"},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected benefits validation error")
+	}
+}
+
+func TestPatchSubscriptionPassesOptionsToPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	patcher := &fakeSubscriptionClient{
+		subscription: Subscription{ProductID: "premium"},
+	}
+	options := SubscriptionPatchOptions{
+		PackageName:      packageName,
+		ProductID:        "premium",
+		Listing:          SubscriptionListing{LanguageCode: "en-US", Title: "Premium", Description: "Full access"},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := PatchSubscription(context.Background(), patcher, options)
+	if err != nil {
+		t.Fatalf("PatchSubscription() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatal("Applied = false, want true")
+	}
+	if !reflect.DeepEqual(patcher.patchOptions, options) {
+		t.Fatalf("patchOptions = %#v, want %#v", patcher.patchOptions, options)
+	}
+}
+
 type fakeSubscriptionClient struct {
 	listOptions   SubscriptionListOptions
 	listResult    SubscriptionListResult
 	batchOptions  SubscriptionBatchGetOptions
 	batchResult   SubscriptionBatchGetResult
 	deleteOptions SubscriptionDeleteOptions
+	patchOptions  SubscriptionPatchOptions
 	productID     SubscriptionProductID
 	subscription  Subscription
 	stateOptions  BasePlanStateUpdateOptions
@@ -301,5 +397,10 @@ func (c *fakeSubscriptionClient) DeleteSubscription(ctx context.Context, options
 
 func (c *fakeSubscriptionClient) UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error) {
 	c.stateOptions = options
+	return c.subscription, nil
+}
+
+func (c *fakeSubscriptionClient) PatchSubscription(ctx context.Context, options SubscriptionPatchOptions) (Subscription, error) {
+	c.patchOptions = options
 	return c.subscription, nil
 }

@@ -164,6 +164,20 @@ func TestSendRequiresConfirmOrDryRun(t *testing.T) {
 	}
 }
 
+func TestSendSlackRequiresConfirmOrDryRunWithSlackCommandName(t *testing.T) {
+	_, err := SendSlack(context.Background(), nil, SendOptions{
+		CommandPath: "notify slack",
+		WebhookURL:  "https://example.com/hook",
+		Message:     "Release shipped",
+	})
+	if err == nil {
+		t.Fatal("SendSlack() error = nil, want confirmation validation")
+	}
+	if !strings.Contains(err.Error(), "notify slack requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want slack command validation", err)
+	}
+}
+
 func TestSendRejectsInsecureNonLoopbackWebhook(t *testing.T) {
 	_, err := Send(context.Background(), nil, SendOptions{
 		WebhookURL: "http://example.com/hook",

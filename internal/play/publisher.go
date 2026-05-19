@@ -709,6 +709,31 @@ func (p GooglePublisher) DeleteSubscription(ctx context.Context, options Subscri
 	return nil
 }
 
+func (p GooglePublisher) PatchSubscription(ctx context.Context, options SubscriptionPatchOptions) (Subscription, error) {
+	if err := options.ValidateLive(); err != nil {
+		return Subscription{}, err
+	}
+	current, err := p.service.Monetization.Subscriptions.Get(options.PackageName.String(), options.ProductID.String()).Context(ctx).Do()
+	if err != nil {
+		return Subscription{}, fmt.Errorf("get subscription %s for %s before patch: %w", options.ProductID, options.PackageName, err)
+	}
+	mergedListings := mergeSubscriptionListings(subscriptionListingsFromAPI(current.Listings), options.Listing)
+	request := &androidpublisher.Subscription{
+		PackageName: options.PackageName.String(),
+		ProductId:   options.ProductID.String(),
+		Listings:    subscriptionListingsToAPI(mergedListings),
+	}
+	subscription, err := p.service.Monetization.Subscriptions.Patch(options.PackageName.String(), options.ProductID.String(), request).
+		UpdateMask(subscriptionPatchUpdateMask).
+		LatencyTolerance(productUpdateLatencyToleranceToAPI(options.LatencyTolerance)).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return Subscription{}, fmt.Errorf("patch subscription %s for %s: %w", options.ProductID, options.PackageName, err)
+	}
+	return subscriptionFromAPI(subscription), nil
+}
+
 func (p GooglePublisher) UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error) {
 	if err := options.ValidateLive(); err != nil {
 		return Subscription{}, err
@@ -2465,6 +2490,40 @@ func subscriptionListingsFromAPI(apiListings []*androidpublisher.SubscriptionLis
 		})
 	}
 	return listings
+}
+
+func subscriptionListingsToAPI(listings []SubscriptionListing) []*androidpublisher.SubscriptionListing {
+	apiListings := make([]*androidpublisher.SubscriptionListing, 0, len(listings))
+	for _, listing := range listings {
+		apiListings = append(apiListings, subscriptionListingToAPI(listing))
+	}
+	return apiListings
+}
+
+func subscriptionListingToAPI(listing SubscriptionListing) *androidpublisher.SubscriptionListing {
+	return &androidpublisher.SubscriptionListing{
+		LanguageCode: listing.LanguageCode,
+		Title:        listing.Title,
+		Description:  listing.Description,
+		Benefits:     listing.Benefits,
+	}
+}
+
+func mergeSubscriptionListings(current []SubscriptionListing, patch SubscriptionListing) []SubscriptionListing {
+	merged := make([]SubscriptionListing, 0, len(current)+1)
+	replaced := false
+	for _, listing := range current {
+		if listing.LanguageCode == patch.LanguageCode {
+			merged = append(merged, patch)
+			replaced = true
+			continue
+		}
+		merged = append(merged, listing)
+	}
+	if !replaced {
+		merged = append(merged, patch)
+	}
+	return merged
 }
 
 func subscriptionBasePlansFromAPI(apiBasePlans []*androidpublisher.BasePlan) []SubscriptionBasePlan {

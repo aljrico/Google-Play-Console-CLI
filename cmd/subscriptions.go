@@ -20,6 +20,7 @@ func newSubscriptionsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 		newSubscriptionsListCommand(out, options, &packageName),
 		newSubscriptionsGetCommand(out, options, &packageName),
 		newSubscriptionsBatchGetCommand(out, options, &packageName),
+		newSubscriptionsPatchCommand(out, options, &packageName),
 		newSubscriptionsDeleteCommand(out, options, &packageName),
 		newSubscriptionsBasePlanCommand(out, options, &packageName),
 	)
@@ -270,6 +271,84 @@ func newSubscriptionsDeleteCommand(out io.Writer, options *globalOptions, packag
 	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription deletion")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription deletion without calling Google Play")
+	return cmd
+}
+
+func newSubscriptionsPatchCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID        string
+		listingLanguage  string
+		title            string
+		description      string
+		benefits         []string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "patch",
+		Short: "Patch a subscription listing",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedProductID, err := play.NewSubscriptionProductID(productID)
+			if err != nil {
+				return err
+			}
+			typedListingLanguage, err := play.NewListingLanguage(listingLanguage)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			patchOptions := play.SubscriptionPatchOptions{
+				PackageName: typedPackageName,
+				ProductID:   typedProductID,
+				Listing: play.SubscriptionListing{
+					LanguageCode: typedListingLanguage.String(),
+					Title:        title,
+					Description:  description,
+					Benefits:     benefits,
+				},
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.PatchSubscription(cmd.Context(), nil, patchOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewSubscriptionPatchPlan(patchOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.PatchSubscription(cmd.Context(), publisher, patchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID")
+	cmd.Flags().StringVar(&listingLanguage, "listing-language", "", "BCP-47 language code for the listing to patch, for example en-US")
+	cmd.Flags().StringVar(&title, "title", "", "Localized subscription title")
+	cmd.Flags().StringVar(&description, "description", "", "Localized subscription description")
+	cmd.Flags().StringArrayVar(&benefits, "benefit", nil, "Localized subscription benefit; repeatable, up to 4")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription listing patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription listing patch without calling Google Play")
 	return cmd
 }
 
