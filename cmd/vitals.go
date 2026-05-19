@@ -64,6 +64,6 @@ func newVitalsMetricSetGetCommand(out io.Writer, options *globalOptions, package
 			return output.Write(out, options.output, options.pretty, result)
 		},
 	}
-	cmd.Flags().StringVar(&metricSet, "metric-set", "", "Vitals metric set: anr-rate, crash-rate, error-count, excessive-wakeup-rate, lmk-rate, slow-rendering-rate, slow-start-rate, stuck-background-wakelock-rate")
+	cmd.Flags().StringVar(&metricSet, "metric-set", "", "Vitals metric set: "+reporting.SupportedMetricSetValuesText())
 	return cmd
 }

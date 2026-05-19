@@ -3,6 +3,8 @@ package reporting
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/googleclient"
 	"github.com/aljrico/Google-Play-Console-CLI/internal/play"
@@ -23,7 +25,21 @@ const (
 	MetricSetStuckBackgroundWakeLockRate MetricSet = "stuck-background-wakelock-rate"
 )
 
+var supportedMetricSets = []MetricSet{
+	MetricSetANRRate,
+	MetricSetCrashRate,
+	MetricSetErrorCount,
+	MetricSetExcessiveWakeupRate,
+	MetricSetLMKRate,
+	MetricSetSlowRenderingRate,
+	MetricSetSlowStartRate,
+	MetricSetStuckBackgroundWakeLockRate,
+}
+
 func NewMetricSet(value string) (MetricSet, error) {
+	if value == "" {
+		return "", fmt.Errorf("vitals metric set is required; supported values: %s", SupportedMetricSetValuesText())
+	}
 	switch MetricSet(value) {
 	case MetricSetANRRate,
 		MetricSetCrashRate,
@@ -35,8 +51,20 @@ func NewMetricSet(value string) (MetricSet, error) {
 		MetricSetStuckBackgroundWakeLockRate:
 		return MetricSet(value), nil
 	default:
-		return "", fmt.Errorf("unsupported vitals metric set %q", value)
+		return "", fmt.Errorf("unsupported vitals metric set %q; supported values: %s", value, SupportedMetricSetValuesText())
 	}
+}
+
+func SupportedMetricSetValues() []string {
+	values := make([]string, 0, len(supportedMetricSets))
+	for _, metricSet := range supportedMetricSets {
+		values = append(values, metricSet.String())
+	}
+	return values
+}
+
+func SupportedMetricSetValuesText() string {
+	return strings.Join(SupportedMetricSetValues(), ", ")
 }
 
 func (m MetricSet) String() string {
@@ -233,6 +261,9 @@ func freshnessesFromAPI(apiFreshness *playdeveloperreporting.GooglePlayDeveloper
 			LatestEndTime:     dateTimeFromAPI(apiFreshness.LatestEndTime),
 		})
 	}
+	sort.Slice(freshnesses, func(i int, j int) bool {
+		return freshnesses[i].AggregationPeriod < freshnesses[j].AggregationPeriod
+	})
 	return freshnesses
 }
 

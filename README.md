@@ -30,7 +30,7 @@ gpc auth doctor
 gpc init --dry-run
 ```
 
-The service account needs access to the target app in Play Console and the Google Play Android Developer API enabled in the linked Google Cloud project.
+The service account needs access to the target app in Play Console. Android Publisher commands require the Google Play Android Developer API; `vitals` also requires the Play Developer Reporting API and app-level "View app information (read-only)" access.
 
 ### Command Shape
 
@@ -104,7 +104,7 @@ gpc grants create --developer 1234567890 --user-email user@example.com --package
 
 Review APIs follow Google Play's limits: list responses are recent reviews with comments, reply text is capped at 350 characters, and live replies require a service account with review-reply access.
 
-`vitals` uses the Play Developer Reporting API, which is separate from Android Publisher and requires the service account to have reporting access.
+`vitals` uses the Play Developer Reporting API, which is separate from Android Publisher and requires the Play Developer Reporting API to be enabled plus app-level "View app information (read-only)" access.
 
 `in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources.
 
