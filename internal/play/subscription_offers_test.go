@@ -275,6 +275,221 @@ func TestUpdateSubscriptionOfferStateDryRunBuildsPlanWithoutUpdater(t *testing.T
 	}
 }
 
+func TestCreateSubscriptionOfferDryRunBuildsPlanWithoutCreator(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	offer := validSubscriptionOfferForCreate()
+	offer.State = SubscriptionOfferStateActive
+	result, err := CreateSubscriptionOffer(context.Background(), nil, SubscriptionOfferCreateOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		OfferID:        "intro",
+		Offer:          offer,
+		RegionsVersion: "2026/05",
+		DryRun:         true,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubscriptionOffer() error = %v", err)
+	}
+	if !result.DryRun || result.Created {
+		t.Fatalf("result = %#v, want dry-run create", result)
+	}
+	if result.Desired.PackageName != packageName || result.Desired.ProductID != "premium" || result.Desired.BasePlanID != "monthly" || result.Desired.OfferID != "intro" {
+		t.Fatalf("Desired = %#v, want IDs from options", result.Desired)
+	}
+	if result.Desired.State != "" {
+		t.Fatalf("Desired.State = %q, want output-only state cleared", result.Desired.State)
+	}
+}
+
+func TestDecodeSubscriptionOfferCreateJSONAcceptsGooglePlayAPIJSON(t *testing.T) {
+	offer, err := DecodeSubscriptionOfferCreateJSON([]byte(`{
+		"packageName":"ignored",
+		"productId":"ignored",
+		"basePlanId":"ignored",
+		"offerId":"ignored",
+		"state":"ACTIVE",
+		"offerTags":[{"tag":"intro"}],
+		"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}],
+		"otherRegionsConfig":{"otherRegionsNewSubscriberAvailability":true},
+		"phases":[{
+			"duration":"P1M",
+			"recurrenceCount":1,
+			"regionalConfigs":[{"regionCode":"US","free":{}}],
+			"otherRegionsConfig":{"free":{}}
+		}],
+		"targeting":{"acquisitionRule":{"scope":{"thisSubscription":{}}}}
+	}`))
+	if err != nil {
+		t.Fatalf("DecodeSubscriptionOfferCreateJSON() error = %v", err)
+	}
+	if len(offer.OfferTags) != 1 || offer.OfferTags[0] != "intro" {
+		t.Fatalf("OfferTags = %#v, want decoded API tags", offer.OfferTags)
+	}
+	if offer.OtherRegionsConfig == nil || !offer.OtherRegionsConfig.NewSubscriberAvailability {
+		t.Fatalf("OtherRegionsConfig = %#v, want decoded API other-regions availability", offer.OtherRegionsConfig)
+	}
+	if len(offer.Phases) != 1 || !offer.Phases[0].RegionalConfigs[0].Free || offer.Phases[0].OtherRegionsConfig == nil || !offer.Phases[0].OtherRegionsConfig.Free {
+		t.Fatalf("Phases = %#v, want decoded API free phase", offer.Phases)
+	}
+	if offer.Targeting == nil || offer.Targeting.Acquisition == nil || offer.Targeting.Acquisition.Scope == nil || !offer.Targeting.Acquisition.Scope.ThisSubscription {
+		t.Fatalf("Targeting = %#v, want decoded acquisition targeting", offer.Targeting)
+	}
+}
+
+func TestDecodeSubscriptionOfferCreateJSONRejectsUnknownFields(t *testing.T) {
+	_, err := DecodeSubscriptionOfferCreateJSON([]byte(`{"regionalConfigs":[],"bogus":true}`))
+	if err == nil {
+		t.Fatal("expected unknown field validation error")
+	}
+}
+
+func TestDecodeSubscriptionOfferCreateJSONRejectsNestedUnknownFields(t *testing.T) {
+	_, err := DecodeSubscriptionOfferCreateJSON([]byte(`{
+		"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}],
+		"phases":[{
+			"duration":"P1M",
+			"recurrenceCount":1,
+			"regionalConfigs":[{"regionCode":"US","free":{},"typo":true}]
+		}]
+	}`))
+	if err == nil {
+		t.Fatal("expected nested unknown field validation error")
+	}
+}
+
+func TestCreateSubscriptionOfferRejectsInvalidOfferBody(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	tests := []struct {
+		name  string
+		offer SubscriptionOffer
+	}{
+		{name: "missing regions", offer: SubscriptionOffer{Phases: validSubscriptionOfferForCreate().Phases}},
+		{name: "missing phases", offer: SubscriptionOffer{RegionalConfigs: validSubscriptionOfferForCreate().RegionalConfigs}},
+		{
+			name: "phase missing region config",
+			offer: SubscriptionOffer{
+				RegionalConfigs: []SubscriptionOfferRegionalConfig{{RegionCode: "US", NewSubscriberAvailability: true}},
+				Phases:          []SubscriptionOfferPhase{{Duration: "P1M", RecurrenceCount: 1}},
+			},
+		},
+		{
+			name: "multiple price modes",
+			offer: SubscriptionOffer{
+				RegionalConfigs: []SubscriptionOfferRegionalConfig{{RegionCode: "US", NewSubscriberAvailability: true}},
+				Phases: []SubscriptionOfferPhase{{
+					Duration:        "P1M",
+					RecurrenceCount: 1,
+					RegionalConfigs: []SubscriptionOfferPhaseRegionalConfig{{RegionCode: "US", Price: &Money{CurrencyCode: "USD", Units: 1}, Free: true}},
+				}},
+			},
+		},
+		{
+			name: "invalid offer tag",
+			offer: func() SubscriptionOffer {
+				offer := validSubscriptionOfferForCreate()
+				offer.OfferTags = []string{"Bad_Tag"}
+				return offer
+			}(),
+		},
+		{
+			name: "invalid offer tag leading hyphen",
+			offer: func() SubscriptionOffer {
+				offer := validSubscriptionOfferForCreate()
+				offer.OfferTags = []string{"-intro"}
+				return offer
+			}(),
+		},
+		{
+			name: "invalid offer tag trailing hyphen",
+			offer: func() SubscriptionOffer {
+				offer := validSubscriptionOfferForCreate()
+				offer.OfferTags = []string{"intro-"}
+				return offer
+			}(),
+		},
+		{
+			name: "invalid duration",
+			offer: func() SubscriptionOffer {
+				offer := validSubscriptionOfferForCreate()
+				offer.Phases[0].Duration = "Pizza"
+				return offer
+			}(),
+		},
+		{
+			name: "invalid duration trailing time marker",
+			offer: func() SubscriptionOffer {
+				offer := validSubscriptionOfferForCreate()
+				offer.Phases[0].Duration = "P1MT"
+				return offer
+			}(),
+		},
+		{
+			name: "empty other regions phase config",
+			offer: func() SubscriptionOffer {
+				offer := validSubscriptionOfferForCreate()
+				offer.Phases[0].OtherRegionsConfig = &SubscriptionOfferPhaseOtherRegionsConfig{}
+				return offer
+			}(),
+		},
+		{
+			name: "missing eur other regions price",
+			offer: func() SubscriptionOffer {
+				offer := validSubscriptionOfferForCreate()
+				offer.Phases[0].OtherRegionsConfig = &SubscriptionOfferPhaseOtherRegionsConfig{
+					OtherRegionsPrices: &SubscriptionOfferOtherRegionsPrices{USDPrice: &Money{CurrencyCode: "USD", Units: 1}},
+				}
+				return offer
+			}(),
+		},
+		{
+			name: "invalid acquisition specific scope",
+			offer: func() SubscriptionOffer {
+				offer := validSubscriptionOfferForCreate()
+				offer.Targeting = &SubscriptionOfferTargeting{Acquisition: &SubscriptionOfferAcquisitionTargeting{
+					Scope: &SubscriptionOfferTargetingScope{SpecificSubscriptionInApp: "other"},
+				}}
+				return offer
+			}(),
+		},
+		{
+			name: "invalid targeting union",
+			offer: func() SubscriptionOffer {
+				offer := validSubscriptionOfferForCreate()
+				offer.Targeting = &SubscriptionOfferTargeting{
+					Acquisition: &SubscriptionOfferAcquisitionTargeting{Scope: &SubscriptionOfferTargetingScope{ThisSubscription: true}},
+					Upgrade:     &SubscriptionOfferUpgradeTargeting{Scope: &SubscriptionOfferTargetingScope{ThisSubscription: true}},
+				}
+				return offer
+			}(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := CreateSubscriptionOffer(context.Background(), nil, SubscriptionOfferCreateOptions{
+				PackageName:    packageName,
+				ProductID:      "premium",
+				BasePlanID:     "monthly",
+				OfferID:        "intro",
+				Offer:          test.offer,
+				RegionsVersion: "2026/05",
+				DryRun:         true,
+			})
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
 func TestBatchUpdateSubscriptionOfferStatesDryRunBuildsPlanWithoutUpdater(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -1075,6 +1290,7 @@ type fakeSubscriptionOfferClient struct {
 	batchPhaseAbsoluteDiscountResult  SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsResult
 	batchPhasePriceOptions            SubscriptionOfferBatchPatchPhasePricesOptions
 	batchPhasePriceResult             SubscriptionOfferBatchPatchPhasePricesResult
+	createOptions                     SubscriptionOfferCreateOptions
 	deleteOptions                     SubscriptionOfferDeleteOptions
 	offerID                           SubscriptionOfferID
 	offer                             SubscriptionOffer
@@ -1088,6 +1304,11 @@ func (c *fakeSubscriptionOfferClient) ListSubscriptionOffers(ctx context.Context
 
 func (c *fakeSubscriptionOfferClient) GetSubscriptionOffer(ctx context.Context, packageName PackageName, productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, offerID SubscriptionOfferID) (SubscriptionOffer, error) {
 	c.offerID = offerID
+	return c.offer, nil
+}
+
+func (c *fakeSubscriptionOfferClient) CreateSubscriptionOffer(ctx context.Context, options SubscriptionOfferCreateOptions) (SubscriptionOffer, error) {
+	c.createOptions = options
 	return c.offer, nil
 }
 
@@ -1129,4 +1350,29 @@ func (c *fakeSubscriptionOfferClient) DeleteSubscriptionOffer(ctx context.Contex
 func (c *fakeSubscriptionOfferClient) UpdateSubscriptionOfferState(ctx context.Context, options SubscriptionOfferStateUpdateOptions) (SubscriptionOffer, error) {
 	c.stateOptions = options
 	return c.offer, nil
+}
+
+func validSubscriptionOfferForCreate() SubscriptionOffer {
+	return SubscriptionOffer{
+		OfferTags: []string{"intro"},
+		RegionalConfigs: []SubscriptionOfferRegionalConfig{
+			{RegionCode: "US", NewSubscriberAvailability: true},
+			{RegionCode: "FR", NewSubscriberAvailability: true},
+		},
+		OtherRegionsConfig: &SubscriptionOfferOtherRegionsConfig{NewSubscriberAvailability: true},
+		Phases: []SubscriptionOfferPhase{{
+			Duration:        "P1M",
+			RecurrenceCount: 1,
+			RegionalConfigs: []SubscriptionOfferPhaseRegionalConfig{
+				{RegionCode: "US", Price: &Money{CurrencyCode: "USD", Units: 1}},
+				{RegionCode: "FR", Price: &Money{CurrencyCode: "EUR", Nanos: 990000000}},
+			},
+			OtherRegionsConfig: &SubscriptionOfferPhaseOtherRegionsConfig{
+				OtherRegionsPrices: &SubscriptionOfferOtherRegionsPrices{
+					USDPrice: &Money{CurrencyCode: "USD", Units: 1},
+					EURPrice: &Money{CurrencyCode: "EUR", Units: 1},
+				},
+			},
+		}},
+	}
 }

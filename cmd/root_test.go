@@ -7361,6 +7361,121 @@ func TestSubscriptionOffersBatchPatchPhaseAbsoluteDiscountsDryRunDoesNotRequireA
 	}
 }
 
+func TestSubscriptionOffersCreateDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "offer.json")
+	if err := os.WriteFile(bodyPath, []byte(`{
+		"state":"ACTIVE",
+		"offerTags":[{"tag":"intro"}],
+		"regionalConfigs":[
+			{"regionCode":"US","newSubscriberAvailability":true},
+			{"regionCode":"FR","newSubscriberAvailability":true}
+		],
+		"otherRegionsConfig":{"otherRegionsNewSubscriberAvailability":true},
+		"phases":[{
+			"duration":"P1M",
+			"recurrenceCount":1,
+			"regionalConfigs":[
+				{"regionCode":"US","price":{"currencyCode":"USD","units":"1"}},
+				{"regionCode":"FR","price":{"currencyCode":"EUR","nanos":990000000}}
+			],
+			"otherRegionsConfig":{"free":{}}
+		}],
+		"targeting":{"acquisitionRule":{"scope":{"thisSubscription":{}}}}
+	}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--from-json",
+		bodyPath,
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"action":"create"`,
+		`"dryRun":true`,
+		`"created":false`,
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"offerId":"intro"`,
+		`"regionsVersion":"2026/05"`,
+		`"currencyCode":"USD"`,
+		`"nanos":990000000`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+	if strings.Contains(output, `"state":"ACTIVE"`) {
+		t.Fatalf("output = %s, did not expect output-only state from input JSON", output)
+	}
+}
+
+func TestSubscriptionOffersCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "offer.json")
+	if err := os.WriteFile(bodyPath, []byte(`{"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}]}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--from-json",
+		bodyPath,
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected offer body validation error")
+	}
+	if !strings.Contains(err.Error(), "requires one or two phases") {
+		t.Fatalf("error = %v, want phase validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestSubscriptionOffersBatchPatchPhaseAbsoluteDiscountsRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

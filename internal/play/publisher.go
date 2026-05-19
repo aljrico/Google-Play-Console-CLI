@@ -2114,6 +2114,26 @@ func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName P
 	return subscriptionOfferFromAPI(offer), nil
 }
 
+func (p GooglePublisher) CreateSubscriptionOffer(ctx context.Context, options SubscriptionOfferCreateOptions) (SubscriptionOffer, error) {
+	if err := options.ValidateLive(); err != nil {
+		return SubscriptionOffer{}, err
+	}
+	offer, err := p.service.Monetization.Subscriptions.BasePlans.Offers.Create(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.BasePlanID.String(),
+		subscriptionOfferCreateToAPI(options),
+	).
+		OfferId(options.OfferID.String()).
+		RegionsVersionVersion(options.RegionsVersion).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return SubscriptionOffer{}, fmt.Errorf("create subscription offer %s for %s/%s/%s: %w", options.OfferID, options.PackageName, options.ProductID, options.BasePlanID, err)
+	}
+	return subscriptionOfferFromAPI(offer), nil
+}
+
 func (p GooglePublisher) DeleteSubscriptionOffer(ctx context.Context, options SubscriptionOfferDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
@@ -4795,6 +4815,21 @@ func subscriptionOfferFromAPI(apiOffer *androidpublisher.SubscriptionOffer) Subs
 	}
 }
 
+func subscriptionOfferCreateToAPI(options SubscriptionOfferCreateOptions) *androidpublisher.SubscriptionOffer {
+	offer := subscriptionOfferCreateDesiredOffer(options)
+	return &androidpublisher.SubscriptionOffer{
+		PackageName:        offer.PackageName.String(),
+		ProductId:          offer.ProductID.String(),
+		BasePlanId:         offer.BasePlanID.String(),
+		OfferId:            offer.OfferID.String(),
+		OfferTags:          offerTagsToAPI(offer.OfferTags),
+		RegionalConfigs:    subscriptionOfferRegionalConfigsToAPI(offer.RegionalConfigs),
+		OtherRegionsConfig: subscriptionOfferOtherRegionsConfigToAPI(offer.OtherRegionsConfig),
+		Phases:             subscriptionOfferPhasesToAPI(offer.Phases),
+		Targeting:          subscriptionOfferTargetingToAPI(offer.Targeting),
+	}
+}
+
 func subscriptionOfferRegionalConfigsFromAPI(apiConfigs []*androidpublisher.RegionalSubscriptionOfferConfig) []SubscriptionOfferRegionalConfig {
 	configs := make([]SubscriptionOfferRegionalConfig, 0, len(apiConfigs))
 	for _, apiConfig := range apiConfigs {
@@ -4856,6 +4891,17 @@ func subscriptionOfferOtherRegionsConfigFromAPI(apiConfig *androidpublisher.Othe
 		return nil
 	}
 	return &SubscriptionOfferOtherRegionsConfig{NewSubscriberAvailability: apiConfig.OtherRegionsNewSubscriberAvailability}
+}
+
+func subscriptionOfferOtherRegionsConfigToAPI(config *SubscriptionOfferOtherRegionsConfig) *androidpublisher.OtherRegionsSubscriptionOfferConfig {
+	if config == nil {
+		return nil
+	}
+	apiConfig := &androidpublisher.OtherRegionsSubscriptionOfferConfig{
+		OtherRegionsNewSubscriberAvailability: config.NewSubscriberAvailability,
+	}
+	apiConfig.ForceSendFields = append(apiConfig.ForceSendFields, "OtherRegionsNewSubscriberAvailability")
+	return apiConfig
 }
 
 func subscriptionOfferPhasesFromAPI(apiPhases []*androidpublisher.SubscriptionOfferPhase) []SubscriptionOfferPhase {
@@ -5103,11 +5149,28 @@ func subscriptionOfferTargetingFromAPI(apiTargeting *androidpublisher.Subscripti
 	}
 }
 
+func subscriptionOfferTargetingToAPI(targeting *SubscriptionOfferTargeting) *androidpublisher.SubscriptionOfferTargeting {
+	if targeting == nil {
+		return nil
+	}
+	return &androidpublisher.SubscriptionOfferTargeting{
+		AcquisitionRule: subscriptionOfferAcquisitionTargetingToAPI(targeting.Acquisition),
+		UpgradeRule:     subscriptionOfferUpgradeTargetingToAPI(targeting.Upgrade),
+	}
+}
+
 func subscriptionOfferAcquisitionTargetingFromAPI(apiRule *androidpublisher.AcquisitionTargetingRule) *SubscriptionOfferAcquisitionTargeting {
 	if apiRule == nil {
 		return nil
 	}
 	return &SubscriptionOfferAcquisitionTargeting{Scope: subscriptionOfferTargetingScopeFromAPI(apiRule.Scope)}
+}
+
+func subscriptionOfferAcquisitionTargetingToAPI(rule *SubscriptionOfferAcquisitionTargeting) *androidpublisher.AcquisitionTargetingRule {
+	if rule == nil {
+		return nil
+	}
+	return &androidpublisher.AcquisitionTargetingRule{Scope: subscriptionOfferTargetingScopeToAPI(rule.Scope)}
 }
 
 func subscriptionOfferUpgradeTargetingFromAPI(apiRule *androidpublisher.UpgradeTargetingRule) *SubscriptionOfferUpgradeTargeting {
@@ -5121,6 +5184,21 @@ func subscriptionOfferUpgradeTargetingFromAPI(apiRule *androidpublisher.UpgradeT
 	}
 }
 
+func subscriptionOfferUpgradeTargetingToAPI(rule *SubscriptionOfferUpgradeTargeting) *androidpublisher.UpgradeTargetingRule {
+	if rule == nil {
+		return nil
+	}
+	apiRule := &androidpublisher.UpgradeTargetingRule{
+		Scope:                 subscriptionOfferTargetingScopeToAPI(rule.Scope),
+		BillingPeriodDuration: rule.BillingPeriodDuration,
+		OncePerUser:           rule.OncePerUser,
+	}
+	if rule.OncePerUser {
+		apiRule.ForceSendFields = append(apiRule.ForceSendFields, "OncePerUser")
+	}
+	return apiRule
+}
+
 func subscriptionOfferTargetingScopeFromAPI(apiScope *androidpublisher.TargetingRuleScope) *SubscriptionOfferTargetingScope {
 	if apiScope == nil {
 		return nil
@@ -5130,6 +5208,22 @@ func subscriptionOfferTargetingScopeFromAPI(apiScope *androidpublisher.Targeting
 		ThisSubscription:          apiScope.ThisSubscription != nil,
 		SpecificSubscriptionInApp: apiScope.SpecificSubscriptionInApp,
 	}
+}
+
+func subscriptionOfferTargetingScopeToAPI(scope *SubscriptionOfferTargetingScope) *androidpublisher.TargetingRuleScope {
+	if scope == nil {
+		return nil
+	}
+	apiScope := &androidpublisher.TargetingRuleScope{
+		SpecificSubscriptionInApp: scope.SpecificSubscriptionInApp,
+	}
+	if scope.AnySubscriptionInApp {
+		apiScope.AnySubscriptionInApp = &androidpublisher.TargetingRuleScopeAnySubscriptionInApp{}
+	}
+	if scope.ThisSubscription {
+		apiScope.ThisSubscription = &androidpublisher.TargetingRuleScopeThisSubscription{}
+	}
+	return apiScope
 }
 
 func userListResultFromAPI(developer DeveloperAccount, response *androidpublisher.ListUsersResponse) UserListResult {

@@ -4,12 +4,18 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 )
 
 type SubscriptionBasePlanID string
 
 const SubscriptionOfferWildcardID = "-"
+
+var (
+	subscriptionOfferTagPattern = regexp.MustCompile(`^[a-z]([a-z0-9-]{0,18}[a-z0-9])?$`)
+	isoDurationPattern          = regexp.MustCompile(`^P(?:\d+(?:[.,]\d+)?Y)?(?:\d+(?:[.,]\d+)?M)?(?:\d+(?:[.,]\d+)?W)?(?:\d+(?:[.,]\d+)?D)?(?:T(?:\d+(?:[.,]\d+)?H)?(?:\d+(?:[.,]\d+)?M)?(?:\d+(?:[.,]\d+)?S)?)?$`)
+)
 
 func NewSubscriptionBasePlanID(value string) (SubscriptionBasePlanID, error) {
 	if value == "" {
@@ -264,6 +270,17 @@ func GetSubscriptionOffer(ctx context.Context, getter SubscriptionOfferGetter, o
 	return getter.GetSubscriptionOffer(ctx, options.PackageName, options.ProductID, options.BasePlanID, options.OfferID)
 }
 
+type SubscriptionOfferCreateOptions struct {
+	PackageName    PackageName            `json:"packageName"`
+	ProductID      SubscriptionProductID  `json:"productId"`
+	BasePlanID     SubscriptionBasePlanID `json:"basePlanId"`
+	OfferID        SubscriptionOfferID    `json:"offerId"`
+	Offer          SubscriptionOffer      `json:"offer"`
+	RegionsVersion string                 `json:"regionsVersion"`
+	Confirm        bool                   `json:"confirm"`
+	DryRun         bool                   `json:"dryRun"`
+}
+
 type SubscriptionOfferBatchGetRequest struct {
 	ProductID  SubscriptionProductID  `json:"productId"`
 	BasePlanID SubscriptionBasePlanID `json:"basePlanId"`
@@ -434,6 +451,51 @@ func (o SubscriptionOfferBatchGetOptions) Validate() error {
 			return fmt.Errorf("subscription offer %s is duplicated", key)
 		}
 		seen[key] = struct{}{}
+	}
+	return nil
+}
+
+func (o SubscriptionOfferCreateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionBasePlanID(o.BasePlanID.String()); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionOfferID(o.OfferID.String()); err != nil {
+		return err
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	offer := subscriptionOfferCreateDesiredOffer(o)
+	if err := validateSubscriptionOfferForCreate(offer); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("subscription offer create requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o SubscriptionOfferCreateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live subscription offer create cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live subscription offer create requires --confirm")
 	}
 	return nil
 }
@@ -794,6 +856,245 @@ func validateSubscriptionOfferPhasePricePatchParents(productID SubscriptionProdu
 	return validateSubscriptionOfferBatchMutationParents(productID, basePlanID, deduplicateSubscriptionOfferMutationRequests(mutationRequests), "phase price batch patch")
 }
 
+func validateSubscriptionOfferForCreate(offer SubscriptionOffer) error {
+	if len(offer.OfferTags) > 20 {
+		return fmt.Errorf("subscription offer create supports at most 20 offer tags")
+	}
+	seenTags := map[string]struct{}{}
+	for _, tag := range offer.OfferTags {
+		if err := validateSubscriptionOfferTag(tag); err != nil {
+			return err
+		}
+		if _, ok := seenTags[tag]; ok {
+			return fmt.Errorf("subscription offer create offer tag %q is duplicated", tag)
+		}
+		seenTags[tag] = struct{}{}
+	}
+	if len(offer.RegionalConfigs) == 0 {
+		return fmt.Errorf("subscription offer create requires at least one regional config")
+	}
+	regions := map[string]struct{}{}
+	for _, config := range offer.RegionalConfigs {
+		if !isValidRegionCode(config.RegionCode) {
+			return fmt.Errorf("subscription offer create region must be a two-letter ISO 3166 code")
+		}
+		if _, ok := regions[config.RegionCode]; ok {
+			return fmt.Errorf("subscription offer create region %s is duplicated", config.RegionCode)
+		}
+		regions[config.RegionCode] = struct{}{}
+	}
+	if len(offer.Phases) == 0 || len(offer.Phases) > 2 {
+		return fmt.Errorf("subscription offer create requires one or two phases")
+	}
+	for phaseIndex, phase := range offer.Phases {
+		if err := validateISODuration("subscription offer create phase duration", phase.Duration); err != nil {
+			return fmt.Errorf("subscription offer create phase %d: %w", phaseIndex, err)
+		}
+		if phase.RecurrenceCount <= 0 {
+			return fmt.Errorf("subscription offer create phase %d recurrence count must be greater than 0", phaseIndex)
+		}
+		if len(phase.RegionalConfigs) != len(regions) {
+			return fmt.Errorf("subscription offer create phase %d must have exactly one regional price config for each offer region", phaseIndex)
+		}
+		phaseRegions := map[string]struct{}{}
+		for _, config := range phase.RegionalConfigs {
+			if _, ok := regions[config.RegionCode]; !ok {
+				return fmt.Errorf("subscription offer create phase %d region %s is not configured on the offer", phaseIndex, config.RegionCode)
+			}
+			if _, ok := phaseRegions[config.RegionCode]; ok {
+				return fmt.Errorf("subscription offer create phase %d region %s is duplicated", phaseIndex, config.RegionCode)
+			}
+			phaseRegions[config.RegionCode] = struct{}{}
+			if err := validateSubscriptionOfferPhaseRegionalPriceMode(config); err != nil {
+				return fmt.Errorf("subscription offer create phase %d region %s: %w", phaseIndex, config.RegionCode, err)
+			}
+		}
+		if phase.OtherRegionsConfig != nil {
+			if err := validateSubscriptionOfferPhaseOtherRegionsPriceMode(*phase.OtherRegionsConfig); err != nil {
+				return fmt.Errorf("subscription offer create phase %d other regions: %w", phaseIndex, err)
+			}
+		}
+	}
+	if offer.Targeting != nil {
+		if err := validateSubscriptionOfferTargetingForCreate(*offer.Targeting); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSubscriptionOfferTag(tag string) error {
+	if strings.TrimSpace(tag) == "" {
+		return fmt.Errorf("subscription offer create offer tags cannot be empty")
+	}
+	if len(tag) > 20 {
+		return fmt.Errorf("subscription offer create offer tag %q cannot exceed 20 characters", tag)
+	}
+	if !subscriptionOfferTagPattern.MatchString(tag) {
+		return fmt.Errorf("subscription offer create offer tag %q must use RFC-1034 format with lower-case letters, digits, and hyphens", tag)
+	}
+	return nil
+}
+
+func validateSubscriptionOfferPhaseRegionalPriceMode(config SubscriptionOfferPhaseRegionalConfig) error {
+	modes := 0
+	if config.Price != nil {
+		if err := validateMoney(*config.Price); err != nil {
+			return err
+		}
+		modes++
+	}
+	if config.AbsoluteDiscount != nil {
+		if err := validateMoney(*config.AbsoluteDiscount); err != nil {
+			return err
+		}
+		modes++
+	}
+	if config.RelativeDiscount != 0 {
+		if config.RelativeDiscount <= 0 || config.RelativeDiscount >= 1 {
+			return fmt.Errorf("relative discount must be greater than 0 and less than 1")
+		}
+		modes++
+	}
+	if config.Free {
+		modes++
+	}
+	if modes != 1 {
+		return fmt.Errorf("exactly one of price, absoluteDiscount, relativeDiscount, or free is required")
+	}
+	return nil
+}
+
+func validateSubscriptionOfferPhaseOtherRegionsPriceMode(config SubscriptionOfferPhaseOtherRegionsConfig) error {
+	modes := 0
+	if config.OtherRegionsPrices != nil {
+		if err := validateSubscriptionOfferOtherRegionsPrices(*config.OtherRegionsPrices); err != nil {
+			return err
+		}
+		modes++
+	}
+	if config.AbsoluteDiscounts != nil {
+		if err := validateSubscriptionOfferOtherRegionsPrices(*config.AbsoluteDiscounts); err != nil {
+			return err
+		}
+		modes++
+	}
+	if config.RelativeDiscount != 0 {
+		if config.RelativeDiscount <= 0 || config.RelativeDiscount >= 1 {
+			return fmt.Errorf("relative discount must be greater than 0 and less than 1")
+		}
+		modes++
+	}
+	if config.Free {
+		modes++
+	}
+	if modes != 1 {
+		return fmt.Errorf("exactly one of otherRegionsPrices, absoluteDiscounts, relativeDiscount, or free is required")
+	}
+	return nil
+}
+
+func validateSubscriptionOfferOtherRegionsPrices(prices SubscriptionOfferOtherRegionsPrices) error {
+	if prices.USDPrice == nil || prices.EURPrice == nil {
+		return fmt.Errorf("usdPrice and eurPrice are required")
+	}
+	if prices.USDPrice.CurrencyCode != "USD" {
+		return fmt.Errorf("usdPrice currencyCode must be USD")
+	}
+	if prices.EURPrice.CurrencyCode != "EUR" {
+		return fmt.Errorf("eurPrice currencyCode must be EUR")
+	}
+	if err := validateMoney(*prices.USDPrice); err != nil {
+		return err
+	}
+	if err := validateMoney(*prices.EURPrice); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateSubscriptionOfferTargetingForCreate(targeting SubscriptionOfferTargeting) error {
+	hasAcquisition := targeting.Acquisition != nil
+	hasUpgrade := targeting.Upgrade != nil
+	if hasAcquisition == hasUpgrade {
+		return fmt.Errorf("subscription offer create targeting requires exactly one of acquisition or upgrade")
+	}
+	if hasAcquisition {
+		return validateSubscriptionOfferAcquisitionTargetingForCreate(*targeting.Acquisition)
+	}
+	return validateSubscriptionOfferUpgradeTargetingForCreate(*targeting.Upgrade)
+}
+
+func validateSubscriptionOfferAcquisitionTargetingForCreate(targeting SubscriptionOfferAcquisitionTargeting) error {
+	if targeting.Scope == nil {
+		return fmt.Errorf("subscription offer create acquisition targeting requires scope")
+	}
+	scope, err := validateSubscriptionOfferTargetingScope(*targeting.Scope)
+	if err != nil {
+		return err
+	}
+	if scope == "specificSubscriptionInApp" {
+		return fmt.Errorf("subscription offer create acquisition targeting cannot use specificSubscriptionInApp")
+	}
+	return nil
+}
+
+func validateSubscriptionOfferUpgradeTargetingForCreate(targeting SubscriptionOfferUpgradeTargeting) error {
+	if targeting.Scope == nil {
+		return fmt.Errorf("subscription offer create upgrade targeting requires scope")
+	}
+	scope, err := validateSubscriptionOfferTargetingScope(*targeting.Scope)
+	if err != nil {
+		return err
+	}
+	if scope == "anySubscriptionInApp" {
+		return fmt.Errorf("subscription offer create upgrade targeting cannot use anySubscriptionInApp")
+	}
+	if targeting.BillingPeriodDuration != "" {
+		if err := validateISODuration("subscription offer create upgrade billing period duration", targeting.BillingPeriodDuration); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateSubscriptionOfferTargetingScope(scope SubscriptionOfferTargetingScope) (string, error) {
+	modes := 0
+	selected := ""
+	if scope.AnySubscriptionInApp {
+		modes++
+		selected = "anySubscriptionInApp"
+	}
+	if scope.ThisSubscription {
+		modes++
+		selected = "thisSubscription"
+	}
+	if scope.SpecificSubscriptionInApp != "" {
+		if _, err := NewSubscriptionProductID(scope.SpecificSubscriptionInApp); err != nil {
+			return "", err
+		}
+		modes++
+		selected = "specificSubscriptionInApp"
+	}
+	if modes != 1 {
+		return "", fmt.Errorf("subscription offer create targeting scope requires exactly one of anySubscriptionInApp, thisSubscription, or specificSubscriptionInApp")
+	}
+	return selected, nil
+}
+
+func validateISODuration(fieldName, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("%s is required", fieldName)
+	}
+	if strings.TrimSpace(value) != value {
+		return fmt.Errorf("%s cannot have leading or trailing whitespace", fieldName)
+	}
+	if !isoDurationPattern.MatchString(value) || !strings.ContainsAny(value, "0123456789") || value == "P" || value == "PT" || strings.HasSuffix(value, "T") {
+		return fmt.Errorf("%s must use ISO 8601 duration format", fieldName)
+	}
+	return nil
+}
+
 func deduplicateSubscriptionOfferMutationRequests(requests []SubscriptionOfferBatchMutationRequest) []SubscriptionOfferBatchMutationRequest {
 	seen := map[string]struct{}{}
 	deduplicated := make([]SubscriptionOfferBatchMutationRequest, 0, len(requests))
@@ -814,6 +1115,26 @@ type SubscriptionOfferBatchGetResult struct {
 	BasePlanID  SubscriptionBasePlanID           `json:"basePlanId"`
 	Offers      []SubscriptionOffer              `json:"offers"`
 	Options     SubscriptionOfferBatchGetOptions `json:"options"`
+}
+
+type SubscriptionOfferCreatePlan struct {
+	Action         string                 `json:"action"`
+	PackageName    PackageName            `json:"packageName"`
+	ProductID      SubscriptionProductID  `json:"productId"`
+	BasePlanID     SubscriptionBasePlanID `json:"basePlanId"`
+	OfferID        SubscriptionOfferID    `json:"offerId"`
+	RegionsVersion string                 `json:"regionsVersion"`
+	Confirm        bool                   `json:"confirm"`
+	Steps          []string               `json:"steps"`
+}
+
+type SubscriptionOfferCreateResult struct {
+	Action  string                      `json:"action"`
+	DryRun  bool                        `json:"dryRun"`
+	Created bool                        `json:"created"`
+	Offer   *SubscriptionOffer          `json:"offer,omitempty"`
+	Desired SubscriptionOffer           `json:"desiredOffer"`
+	Plan    SubscriptionOfferCreatePlan `json:"plan"`
 }
 
 type SubscriptionOfferBatchStateUpdatePlan struct {
@@ -1006,6 +1327,10 @@ type SubscriptionOfferBatchGetter interface {
 	BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error)
 }
 
+type SubscriptionOfferCreator interface {
+	CreateSubscriptionOffer(ctx context.Context, options SubscriptionOfferCreateOptions) (SubscriptionOffer, error)
+}
+
 type SubscriptionOfferBatchStateUpdater interface {
 	BatchUpdateSubscriptionOfferStates(ctx context.Context, options SubscriptionOfferBatchStateUpdateOptions) (SubscriptionOfferBatchStateUpdateResult, error)
 }
@@ -1038,6 +1363,51 @@ func BatchGetSubscriptionOffers(ctx context.Context, getter SubscriptionOfferBat
 		return SubscriptionOfferBatchGetResult{}, fmt.Errorf("subscription offer batch getter is required")
 	}
 	return getter.BatchGetSubscriptionOffers(ctx, options)
+}
+
+func CreateSubscriptionOffer(ctx context.Context, creator SubscriptionOfferCreator, options SubscriptionOfferCreateOptions) (SubscriptionOfferCreateResult, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionOfferCreateResult{}, err
+	}
+	desired := subscriptionOfferCreateDesiredOffer(options)
+	result := SubscriptionOfferCreateResult{
+		Action:  "create",
+		DryRun:  options.DryRun,
+		Desired: desired,
+		Plan: SubscriptionOfferCreatePlan{
+			Action:         "create",
+			PackageName:    options.PackageName,
+			ProductID:      options.ProductID,
+			BasePlanID:     options.BasePlanID,
+			OfferID:        options.OfferID,
+			RegionsVersion: options.RegionsVersion,
+			Confirm:        options.Confirm,
+			Steps:          subscriptionOfferCreateSteps(options.DryRun),
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if creator == nil {
+		return SubscriptionOfferCreateResult{}, fmt.Errorf("subscription offer creator is required")
+	}
+	offer, err := creator.CreateSubscriptionOffer(ctx, options)
+	if err != nil {
+		return SubscriptionOfferCreateResult{}, err
+	}
+	result.Created = true
+	result.Offer = &offer
+	return result, nil
+}
+
+func subscriptionOfferCreateDesiredOffer(options SubscriptionOfferCreateOptions) SubscriptionOffer {
+	offer := options.Offer
+	offer.PackageName = options.PackageName
+	offer.ProductID = options.ProductID
+	offer.BasePlanID = options.BasePlanID
+	offer.OfferID = options.OfferID
+	offer.State = ""
+	return offer
 }
 
 func BatchUpdateSubscriptionOfferStates(ctx context.Context, updater SubscriptionOfferBatchStateUpdater, options SubscriptionOfferBatchStateUpdateOptions) (SubscriptionOfferBatchStateUpdateResult, error) {
@@ -1661,6 +2031,13 @@ func subscriptionOfferBatchStateUpdateSteps(options SubscriptionOfferBatchStateU
 		return []string{fmt.Sprintf("plan batch %s subscription offers", options.Action)}
 	}
 	return []string{fmt.Sprintf("batch %s subscription offers", options.Action)}
+}
+
+func subscriptionOfferCreateSteps(dryRun bool) []string {
+	if dryRun {
+		return []string{"plan subscription offer create"}
+	}
+	return []string{"create subscription offer"}
 }
 
 const subscriptionOfferAvailabilityUpdateMask = "regionalConfigs"

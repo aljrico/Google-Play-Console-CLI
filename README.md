@@ -161,6 +161,7 @@ gpc subscriptions base-plan batch-activate --package com.example.app --base-plan
 gpc subscriptions base-plan batch-migrate-prices --package com.example.app --regions-version 2026/05 --migration premium_monthly/monthly/US/2026-05-01T00:00:00Z --price-increase-type optOut --dry-run
 gpc subscription-offers list --package com.example.app --product-id premium_monthly --base-plan-id monthly
 gpc subscription-offers get --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro
+gpc subscription-offers create --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro --from-json offer.json --regions-version 2026/05 --dry-run
 gpc subscription-offers delete --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id draft-intro --dry-run
 gpc subscription-offers deactivate --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro --dry-run
 gpc subscription-offers batch-get --package com.example.app --product-id - --base-plan-id - --offer premium_monthly/monthly/intro --offer premium_yearly/annual/winback
@@ -227,6 +228,20 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 `finance reports download` and `analytics stats download` fetch report objects from the Google Play reports Cloud Storage bucket. Use the bucket ID shown in Play Console, usually shaped like `pubsite_prod_rev_0123456789`, and pass the exact object path for the report you want. Financial reports are ZIP files; statistics reports are CSV files.
 
 `in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `create` builds managed products only and asks Google to auto-convert missing regional prices from the default price, while live patches and deletes reject legacy subscription SKUs. Batch deletes preflight every requested SKU and fail closed unless Google returns managed products for all of them. Default and regional price patches also request regional auto-conversion; tax compliance patches can set EEA withdrawal right type, tokenized digital asset declaration, regional reduced-tax tiers, and US streaming tax type. `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources. One-time product purchase option batch deletion follows Google's current rule that each request targets a different one-time product; use `--force` only when you also intend to delete associated offers.
+
+`subscription-offers create --from-json` accepts either Google Play API `SubscriptionOffer` JSON or `gpc subscription-offers get --output json` shape. The `--package`, `--product-id`, `--base-plan-id`, and `--offer-id` flags override immutable IDs in the file, and output-only `state` is ignored because Play creates draft offers. Google Play only supports offers under auto-renewing base plans. The JSON body must include regional configs and one or two phases; each phase needs one price mode per configured region (`price`, `absoluteDiscount`, `relativeDiscount`, or `free`). Example:
+
+```json
+{
+  "offerTags": [{"tag": "intro"}],
+  "regionalConfigs": [{"regionCode": "US", "newSubscriberAvailability": true}],
+  "phases": [{
+    "duration": "P1M",
+    "recurrenceCount": 1,
+    "regionalConfigs": [{"regionCode": "US", "free": {}}]
+  }]
+}
+```
 
 ### First Publish Flow
 

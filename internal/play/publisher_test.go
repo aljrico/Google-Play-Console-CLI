@@ -5502,6 +5502,58 @@ func TestBatchPatchSubscriptionOfferPhasePricesRejectsMissingPhaseOrRegion(t *te
 	}
 }
 
+func TestCreateSubscriptionOfferSendsTypedOfferBody(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium/basePlans/monthly/offers" {
+			t.Fatalf("path = %q, want subscription offer create endpoint", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("offerId"); got != "intro" {
+			t.Fatalf("offerId query = %q, want intro", got)
+		}
+		if got := r.URL.Query().Get("regionsVersion.version"); got != "2026/05" {
+			t.Fatalf("regionsVersion.version query = %q, want 2026/05", got)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		var request androidpublisher.SubscriptionOffer
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if request.PackageName != "com.example.app" || request.ProductId != "premium" || request.BasePlanId != "monthly" || request.OfferId != "intro" {
+			t.Fatalf("request IDs = %#v, want create IDs", request)
+		}
+		if len(request.RegionalConfigs) != 2 || !request.RegionalConfigs[0].NewSubscriberAvailability {
+			t.Fatalf("RegionalConfigs = %#v, want availability configs", request.RegionalConfigs)
+		}
+		if len(request.Phases) != 1 || len(request.Phases[0].RegionalConfigs) != 2 || request.Phases[0].RegionalConfigs[0].Price == nil {
+			t.Fatalf("Phases = %#v, want typed phase prices", request.Phases)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","basePlanId":"monthly","offerId":"intro","state":"DRAFT","regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true},{"regionCode":"FR","newSubscriberAvailability":true}],"phases":[{"duration":"P1M","recurrenceCount":1,"regionalConfigs":[{"regionCode":"US","price":{"currencyCode":"USD","units":"1"}},{"regionCode":"FR","price":{"currencyCode":"EUR","nanos":990000000}}]}]}`)
+	}))
+
+	result, err := publisher.CreateSubscriptionOffer(context.Background(), SubscriptionOfferCreateOptions{
+		PackageName:    "com.example.app",
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		OfferID:        "intro",
+		Offer:          validSubscriptionOfferForCreate(),
+		RegionsVersion: "2026/05",
+		Confirm:        true,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubscriptionOffer() error = %v", err)
+	}
+	if result.State != SubscriptionOfferStateDraft || len(result.Phases) != 1 || result.Phases[0].RegionalConfigs[0].Price == nil {
+		t.Fatalf("result = %#v, want created draft offer", result)
+	}
+}
+
 func TestBatchUpdateSubscriptionOfferStatesRejectsDryRunBeforeRequest(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)

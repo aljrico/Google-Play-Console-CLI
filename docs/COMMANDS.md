@@ -2314,6 +2314,7 @@ gpc subscription-offers
 - `gpc subscription-offers batch-patch-phase-absolute-discounts`: Batch patch subscription offer phase absolute discounts
 - `gpc subscription-offers batch-patch-phase-prices`: Batch patch subscription offer phase prices
 - `gpc subscription-offers batch-patch-phase-relative-discounts`: Batch patch subscription offer phase relative discounts
+- `gpc subscription-offers create`: Create a draft subscription offer
 - `gpc subscription-offers deactivate`: deactivate a subscription offer
 - `gpc subscription-offers delete`: Delete a draft subscription offer
 - `gpc subscription-offers get`: Get one subscription offer
@@ -2455,6 +2456,24 @@ gpc subscription-offers batch-patch-phase-relative-discounts [flags]
 - `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
 - `--regions-version`: Google Play regions version required by subscriptionOffers.batchUpdate
 - `--relative-discount`: Phase relative discount patch as productId/basePlanId/offerId/phaseIndex/REGION:0.75; phaseIndex is zero-based, so 0 is the first phase; 0.75 means the user pays 75% of the base plan price prorated over the phase duration; repeatable (default `[]`)
+
+#### gpc subscription-offers create
+
+Create a draft subscription offer
+
+```sh
+gpc subscription-offers create [flags]
+```
+
+##### Flags
+
+- `--base-plan-id`: Parent subscription base plan ID
+- `--confirm`: Create the draft subscription offer (default `false`)
+- `--dry-run`: Print the planned subscription offer creation without calling Google Play (default `false`)
+- `--from-json`: Path to a Google Play API or gpc JSON subscription offer body
+- `--offer-id`: Subscription offer ID
+- `--product-id`: Parent subscription product ID
+- `--regions-version`: Google Play regions version required by subscriptionOffers.create
 
 #### gpc subscription-offers deactivate
 
