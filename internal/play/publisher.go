@@ -859,6 +859,76 @@ func (p GooglePublisher) BatchUpdateOneTimeProductOfferStates(ctx context.Contex
 	}, nil
 }
 
+func (p GooglePublisher) BatchPatchOneTimeProductOfferAvailability(ctx context.Context, options OneTimeProductOfferBatchPatchAvailabilityOptions) (OneTimeProductOfferBatchPatchAvailabilityResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return OneTimeProductOfferBatchPatchAvailabilityResult{}, err
+	}
+	requestsByOffer := oneTimeProductOfferAvailabilityPatchRequestsByOffer(options.Requests)
+	request := &androidpublisher.BatchUpdateOneTimeProductOffersRequest{
+		Requests: make([]*androidpublisher.UpdateOneTimeProductOfferRequest, 0, len(requestsByOffer)),
+	}
+	for _, offerPatch := range requestsByOffer {
+		current, err := p.getOneTimeProductOfferForAvailabilityPatch(ctx, options.PackageName, offerPatch.ProductID, offerPatch.PurchaseOptionID, offerPatch.OfferID)
+		if err != nil {
+			return OneTimeProductOfferBatchPatchAvailabilityResult{}, err
+		}
+		mergedRegionalConfigs := mergeOneTimeProductOfferAvailabilityPatches(oneTimeProductOfferRegionsFromAPI(current.RegionalPricingAndAvailabilityConfigs), offerPatch.Requests)
+		if mergedRegionalConfigs == nil {
+			return OneTimeProductOfferBatchPatchAvailabilityResult{}, fmt.Errorf("one-time product offer availability patch for %s/%s/%s references a region that is not already configured on the offer; availability-only patches cannot add regional price overrides", offerPatch.ProductID, offerPatch.PurchaseOptionID, offerPatch.OfferID)
+		}
+		request.Requests = append(request.Requests, &androidpublisher.UpdateOneTimeProductOfferRequest{
+			OneTimeProductOffer: &androidpublisher.OneTimeProductOffer{
+				PackageName:                           options.PackageName.String(),
+				ProductId:                             offerPatch.ProductID.String(),
+				PurchaseOptionId:                      offerPatch.PurchaseOptionID.String(),
+				OfferId:                               offerPatch.OfferID.String(),
+				RegionalPricingAndAvailabilityConfigs: oneTimeProductOfferRegionsToAPI(mergedRegionalConfigs),
+			},
+			UpdateMask:       oneTimeProductOfferAvailabilityUpdateMask,
+			RegionsVersion:   &androidpublisher.RegionsVersion{Version: options.RegionsVersion},
+			LatencyTolerance: productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+		})
+	}
+	response, err := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.BatchUpdate(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.PurchaseOptionID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return OneTimeProductOfferBatchPatchAvailabilityResult{}, fmt.Errorf("batch patch one-time product offer availability for %s/%s/%s: %w", options.PackageName, options.ProductID, options.PurchaseOptionID, err)
+	}
+	return OneTimeProductOfferBatchPatchAvailabilityResult{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		Requests:         append([]OneTimeProductOfferAvailabilityPatchRequest(nil), options.Requests...),
+		Applied:          true,
+		Offers:           oneTimeProductOffersFromBatchUpdateResponse(response),
+	}, nil
+}
+
+func (p GooglePublisher) getOneTimeProductOfferForAvailabilityPatch(ctx context.Context, packageName PackageName, productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, offerID OneTimeProductOfferID) (*androidpublisher.OneTimeProductOffer, error) {
+	request := batchGetOneTimeProductOffersRequestToAPI(packageName, []OneTimeProductOfferBatchGetRequest{{
+		ProductID:        productID,
+		PurchaseOptionID: purchaseOptionID,
+		OfferID:          offerID,
+	}})
+	response, err := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.BatchGet(
+		packageName.String(),
+		productID.String(),
+		purchaseOptionID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("get one-time product offer %s for %s/%s/%s before availability patch: %w", offerID, packageName, productID, purchaseOptionID, err)
+	}
+	if response == nil || len(response.OneTimeProductOffers) == 0 {
+		return nil, fmt.Errorf("get one-time product offer %s for %s/%s/%s before availability patch: empty response", offerID, packageName, productID, purchaseOptionID)
+	}
+	return response.OneTimeProductOffers[0], nil
+}
+
 func (p GooglePublisher) UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProductOffer{}, err
@@ -956,6 +1026,44 @@ func oneTimeProductOfferStateRequestToAPI(options OneTimeProductOfferBatchStateU
 	default:
 		return &androidpublisher.UpdateOneTimeProductOfferStateRequest{}
 	}
+}
+
+type oneTimeProductOfferAvailabilityPatchOffer struct {
+	ProductID        OneTimeProductID
+	PurchaseOptionID OneTimeProductPurchaseOptionID
+	OfferID          OneTimeProductOfferID
+	Requests         []OneTimeProductOfferAvailabilityPatchRequest
+}
+
+func oneTimeProductOfferAvailabilityPatchRequestsByOffer(requests []OneTimeProductOfferAvailabilityPatchRequest) []oneTimeProductOfferAvailabilityPatchOffer {
+	byOffer := map[string]int{}
+	offers := make([]oneTimeProductOfferAvailabilityPatchOffer, 0)
+	for _, request := range requests {
+		key := oneTimeProductOfferKey(request.ProductID, request.PurchaseOptionID, request.OfferID)
+		index, ok := byOffer[key]
+		if !ok {
+			byOffer[key] = len(offers)
+			offers = append(offers, oneTimeProductOfferAvailabilityPatchOffer{
+				ProductID:        request.ProductID,
+				PurchaseOptionID: request.PurchaseOptionID,
+				OfferID:          request.OfferID,
+			})
+			index = len(offers) - 1
+		}
+		offers[index].Requests = append(offers[index].Requests, request)
+	}
+	return offers
+}
+
+func oneTimeProductOffersFromBatchUpdateResponse(response *androidpublisher.BatchUpdateOneTimeProductOffersResponse) []OneTimeProductOffer {
+	if response == nil {
+		return []OneTimeProductOffer{}
+	}
+	offers := make([]OneTimeProductOffer, 0, len(response.OneTimeProductOffers))
+	for _, apiOffer := range response.OneTimeProductOffers {
+		offers = append(offers, oneTimeProductOfferFromAPI(apiOffer))
+	}
+	return offers
 }
 
 func (p GooglePublisher) ListSubscriptions(ctx context.Context, options SubscriptionListOptions) (SubscriptionListResult, error) {
@@ -3345,6 +3453,77 @@ func oneTimeProductOfferRegionsFromAPI(apiConfigs []*androidpublisher.OneTimePro
 		})
 	}
 	return regions
+}
+
+func oneTimeProductOfferRegionsToAPI(regions []OneTimeProductOfferRegion) []*androidpublisher.OneTimeProductOfferRegionalPricingAndAvailabilityConfig {
+	apiRegions := make([]*androidpublisher.OneTimeProductOfferRegionalPricingAndAvailabilityConfig, 0, len(regions))
+	for _, region := range regions {
+		apiRegion := &androidpublisher.OneTimeProductOfferRegionalPricingAndAvailabilityConfig{
+			RegionCode:       region.RegionCode,
+			Availability:     oneTimeProductOfferAvailabilityToAPI(region.Availability),
+			AbsoluteDiscount: moneyToAPI(region.AbsoluteDiscount),
+			RelativeDiscount: region.RelativeDiscount,
+		}
+		if region.NoOverride {
+			apiRegion.NoOverride = &androidpublisher.OneTimeProductOfferNoPriceOverrideOptions{}
+		}
+		if region.RelativeDiscount != 0 {
+			apiRegion.ForceSendFields = append(apiRegion.ForceSendFields, "RelativeDiscount")
+		}
+		apiRegions = append(apiRegions, apiRegion)
+	}
+	return apiRegions
+}
+
+func mergeOneTimeProductOfferAvailabilityPatches(current []OneTimeProductOfferRegion, patches []OneTimeProductOfferAvailabilityPatchRequest) []OneTimeProductOfferRegion {
+	merged := append([]OneTimeProductOfferRegion(nil), current...)
+	for _, patch := range patches {
+		merged = mergeOneTimeProductOfferAvailabilityPatch(merged, patch)
+		if merged == nil {
+			return nil
+		}
+	}
+	return merged
+}
+
+func mergeOneTimeProductOfferAvailabilityPatch(current []OneTimeProductOfferRegion, patch OneTimeProductOfferAvailabilityPatchRequest) []OneTimeProductOfferRegion {
+	merged := make([]OneTimeProductOfferRegion, 0, len(current)+1)
+	replaced := false
+	for _, region := range current {
+		if region.RegionCode == patch.RegionCode {
+			region.Availability = oneTimeProductOfferAvailabilityToAPI(patch.Availability.String())
+			merged = append(merged, region)
+			replaced = true
+			continue
+		}
+		merged = append(merged, region)
+	}
+	if !replaced {
+		return nil
+	}
+	return merged
+}
+
+func oneTimeProductOfferAvailabilityToAPI(availability string) string {
+	switch OneTimeProductOfferAvailability(availability) {
+	case OneTimeProductOfferAvailabilityAvailable:
+		return "AVAILABLE"
+	case OneTimeProductOfferAvailabilityNoLongerAvailable:
+		return "NO_LONGER_AVAILABLE"
+	default:
+		return availability
+	}
+}
+
+func moneyToAPI(money *Money) *androidpublisher.Money {
+	if money == nil {
+		return nil
+	}
+	return &androidpublisher.Money{
+		CurrencyCode: money.CurrencyCode,
+		Units:        money.Units,
+		Nanos:        money.Nanos,
+	}
 }
 
 func regionsVersionFromGeneratedAPI(apiVersion *androidpublisher.RegionsVersion) *RegionsVersion {

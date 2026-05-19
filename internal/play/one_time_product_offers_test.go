@@ -426,6 +426,95 @@ func TestBatchUpdateOneTimeProductOfferStatesPassesOptionsToUpdater(t *testing.T
 	}
 }
 
+func TestBatchPatchOneTimeProductOfferAvailabilityDryRunBuildsPlanWithoutPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchPatchOneTimeProductOfferAvailability(context.Background(), nil, OneTimeProductOfferBatchPatchAvailabilityOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferAvailabilityPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "US", Availability: OneTimeProductOfferAvailabilityNoLongerAvailable},
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "FR", Availability: OneTimeProductOfferAvailabilityAvailable},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchOneTimeProductOfferAvailability() error = %v", err)
+	}
+	if !result.DryRun || result.Applied {
+		t.Fatalf("result = %#v, want dry-run availability patch", result)
+	}
+	if result.Plan.UpdateMask != oneTimeProductOfferAvailabilityUpdateMask {
+		t.Fatalf("UpdateMask = %q, want %q", result.Plan.UpdateMask, oneTimeProductOfferAvailabilityUpdateMask)
+	}
+	if len(result.Desired) != 1 || len(result.Desired[0].RegionalConfigs) != 2 {
+		t.Fatalf("Desired = %#v, want one offer with two regional configs", result.Desired)
+	}
+}
+
+func TestBatchPatchOneTimeProductOfferAvailabilityRejectsDuplicateOfferRegion(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewOneTimeProductOfferBatchPatchAvailabilityPlan(OneTimeProductOfferBatchPatchAvailabilityOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferAvailabilityPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "US", Availability: OneTimeProductOfferAvailabilityAvailable},
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "US", Availability: OneTimeProductOfferAvailabilityNoLongerAvailable},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate offer region validation error")
+	}
+}
+
+func TestBatchPatchOneTimeProductOfferAvailabilityPassesOptionsToPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	patcher := &fakeOneTimeProductOfferClient{
+		batchAvailabilityResult: OneTimeProductOfferBatchPatchAvailabilityResult{
+			Offers: []OneTimeProductOffer{{OfferID: "intro"}},
+		},
+	}
+	options := OneTimeProductOfferBatchPatchAvailabilityOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferAvailabilityPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "US", Availability: OneTimeProductOfferAvailabilityNoLongerAvailable},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := BatchPatchOneTimeProductOfferAvailability(context.Background(), patcher, options)
+	if err != nil {
+		t.Fatalf("BatchPatchOneTimeProductOfferAvailability() error = %v", err)
+	}
+	if !result.Applied || len(result.Offers) != 1 {
+		t.Fatalf("result = %#v, want applied offer", result)
+	}
+	if !reflect.DeepEqual(patcher.batchAvailabilityOptions, options) {
+		t.Fatalf("batchAvailabilityOptions = %#v, want %#v", patcher.batchAvailabilityOptions, options)
+	}
+}
+
 func TestUpdateOneTimeProductOfferStateDryRunBuildsPlanWithoutUpdater(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -504,16 +593,18 @@ func TestUpdateOneTimeProductOfferStatePassesOptionsToUpdater(t *testing.T) {
 }
 
 type fakeOneTimeProductOfferClient struct {
-	listOptions        OneTimeProductOfferListOptions
-	listResult         OneTimeProductOfferListResult
-	batchOptions       OneTimeProductOfferBatchGetOptions
-	batchResult        OneTimeProductOfferBatchGetResult
-	batchDeleteOptions OneTimeProductOfferBatchDeleteOptions
-	batchStateOptions  OneTimeProductOfferBatchStateUpdateOptions
-	batchStateResult   OneTimeProductOfferBatchStateUpdateResult
-	getOptions         OneTimeProductOfferGetOptions
-	stateOptions       OneTimeProductOfferStateUpdateOptions
-	offer              OneTimeProductOffer
+	listOptions              OneTimeProductOfferListOptions
+	listResult               OneTimeProductOfferListResult
+	batchOptions             OneTimeProductOfferBatchGetOptions
+	batchResult              OneTimeProductOfferBatchGetResult
+	batchDeleteOptions       OneTimeProductOfferBatchDeleteOptions
+	batchStateOptions        OneTimeProductOfferBatchStateUpdateOptions
+	batchStateResult         OneTimeProductOfferBatchStateUpdateResult
+	batchAvailabilityOptions OneTimeProductOfferBatchPatchAvailabilityOptions
+	batchAvailabilityResult  OneTimeProductOfferBatchPatchAvailabilityResult
+	getOptions               OneTimeProductOfferGetOptions
+	stateOptions             OneTimeProductOfferStateUpdateOptions
+	offer                    OneTimeProductOffer
 }
 
 func (c *fakeOneTimeProductOfferClient) ListOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferListOptions) (OneTimeProductOfferListResult, error) {
@@ -539,6 +630,11 @@ func (c *fakeOneTimeProductOfferClient) BatchDeleteOneTimeProductOffers(ctx cont
 func (c *fakeOneTimeProductOfferClient) BatchUpdateOneTimeProductOfferStates(ctx context.Context, options OneTimeProductOfferBatchStateUpdateOptions) (OneTimeProductOfferBatchStateUpdateResult, error) {
 	c.batchStateOptions = options
 	return c.batchStateResult, nil
+}
+
+func (c *fakeOneTimeProductOfferClient) BatchPatchOneTimeProductOfferAvailability(ctx context.Context, options OneTimeProductOfferBatchPatchAvailabilityOptions) (OneTimeProductOfferBatchPatchAvailabilityResult, error) {
+	c.batchAvailabilityOptions = options
+	return c.batchAvailabilityResult, nil
 }
 
 func (c *fakeOneTimeProductOfferClient) UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error) {

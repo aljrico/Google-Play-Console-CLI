@@ -4106,6 +4106,108 @@ func TestBatchUpdateOneTimeProductOfferStatesUsesBatchUpdateEndpoint(t *testing.
 	}
 }
 
+func TestBatchPatchOneTimeProductOfferAvailabilityMergesAndBatchUpdates(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchGet", r.Method)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro","regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","relativeDiscount":0.5},{"regionCode":"FR","availability":"AVAILABLE","noOverride":{}},{"regionCode":"DE","availability":"AVAILABLE","noOverride":{}}]}]}`)
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchUpdate":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchUpdate", r.Method)
+			}
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("ReadAll() error = %v", err)
+			}
+			var request androidpublisher.BatchUpdateOneTimeProductOffersRequest
+			if err := json.Unmarshal(body, &request); err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+			if len(request.Requests) != 1 {
+				t.Fatalf("len(Requests) = %d, want 1", len(request.Requests))
+			}
+			update := request.Requests[0]
+			if update.UpdateMask != "regionalPricingAndAvailabilityConfigs" {
+				t.Fatalf("UpdateMask = %q, want regionalPricingAndAvailabilityConfigs", update.UpdateMask)
+			}
+			if update.RegionsVersion == nil || update.RegionsVersion.Version != "2026/05" {
+				t.Fatalf("RegionsVersion = %#v, want 2026/05", update.RegionsVersion)
+			}
+			if update.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+				t.Fatalf("LatencyTolerance = %q, want tolerant", update.LatencyTolerance)
+			}
+			configs := update.OneTimeProductOffer.RegionalPricingAndAvailabilityConfigs
+			if len(configs) != 3 {
+				t.Fatalf("len(RegionalPricingAndAvailabilityConfigs) = %d, want preserved plus added configs", len(configs))
+			}
+			if configs[0].RegionCode != "US" || configs[0].Availability != "NO_LONGER_AVAILABLE" || configs[0].RelativeDiscount != 0.5 {
+				t.Fatalf("first config = %#v, want US no-longer-available with preserved discount", configs[0])
+			}
+			if configs[1].RegionCode != "FR" || configs[1].Availability != "AVAILABLE" || configs[1].NoOverride == nil {
+				t.Fatalf("second config = %#v, want FR available with preserved noOverride", configs[1])
+			}
+			if configs[2].RegionCode != "DE" || configs[2].Availability != "AVAILABLE" || configs[2].NoOverride == nil {
+				t.Fatalf("third config = %#v, want preserved DE noOverride", configs[2])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro","regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"NO_LONGER_AVAILABLE"},{"regionCode":"FR","availability":"AVAILABLE"}]}]}`)
+		default:
+			t.Fatalf("unexpected path = %q", r.URL.Path)
+		}
+	}))
+
+	result, err := publisher.BatchPatchOneTimeProductOfferAvailability(context.Background(), OneTimeProductOfferBatchPatchAvailabilityOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferAvailabilityPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "US", Availability: OneTimeProductOfferAvailabilityNoLongerAvailable},
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "FR", Availability: OneTimeProductOfferAvailabilityAvailable},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchOneTimeProductOfferAvailability() error = %v", err)
+	}
+	if !result.Applied || len(result.Offers) != 1 || result.Offers[0].RegionalConfigs[0].Availability != "NO_LONGER_AVAILABLE" {
+		t.Fatalf("result = %#v, want applied offer with Google availability enum", result)
+	}
+}
+
+func TestBatchPatchOneTimeProductOfferAvailabilityRejectsMissingRegion(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet" {
+			t.Fatalf("path = %q, want batchGet only", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro","regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","relativeDiscount":0.5}]}]}`)
+	}))
+
+	_, err := publisher.BatchPatchOneTimeProductOfferAvailability(context.Background(), OneTimeProductOfferBatchPatchAvailabilityOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferAvailabilityPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "FR", Availability: OneTimeProductOfferAvailabilityAvailable},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected missing region validation error")
+	}
+	if !strings.Contains(err.Error(), "region that is not already configured") {
+		t.Fatalf("error = %v, want missing configured region message", err)
+	}
+}
+
 func TestBatchUpdateOneTimeProductOfferStatesRejectsDryRunBeforeRequest(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)

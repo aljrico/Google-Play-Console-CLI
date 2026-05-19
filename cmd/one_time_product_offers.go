@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"io"
+	"strings"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
 	"github.com/aljrico/Google-Play-Console-CLI/internal/play"
@@ -21,6 +23,7 @@ func newOneTimeProductOffersCommand(out io.Writer, options *globalOptions) *cobr
 		newOneTimeProductOffersGetCommand(out, options, &packageName),
 		newOneTimeProductOffersBatchGetCommand(out, options, &packageName),
 		newOneTimeProductOffersBatchDeleteCommand(out, options, &packageName),
+		newOneTimeProductOffersBatchPatchAvailabilityCommand(out, options, &packageName),
 		newOneTimeProductOffersBatchStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionActivate),
 		newOneTimeProductOffersBatchStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionDeactivate),
 		newOneTimeProductOffersBatchStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionCancel),
@@ -28,6 +31,95 @@ func newOneTimeProductOffersCommand(out io.Writer, options *globalOptions) *cobr
 		newOneTimeProductOffersStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionDeactivate),
 		newOneTimeProductOffersStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionCancel),
 	)
+	return cmd
+}
+
+func newOneTimeProductOffersBatchPatchAvailabilityCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID        string
+		purchaseOptionID string
+		availability     []string
+		regionsVersion   string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-patch-availability",
+		Short: "Batch patch one-time product offer regional availability",
+		Long: "Batch patch one-time product offer regional availability. Omit parent IDs to infer the narrowest valid parent path from --availability values. " +
+			"Use --product-id - when the batch spans products, and --purchase-option-id - when it spans purchase options.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			requests, err := parseOneTimeProductOfferAvailabilityPatches(availability)
+			if err != nil {
+				return err
+			}
+			if len(requests) == 0 {
+				return play.OneTimeProductOfferBatchPatchAvailabilityOptions{PackageName: typedPackageName}.Validate()
+			}
+			mutationRequests := oneTimeProductOfferAvailabilityPatchesToMutationRequests(requests)
+			resolvedProductID, resolvedPurchaseOptionID := inferOneTimeProductOfferBatchParent(productID, purchaseOptionID, mutationRequests)
+			typedProductID, err := play.NewOneTimeProductOfferListProductID(resolvedProductID)
+			if err != nil {
+				return err
+			}
+			typedPurchaseOptionID, err := play.NewOneTimeProductOfferListPurchaseOptionID(resolvedPurchaseOptionID)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			patchOptions := play.OneTimeProductOfferBatchPatchAvailabilityOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				PurchaseOptionID: typedPurchaseOptionID,
+				Requests:         requests,
+				RegionsVersion:   regionsVersion,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.BatchPatchOneTimeProductOfferAvailability(cmd.Context(), nil, patchOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewOneTimeProductOfferBatchPatchAvailabilityPlan(patchOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchPatchOneTimeProductOfferAvailability(cmd.Context(), publisher, patchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	addOneTimeProductOfferParentFlags(
+		cmd,
+		&productID,
+		&purchaseOptionID,
+		"Parent one-time product ID, or - for offers across products; inferred when omitted",
+		"Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted",
+	)
+	cmd.Flags().StringArrayVar(&availability, "availability", nil, "Availability patch as productId/purchaseOptionId/offerId/REGION:available|noLongerAvailable; repeatable")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by oneTimeProductOffers.batchUpdate")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the one-time product offer availability batch patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product offer availability batch patch without calling Google Play")
 	return cmd
 }
 
@@ -502,6 +594,79 @@ func parseOneTimeProductOfferBatchMutationRequests(values []string) ([]play.OneT
 		requests = append(requests, request)
 	}
 	return requests, nil
+}
+
+func parseOneTimeProductOfferAvailabilityPatches(values []string) ([]play.OneTimeProductOfferAvailabilityPatchRequest, error) {
+	requests := make([]play.OneTimeProductOfferAvailabilityPatchRequest, 0, len(values))
+	for _, value := range values {
+		request, err := parseOneTimeProductOfferAvailabilityPatch(value)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, nil
+}
+
+func parseOneTimeProductOfferAvailabilityPatch(value string) (play.OneTimeProductOfferAvailabilityPatchRequest, error) {
+	path, rawAvailability, ok := strings.Cut(strings.TrimSpace(value), ":")
+	if !ok {
+		return play.OneTimeProductOfferAvailabilityPatchRequest{}, errOneTimeProductOfferAvailabilityFormat()
+	}
+	parts := strings.Split(path, "/")
+	if len(parts) != 4 {
+		return play.OneTimeProductOfferAvailabilityPatchRequest{}, errOneTimeProductOfferAvailabilityFormat()
+	}
+	productID, err := play.NewOneTimeProductID(parts[0])
+	if err != nil {
+		return play.OneTimeProductOfferAvailabilityPatchRequest{}, err
+	}
+	purchaseOptionID, err := play.NewOneTimeProductPurchaseOptionID(parts[1])
+	if err != nil {
+		return play.OneTimeProductOfferAvailabilityPatchRequest{}, err
+	}
+	offerID, err := play.NewOneTimeProductOfferID(parts[2])
+	if err != nil {
+		return play.OneTimeProductOfferAvailabilityPatchRequest{}, err
+	}
+	availability, err := parseOneTimeProductOfferAvailabilityValue(rawAvailability)
+	if err != nil {
+		return play.OneTimeProductOfferAvailabilityPatchRequest{}, err
+	}
+	return play.OneTimeProductOfferAvailabilityPatchRequest{
+		ProductID:        productID,
+		PurchaseOptionID: purchaseOptionID,
+		OfferID:          offerID,
+		RegionCode:       strings.ToUpper(strings.TrimSpace(parts[3])),
+		Availability:     availability,
+	}, nil
+}
+
+func parseOneTimeProductOfferAvailabilityValue(value string) (play.OneTimeProductOfferAvailability, error) {
+	switch strings.TrimSpace(value) {
+	case play.OneTimeProductOfferAvailabilityAvailable.String():
+		return play.OneTimeProductOfferAvailabilityAvailable, nil
+	case play.OneTimeProductOfferAvailabilityNoLongerAvailable.String():
+		return play.OneTimeProductOfferAvailabilityNoLongerAvailable, nil
+	default:
+		return "", errOneTimeProductOfferAvailabilityFormat()
+	}
+}
+
+func errOneTimeProductOfferAvailabilityFormat() error {
+	return fmt.Errorf("one-time product offer availability must use productId/purchaseOptionId/offerId/REGION:available|noLongerAvailable")
+}
+
+func oneTimeProductOfferAvailabilityPatchesToMutationRequests(requests []play.OneTimeProductOfferAvailabilityPatchRequest) []play.OneTimeProductOfferBatchMutationRequest {
+	mutations := make([]play.OneTimeProductOfferBatchMutationRequest, 0, len(requests))
+	for _, request := range requests {
+		mutations = append(mutations, play.OneTimeProductOfferBatchMutationRequest{
+			ProductID:        request.ProductID,
+			PurchaseOptionID: request.PurchaseOptionID,
+			OfferID:          request.OfferID,
+		})
+	}
+	return mutations
 }
 
 func inferOneTimeProductOfferBatchParent(productID string, purchaseOptionID string, requests []play.OneTimeProductOfferBatchMutationRequest) (string, string) {

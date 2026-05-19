@@ -99,6 +99,26 @@ func (a OneTimeProductOfferStateAction) Validate() error {
 	}
 }
 
+type OneTimeProductOfferAvailability string
+
+const (
+	OneTimeProductOfferAvailabilityAvailable         OneTimeProductOfferAvailability = "available"
+	OneTimeProductOfferAvailabilityNoLongerAvailable OneTimeProductOfferAvailability = "noLongerAvailable"
+)
+
+func (a OneTimeProductOfferAvailability) String() string {
+	return string(a)
+}
+
+func (a OneTimeProductOfferAvailability) Validate() error {
+	switch a {
+	case OneTimeProductOfferAvailabilityAvailable, OneTimeProductOfferAvailabilityNoLongerAvailable:
+		return nil
+	default:
+		return fmt.Errorf("unsupported one-time product offer availability %q", a)
+	}
+}
+
 type OneTimeProductOffer struct {
 	PackageName      PackageName                    `json:"packageName"`
 	ProductID        OneTimeProductID               `json:"productId"`
@@ -259,6 +279,25 @@ type OneTimeProductOfferBatchStateUpdateOptions struct {
 	DryRun           bool                                      `json:"dryRun"`
 }
 
+type OneTimeProductOfferAvailabilityPatchRequest struct {
+	ProductID        OneTimeProductID                `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID  `json:"purchaseOptionId"`
+	OfferID          OneTimeProductOfferID           `json:"offerId"`
+	RegionCode       string                          `json:"regionCode"`
+	Availability     OneTimeProductOfferAvailability `json:"availability"`
+}
+
+type OneTimeProductOfferBatchPatchAvailabilityOptions struct {
+	PackageName      PackageName                                   `json:"packageName"`
+	ProductID        OneTimeProductID                              `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID                `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferAvailabilityPatchRequest `json:"requests"`
+	RegionsVersion   string                                        `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance                 `json:"latencyTolerance"`
+	Confirm          bool                                          `json:"confirm"`
+	DryRun           bool                                          `json:"dryRun"`
+}
+
 func (o OneTimeProductOfferGetOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
@@ -361,6 +400,31 @@ func (o OneTimeProductOfferBatchStateUpdateOptions) Validate() error {
 	return nil
 }
 
+func (o OneTimeProductOfferBatchPatchAvailabilityOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if err := validateOneTimeProductOfferAvailabilityPatchParents(o.ProductID, o.PurchaseOptionID, o.Requests); err != nil {
+		return err
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("one-time product offer availability batch patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
 func (o OneTimeProductOfferBatchDeleteOptions) ValidateLive() error {
 	if err := o.Validate(); err != nil {
 		return err
@@ -385,6 +449,60 @@ func (o OneTimeProductOfferBatchStateUpdateOptions) ValidateLive() error {
 		return fmt.Errorf("live one-time product offer batch state update requires --confirm")
 	}
 	return nil
+}
+
+func (o OneTimeProductOfferBatchPatchAvailabilityOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live one-time product offer availability batch patch cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live one-time product offer availability batch patch requires --confirm")
+	}
+	return nil
+}
+
+func validateOneTimeProductOfferAvailabilityPatchParents(productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, requests []OneTimeProductOfferAvailabilityPatchRequest) error {
+	if len(requests) == 0 {
+		return fmt.Errorf("at least one one-time product offer availability patch is required")
+	}
+	mutationRequests := make([]OneTimeProductOfferBatchMutationRequest, 0, len(requests))
+	seenRegions := map[string]struct{}{}
+	for _, request := range requests {
+		if !isValidRegionCode(request.RegionCode) {
+			return fmt.Errorf("one-time product offer availability region must be a two-letter ISO 3166 code")
+		}
+		if err := request.Availability.Validate(); err != nil {
+			return err
+		}
+		key := oneTimeProductOfferKey(request.ProductID, request.PurchaseOptionID, request.OfferID) + "/" + request.RegionCode
+		if _, ok := seenRegions[key]; ok {
+			return fmt.Errorf("one-time product offer availability %s is duplicated", key)
+		}
+		seenRegions[key] = struct{}{}
+		mutationRequests = append(mutationRequests, OneTimeProductOfferBatchMutationRequest{
+			ProductID:        request.ProductID,
+			PurchaseOptionID: request.PurchaseOptionID,
+			OfferID:          request.OfferID,
+		})
+	}
+	return validateOneTimeProductOfferBatchMutationParents(productID, purchaseOptionID, deduplicateOneTimeProductOfferMutationRequests(mutationRequests), "availability batch patch")
+}
+
+func deduplicateOneTimeProductOfferMutationRequests(requests []OneTimeProductOfferBatchMutationRequest) []OneTimeProductOfferBatchMutationRequest {
+	seen := map[string]struct{}{}
+	deduplicated := make([]OneTimeProductOfferBatchMutationRequest, 0, len(requests))
+	for _, request := range requests {
+		key := oneTimeProductOfferKey(request.ProductID, request.PurchaseOptionID, request.OfferID)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduplicated = append(deduplicated, request)
+	}
+	return deduplicated
 }
 
 func validateOneTimeProductOfferBatchMutationParents(productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, requests []OneTimeProductOfferBatchMutationRequest, operation string) error {
@@ -461,6 +579,10 @@ type OneTimeProductOfferBatchStateUpdater interface {
 	BatchUpdateOneTimeProductOfferStates(ctx context.Context, options OneTimeProductOfferBatchStateUpdateOptions) (OneTimeProductOfferBatchStateUpdateResult, error)
 }
 
+type OneTimeProductOfferBatchAvailabilityPatcher interface {
+	BatchPatchOneTimeProductOfferAvailability(ctx context.Context, options OneTimeProductOfferBatchPatchAvailabilityOptions) (OneTimeProductOfferBatchPatchAvailabilityResult, error)
+}
+
 type OneTimeProductOfferBatchGetResult struct {
 	PackageName      PackageName                        `json:"packageName"`
 	ProductID        OneTimeProductID                   `json:"productId"`
@@ -510,6 +632,43 @@ type OneTimeProductOfferBatchStateUpdateResult struct {
 	Applied          bool                                      `json:"applied"`
 	Offers           []OneTimeProductOffer                     `json:"offers,omitempty"`
 	Plan             OneTimeProductOfferBatchStateUpdatePlan   `json:"plan"`
+}
+
+type OneTimeProductOfferBatchPatchAvailabilityPlan struct {
+	PackageName      PackageName                                   `json:"packageName"`
+	ProductID        OneTimeProductID                              `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID                `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferAvailabilityPatchRequest `json:"requests"`
+	UpdateMask       string                                        `json:"updateMask"`
+	RegionsVersion   string                                        `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance                 `json:"latencyTolerance"`
+	Confirm          bool                                          `json:"confirm"`
+	Steps            []string                                      `json:"steps"`
+}
+
+type OneTimeProductOfferBatchPatchAvailabilityDesiredOffer struct {
+	PackageName      PackageName                                              `json:"packageName"`
+	ProductID        OneTimeProductID                                         `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID                           `json:"purchaseOptionId"`
+	OfferID          OneTimeProductOfferID                                    `json:"offerId"`
+	RegionalConfigs  []OneTimeProductOfferBatchPatchAvailabilityDesiredRegion `json:"regionalConfigs"`
+}
+
+type OneTimeProductOfferBatchPatchAvailabilityDesiredRegion struct {
+	RegionCode   string                          `json:"regionCode"`
+	Availability OneTimeProductOfferAvailability `json:"availability"`
+}
+
+type OneTimeProductOfferBatchPatchAvailabilityResult struct {
+	PackageName      PackageName                                             `json:"packageName"`
+	ProductID        OneTimeProductID                                        `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID                          `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferAvailabilityPatchRequest           `json:"requests"`
+	DryRun           bool                                                    `json:"dryRun"`
+	Applied          bool                                                    `json:"applied"`
+	Offers           []OneTimeProductOffer                                   `json:"offers,omitempty"`
+	Desired          []OneTimeProductOfferBatchPatchAvailabilityDesiredOffer `json:"desiredOffers"`
+	Plan             OneTimeProductOfferBatchPatchAvailabilityPlan           `json:"plan"`
 }
 
 func GetOneTimeProductOffer(ctx context.Context, getter OneTimeProductOfferGetter, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error) {
@@ -610,6 +769,84 @@ func BatchUpdateOneTimeProductOfferStates(ctx context.Context, updater OneTimePr
 	return updated, nil
 }
 
+func BatchPatchOneTimeProductOfferAvailability(ctx context.Context, patcher OneTimeProductOfferBatchAvailabilityPatcher, options OneTimeProductOfferBatchPatchAvailabilityOptions) (OneTimeProductOfferBatchPatchAvailabilityResult, error) {
+	plan, err := NewOneTimeProductOfferBatchPatchAvailabilityPlan(options)
+	if err != nil {
+		return OneTimeProductOfferBatchPatchAvailabilityResult{}, err
+	}
+	requests := append([]OneTimeProductOfferAvailabilityPatchRequest(nil), options.Requests...)
+	result := OneTimeProductOfferBatchPatchAvailabilityResult{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		Requests:         requests,
+		DryRun:           options.DryRun,
+		Desired:          desiredOneTimeProductOffersForAvailabilityPatch(options),
+		Plan:             plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if patcher == nil {
+		return OneTimeProductOfferBatchPatchAvailabilityResult{}, fmt.Errorf("one-time product offer availability batch patcher is required")
+	}
+	updated, err := patcher.BatchPatchOneTimeProductOfferAvailability(ctx, options)
+	if err != nil {
+		return OneTimeProductOfferBatchPatchAvailabilityResult{}, err
+	}
+	updated.PackageName = options.PackageName
+	updated.ProductID = options.ProductID
+	updated.PurchaseOptionID = options.PurchaseOptionID
+	updated.Requests = requests
+	updated.DryRun = false
+	updated.Applied = true
+	updated.Desired = result.Desired
+	updated.Plan = plan
+	return updated, nil
+}
+
+func NewOneTimeProductOfferBatchPatchAvailabilityPlan(options OneTimeProductOfferBatchPatchAvailabilityOptions) (OneTimeProductOfferBatchPatchAvailabilityPlan, error) {
+	if err := options.Validate(); err != nil {
+		return OneTimeProductOfferBatchPatchAvailabilityPlan{}, err
+	}
+	return OneTimeProductOfferBatchPatchAvailabilityPlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		Requests:         append([]OneTimeProductOfferAvailabilityPatchRequest(nil), options.Requests...),
+		UpdateMask:       oneTimeProductOfferAvailabilityUpdateMask,
+		RegionsVersion:   options.RegionsVersion,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            oneTimeProductOfferBatchPatchAvailabilitySteps(options),
+	}, nil
+}
+
+func desiredOneTimeProductOffersForAvailabilityPatch(options OneTimeProductOfferBatchPatchAvailabilityOptions) []OneTimeProductOfferBatchPatchAvailabilityDesiredOffer {
+	byOffer := map[string]int{}
+	offers := make([]OneTimeProductOfferBatchPatchAvailabilityDesiredOffer, 0)
+	for _, request := range options.Requests {
+		key := oneTimeProductOfferKey(request.ProductID, request.PurchaseOptionID, request.OfferID)
+		index, ok := byOffer[key]
+		if !ok {
+			byOffer[key] = len(offers)
+			offers = append(offers, OneTimeProductOfferBatchPatchAvailabilityDesiredOffer{
+				PackageName:      options.PackageName,
+				ProductID:        request.ProductID,
+				PurchaseOptionID: request.PurchaseOptionID,
+				OfferID:          request.OfferID,
+				RegionalConfigs:  []OneTimeProductOfferBatchPatchAvailabilityDesiredRegion{},
+			})
+			index = len(offers) - 1
+		}
+		offers[index].RegionalConfigs = append(offers[index].RegionalConfigs, OneTimeProductOfferBatchPatchAvailabilityDesiredRegion{
+			RegionCode:   request.RegionCode,
+			Availability: request.Availability,
+		})
+	}
+	return offers
+}
+
 func oneTimeProductOfferBatchDeleteSteps(options OneTimeProductOfferBatchDeleteOptions) []string {
 	if options.DryRun {
 		return []string{"plan one-time product offer batch deletion"}
@@ -628,6 +865,15 @@ func oneTimeProductOfferBatchStateUpdateSteps(options OneTimeProductOfferBatchSt
 		return []string{fmt.Sprintf("plan batch %s one-time product offers", options.Action)}
 	}
 	return []string{fmt.Sprintf("batch %s one-time product offers", options.Action)}
+}
+
+const oneTimeProductOfferAvailabilityUpdateMask = "regionalPricingAndAvailabilityConfigs"
+
+func oneTimeProductOfferBatchPatchAvailabilitySteps(options OneTimeProductOfferBatchPatchAvailabilityOptions) []string {
+	if options.DryRun {
+		return []string{"plan one-time product offer availability batch patch"}
+	}
+	return []string{"fetch current one-time product offers", "merge regional availability", "batch patch one-time product offer availability"}
 }
 
 type OneTimeProductOfferStateUpdateOptions struct {
