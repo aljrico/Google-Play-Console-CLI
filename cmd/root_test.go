@@ -2071,6 +2071,37 @@ func TestPublishInternalLiveRejectsMissingBundleBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestMigrateSupplyChangelogsDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	directory := filepath.Join(t.TempDir(), "fastlane", "metadata", "android")
+	writeNestedRootTestFile(t, filepath.Join(directory, "en-US", "changelogs", "42.txt"), "Bug fixes.\n")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"migrate",
+		"supply",
+		"changelogs",
+		"--directory",
+		directory,
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{`"versionCode":42`, `"releaseNotes":[{"language":"en-US","text":"Bug fixes."}]`, `"releaseNoteArgs":["en-US=Bug fixes."]`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestPublishInternalLiveRejectsInvalidUserFractionBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bundlePath := writeRootTestFile(t, "app-release.aab")
@@ -5025,4 +5056,14 @@ func writeRootTestContent(t *testing.T, name string, content string) string {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 	return path
+}
+
+func writeNestedRootTestFile(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 }

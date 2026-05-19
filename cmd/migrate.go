@@ -22,7 +22,11 @@ func newMigrateSupplyCommand(out io.Writer, options *globalOptions) *cobra.Comma
 		Use:   "supply",
 		Short: "Inspect fastlane supply metadata",
 	}
-	cmd.AddCommand(newMigrateSupplyInspectCommand(out, options), newMigrateSupplyConvertCommand(out, options))
+	cmd.AddCommand(
+		newMigrateSupplyInspectCommand(out, options),
+		newMigrateSupplyConvertCommand(out, options),
+		newMigrateSupplyChangelogsCommand(out, options),
+	)
 	return cmd
 }
 
@@ -41,6 +45,31 @@ func newMigrateSupplyConvertCommand(out io.Writer, options *globalOptions) *cobr
 		},
 	}
 	cmd.Flags().StringVar(&directory, "directory", supply.DefaultMetadataDirectory, "fastlane supply metadata directory")
+	return cmd
+}
+
+func newMigrateSupplyChangelogsCommand(out io.Writer, options *globalOptions) *cobra.Command {
+	var (
+		directory   string
+		versionCode int64
+	)
+	cmd := &cobra.Command{
+		Use:   "changelogs",
+		Short: "Convert fastlane supply changelogs to release-note payloads",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			changelogs, err := supply.ConvertChangelogs(cmd.Context(), supply.ConvertChangelogsOptions{
+				Directory:   directory,
+				VersionCode: versionCode,
+			})
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, changelogs)
+		},
+	}
+	cmd.Flags().StringVar(&directory, "directory", supply.DefaultMetadataDirectory, "fastlane supply metadata directory")
+	cmd.Flags().Int64Var(&versionCode, "version-code", 0, "Only include changelogs for this version code")
 	return cmd
 }
 

@@ -185,6 +185,74 @@ func TestConvertCreatesMetadataFileFromSupplyListings(t *testing.T) {
 	}
 }
 
+func TestConvertChangelogsGroupsReleaseNotesByVersionCode(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "fastlane", "metadata", "android")
+	writeFile(t, filepath.Join(directory, "en-US", "changelogs", "42.txt"), "Bug fixes.\n")
+	writeFile(t, filepath.Join(directory, "es-ES", "changelogs", "42.txt"), "Correcciones.\r\n")
+	writeFile(t, filepath.Join(directory, "en-US", "changelogs", "43.txt"), "New flow.")
+
+	migration, err := ConvertChangelogs(context.Background(), ConvertChangelogsOptions{Directory: directory})
+	if err != nil {
+		t.Fatalf("ConvertChangelogs() error = %v", err)
+	}
+	if migration.Directory != filepath.ToSlash(directory) {
+		t.Fatalf("Directory = %q, want %q", migration.Directory, filepath.ToSlash(directory))
+	}
+	if len(migration.Changelogs) != 2 {
+		t.Fatalf("len(Changelogs) = %d, want 2", len(migration.Changelogs))
+	}
+	first := migration.Changelogs[0]
+	if first.VersionCode != 42 {
+		t.Fatalf("VersionCode = %d, want 42", first.VersionCode)
+	}
+	if len(first.ReleaseNotes) != 2 {
+		t.Fatalf("len(ReleaseNotes) = %d, want 2", len(first.ReleaseNotes))
+	}
+	if first.ReleaseNotes[0].Language != "en-US" || first.ReleaseNotes[0].Text != "Bug fixes." {
+		t.Fatalf("first note = %#v, want en-US bug fixes", first.ReleaseNotes[0])
+	}
+	if first.ReleaseNotes[1].Language != "es-ES" || first.ReleaseNotes[1].Text != "Correcciones." {
+		t.Fatalf("second note = %#v, want es-ES corrections", first.ReleaseNotes[1])
+	}
+	wantArg := "en-US=Bug fixes."
+	if first.ReleaseNoteArgs[0] != wantArg {
+		t.Fatalf("ReleaseNoteArgs[0] = %q, want %q", first.ReleaseNoteArgs[0], wantArg)
+	}
+}
+
+func TestConvertChangelogsFiltersVersionCode(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "fastlane", "metadata", "android")
+	writeFile(t, filepath.Join(directory, "en-US", "changelogs", "42.txt"), "Bug fixes.")
+	writeFile(t, filepath.Join(directory, "en-US", "changelogs", "43.txt"), "New flow.")
+
+	migration, err := ConvertChangelogs(context.Background(), ConvertChangelogsOptions{Directory: directory, VersionCode: 43})
+	if err != nil {
+		t.Fatalf("ConvertChangelogs() error = %v", err)
+	}
+	if len(migration.Changelogs) != 1 {
+		t.Fatalf("len(Changelogs) = %d, want 1", len(migration.Changelogs))
+	}
+	if migration.Changelogs[0].VersionCode != 43 {
+		t.Fatalf("VersionCode = %d, want 43", migration.Changelogs[0].VersionCode)
+	}
+}
+
+func TestConvertChangelogsRejectsInvalidChangelogName(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "fastlane", "metadata", "android")
+	writeFile(t, filepath.Join(directory, "en-US", "changelogs", "latest.txt"), "Bug fixes.")
+
+	_, err := ConvertChangelogs(context.Background(), ConvertChangelogsOptions{Directory: directory})
+	if err == nil {
+		t.Fatalf("ConvertChangelogs() expected error")
+	}
+	if !strings.Contains(err.Error(), "VERSION_CODE.txt") {
+		t.Fatalf("error = %v, want version-code filename error", err)
+	}
+}
+
 func TestInspectRejectsSymlinkImageSet(t *testing.T) {
 	root := t.TempDir()
 	directory := filepath.Join(root, "metadata")

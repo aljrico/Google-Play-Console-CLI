@@ -969,8 +969,22 @@ gpc migrate supply
 
 ##### Commands
 
+- `gpc migrate supply changelogs`: Convert fastlane supply changelogs to release-note payloads
 - `gpc migrate supply convert`: Convert fastlane supply listings to gpc metadata JSON
 - `gpc migrate supply inspect`: Inventory a fastlane supply metadata directory
+
+##### gpc migrate supply changelogs
+
+Convert fastlane supply changelogs to release-note payloads
+
+```sh
+gpc migrate supply changelogs [flags]
+```
+
+###### Flags
+
+- `--directory`: fastlane supply metadata directory (default `fastlane/metadata/android`)
+- `--version-code`: Only include changelogs for this version code (default `0`)
 
 ##### gpc migrate supply convert
 
