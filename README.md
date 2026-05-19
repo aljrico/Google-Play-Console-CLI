@@ -4,8 +4,6 @@
 
 It is built from mobile games release and revenue-ops pain: less Play Console clicking, stable JSON for scripts, guarded mutations, and commands that can survive CI.
 
-Heavily inspired by [`rorkai/App-Store-Connect-CLI`](https://github.com/rorkai/App-Store-Connect-CLI), this project maps that scriptable App Store Connect CLI style onto Google Play Console workflows powered by the Google Play Developer API.
-
 ## Quick Start
 
 ```sh
@@ -383,3 +381,7 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) for the generated command reference.
 This project is not pretending to be the first Google Play CLI. [`tamtom/play-console-cli`](https://github.com/tamtom/play-console-cli) is an active Go CLI for Play Console automation, [`Vacxe/google-play-cli`](https://github.com/Vacxe/google-play-cli) covers Google Play publishing workflows, and [`matlink/gplaycli`](https://github.com/matlink/gplaycli) is older prior art focused on Play Store downloading rather than publisher operations.
 
 The reason for this project is narrower and more opinionated: an ASC CLI-inspired command shape, stable JSON by default, mutation commands guarded by `--dry-run` and `--confirm`, generated command/capability docs, and broad coverage for the Play workflows mobile teams tend to operate repeatedly: releases, store metadata, reviews, financial/statistics reports, monetization catalogs, purchases, orders, and RTDN Pub/Sub helpers. `gpc notifications pubsub setup` creates the Google Cloud topic/subscription/IAM pieces, `gpc notifications pubsub pull` can decode RTDN payloads from a pull subscription, and `gpc notifications rtdn decode` handles wrapped or unwrapped notification payloads; selecting the app-level RTDN topic in Play Console is still an operator step.
+
+## Acknowledgments
+
+This project is heavily inspired by [`rorkai/App-Store-Connect-CLI`](https://github.com/rorkai/App-Store-Connect-CLI). Its fast, scriptable App Store Connect workflow is the north star for the kind of Google Play automation this CLI is trying to make pleasant.
