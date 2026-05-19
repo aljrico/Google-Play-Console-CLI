@@ -246,6 +246,79 @@ func TestNewSubscriptionOfferBatchGetRequestParsesPath(t *testing.T) {
 	}
 }
 
+func TestUpdateSubscriptionOfferStateDryRunBuildsPlanWithoutUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := UpdateSubscriptionOfferState(context.Background(), nil, SubscriptionOfferStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "premium",
+		BasePlanID:       "monthly",
+		OfferID:          "intro",
+		Action:           SubscriptionOfferStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSubscriptionOfferState() error = %v", err)
+	}
+	if !result.DryRun {
+		t.Fatal("DryRun = false, want true")
+	}
+	wantSteps := []string{"plan activate subscription offer"}
+	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
+		t.Fatalf("steps = %#v, want %#v", result.Plan.Steps, wantSteps)
+	}
+}
+
+func TestUpdateSubscriptionOfferStateRequiresConfirmOrDryRun(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewSubscriptionOfferStateUpdatePlan(SubscriptionOfferStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "premium",
+		BasePlanID:       "monthly",
+		OfferID:          "intro",
+		Action:           SubscriptionOfferStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+	})
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+}
+
+func TestUpdateSubscriptionOfferStatePassesOptionsToUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	updater := &fakeSubscriptionOfferClient{offer: SubscriptionOffer{OfferID: "intro"}}
+
+	result, err := UpdateSubscriptionOfferState(context.Background(), updater, SubscriptionOfferStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "premium",
+		BasePlanID:       "monthly",
+		OfferID:          "intro",
+		Action:           SubscriptionOfferStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSubscriptionOfferState() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatal("Applied = false, want true")
+	}
+	if updater.stateOptions.Action != SubscriptionOfferStateActionDeactivate {
+		t.Fatalf("Action = %q, want deactivate", updater.stateOptions.Action)
+	}
+}
+
 type fakeSubscriptionOfferClient struct {
 	listOptions  SubscriptionOfferListOptions
 	listResult   SubscriptionOfferListResult
@@ -253,6 +326,7 @@ type fakeSubscriptionOfferClient struct {
 	batchResult  SubscriptionOfferBatchGetResult
 	offerID      SubscriptionOfferID
 	offer        SubscriptionOffer
+	stateOptions SubscriptionOfferStateUpdateOptions
 }
 
 func (c *fakeSubscriptionOfferClient) ListSubscriptionOffers(ctx context.Context, options SubscriptionOfferListOptions) (SubscriptionOfferListResult, error) {
@@ -268,4 +342,9 @@ func (c *fakeSubscriptionOfferClient) GetSubscriptionOffer(ctx context.Context, 
 func (c *fakeSubscriptionOfferClient) BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error) {
 	c.batchOptions = options
 	return c.batchResult, nil
+}
+
+func (c *fakeSubscriptionOfferClient) UpdateSubscriptionOfferState(ctx context.Context, options SubscriptionOfferStateUpdateOptions) (SubscriptionOffer, error) {
+	c.stateOptions = options
+	return c.offer, nil
 }

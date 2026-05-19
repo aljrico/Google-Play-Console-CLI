@@ -968,6 +968,53 @@ func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName P
 	return subscriptionOfferFromAPI(offer), nil
 }
 
+func (p GooglePublisher) UpdateSubscriptionOfferState(ctx context.Context, options SubscriptionOfferStateUpdateOptions) (SubscriptionOffer, error) {
+	if err := options.ValidateLive(); err != nil {
+		return SubscriptionOffer{}, err
+	}
+	latencyTolerance := productUpdateLatencyToleranceToAPI(options.LatencyTolerance)
+	var (
+		offer *androidpublisher.SubscriptionOffer
+		err   error
+	)
+	switch options.Action {
+	case SubscriptionOfferStateActionActivate:
+		offer, err = p.service.Monetization.Subscriptions.BasePlans.Offers.Activate(
+			options.PackageName.String(),
+			options.ProductID.String(),
+			options.BasePlanID.String(),
+			options.OfferID.String(),
+			&androidpublisher.ActivateSubscriptionOfferRequest{
+				PackageName:      options.PackageName.String(),
+				ProductId:        options.ProductID.String(),
+				BasePlanId:       options.BasePlanID.String(),
+				OfferId:          options.OfferID.String(),
+				LatencyTolerance: latencyTolerance,
+			},
+		).Context(ctx).Do()
+	case SubscriptionOfferStateActionDeactivate:
+		offer, err = p.service.Monetization.Subscriptions.BasePlans.Offers.Deactivate(
+			options.PackageName.String(),
+			options.ProductID.String(),
+			options.BasePlanID.String(),
+			options.OfferID.String(),
+			&androidpublisher.DeactivateSubscriptionOfferRequest{
+				PackageName:      options.PackageName.String(),
+				ProductId:        options.ProductID.String(),
+				BasePlanId:       options.BasePlanID.String(),
+				OfferId:          options.OfferID.String(),
+				LatencyTolerance: latencyTolerance,
+			},
+		).Context(ctx).Do()
+	default:
+		return SubscriptionOffer{}, fmt.Errorf("unsupported subscription offer state action %q", options.Action)
+	}
+	if err != nil {
+		return SubscriptionOffer{}, fmt.Errorf("%s subscription offer %s for %s/%s/%s: %w", options.Action, options.OfferID, options.PackageName, options.ProductID, options.BasePlanID, err)
+	}
+	return subscriptionOfferFromAPI(offer), nil
+}
+
 func (p GooglePublisher) BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error) {
 	request := &androidpublisher.BatchGetSubscriptionOffersRequest{
 		Requests: make([]*androidpublisher.GetSubscriptionOfferRequest, 0, len(options.Requests)),

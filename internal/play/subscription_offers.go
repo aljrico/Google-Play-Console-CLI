@@ -96,6 +96,26 @@ type SubscriptionOffer struct {
 	Targeting          *SubscriptionOfferTargeting          `json:"targeting,omitempty"`
 }
 
+type SubscriptionOfferStateAction string
+
+const (
+	SubscriptionOfferStateActionActivate   SubscriptionOfferStateAction = "activate"
+	SubscriptionOfferStateActionDeactivate SubscriptionOfferStateAction = "deactivate"
+)
+
+func (a SubscriptionOfferStateAction) String() string {
+	return string(a)
+}
+
+func (a SubscriptionOfferStateAction) Validate() error {
+	switch a {
+	case SubscriptionOfferStateActionActivate, SubscriptionOfferStateActionDeactivate:
+		return nil
+	default:
+		return fmt.Errorf("unsupported subscription offer state action %q", a)
+	}
+}
+
 type SubscriptionOfferRegionalConfig struct {
 	RegionCode                string `json:"regionCode"`
 	NewSubscriberAvailability bool   `json:"newSubscriberAvailability,omitempty"`
@@ -341,4 +361,136 @@ func BatchGetSubscriptionOffers(ctx context.Context, getter SubscriptionOfferBat
 		return SubscriptionOfferBatchGetResult{}, fmt.Errorf("subscription offer batch getter is required")
 	}
 	return getter.BatchGetSubscriptionOffers(ctx, options)
+}
+
+type SubscriptionOfferStateUpdateOptions struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        SubscriptionProductID         `json:"productId"`
+	BasePlanID       SubscriptionBasePlanID        `json:"basePlanId"`
+	OfferID          SubscriptionOfferID           `json:"offerId"`
+	Action           SubscriptionOfferStateAction  `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	DryRun           bool                          `json:"dryRun"`
+}
+
+func (o SubscriptionOfferStateUpdateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionBasePlanID(o.BasePlanID.String()); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionOfferID(o.OfferID.String()); err != nil {
+		return err
+	}
+	if err := o.Action.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("subscription offer state update requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o SubscriptionOfferStateUpdateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live subscription offer state update cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live subscription offer state update requires --confirm")
+	}
+	return nil
+}
+
+type SubscriptionOfferStateUpdatePlan struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        SubscriptionProductID         `json:"productId"`
+	BasePlanID       SubscriptionBasePlanID        `json:"basePlanId"`
+	OfferID          SubscriptionOfferID           `json:"offerId"`
+	Action           SubscriptionOfferStateAction  `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	Steps            []string                      `json:"steps"`
+}
+
+type SubscriptionOfferStateUpdateResult struct {
+	PackageName PackageName                      `json:"packageName"`
+	ProductID   SubscriptionProductID            `json:"productId"`
+	BasePlanID  SubscriptionBasePlanID           `json:"basePlanId"`
+	OfferID     SubscriptionOfferID              `json:"offerId"`
+	Action      SubscriptionOfferStateAction     `json:"action"`
+	DryRun      bool                             `json:"dryRun"`
+	Applied     bool                             `json:"applied"`
+	Offer       *SubscriptionOffer               `json:"offer,omitempty"`
+	Plan        SubscriptionOfferStateUpdatePlan `json:"plan"`
+}
+
+type SubscriptionOfferStateUpdater interface {
+	UpdateSubscriptionOfferState(ctx context.Context, options SubscriptionOfferStateUpdateOptions) (SubscriptionOffer, error)
+}
+
+func NewSubscriptionOfferStateUpdatePlan(options SubscriptionOfferStateUpdateOptions) (SubscriptionOfferStateUpdatePlan, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionOfferStateUpdatePlan{}, err
+	}
+	return SubscriptionOfferStateUpdatePlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		BasePlanID:       options.BasePlanID,
+		OfferID:          options.OfferID,
+		Action:           options.Action,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            subscriptionOfferStateUpdateSteps(options),
+	}, nil
+}
+
+func UpdateSubscriptionOfferState(ctx context.Context, updater SubscriptionOfferStateUpdater, options SubscriptionOfferStateUpdateOptions) (SubscriptionOfferStateUpdateResult, error) {
+	plan, err := NewSubscriptionOfferStateUpdatePlan(options)
+	if err != nil {
+		return SubscriptionOfferStateUpdateResult{}, err
+	}
+	result := SubscriptionOfferStateUpdateResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		BasePlanID:  options.BasePlanID,
+		OfferID:     options.OfferID,
+		Action:      options.Action,
+		DryRun:      options.DryRun,
+		Applied:     false,
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if updater == nil {
+		return SubscriptionOfferStateUpdateResult{}, fmt.Errorf("subscription offer state updater is required")
+	}
+	offer, err := updater.UpdateSubscriptionOfferState(ctx, options)
+	if err != nil {
+		return SubscriptionOfferStateUpdateResult{}, err
+	}
+	result.Applied = true
+	result.Offer = &offer
+	return result, nil
+}
+
+func subscriptionOfferStateUpdateSteps(options SubscriptionOfferStateUpdateOptions) []string {
+	if options.DryRun {
+		return []string{fmt.Sprintf("plan %s subscription offer", options.Action)}
+	}
+	return []string{fmt.Sprintf("%s subscription offer", options.Action)}
 }

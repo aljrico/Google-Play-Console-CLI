@@ -1652,9 +1652,28 @@ gpc subscription-offers
 
 #### Commands
 
+- `gpc subscription-offers activate`: activate a subscription offer
 - `gpc subscription-offers batch-get`: Get multiple subscription offers
+- `gpc subscription-offers deactivate`: deactivate a subscription offer
 - `gpc subscription-offers get`: Get one subscription offer
 - `gpc subscription-offers list`: List subscription offers
+
+#### gpc subscription-offers activate
+
+activate a subscription offer
+
+```sh
+gpc subscription-offers activate [flags]
+```
+
+##### Flags
+
+- `--base-plan-id`: Parent subscription base plan ID
+- `--confirm`: Apply the subscription offer state update (default `false`)
+- `--dry-run`: Print the planned subscription offer state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--offer-id`: Subscription offer ID
+- `--product-id`: Parent subscription product ID
 
 #### gpc subscription-offers batch-get
 
@@ -1669,6 +1688,23 @@ gpc subscription-offers batch-get [flags]
 - `--base-plan-id`: Parent subscription base plan ID, or - for offers across base plans
 - `--offer`: Offer to fetch as productId/basePlanId/offerId; repeatable, up to 100 (default `[]`)
 - `--product-id`: Parent subscription product ID, or - for offers across products
+
+#### gpc subscription-offers deactivate
+
+deactivate a subscription offer
+
+```sh
+gpc subscription-offers deactivate [flags]
+```
+
+##### Flags
+
+- `--base-plan-id`: Parent subscription base plan ID
+- `--confirm`: Apply the subscription offer state update (default `false`)
+- `--dry-run`: Print the planned subscription offer state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--offer-id`: Subscription offer ID
+- `--product-id`: Parent subscription product ID
 
 #### gpc subscription-offers get
 

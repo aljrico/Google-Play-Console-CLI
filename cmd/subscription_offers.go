@@ -20,7 +20,75 @@ func newSubscriptionOffersCommand(out io.Writer, options *globalOptions) *cobra.
 		newSubscriptionOffersListCommand(out, options, &packageName),
 		newSubscriptionOffersGetCommand(out, options, &packageName),
 		newSubscriptionOffersBatchGetCommand(out, options, &packageName),
+		newSubscriptionOffersStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionActivate),
+		newSubscriptionOffersStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionDeactivate),
 	)
+	return cmd
+}
+
+func newSubscriptionOffersStateCommand(out io.Writer, options *globalOptions, packageName *string, action play.SubscriptionOfferStateAction) *cobra.Command {
+	var (
+		productID        string
+		basePlanID       string
+		offerID          string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   action.String(),
+		Short: string(action) + " a subscription offer",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, typedProductID, typedBasePlanID, err := parseSubscriptionOfferGetParent(*packageName, productID, basePlanID)
+			if err != nil {
+				return err
+			}
+			typedOfferID, err := play.NewSubscriptionOfferID(offerID)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			updateOptions := play.SubscriptionOfferStateUpdateOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				BasePlanID:       typedBasePlanID,
+				OfferID:          typedOfferID,
+				Action:           action,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.UpdateSubscriptionOfferState(cmd.Context(), nil, updateOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewSubscriptionOfferStateUpdatePlan(updateOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.UpdateSubscriptionOfferState(cmd.Context(), publisher, updateOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	addSubscriptionOfferParentFlags(cmd, &productID, &basePlanID, "Parent subscription product ID", "Parent subscription base plan ID")
+	cmd.Flags().StringVar(&offerID, "offer-id", "", "Subscription offer ID")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription offer state update")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription offer state update without calling Google Play")
 	return cmd
 }
 
