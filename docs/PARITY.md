@@ -134,7 +134,7 @@ Sources:
 | `workflow` | `workflow` | N/A | tested | `gpc workflow list` reads `.gpc/workflow.json`; `gpc workflow run NAME` executes steps sequentially or prints the plan with `--dry-run`. |
 | `webhooks` | `notifications` | Pub/Sub and Real-time developer notifications | planned | Likely separate setup from Android Publisher REST. |
 | `notify` | `notify` | N/A | planned | External notifications are CLI utility behavior. |
-| `migrate` | `migrate` | N/A | planned | Should support fastlane supply metadata migration. |
+| `migrate` | `migrate` | N/A | tested | `gpc migrate supply inspect` inventories fastlane supply metadata directories by locale, listing files, changelogs, image sets, and unknown files as stable JSON. Conversion/import remains planned. |
 | `diff` | `diff` | N/A | tested | `gpc diff json FROM TO` compares local JSON payloads with deterministic JSON Pointer paths and optional `--fail-on-change` CI behavior. |
 | `capabilities` | `capabilities` | N/A | tested | `gpc capabilities` exposes this parity matrix as structured CLI output with status and section filters. |
 | `schema` | `schema` | Discovery document | tested | `gpc schema` fetches the Android Publisher discovery document and emits a stable resource/method summary, with resource and method filters. |

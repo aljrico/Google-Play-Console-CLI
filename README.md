@@ -60,6 +60,7 @@ gpc schema --resource edits.tracks --method list --pretty
 gpc diff json ./metadata.old.json ./metadata.new.json --fail-on-change
 gpc workflow list
 gpc workflow run release-internal --dry-run
+gpc migrate supply inspect --directory fastlane/metadata/android
 gpc device-tier-configs list --package com.example.app --page-size 25
 gpc device-tier-configs get --package com.example.app --id 7
 gpc testers get --package com.example.app --track internal

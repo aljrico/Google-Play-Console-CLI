@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -413,6 +414,54 @@ func TestInstallSkillsListOutputsBundledSkillNames(t *testing.T) {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
 		}
+	}
+}
+
+func TestMigrateSupplyInspectOutputsInventoryWithoutAuth(t *testing.T) {
+	root := t.TempDir()
+	directory := root + "/fastlane/metadata/android"
+	writeRootTestPathContent(t, directory+"/en-US/title.txt", "Example")
+	writeRootTestPathContent(t, directory+"/en-US/changelogs/42.txt", "Bug fixes")
+	writeRootTestPathContent(t, directory+"/en-US/images/phoneScreenshots/1.png", "png")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"migrate",
+		"supply",
+		"inspect",
+		"--directory",
+		directory,
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"localeCount":1`,
+		`"language":"en-US"`,
+		`"name":"title.txt"`,
+		`"type":"phoneScreenshots"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func writeRootTestPathContent(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
 	}
 }
 

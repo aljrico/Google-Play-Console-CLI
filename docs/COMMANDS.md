@@ -34,6 +34,7 @@ gpc [flags]
 - `gpc install-skills`: Install bundled gpc agent skills
 - `gpc internal-sharing`: Upload artifacts to Google Play internal app sharing
 - `gpc listings`: Manage localized Google Play store listings
+- `gpc migrate`: Inspect and migrate local Google Play metadata
 - `gpc one-time-product-offers`: Inspect Google Play one-time product offers
 - `gpc one-time-products`: Inspect Google Play one-time products
 - `gpc orders`: Inspect and refund Google Play orders
@@ -744,6 +745,42 @@ gpc listings update [flags]
 - `--short-description`: Localized short description
 - `--title`: Localized app title
 - `--video`: Promotional YouTube video URL
+
+### gpc migrate
+
+Inspect and migrate local Google Play metadata
+
+```sh
+gpc migrate
+```
+
+#### Commands
+
+- `gpc migrate supply`: Inspect fastlane supply metadata
+
+#### gpc migrate supply
+
+Inspect fastlane supply metadata
+
+```sh
+gpc migrate supply
+```
+
+##### Commands
+
+- `gpc migrate supply inspect`: Inventory a fastlane supply metadata directory
+
+##### gpc migrate supply inspect
+
+Inventory a fastlane supply metadata directory
+
+```sh
+gpc migrate supply inspect [flags]
+```
+
+###### Flags
+
+- `--directory`: fastlane supply metadata directory (default `fastlane/metadata/android`)
 
 ### gpc one-time-product-offers
 
