@@ -1,0 +1,1603 @@
+package cmd
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestSubscriptionOffersListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"list",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--page-size",
+		"1001",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected page size validation error")
+	}
+	if !strings.Contains(err.Error(), "page size") {
+		t.Fatalf("error = %v, want page size validation", err)
+	}
+}
+
+func TestSubscriptionOffersGetRejectsMissingOfferIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected offer ID validation error")
+	}
+	if !strings.Contains(err.Error(), "subscription offer ID") {
+		t.Fatalf("error = %v, want offer ID validation", err)
+	}
+}
+
+func TestSubscriptionOffersDeactivateDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"deactivate",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"action":"deactivate"`,
+		`"offerId":"intro"`,
+		`"latencyTolerance":"latencyTolerant"`,
+		`"dryRun":true`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersBatchDeactivateDryRunInfersParentsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-deactivate",
+		"--package",
+		"com.example.app",
+		"--offer",
+		"premium/monthly/intro",
+		"--offer",
+		"premium/annual/winback",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"action":"deactivate"`,
+		`"productId":"premium"`,
+		`"basePlanId":"-"`,
+		`"offerId":"intro"`,
+		`"latencyTolerance":"latencyTolerant"`,
+		`"dryRun":true`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchAvailabilityDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-availability",
+		"--package",
+		"com.example.app",
+		"--availability",
+		"premium/monthly/intro/us: false",
+		"--availability",
+		"premium/annual/winback/FR:true",
+		"--regions-version",
+		"2026/05",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"productId":"premium"`,
+		`"basePlanId":"-"`,
+		`"offerId":"intro"`,
+		`"regionCode":"US"`,
+		`"availability":false`,
+		`"newSubscriberAvailability":false`,
+		`"updateMask":"regionalConfigs"`,
+		`"regionsVersion":"2026/05"`,
+		`"latencyTolerance":"latencyTolerant"`,
+		`"dryRun":true`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchAvailabilityRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-availability",
+		"--package",
+		"com.example.app",
+		"--availability",
+		"premium/monthly/intro/US:true",
+		"--regions-version",
+		"2026/05",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchAvailabilityRejectsMalformedPatchBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-availability",
+		"--package",
+		"com.example.app",
+		"--availability",
+		"premium/monthly/intro:true",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected availability format validation error")
+	}
+	if !strings.Contains(err.Error(), "productId/basePlanId/offerId/REGION:true|false") {
+		t.Fatalf("error = %v, want availability format validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchAvailabilityRejectsInvalidBooleanBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-availability",
+		"--package",
+		"com.example.app",
+		"--availability",
+		"premium/monthly/intro/US:notabool",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected availability boolean validation error")
+	}
+	if !strings.Contains(err.Error(), "productId/basePlanId/offerId/REGION:true|false") {
+		t.Fatalf("error = %v, want availability format validation", err)
+	}
+	if strings.Contains(err.Error(), "strconv.ParseBool") {
+		t.Fatalf("error = %v, did not expect raw strconv error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchPhaseRelativeDiscountsDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-phase-relative-discounts",
+		"--package",
+		"com.example.app",
+		"--relative-discount",
+		"premium/monthly/intro/0/us:0.75",
+		"--relative-discount",
+		"premium/annual/winback/1/FR:0.5",
+		"--regions-version",
+		"2026/05",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"productId":"premium"`,
+		`"basePlanId":"-"`,
+		`"offerId":"intro"`,
+		`"phaseIndex":0`,
+		`"regionCode":"US"`,
+		`"relativeDiscount":0.75`,
+		`"updateMask":"phases"`,
+		`"regionsVersion":"2026/05"`,
+		`"latencyTolerance":"latencyTolerant"`,
+		`"dryRun":true`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchPhaseRelativeDiscountsRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-phase-relative-discounts",
+		"--package",
+		"com.example.app",
+		"--relative-discount",
+		"premium/monthly/intro/0/US:0.75",
+		"--regions-version",
+		"2026/05",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchPhaseRelativeDiscountsRejectsMalformedPatchBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-phase-relative-discounts",
+		"--package",
+		"com.example.app",
+		"--relative-discount",
+		"premium/monthly/intro/US:0.75",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected phase relative discount format validation error")
+	}
+	if !strings.Contains(err.Error(), "productId/basePlanId/offerId/phaseIndex/REGION:0.75") {
+		t.Fatalf("error = %v, want phase relative discount format validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchPhaseAbsoluteDiscountsDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-phase-absolute-discounts",
+		"--package",
+		"com.example.app",
+		"--absolute-discount",
+		"premium/monthly/intro/0/us:USD:1:500000000",
+		"--absolute-discount",
+		"premium/annual/winback/1/FR:EUR:2",
+		"--regions-version",
+		"2026/05",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"productId":"premium"`,
+		`"basePlanId":"-"`,
+		`"offerId":"intro"`,
+		`"phaseIndex":0`,
+		`"regionCode":"US"`,
+		`"currencyCode":"USD"`,
+		`"units":1`,
+		`"nanos":500000000`,
+		`"updateMask":"phases"`,
+		`"regionsVersion":"2026/05"`,
+		`"latencyTolerance":"latencyTolerant"`,
+		`"dryRun":true`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersCreateDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "offer.json")
+	if err := os.WriteFile(bodyPath, []byte(`{
+		"state":"ACTIVE",
+		"offerTags":[{"tag":"intro"}],
+		"regionalConfigs":[
+			{"regionCode":"US","newSubscriberAvailability":true},
+			{"regionCode":"FR","newSubscriberAvailability":true}
+		],
+		"otherRegionsConfig":{"otherRegionsNewSubscriberAvailability":true},
+		"phases":[{
+			"duration":"P1M",
+			"recurrenceCount":1,
+			"regionalConfigs":[
+				{"regionCode":"US","price":{"currencyCode":"USD","units":"1"}},
+				{"regionCode":"FR","price":{"currencyCode":"EUR","nanos":990000000}}
+			],
+			"otherRegionsConfig":{"free":{}}
+		}],
+		"targeting":{"acquisitionRule":{"scope":{"thisSubscription":{}}}}
+	}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--from-json",
+		bodyPath,
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"action":"create"`,
+		`"dryRun":true`,
+		`"created":false`,
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"offerId":"intro"`,
+		`"regionsVersion":"2026/05"`,
+		`"currencyCode":"USD"`,
+		`"nanos":990000000`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+	if strings.Contains(output, `"state":"ACTIVE"`) {
+		t.Fatalf("output = %s, did not expect output-only state from input JSON", output)
+	}
+}
+
+func TestSubscriptionOffersCreateBasicFreePhaseDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--offer-tag",
+		"trial",
+		"--free-region",
+		"us",
+		"--free-region",
+		"FR",
+		"--phase-duration",
+		"P7D",
+		"--phase-recurrence",
+		"1",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"offerId":"intro"`,
+		`"offerTags":["trial"]`,
+		`"regionCode":"US"`,
+		`"regionCode":"FR"`,
+		`"newSubscriberAvailability":true`,
+		`"duration":"P7D"`,
+		`"recurrenceCount":1`,
+		`"free":true`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersCreateBasicPricePhaseDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--offer-tag",
+		"paid-intro",
+		"--price",
+		"us:USD:1:990000000",
+		"--price",
+		"FR:EUR:0:990000000",
+		"--phase-duration",
+		"P1M",
+		"--phase-recurrence",
+		"1",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"offerId":"intro"`,
+		`"offerTags":["paid-intro"]`,
+		`"regionCode":"US"`,
+		`"regionCode":"FR"`,
+		`"newSubscriberAvailability":true`,
+		`"duration":"P1M"`,
+		`"recurrenceCount":1`,
+		`"price":{"currencyCode":"USD","units":1,"nanos":990000000}`,
+		`"price":{"currencyCode":"EUR","nanos":990000000}`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersCreateBasicRelativeDiscountPhaseDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--offer-tag",
+		"half-off",
+		"--relative-discount",
+		"us:0.5",
+		"--relative-discount",
+		"FR:0.25",
+		"--phase-duration",
+		"P1M",
+		"--phase-recurrence",
+		"1",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"offerId":"intro"`,
+		`"offerTags":["half-off"]`,
+		`"regionCode":"US"`,
+		`"regionCode":"FR"`,
+		`"newSubscriberAvailability":true`,
+		`"duration":"P1M"`,
+		`"recurrenceCount":1`,
+		`"relativeDiscount":0.5`,
+		`"relativeDiscount":0.25`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersCreateBasicAbsoluteDiscountPhaseDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--offer-tag",
+		"absolute-intro",
+		"--absolute-discount",
+		"us:USD:1:990000000",
+		"--absolute-discount",
+		"FR:EUR:0:990000000",
+		"--phase-duration",
+		"P1M",
+		"--phase-recurrence",
+		"1",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"offerId":"intro"`,
+		`"offerTags":["absolute-intro"]`,
+		`"regionCode":"US"`,
+		`"regionCode":"FR"`,
+		`"newSubscriberAvailability":true`,
+		`"duration":"P1M"`,
+		`"recurrenceCount":1`,
+		`"absoluteDiscount":{"currencyCode":"USD","units":1,"nanos":990000000}`,
+		`"absoluteDiscount":{"currencyCode":"EUR","nanos":990000000}`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersCreateBasicFlagsRejectDuplicatePhaseRegionBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--free-region",
+		"US",
+		"--price",
+		"us:USD:1",
+		"--phase-duration",
+		"P1M",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected duplicate region validation error")
+	}
+	if !strings.Contains(err.Error(), "subscription offer create region US is duplicated") {
+		t.Fatalf("error = %v, want duplicate region validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestSubscriptionOffersCreateBasicFlagsRejectInvalidRelativeDiscountBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--relative-discount",
+		"US:not-a-number",
+		"--phase-duration",
+		"P1M",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected relative discount validation error")
+	}
+	if !strings.Contains(err.Error(), "subscription offer create relative discount must use REGION:0.5") {
+		t.Fatalf("error = %v, want relative discount format validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestSubscriptionOffersCreateBasicFlagsRejectMalformedAbsoluteDiscountBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--absolute-discount",
+		"US:USD:not-a-number",
+		"--phase-duration",
+		"P1M",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected absolute discount validation error")
+	}
+	if !strings.Contains(err.Error(), "subscription offer create absolute discount must use REGION:CURRENCY:UNITS[:NANOS]") {
+		t.Fatalf("error = %v, want absolute discount format validation", err)
+	}
+	if strings.Contains(err.Error(), "price units") {
+		t.Fatalf("error = %v, did not expect generic money parse error", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestSubscriptionOffersCreateRejectsJSONWithBasicFlagsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "offer.json")
+	if err := os.WriteFile(bodyPath, []byte(`{
+		"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}],
+		"phases":[{"duration":"P7D","recurrenceCount":1,"regionalConfigs":[{"regionCode":"US","free":{}}]}]
+	}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--from-json",
+		bodyPath,
+		"--free-region",
+		"US",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected from-json and basic flags validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("error = %v, want combination validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "offer.json")
+	if err := os.WriteFile(bodyPath, []byte(`{"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}]}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--from-json",
+		bodyPath,
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected offer body validation error")
+	}
+	if !strings.Contains(err.Error(), "requires one or two phases") {
+		t.Fatalf("error = %v, want phase validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchPhaseAbsoluteDiscountsRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-phase-absolute-discounts",
+		"--package",
+		"com.example.app",
+		"--absolute-discount",
+		"premium/monthly/intro/0/US:USD:1",
+		"--regions-version",
+		"2026/05",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchPhaseAbsoluteDiscountsRejectsMalformedPatchBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-phase-absolute-discounts",
+		"--package",
+		"com.example.app",
+		"--absolute-discount",
+		"premium/monthly/intro/US:USD:1",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected phase absolute discount format validation error")
+	}
+	if !strings.Contains(err.Error(), "productId/basePlanId/offerId/phaseIndex/REGION:CURRENCY:UNITS[:NANOS]") {
+		t.Fatalf("error = %v, want phase absolute discount format validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchPhasePricesDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-phase-prices",
+		"--package",
+		"com.example.app",
+		"--price",
+		"premium/monthly/intro/0/us:USD:1:990000000",
+		"--price",
+		"premium/annual/winback/1/FR:EUR:2",
+		"--regions-version",
+		"2026/05",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"productId":"premium"`,
+		`"basePlanId":"-"`,
+		`"offerId":"intro"`,
+		`"phaseIndex":0`,
+		`"regionCode":"US"`,
+		`"currencyCode":"USD"`,
+		`"units":1`,
+		`"nanos":990000000`,
+		`"updateMask":"phases"`,
+		`"regionsVersion":"2026/05"`,
+		`"latencyTolerance":"latencyTolerant"`,
+		`"dryRun":true`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchPhasePricesRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-phase-prices",
+		"--package",
+		"com.example.app",
+		"--price",
+		"premium/monthly/intro/0/US:USD:1",
+		"--regions-version",
+		"2026/05",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchPhasePricesRejectsMalformedPatchBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-phase-prices",
+		"--package",
+		"com.example.app",
+		"--price",
+		"premium/monthly/intro/US:USD:1",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected phase price format validation error")
+	}
+	if !strings.Contains(err.Error(), "productId/basePlanId/offerId/phaseIndex/REGION:CURRENCY:UNITS[:NANOS]") {
+		t.Fatalf("error = %v, want phase price format validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchPhaseFreeDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-phase-free",
+		"--package",
+		"com.example.app",
+		"--free",
+		"premium/monthly/intro/0/us",
+		"--free",
+		"premium/annual/winback/1/FR",
+		"--regions-version",
+		"2026/05",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"productId":"premium"`,
+		`"basePlanId":"-"`,
+		`"offerId":"intro"`,
+		`"phaseIndex":0`,
+		`"regionCode":"US"`,
+		`"free":true`,
+		`"updateMask":"phases"`,
+		`"regionsVersion":"2026/05"`,
+		`"latencyTolerance":"latencyTolerant"`,
+		`"dryRun":true`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchPhaseFreeRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-phase-free",
+		"--package",
+		"com.example.app",
+		"--free",
+		"premium/monthly/intro/0/US",
+		"--regions-version",
+		"2026/05",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchPhaseFreeRejectsMalformedPatchBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-phase-free",
+		"--package",
+		"com.example.app",
+		"--free",
+		"premium/monthly/intro/US",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected phase free format validation error")
+	}
+	if !strings.Contains(err.Error(), "productId/basePlanId/offerId/phaseIndex/REGION") {
+		t.Fatalf("error = %v, want phase free format validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchActivateRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-activate",
+		"--package",
+		"com.example.app",
+		"--offer",
+		"premium/monthly/intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchActivateRejectsMissingOfferBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-activate",
+		"--package",
+		"com.example.app",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing offer validation error")
+	}
+	if !strings.Contains(err.Error(), "at least one subscription offer is required") {
+		t.Fatalf("error = %v, want missing offer validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersDeleteDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"delete",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"offerId":"intro"`,
+		`"dryRun":true`,
+		`"deleted":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersDeleteRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"delete",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"activate",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersListAcceptsWildcardsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"list",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"-",
+		"--base-plan-id",
+		"-",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected auth error after wildcard validation succeeds")
+	}
+	if strings.Contains(err.Error(), "invalid subscription product ID") || strings.Contains(err.Error(), "base plan") {
+		t.Fatalf("error = %v, want auth error after wildcard validation", err)
+	}
+}
+
+func TestSubscriptionOffersGetRejectsWildcardBasePlanBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"-",
+		"--offer-id",
+		"intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected base plan validation error")
+	}
+	if !strings.Contains(err.Error(), "subscription base plan ID") {
+		t.Fatalf("error = %v, want base plan validation", err)
+	}
+}
+
+func TestSubscriptionOffersBatchGetRejectsMissingOfferBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"-",
+		"--base-plan-id",
+		"-",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected offer validation error")
+	}
+	if !strings.Contains(err.Error(), "at least one subscription offer") {
+		t.Fatalf("error = %v, want missing offer validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestSubscriptionOffersBatchGetRejectsParentMismatchBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer",
+		"other/monthly/intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected parent mismatch validation error")
+	}
+	if !strings.Contains(err.Error(), "does not match parent product ID") {
+		t.Fatalf("error = %v, want parent product validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestSubscriptionOffersBatchGetRejectsInvalidOfferIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"-",
+		"--base-plan-id",
+		"-",
+		"--offer",
+		"premium/monthly/Intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected offer ID validation error")
+	}
+	if !strings.Contains(err.Error(), "subscription offer ID") {
+		t.Fatalf("error = %v, want offer ID validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestSubscriptionOffersBatchGetRejectsOverlongOfferIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"-",
+		"--base-plan-id",
+		"-",
+		"--offer",
+		"premium/monthly/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected offer ID validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot exceed 63 characters") {
+		t.Fatalf("error = %v, want offer ID length validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
