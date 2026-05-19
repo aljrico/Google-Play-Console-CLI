@@ -754,6 +754,41 @@ func TestInsightsAnomaliesSummarizeOutputsCountsWithoutAuth(t *testing.T) {
 	}
 }
 
+func TestFinanceReportsSummarizeOutputsTotalsWithoutAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	file := writeRootTestPathContent(t, filepath.Join(t.TempDir(), "sales.csv"), "Transaction Type,Merchant Currency Code,Merchant Currency\nCharge,USD,9.99\nCharge,USD,1.01\nGoogle fee,USD,-1.50\n")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"finance",
+		"reports",
+		"summarize",
+		"--file",
+		file,
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"rows":3`,
+		`"amountColumn":"Merchant Currency"`,
+		`"transactionType":"Charge","count":2,"total":"11","currency":"USD"`,
+		`"transactionType":"Google fee","count":1,"total":"-1.5","currency":"USD"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func writeRootTestPathContent(t *testing.T, path string, content string) string {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

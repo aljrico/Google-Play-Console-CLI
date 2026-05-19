@@ -26,6 +26,7 @@ gpc [flags]
 - `gpc device-tier-configs`: Inspect Google Play device tier configs
 - `gpc diff`: Compare local Google Play payloads
 - `gpc docs`: Print embedded gpc documentation
+- `gpc finance`: Summarize Google Play financial reports
 - `gpc generated-apks`: Inspect generated APK metadata for an App Bundle version
 - `gpc grants`: Manage Google Play app access grants
 - `gpc images`: Manage localized Google Play store images
@@ -388,6 +389,42 @@ gpc docs [flags]
 
 - `gpc docs commands`: Print generated command reference
 - `gpc docs parity`: Print the asc-to-gpc parity matrix
+
+### gpc finance
+
+Summarize Google Play financial reports
+
+```sh
+gpc finance
+```
+
+#### Commands
+
+- `gpc finance reports`: Summarize downloaded Play financial report CSVs
+
+#### gpc finance reports
+
+Summarize downloaded Play financial report CSVs
+
+```sh
+gpc finance reports
+```
+
+##### Commands
+
+- `gpc finance reports summarize`: Summarize a Play financial report CSV
+
+##### gpc finance reports summarize
+
+Summarize a Play financial report CSV
+
+```sh
+gpc finance reports summarize [flags]
+```
+
+###### Flags
+
+- `--file`: Downloaded Google Play financial report CSV
 
 ### gpc generated-apks
 

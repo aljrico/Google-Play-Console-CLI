@@ -45,6 +45,7 @@ func newRootCommand(out io.Writer) *cobra.Command {
 		newDiffCommand(out, options),
 		newDocsCommand(out, options),
 		newDeviceTierConfigsCommand(out, options),
+		newFinanceCommand(out, options),
 		newInitCommand(out, options),
 		newInsightsCommand(out, options),
 		newNotifyCommand(out, options),

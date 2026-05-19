@@ -66,6 +66,7 @@ gpc search "release upload" --limit 5
 gpc snitch report --title "Confusing release output" --command "gpc releases list --package com.example.app"
 gpc notifications rtdn decode --file ./pubsub-rtdn.json
 gpc insights anomalies summarize --file ./vitals-anomalies.json
+gpc finance reports summarize --file ./salesreport_202605.csv
 gpc device-tier-configs list --package com.example.app --page-size 25
 gpc device-tier-configs get --package com.example.app --id 7
 gpc testers get --package com.example.app --track internal
