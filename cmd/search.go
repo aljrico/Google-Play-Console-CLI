@@ -14,7 +14,7 @@ func newSearchCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	var limit int
 	cmd := &cobra.Command{
 		Use:   "search QUERY...",
-		Short: "Search gpc commands and flags",
+		Short: "Search playpub commands and flags",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := commandsearch.Search(commandSearchDocuments(cmd.Root()), commandsearch.Options{

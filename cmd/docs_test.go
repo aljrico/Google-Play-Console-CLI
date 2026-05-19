@@ -7,7 +7,7 @@ import (
 )
 
 func TestDocsParityOutputsMarkdownWithoutAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -52,7 +52,7 @@ func TestDocsParityOutputsJSONDocument(t *testing.T) {
 }
 
 func TestDocsCommandsOutputsJSONReferenceWithoutAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -68,15 +68,15 @@ func TestDocsCommandsOutputsJSONReferenceWithoutAuth(t *testing.T) {
 	}
 	output := buf.String()
 	for _, want := range []string{
-		`"name":"gpc"`,
-		`"path":"gpc users"`,
-		`"path":"gpc users create"`,
-		`"path":"gpc purchases product acknowledge"`,
-		`"path":"gpc releases"`,
-		`"path":"gpc vitals metric-set query"`,
-		`"path":"gpc vitals errors issues search"`,
-		`"path":"gpc vitals errors reports search"`,
-		`"path":"gpc vitals anomalies list"`,
+		`"name":"playpub"`,
+		`"path":"playpub users"`,
+		`"path":"playpub users create"`,
+		`"path":"playpub purchases product acknowledge"`,
+		`"path":"playpub releases"`,
+		`"path":"playpub vitals metric-set query"`,
+		`"path":"playpub vitals errors issues search"`,
+		`"path":"playpub vitals errors reports search"`,
+		`"path":"playpub vitals anomalies list"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -106,14 +106,14 @@ func TestDocsCommandsOutputsMarkdownReference(t *testing.T) {
 	output := buf.String()
 	for _, want := range []string{
 		"# Command Reference",
-		"`gpc users`",
-		"`gpc users create`",
-		"`gpc purchases product acknowledge`",
-		"`gpc releases`",
-		"`gpc vitals metric-set query`",
-		"`gpc vitals errors issues search`",
-		"`gpc vitals errors reports search`",
-		"`gpc vitals anomalies list`",
+		"`playpub users`",
+		"`playpub users create`",
+		"`playpub purchases product acknowledge`",
+		"`playpub releases`",
+		"`playpub vitals metric-set query`",
+		"`playpub vitals errors issues search`",
+		"`playpub vitals errors reports search`",
+		"`playpub vitals anomalies list`",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)

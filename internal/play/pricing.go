@@ -278,13 +278,13 @@ func buildPricePatchArgs(options PricePatchBuildOptions) ([]string, error) {
 func buildPricePatchSuggestedCommand(result PricePatchBuildResult) []string {
 	switch result.Target {
 	case PricePatchBuildTargetInAppProduct:
-		command := []string{"gpc", "in-app-products", "patch", "--package", result.PackageName.String(), "--sku", result.SKU.String()}
+		command := []string{"playpub", "in-app-products", "patch", "--package", result.PackageName.String(), "--sku", result.SKU.String()}
 		for _, priceArg := range result.PriceArgs {
 			command = append(command, "--regional-price", priceArg)
 		}
 		return append(command, "--dry-run")
 	case PricePatchBuildTargetOneTimeProduct:
-		command := []string{"gpc", "one-time-products", "purchase-option", "batch-patch-prices", "--package", result.PackageName.String()}
+		command := []string{"playpub", "one-time-products", "purchase-option", "batch-patch-prices", "--package", result.PackageName.String()}
 		if result.RegionVersion != "" {
 			command = append(command, "--regions-version", result.RegionVersion)
 		}
@@ -293,7 +293,7 @@ func buildPricePatchSuggestedCommand(result PricePatchBuildResult) []string {
 		}
 		return append(command, "--dry-run")
 	case PricePatchBuildTargetSubscriptionBasePlan:
-		command := []string{"gpc", "subscriptions", "base-plan", "batch-patch-prices", "--package", result.PackageName.String()}
+		command := []string{"playpub", "subscriptions", "base-plan", "batch-patch-prices", "--package", result.PackageName.String()}
 		if result.RegionVersion != "" {
 			command = append(command, "--regions-version", result.RegionVersion)
 		}
@@ -302,7 +302,7 @@ func buildPricePatchSuggestedCommand(result PricePatchBuildResult) []string {
 		}
 		return append(command, "--dry-run")
 	case PricePatchBuildTargetSubscriptionOfferPhase:
-		command := []string{"gpc", "subscription-offers", "batch-patch-phase-prices", "--package", result.PackageName.String()}
+		command := []string{"playpub", "subscription-offers", "batch-patch-phase-prices", "--package", result.PackageName.String()}
 		if result.RegionVersion != "" {
 			command = append(command, "--regions-version", result.RegionVersion)
 		}

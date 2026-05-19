@@ -1,4 +1,4 @@
-BINARY := gpc
+BINARY := playpub
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 INSTALL ?= install

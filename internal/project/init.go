@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-const defaultDirectory = ".gpc"
+const defaultDirectory = ".playpub"
 
 type InitOptions struct {
 	Directory string `json:"directory,omitempty"`
@@ -98,7 +98,7 @@ func initFiles(directory string) []plannedInitFile {
 	return []plannedInitFile{
 		{
 			path: filepath.Join(directory, "README.md"),
-			content: `# gpc Workspace
+			content: `# playpub Workspace
 
 This directory holds Google Play Console CLI helper files for this repository.
 
@@ -114,7 +114,7 @@ This directory holds Google Play Console CLI helper files for this repository.
   "workflows": {
     "release-internal": [
       {
-        "run": "gpc publish internal --package com.example.app --aab ./app-release.aab --dry-run"
+        "run": "playpub publish internal --package com.example.app --aab ./app-release.aab --dry-run"
       }
     ]
   }

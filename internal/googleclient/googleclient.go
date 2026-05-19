@@ -18,7 +18,7 @@ func ActiveProfileHTTPClient(ctx context.Context, scopes ...string) (*http.Clien
 	}
 	profile, ok := store.Profiles[store.ActiveProfile]
 	if !ok || store.ActiveProfile == "" {
-		return nil, fmt.Errorf("no active auth profile; run gpc auth login")
+		return nil, fmt.Errorf("no active auth profile; run playpub auth login")
 	}
 	credentialsJSON, err := os.ReadFile(profile.ServiceAccountFile)
 	if err != nil {

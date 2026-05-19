@@ -85,7 +85,7 @@ func TestMigrateSupplyConvertOutputsMetadataWithoutAuth(t *testing.T) {
 }
 
 func TestMigrateSupplyChangelogsDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	directory := filepath.Join(t.TempDir(), "fastlane", "metadata", "android")
 	writeNestedRootTestFile(t, filepath.Join(directory, "en-US", "changelogs", "42.txt"), "Bug fixes.\n")
 
@@ -116,7 +116,7 @@ func TestMigrateSupplyChangelogsDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestMigrateSupplyImagesDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	directory := filepath.Join(t.TempDir(), "fastlane", "metadata", "android")
 	imagePath := filepath.Join(directory, "en-US", "images", "phoneScreenshots", "1.png")
 	writeNestedRootTestFile(t, imagePath, "png")

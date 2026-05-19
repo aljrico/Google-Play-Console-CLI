@@ -8,7 +8,7 @@ import (
 )
 
 func TestPricingConvertRejectsInvalidPriceBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -36,7 +36,7 @@ func TestPricingConvertRejectsInvalidPriceBeforeAuth(t *testing.T) {
 }
 
 func TestPricingBuildPricePatchesOutputsPatchArgsWithoutAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	jsonPath := writeTempPricingConversion(t, `{
 		"packageName": "com.example.app",
 		"sourcePrice": {"currencyCode": "USD", "units": 9, "nanos": 990000000},
@@ -71,7 +71,7 @@ func TestPricingBuildPricePatchesOutputsPatchArgsWithoutAuth(t *testing.T) {
 	for _, want := range []string{
 		`"target":"one-time-product"`,
 		`"priceArgs":["coins_100/buy/BR:BRL:19","coins_100/buy/US:USD:9:990000000"]`,
-		`"suggestedCommand":["gpc","one-time-products","purchase-option","batch-patch-prices","--package","com.example.app","--regions-version","2026/05","--price","coins_100/buy/BR:BRL:19","--price","coins_100/buy/US:USD:9:990000000","--dry-run"]`,
+		`"suggestedCommand":["playpub","one-time-products","purchase-option","batch-patch-prices","--package","com.example.app","--regions-version","2026/05","--price","coins_100/buy/BR:BRL:19","--price","coins_100/buy/US:USD:9:990000000","--dry-run"]`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -83,7 +83,7 @@ func TestPricingBuildPricePatchesOutputsPatchArgsWithoutAuth(t *testing.T) {
 }
 
 func TestPricingBuildPricePatchesRejectsInvalidInputBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	jsonPath := writeTempPricingConversion(t, `{
 		"packageName": "com.example.app",
 		"sourcePrice": {"currencyCode": "USD", "units": 1},
@@ -120,7 +120,7 @@ func TestPricingBuildPricePatchesRejectsInvalidInputBeforeAuth(t *testing.T) {
 }
 
 func TestPricingBuildPricePatchesRejectsMismatchedPackageFlag(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	jsonPath := writeTempPricingConversion(t, `{
 		"packageName": "com.example.staging",
 		"sourcePrice": {"currencyCode": "USD", "units": 1},
@@ -157,7 +157,7 @@ func TestPricingBuildPricePatchesRejectsMismatchedPackageFlag(t *testing.T) {
 }
 
 func TestPricingBuildPricePatchesRejectsDuplicateRegionKeyInJSON(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	jsonPath := writeTempPricingConversion(t, `{
 		"packageName": "com.example.app",
 		"sourcePrice": {"currencyCode": "USD", "units": 9, "nanos": 990000000},

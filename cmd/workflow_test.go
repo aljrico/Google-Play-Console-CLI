@@ -7,7 +7,7 @@ import (
 )
 
 func TestWorkflowListDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	workflowFile := writeRootTestContent(t, "workflow.json", `{
 	  "version": 1,
 	  "workflows": {

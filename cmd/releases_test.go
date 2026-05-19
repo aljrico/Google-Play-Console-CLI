@@ -8,7 +8,7 @@ import (
 )
 
 func TestReleasesUploadRejectsMalformedReleaseNoteBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -36,7 +36,7 @@ func TestReleasesUploadRejectsMalformedReleaseNoteBeforeAuth(t *testing.T) {
 }
 
 func TestReleasesUploadDryRunUsesRequestedTrack(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -82,7 +82,7 @@ func TestReleasesUploadDryRunUsesRequestedTrack(t *testing.T) {
 }
 
 func TestReleasesUploadDryRunSupportsAPK(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -128,7 +128,7 @@ func TestReleasesUploadDryRunSupportsAPK(t *testing.T) {
 }
 
 func TestReleasesUploadRejectsMultipleArtifactsBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -158,7 +158,7 @@ func TestReleasesUploadRejectsMultipleArtifactsBeforeAuth(t *testing.T) {
 }
 
 func TestReleasesUploadLiveRejectsMissingAPKBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -186,7 +186,7 @@ func TestReleasesUploadLiveRejectsMissingAPKBeforeAuth(t *testing.T) {
 }
 
 func TestReleasesUploadLiveRejectsInvalidUserFractionBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	bundlePath := writeRootTestFile(t, "app-release.aab")
 
 	var buf bytes.Buffer
@@ -217,7 +217,7 @@ func TestReleasesUploadLiveRejectsInvalidUserFractionBeforeAuth(t *testing.T) {
 }
 
 func TestReleasesPromoteDryRun(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -251,7 +251,7 @@ func TestReleasesPromoteDryRun(t *testing.T) {
 }
 
 func TestReleasesHaltDryRun(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -278,7 +278,7 @@ func TestReleasesHaltDryRun(t *testing.T) {
 }
 
 func TestReleasesResumeDryRun(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -309,7 +309,7 @@ func TestReleasesResumeDryRun(t *testing.T) {
 }
 
 func TestReleasesResumeCompletedDryRun(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

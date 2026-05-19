@@ -8,7 +8,7 @@ import (
 )
 
 func TestAnalyticsStatsSummarizeOutputsTotalsWithoutAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	file := writeRootTestPathContent(t, filepath.Join(t.TempDir(), "store_performance.csv"), "Date,Package name,Country/region,Store listing visitors,Store listing acquisitions\n2026-05-01,com.example.app,US,10,2\n2026-05-02,com.example.app,US,15,3\n")
 
 	var buf bytes.Buffer
@@ -44,7 +44,7 @@ func TestAnalyticsStatsSummarizeOutputsTotalsWithoutAuth(t *testing.T) {
 }
 
 func TestAnalyticsStatsDownloadDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	outputPath := filepath.Join(t.TempDir(), "stats.csv")
 
 	var buf bytes.Buffer

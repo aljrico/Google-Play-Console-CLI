@@ -178,7 +178,7 @@ func ValidateOutputPath(path string, force bool) error {
 
 func downloadToFile(ctx context.Context, downloader ObjectDownloader, options DownloadOptions) (int64, error) {
 	directory := filepath.Dir(options.OutputPath)
-	tempFile, err := os.CreateTemp(directory, ".gpc-report-*")
+	tempFile, err := os.CreateTemp(directory, ".playpub-report-*")
 	if err != nil {
 		return 0, fmt.Errorf("create temporary report file: %w", err)
 	}

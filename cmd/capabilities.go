@@ -16,7 +16,7 @@ func newCapabilitiesCommand(out io.Writer, options *globalOptions) *cobra.Comman
 
 	cmd := &cobra.Command{
 		Use:   "capabilities",
-		Short: "List gpc command parity and capability status",
+		Short: "List playpub command parity and capability status",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			items, err := capabilities.List(capabilities.ListOptions{

@@ -13,8 +13,8 @@ func CurrentStatus() Status {
 		Status:  "blocked",
 		Reason:  "Play Console browser automation is intentionally kept out of the Go CLI until a stable, testable automation contract exists.",
 		Alternatives: []string{
-			"use API-backed gpc commands where Android Publisher or Play Developer Reporting APIs cover the workflow",
-			"use explicit operator-driven browser automation outside gpc for Console-only surfaces",
+			"use API-backed playpub commands where Android Publisher or Play Developer Reporting APIs cover the workflow",
+			"use explicit operator-driven browser automation outside playpub for Console-only surfaces",
 			"document missing public API coverage in docs/PARITY.md instead of adding brittle selectors",
 		},
 	}

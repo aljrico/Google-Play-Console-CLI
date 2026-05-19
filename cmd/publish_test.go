@@ -25,7 +25,7 @@ func TestPublishInternalDryRunRejectsInvalidPackage(t *testing.T) {
 }
 
 func TestPublishInternalDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -55,7 +55,7 @@ func TestPublishInternalDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestPublishInternalLiveRejectsMissingBundleBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -83,7 +83,7 @@ func TestPublishInternalLiveRejectsMissingBundleBeforeAuth(t *testing.T) {
 }
 
 func TestPublishInternalLiveRejectsInvalidUserFractionBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	bundlePath := writeRootTestFile(t, "app-release.aab")
 
 	var buf bytes.Buffer

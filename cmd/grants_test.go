@@ -7,7 +7,7 @@ import (
 )
 
 func TestGrantsCreateDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -45,7 +45,7 @@ func TestGrantsCreateDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestGrantsPatchRequiresConfirmBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

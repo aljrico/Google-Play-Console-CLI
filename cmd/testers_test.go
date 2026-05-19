@@ -7,7 +7,7 @@ import (
 )
 
 func TestTestersUpdateDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -40,7 +40,7 @@ func TestTestersUpdateDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestTestersUpdateRejectsConfirmAndDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

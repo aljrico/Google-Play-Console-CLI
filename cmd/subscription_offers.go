@@ -171,7 +171,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a draft subscription offer",
-		Long: "Create a draft subscription offer from a Google Play API SubscriptionOffer JSON body or gpc subscription offer JSON output. " +
+		Long: "Create a draft subscription offer from a Google Play API SubscriptionOffer JSON body or playpub subscription offer JSON output. " +
 			"Basic flags build one or two free, paid-price, relative-discount, or absolute-discount phases across explicit regions, with optional other-regions config and acquisition or upgrade targeting. " +
 			"Immutable parent IDs come from flags and override the JSON body; output-only state is ignored because Google creates draft offers.",
 		Args: cobra.NoArgs,
@@ -301,7 +301,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 		"Parent subscription base plan ID",
 	)
 	cmd.Flags().StringVar(&offerID, "offer-id", "", "Subscription offer ID")
-	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or gpc JSON subscription offer body")
+	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or playpub JSON subscription offer body")
 	cmd.Flags().StringArrayVar(&offerTags, "offer-tag", nil, "Basic create offer tag; repeatable")
 	cmd.Flags().StringArrayVar(&freeRegions, "free-region", nil, "Basic create region with new-subscriber availability and a free phase price mode; repeatable")
 	cmd.Flags().StringArrayVar(&prices, "price", nil, "Basic create regional phase price as REGION:CURRENCY:UNITS[:NANOS]; repeatable")

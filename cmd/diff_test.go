@@ -7,7 +7,7 @@ import (
 )
 
 func TestDiffJSONOutputsChangesWithoutAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	from := writeRootTestContent(t, "from.json", `{"title":"Old","screenshots":["one.png"]}`)
 	to := writeRootTestContent(t, "to.json", `{"title":"New","screenshots":["one.png","two.png"]}`)
 

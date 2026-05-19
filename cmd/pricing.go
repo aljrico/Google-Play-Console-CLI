@@ -116,7 +116,7 @@ func newPricingBuildPricePatchesCommand(out io.Writer, options *globalOptions, p
 			return output.Write(out, options.output, options.pretty, result)
 		},
 	}
-	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to gpc pricing convert-region-prices JSON output")
+	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to playpub pricing convert-region-prices JSON output")
 	cmd.Flags().StringVar(&target, "target", "", "Patch target: in-app-product, one-time-product, subscription-base-plan, or subscription-offer-phase")
 	cmd.Flags().StringVar(&sku, "sku", "", "In-app product SKU for --target in-app-product")
 	cmd.Flags().StringVar(&productID, "product-id", "", "One-time product or subscription product ID")

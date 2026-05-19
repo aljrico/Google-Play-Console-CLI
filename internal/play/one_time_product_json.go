@@ -22,7 +22,7 @@ func DecodeOneTimeProductCreateJSON(data []byte) (OneTimeProduct, error) {
 		return product, nil
 	}
 
-	return OneTimeProduct{}, fmt.Errorf("one-time product JSON must use Google Play API JSON or gpc one-time product JSON")
+	return OneTimeProduct{}, fmt.Errorf("one-time product JSON must use Google Play API JSON or playpub one-time product JSON")
 }
 
 func validateOneTimeProductCreateJSONKeys(data []byte) error {
@@ -38,7 +38,7 @@ func validateOneTimeProductCreateJSONKeys(data []byte) error {
 		return err
 	}
 	if hasNestedJSONKey(object, "regionalProductAgeRatingInfos") {
-		return fmt.Errorf("one-time product regionalProductAgeRatingInfos is not supported by the pinned Google API client; use a newer gpc build before setting regional age ratings")
+		return fmt.Errorf("one-time product regionalProductAgeRatingInfos is not supported by the pinned Google API client; use a newer playpub build before setting regional age ratings")
 	}
 	return validateJSONObjectKeys("one-time product", object, oneTimeProductJSONSchema())
 }

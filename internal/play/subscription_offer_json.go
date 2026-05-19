@@ -24,7 +24,7 @@ func DecodeSubscriptionOfferCreateJSON(data []byte) (SubscriptionOffer, error) {
 		return offer, nil
 	}
 
-	return SubscriptionOffer{}, fmt.Errorf("subscription offer JSON must use Google Play API JSON or gpc subscription offer JSON")
+	return SubscriptionOffer{}, fmt.Errorf("subscription offer JSON must use Google Play API JSON or playpub subscription offer JSON")
 }
 
 func decodeStrictJSON(data []byte, target any) error {

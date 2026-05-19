@@ -40,7 +40,7 @@ func newInsightsAnomaliesSummarizeCommand(out io.Writer, options *globalOptions)
 			return output.Write(out, options.output, options.pretty, summary)
 		},
 	}
-	cmd.Flags().StringVar(&summaryOptions.File, "file", "", "JSON output from gpc vitals anomalies list")
+	cmd.Flags().StringVar(&summaryOptions.File, "file", "", "JSON output from playpub vitals anomalies list")
 	return cmd
 }
 

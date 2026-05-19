@@ -91,7 +91,7 @@ func newAuthStatusCommand(out io.Writer, options *globalOptions) *cobra.Command 
 			}
 			profile, ok := store.Profiles[store.ActiveProfile]
 			if !ok || store.ActiveProfile == "" {
-				return fmt.Errorf("no active auth profile; run gpc auth login")
+				return fmt.Errorf("no active auth profile; run playpub auth login")
 			}
 			return output.Write(out, options.output, options.pretty, authStatus{
 				ActiveProfile:  store.ActiveProfile,
@@ -114,7 +114,7 @@ func newAuthDoctorCommand(out io.Writer, options *globalOptions) *cobra.Command 
 			}
 			profile, ok := store.Profiles[store.ActiveProfile]
 			if !ok || store.ActiveProfile == "" {
-				return fmt.Errorf("no active auth profile; run gpc auth login")
+				return fmt.Errorf("no active auth profile; run playpub auth login")
 			}
 			if err := validateServiceAccount(cmd.Context(), profile.ServiceAccountFile); err != nil {
 				return err

@@ -17,7 +17,7 @@ func TestInstallSkillsDryRunOutputsJSONWithoutWriting(t *testing.T) {
 		"--directory",
 		directory,
 		"--skill",
-		"gpc-cli-usage",
+		"playpub-cli-usage",
 		"--dry-run",
 		"--output",
 		"json",
@@ -30,7 +30,7 @@ func TestInstallSkillsDryRunOutputsJSONWithoutWriting(t *testing.T) {
 	for _, want := range []string{
 		`"directory":"` + directory + `"`,
 		`"dryRun":true`,
-		`"name":"gpc-cli-usage"`,
+		`"name":"playpub-cli-usage"`,
 		`"written":false`,
 		`"wouldWrite":true`,
 	} {
@@ -38,7 +38,7 @@ func TestInstallSkillsDryRunOutputsJSONWithoutWriting(t *testing.T) {
 			t.Fatalf("output = %s, want %s", output, want)
 		}
 	}
-	if _, err := os.Stat(directory + "/gpc-cli-usage/SKILL.md"); !os.IsNotExist(err) {
+	if _, err := os.Stat(directory + "/playpub-cli-usage/SKILL.md"); !os.IsNotExist(err) {
 		t.Fatalf("skill file exists after dry-run or stat error = %v", err)
 	}
 }
@@ -58,9 +58,9 @@ func TestInstallSkillsListOutputsBundledSkillNames(t *testing.T) {
 	}
 	output := buf.String()
 	for _, want := range []string{
-		`"name":"gpc-cli-usage"`,
-		`"name":"gpc-metadata-workflow"`,
-		`"name":"gpc-release-flow"`,
+		`"name":"playpub-cli-usage"`,
+		`"name":"playpub-metadata-workflow"`,
+		`"name":"playpub-release-flow"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)

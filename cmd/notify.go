@@ -149,7 +149,7 @@ func newNotifyGitHubCommand(out io.Writer, options *globalOptions) *cobra.Comman
 		Confirm:        "Send the GitHub webhook",
 		DryRun:         "Print the GitHub payload without sending",
 	})
-	cmd.Flags().StringVar(&sendOptions.EventType, "event-type", "gpc.notify", "GitHub repository dispatch event_type")
+	cmd.Flags().StringVar(&sendOptions.EventType, "event-type", "playpub.notify", "GitHub repository dispatch event_type")
 	return cmd
 }
 

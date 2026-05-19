@@ -7,7 +7,7 @@ import (
 )
 
 func TestReviewsReplyDryRun(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -37,7 +37,7 @@ func TestReviewsReplyDryRun(t *testing.T) {
 }
 
 func TestReviewsListRejectsInvalidMaxResultsBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -62,7 +62,7 @@ func TestReviewsListRejectsInvalidMaxResultsBeforeAuth(t *testing.T) {
 }
 
 func TestReviewsReplyRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

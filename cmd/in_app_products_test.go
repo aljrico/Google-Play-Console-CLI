@@ -7,7 +7,7 @@ import (
 )
 
 func TestInAppProductsGetRejectsMissingSKUBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -30,7 +30,7 @@ func TestInAppProductsGetRejectsMissingSKUBeforeAuth(t *testing.T) {
 }
 
 func TestInAppProductsBatchGetRejectsMissingSKUBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -56,7 +56,7 @@ func TestInAppProductsBatchGetRejectsMissingSKUBeforeAuth(t *testing.T) {
 }
 
 func TestInAppProductsBatchGetRejectsDuplicateSKUBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -86,7 +86,7 @@ func TestInAppProductsBatchGetRejectsDuplicateSKUBeforeAuth(t *testing.T) {
 }
 
 func TestInAppProductsDeleteDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -124,7 +124,7 @@ func TestInAppProductsDeleteDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestInAppProductsDeleteRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -152,7 +152,7 @@ func TestInAppProductsDeleteRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
 }
 
 func TestInAppProductsBatchDeleteDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -192,7 +192,7 @@ func TestInAppProductsBatchDeleteDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestInAppProductsBatchDeleteRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -220,7 +220,7 @@ func TestInAppProductsBatchDeleteRequiresDryRunOrConfirmBeforeAuth(t *testing.T)
 }
 
 func TestInAppProductsBatchDeleteRejectsDuplicateSKUBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -251,7 +251,7 @@ func TestInAppProductsBatchDeleteRejectsDuplicateSKUBeforeAuth(t *testing.T) {
 }
 
 func TestInAppProductsCreateDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -297,7 +297,7 @@ func TestInAppProductsCreateDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestInAppProductsCreateRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -330,7 +330,7 @@ func TestInAppProductsCreateRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
 }
 
 func TestInAppProductsCreateRejectsBadPriceBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -364,7 +364,7 @@ func TestInAppProductsCreateRejectsBadPriceBeforeAuth(t *testing.T) {
 }
 
 func TestInAppProductsPatchDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -402,7 +402,7 @@ func TestInAppProductsPatchDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestInAppProductsPatchPriceAndListingDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -447,7 +447,7 @@ func TestInAppProductsPatchPriceAndListingDryRunDoesNotRequireAuth(t *testing.T)
 }
 
 func TestInAppProductsPatchRegionalPricesDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -488,7 +488,7 @@ func TestInAppProductsPatchRegionalPricesDryRunDoesNotRequireAuth(t *testing.T) 
 }
 
 func TestInAppProductsPatchTaxComplianceDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -534,7 +534,7 @@ func TestInAppProductsPatchTaxComplianceDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestInAppProductsPatchRejectsBadTokenizedDigitalAssetBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -562,7 +562,7 @@ func TestInAppProductsPatchRejectsBadTokenizedDigitalAssetBeforeAuth(t *testing.
 }
 
 func TestInAppProductsPatchRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -589,7 +589,7 @@ func TestInAppProductsPatchRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
 }
 
 func TestInAppProductsPatchRejectsMissingMutationBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -615,7 +615,7 @@ func TestInAppProductsPatchRejectsMissingMutationBeforeAuth(t *testing.T) {
 }
 
 func TestInAppProductsPatchRejectsListingWithoutLanguageBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -645,7 +645,7 @@ func TestInAppProductsPatchRejectsListingWithoutLanguageBeforeAuth(t *testing.T)
 }
 
 func TestInAppProductsPatchRejectsPartialListingBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -675,7 +675,7 @@ func TestInAppProductsPatchRejectsPartialListingBeforeAuth(t *testing.T) {
 }
 
 func TestInAppProductsPatchRejectsConfirmAndDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

@@ -7,7 +7,7 @@ import (
 )
 
 func TestGeneratedAPKsListRejectsMissingVersionCodeBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -33,7 +33,7 @@ func TestGeneratedAPKsListRejectsMissingVersionCodeBeforeAuth(t *testing.T) {
 }
 
 func TestGeneratedAPKsDownloadDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	outputPath := t.TempDir() + "/split.apk"
 
 	var buf bytes.Buffer
@@ -69,7 +69,7 @@ func TestGeneratedAPKsDownloadDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestGeneratedAPKsDownloadRejectsMissingFileBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-const DefaultFile = ".gpc/workflow.json"
+const DefaultFile = ".playpub/workflow.json"
 
 type Definition struct {
 	Version   int               `json:"version"`
@@ -267,7 +267,7 @@ func defaultWorkDir(file string) (string, error) {
 		return "", fmt.Errorf("resolve workflow file %s: %w", file, err)
 	}
 	directory := filepath.Dir(absoluteFile)
-	if filepath.Base(directory) == ".gpc" {
+	if filepath.Base(directory) == ".playpub" {
 		return filepath.Dir(directory), nil
 	}
 	return directory, nil

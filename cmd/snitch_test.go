@@ -7,7 +7,7 @@ import (
 )
 
 func TestSnitchReportOutputsIssueURLWithoutAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -19,7 +19,7 @@ func TestSnitchReportOutputsIssueURLWithoutAuth(t *testing.T) {
 		"--body",
 		"The track summary was hard to read.",
 		"--command",
-		"gpc releases list --package com.example.app",
+		"playpub releases list --package com.example.app",
 		"--label",
 		"ux",
 		"--output",
@@ -33,7 +33,7 @@ func TestSnitchReportOutputsIssueURLWithoutAuth(t *testing.T) {
 	for _, want := range []string{
 		`"repository":"aljrico/Google-Play-Console-CLI"`,
 		`"title":"Confusing release output"`,
-		`"command":"gpc releases list --package com.example.app"`,
+		`"command":"playpub releases list --package com.example.app"`,
 		`"labels":["snitch","ux"]`,
 		`"issueUrl":"https://github.com/aljrico/Google-Play-Console-CLI/issues/new?`,
 		`&labels=snitch%2Cux&`,

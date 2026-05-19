@@ -9,7 +9,7 @@ import (
 )
 
 func TestSubscriptionOffersListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -38,7 +38,7 @@ func TestSubscriptionOffersListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
 }
 
 func TestSubscriptionOffersGetRejectsMissingOfferIDBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -65,7 +65,7 @@ func TestSubscriptionOffersGetRejectsMissingOfferIDBeforeAuth(t *testing.T) {
 }
 
 func TestSubscriptionOffersDeactivateDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -107,7 +107,7 @@ func TestSubscriptionOffersDeactivateDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestSubscriptionOffersBatchDeactivateDryRunInfersParentsBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -150,7 +150,7 @@ func TestSubscriptionOffersBatchDeactivateDryRunInfersParentsBeforeAuth(t *testi
 }
 
 func TestSubscriptionOffersBatchPatchAvailabilityDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -199,7 +199,7 @@ func TestSubscriptionOffersBatchPatchAvailabilityDryRunDoesNotRequireAuth(t *tes
 }
 
 func TestSubscriptionOffersBatchPatchAvailabilityRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -229,7 +229,7 @@ func TestSubscriptionOffersBatchPatchAvailabilityRequiresConfirmOrDryRunBeforeAu
 }
 
 func TestSubscriptionOffersBatchPatchAvailabilityRejectsMalformedPatchBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -260,7 +260,7 @@ func TestSubscriptionOffersBatchPatchAvailabilityRejectsMalformedPatchBeforeAuth
 }
 
 func TestSubscriptionOffersBatchPatchAvailabilityRejectsInvalidBooleanBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -291,7 +291,7 @@ func TestSubscriptionOffersBatchPatchAvailabilityRejectsInvalidBooleanBeforeAuth
 }
 
 func TestSubscriptionOffersBatchPatchPhaseRelativeDiscountsDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -340,7 +340,7 @@ func TestSubscriptionOffersBatchPatchPhaseRelativeDiscountsDryRunDoesNotRequireA
 }
 
 func TestSubscriptionOffersBatchPatchPhaseRelativeDiscountsRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -370,7 +370,7 @@ func TestSubscriptionOffersBatchPatchPhaseRelativeDiscountsRequiresConfirmOrDryR
 }
 
 func TestSubscriptionOffersBatchPatchPhaseRelativeDiscountsRejectsMalformedPatchBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -401,7 +401,7 @@ func TestSubscriptionOffersBatchPatchPhaseRelativeDiscountsRejectsMalformedPatch
 }
 
 func TestSubscriptionOffersBatchPatchPhaseAbsoluteDiscountsDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -452,7 +452,7 @@ func TestSubscriptionOffersBatchPatchPhaseAbsoluteDiscountsDryRunDoesNotRequireA
 }
 
 func TestSubscriptionOffersCreateDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "offer.json")
 	if err := os.WriteFile(bodyPath, []byte(`{
 		"state":"ACTIVE",
@@ -526,7 +526,7 @@ func TestSubscriptionOffersCreateDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestSubscriptionOffersCreateBasicFreePhaseDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -592,7 +592,7 @@ func TestSubscriptionOffersCreateBasicFreePhaseDryRunDoesNotRequireAuth(t *testi
 }
 
 func TestSubscriptionOffersCreateRejectsInvalidAcquisitionTargetingScope(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -628,7 +628,7 @@ func TestSubscriptionOffersCreateRejectsInvalidAcquisitionTargetingScope(t *test
 }
 
 func TestSubscriptionOffersCreateBasicUpgradeTargetingDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -680,7 +680,7 @@ func TestSubscriptionOffersCreateBasicUpgradeTargetingDryRunDoesNotRequireAuth(t
 }
 
 func TestSubscriptionOffersCreateRejectsMixedTargeting(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -718,7 +718,7 @@ func TestSubscriptionOffersCreateRejectsMixedTargeting(t *testing.T) {
 }
 
 func TestSubscriptionOffersCreateBasicPricePhaseDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -779,7 +779,7 @@ func TestSubscriptionOffersCreateBasicPricePhaseDryRunDoesNotRequireAuth(t *test
 }
 
 func TestSubscriptionOffersCreateBasicTwoPhaseDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -843,7 +843,7 @@ func TestSubscriptionOffersCreateBasicTwoPhaseDryRunDoesNotRequireAuth(t *testin
 }
 
 func TestSubscriptionOffersCreateBasicTwoPhasePaidOtherRegionsDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -900,7 +900,7 @@ func TestSubscriptionOffersCreateBasicTwoPhasePaidOtherRegionsDryRunDoesNotRequi
 }
 
 func TestSubscriptionOffersCreateBasicRelativeOtherRegionsDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -946,7 +946,7 @@ func TestSubscriptionOffersCreateBasicRelativeOtherRegionsDryRunDoesNotRequireAu
 }
 
 func TestSubscriptionOffersCreateBasicAbsoluteOtherRegionsDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -994,7 +994,7 @@ func TestSubscriptionOffersCreateBasicAbsoluteOtherRegionsDryRunDoesNotRequireAu
 }
 
 func TestSubscriptionOffersCreateRejectsIncompletePaidOtherRegions(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1030,7 +1030,7 @@ func TestSubscriptionOffersCreateRejectsIncompletePaidOtherRegions(t *testing.T)
 }
 
 func TestSubscriptionOffersCreateRejectsMissingSecondPhasePaidOtherRegions(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1072,7 +1072,7 @@ func TestSubscriptionOffersCreateRejectsMissingSecondPhasePaidOtherRegions(t *te
 }
 
 func TestSubscriptionOffersCreateRejectsMixedOtherRegionsPriceModes(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1112,7 +1112,7 @@ func TestSubscriptionOffersCreateRejectsMixedOtherRegionsPriceModes(t *testing.T
 }
 
 func TestSubscriptionOffersCreateRejectsNaNOtherRegionsRelativeDiscount(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1148,7 +1148,7 @@ func TestSubscriptionOffersCreateRejectsNaNOtherRegionsRelativeDiscount(t *testi
 }
 
 func TestSubscriptionOffersCreateRejectsFreeAndPaidOtherRegions(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1187,7 +1187,7 @@ func TestSubscriptionOffersCreateRejectsFreeAndPaidOtherRegions(t *testing.T) {
 }
 
 func TestSubscriptionOffersCreateRejectsTwoPhaseRegionMismatch(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1225,7 +1225,7 @@ func TestSubscriptionOffersCreateRejectsTwoPhaseRegionMismatch(t *testing.T) {
 }
 
 func TestSubscriptionOffersCreateBasicRelativeDiscountPhaseDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1286,7 +1286,7 @@ func TestSubscriptionOffersCreateBasicRelativeDiscountPhaseDryRunDoesNotRequireA
 }
 
 func TestSubscriptionOffersCreateBasicAbsoluteDiscountPhaseDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1347,7 +1347,7 @@ func TestSubscriptionOffersCreateBasicAbsoluteDiscountPhaseDryRunDoesNotRequireA
 }
 
 func TestSubscriptionOffersCreateBasicFlagsRejectDuplicatePhaseRegionBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1388,7 +1388,7 @@ func TestSubscriptionOffersCreateBasicFlagsRejectDuplicatePhaseRegionBeforeAuth(
 }
 
 func TestSubscriptionOffersCreateBasicFlagsRejectInvalidRelativeDiscountBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1427,7 +1427,7 @@ func TestSubscriptionOffersCreateBasicFlagsRejectInvalidRelativeDiscountBeforeAu
 }
 
 func TestSubscriptionOffersCreateBasicFlagsRejectMalformedAbsoluteDiscountBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1469,7 +1469,7 @@ func TestSubscriptionOffersCreateBasicFlagsRejectMalformedAbsoluteDiscountBefore
 }
 
 func TestSubscriptionOffersCreateRejectsJSONWithBasicFlagsBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "offer.json")
 	if err := os.WriteFile(bodyPath, []byte(`{
 		"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}],
@@ -1515,7 +1515,7 @@ func TestSubscriptionOffersCreateRejectsJSONWithBasicFlagsBeforeAuth(t *testing.
 }
 
 func TestSubscriptionOffersCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "offer.json")
 	if err := os.WriteFile(bodyPath, []byte(`{"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}]}`), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -1556,7 +1556,7 @@ func TestSubscriptionOffersCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
 }
 
 func TestSubscriptionOffersBatchPatchPhaseAbsoluteDiscountsRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1586,7 +1586,7 @@ func TestSubscriptionOffersBatchPatchPhaseAbsoluteDiscountsRequiresConfirmOrDryR
 }
 
 func TestSubscriptionOffersBatchPatchPhaseAbsoluteDiscountsRejectsMalformedPatchBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1617,7 +1617,7 @@ func TestSubscriptionOffersBatchPatchPhaseAbsoluteDiscountsRejectsMalformedPatch
 }
 
 func TestSubscriptionOffersBatchPatchPhasePricesDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1668,7 +1668,7 @@ func TestSubscriptionOffersBatchPatchPhasePricesDryRunDoesNotRequireAuth(t *test
 }
 
 func TestSubscriptionOffersBatchPatchPhasePricesRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1698,7 +1698,7 @@ func TestSubscriptionOffersBatchPatchPhasePricesRequiresConfirmOrDryRunBeforeAut
 }
 
 func TestSubscriptionOffersBatchPatchPhasePricesRejectsMalformedPatchBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1729,7 +1729,7 @@ func TestSubscriptionOffersBatchPatchPhasePricesRejectsMalformedPatchBeforeAuth(
 }
 
 func TestSubscriptionOffersBatchPatchPhaseFreeDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1778,7 +1778,7 @@ func TestSubscriptionOffersBatchPatchPhaseFreeDryRunDoesNotRequireAuth(t *testin
 }
 
 func TestSubscriptionOffersBatchPatchPhaseFreeRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1808,7 +1808,7 @@ func TestSubscriptionOffersBatchPatchPhaseFreeRequiresConfirmOrDryRunBeforeAuth(
 }
 
 func TestSubscriptionOffersBatchPatchPhaseFreeRejectsMalformedPatchBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1839,7 +1839,7 @@ func TestSubscriptionOffersBatchPatchPhaseFreeRejectsMalformedPatchBeforeAuth(t 
 }
 
 func TestSubscriptionOffersBatchActivateRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1867,7 +1867,7 @@ func TestSubscriptionOffersBatchActivateRequiresConfirmOrDryRunBeforeAuth(t *tes
 }
 
 func TestSubscriptionOffersBatchActivateRejectsMissingOfferBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1894,7 +1894,7 @@ func TestSubscriptionOffersBatchActivateRejectsMissingOfferBeforeAuth(t *testing
 }
 
 func TestSubscriptionOffersDeleteDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1935,7 +1935,7 @@ func TestSubscriptionOffersDeleteDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestSubscriptionOffersDeleteRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1967,7 +1967,7 @@ func TestSubscriptionOffersDeleteRequiresConfirmOrDryRunBeforeAuth(t *testing.T)
 }
 
 func TestSubscriptionOffersRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1999,7 +1999,7 @@ func TestSubscriptionOffersRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
 }
 
 func TestSubscriptionOffersListAcceptsWildcardsBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -2026,7 +2026,7 @@ func TestSubscriptionOffersListAcceptsWildcardsBeforeAuth(t *testing.T) {
 }
 
 func TestSubscriptionOffersGetRejectsWildcardBasePlanBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -2055,7 +2055,7 @@ func TestSubscriptionOffersGetRejectsWildcardBasePlanBeforeAuth(t *testing.T) {
 }
 
 func TestSubscriptionOffersBatchGetRejectsMissingOfferBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -2085,7 +2085,7 @@ func TestSubscriptionOffersBatchGetRejectsMissingOfferBeforeAuth(t *testing.T) {
 }
 
 func TestSubscriptionOffersBatchGetRejectsParentMismatchBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -2117,7 +2117,7 @@ func TestSubscriptionOffersBatchGetRejectsParentMismatchBeforeAuth(t *testing.T)
 }
 
 func TestSubscriptionOffersBatchGetRejectsInvalidOfferIDBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -2149,7 +2149,7 @@ func TestSubscriptionOffersBatchGetRejectsInvalidOfferIDBeforeAuth(t *testing.T)
 }
 
 func TestSubscriptionOffersBatchGetRejectsOverlongOfferIDBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

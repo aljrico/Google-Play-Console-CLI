@@ -8,7 +8,7 @@ import (
 )
 
 func TestInsightsAnomaliesSummarizeOutputsCountsWithoutAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	file := writeRootTestPathContent(t, filepath.Join(t.TempDir(), "anomalies.json"), `{
 		"packageName": "com.example.app",
 		"anomalies": [
@@ -49,7 +49,7 @@ func TestInsightsAnomaliesSummarizeOutputsCountsWithoutAuth(t *testing.T) {
 }
 
 func TestInsightsReportsSummarizeOutputsFinanceAndStatsWithoutAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	dir := t.TempDir()
 	financeFile := writeRootTestPathContent(t, filepath.Join(dir, "earnings.csv"), "Transaction Type,Merchant Currency,Amount (Merchant Currency)\nCharge,USD,9.99\nCharge,USD,1.01\nGoogle fee,USD,-1.50\n")
 	statsFile := writeRootTestPathContent(t, filepath.Join(dir, "stats.csv"), "Date,Package name,Country,Store listing visitors,Store listing acquisitions,Conversion rate\n2026-05-01,com.example.app,US,10,2,20\n2026-05-02,com.example.app,US,20,3,22\n")

@@ -90,7 +90,7 @@ func TestBuildPricePatchesBuildsSubscriptionOfferPhaseArgs(t *testing.T) {
 		t.Fatalf("PriceArgs = %#v, want %#v", result.PriceArgs, wantArgs)
 	}
 	wantCommand := []string{
-		"gpc", "subscription-offers", "batch-patch-phase-prices",
+		"playpub", "subscription-offers", "batch-patch-phase-prices",
 		"--package", "com.example.app",
 		"--regions-version", "2026/05",
 		"--price", "premium/monthly/intro/0/BR:BRL:19",

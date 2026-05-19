@@ -11,7 +11,7 @@ import (
 func newSnitchCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "snitch",
-		Short: "Report gpc friction",
+		Short: "Report playpub friction",
 	}
 	cmd.AddCommand(newSnitchReportCommand(out, options))
 	return cmd
@@ -34,7 +34,7 @@ func newSnitchReportCommand(out io.Writer, options *globalOptions) *cobra.Comman
 	cmd.Flags().StringVar(&reportOptions.Repository, "repo", snitch.DefaultRepository, "GitHub repository as owner/name")
 	cmd.Flags().StringVar(&reportOptions.Title, "title", "", "Short issue title")
 	cmd.Flags().StringVar(&reportOptions.Body, "body", "", "Issue body")
-	cmd.Flags().StringVar(&reportOptions.Command, "command", "", "gpc command or workflow that caused friction")
+	cmd.Flags().StringVar(&reportOptions.Command, "command", "", "playpub command or workflow that caused friction")
 	cmd.Flags().StringArrayVar(&reportOptions.Labels, "label", nil, "GitHub issue label; repeatable")
 	return cmd
 }

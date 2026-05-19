@@ -8,7 +8,7 @@ import (
 )
 
 func TestImagesListRejectsInvalidTypeBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -38,7 +38,7 @@ func TestImagesListRejectsInvalidTypeBeforeAuth(t *testing.T) {
 }
 
 func TestImagesListRejectsMissingTypeBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -66,7 +66,7 @@ func TestImagesListRejectsMissingTypeBeforeAuth(t *testing.T) {
 }
 
 func TestImagesUploadDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 	imagePath := writeRootTestFile(t, "feature.png")
 
 	var buf bytes.Buffer
@@ -109,7 +109,7 @@ func TestImagesUploadDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestImagesUploadDryRunRejectsMissingFileBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -142,7 +142,7 @@ func TestImagesUploadDryRunRejectsMissingFileBeforeAuth(t *testing.T) {
 }
 
 func TestImagesUploadRejectsMissingFileBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -174,7 +174,7 @@ func TestImagesUploadRejectsMissingFileBeforeAuth(t *testing.T) {
 }
 
 func TestImagesDeleteDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -217,7 +217,7 @@ func TestImagesDeleteDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestImagesDeleteAllDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -257,7 +257,7 @@ func TestImagesDeleteAllDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestImagesDeleteRejectsMissingImageIDBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -287,7 +287,7 @@ func TestImagesDeleteRejectsMissingImageIDBeforeAuth(t *testing.T) {
 }
 
 func TestImagesDeleteAllRejectsInvalidTypeBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

@@ -59,7 +59,7 @@ func TestListRejectsUnsupportedStatus(t *testing.T) {
 func TestParseHandlesEscapedMarkdownPipes(t *testing.T) {
 	items, err := Parse(`## Test
 
-| ` + "`asc`" + ` family | Closest ` + "`gpc`" + ` family | Google Play API coverage | Status | Notes |
+| ` + "`asc`" + ` family | Closest ` + "`playpub`" + ` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
 | ` + "`foo`" + ` | ` + "`bar`" + ` | N/A | planned | Preserves escaped \| pipe. |
 `)

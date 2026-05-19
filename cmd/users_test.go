@@ -7,7 +7,7 @@ import (
 )
 
 func TestUsersListRejectsMissingDeveloperBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -28,7 +28,7 @@ func TestUsersListRejectsMissingDeveloperBeforeAuth(t *testing.T) {
 }
 
 func TestUsersListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -53,7 +53,7 @@ func TestUsersListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
 }
 
 func TestUsersDeleteDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -84,7 +84,7 @@ func TestUsersDeleteDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestUsersCreateDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -117,7 +117,7 @@ func TestUsersCreateDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestUsersCreateRejectsMissingConfirmBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -147,7 +147,7 @@ func TestUsersCreateRejectsMissingConfirmBeforeAuth(t *testing.T) {
 }
 
 func TestUsersPatchDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -178,7 +178,7 @@ func TestUsersPatchDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestUsersPatchRejectsEmptyPatchBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -207,7 +207,7 @@ func TestUsersPatchRejectsEmptyPatchBeforeAuth(t *testing.T) {
 }
 
 func TestUsersDeleteRejectsMissingConfirmBeforeAuth(t *testing.T) {
-	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
