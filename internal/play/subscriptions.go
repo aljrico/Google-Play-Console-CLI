@@ -241,6 +241,10 @@ type SubscriptionBatchGetter interface {
 	BatchGetSubscriptions(ctx context.Context, options SubscriptionBatchGetOptions) (SubscriptionBatchGetResult, error)
 }
 
+type SubscriptionDeleter interface {
+	DeleteSubscription(ctx context.Context, options SubscriptionDeleteOptions) error
+}
+
 func BatchGetSubscriptions(ctx context.Context, getter SubscriptionBatchGetter, options SubscriptionBatchGetOptions) (SubscriptionBatchGetResult, error) {
 	if err := options.Validate(); err != nil {
 		return SubscriptionBatchGetResult{}, err
@@ -249,6 +253,85 @@ func BatchGetSubscriptions(ctx context.Context, getter SubscriptionBatchGetter, 
 		return SubscriptionBatchGetResult{}, fmt.Errorf("subscription batch getter is required")
 	}
 	return getter.BatchGetSubscriptions(ctx, options)
+}
+
+type SubscriptionDeleteOptions struct {
+	PackageName PackageName           `json:"packageName"`
+	ProductID   SubscriptionProductID `json:"productId"`
+	Confirm     bool                  `json:"confirm"`
+	DryRun      bool                  `json:"dryRun"`
+}
+
+func (o SubscriptionDeleteOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("subscription deletion requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o SubscriptionDeleteOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live subscription deletion cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live subscription deletion requires --confirm")
+	}
+	return nil
+}
+
+type SubscriptionDeletePlan struct {
+	PackageName PackageName           `json:"packageName"`
+	ProductID   SubscriptionProductID `json:"productId"`
+	Confirm     bool                  `json:"confirm"`
+	Steps       []string              `json:"steps"`
+}
+
+type SubscriptionDeleteResult struct {
+	PackageName PackageName            `json:"packageName"`
+	ProductID   SubscriptionProductID  `json:"productId"`
+	DryRun      bool                   `json:"dryRun"`
+	Deleted     bool                   `json:"deleted"`
+	Plan        SubscriptionDeletePlan `json:"plan"`
+}
+
+func DeleteSubscription(ctx context.Context, deleter SubscriptionDeleter, options SubscriptionDeleteOptions) (SubscriptionDeleteResult, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionDeleteResult{}, err
+	}
+	result := SubscriptionDeleteResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		DryRun:      options.DryRun,
+		Plan: SubscriptionDeletePlan{
+			PackageName: options.PackageName,
+			ProductID:   options.ProductID,
+			Confirm:     options.Confirm,
+			Steps:       []string{"delete subscription"},
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if deleter == nil {
+		return SubscriptionDeleteResult{}, fmt.Errorf("subscription deleter is required")
+	}
+	if err := deleter.DeleteSubscription(ctx, options); err != nil {
+		return SubscriptionDeleteResult{}, err
+	}
+	result.Deleted = true
+	return result, nil
 }
 
 type BasePlanStateUpdateOptions struct {

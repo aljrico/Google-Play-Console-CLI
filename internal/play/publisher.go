@@ -699,6 +699,16 @@ func (p GooglePublisher) BatchGetSubscriptions(ctx context.Context, options Subs
 	return subscriptionBatchGetResultFromAPI(options, response), nil
 }
 
+func (p GooglePublisher) DeleteSubscription(ctx context.Context, options SubscriptionDeleteOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	if err := p.service.Monetization.Subscriptions.Delete(options.PackageName.String(), options.ProductID.String()).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("delete subscription %s for %s: %w", options.ProductID, options.PackageName, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error) {
 	if err := options.ValidateLive(); err != nil {
 		return Subscription{}, err

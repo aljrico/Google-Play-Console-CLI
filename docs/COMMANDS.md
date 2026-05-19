@@ -2059,6 +2059,7 @@ gpc subscriptions
 
 - `gpc subscriptions base-plan`: Manage subscription base plans
 - `gpc subscriptions batch-get`: Get multiple monetization subscriptions
+- `gpc subscriptions delete`: Delete a monetization subscription
 - `gpc subscriptions get`: Get one monetization subscription
 - `gpc subscriptions list`: List monetization subscriptions
 
@@ -2118,6 +2119,20 @@ gpc subscriptions batch-get [flags]
 ##### Flags
 
 - `--product-id`: Subscription product ID; repeatable, up to 100 (default `[]`)
+
+#### gpc subscriptions delete
+
+Delete a monetization subscription
+
+```sh
+gpc subscriptions delete [flags]
+```
+
+##### Flags
+
+- `--confirm`: Apply the subscription deletion (default `false`)
+- `--dry-run`: Print the planned subscription deletion without calling Google Play (default `false`)
+- `--product-id`: Subscription product ID
 
 #### gpc subscriptions get
 

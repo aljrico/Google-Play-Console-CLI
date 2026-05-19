@@ -3600,6 +3600,42 @@ func TestBatchGetSubscriptionsUsesRepeatedProductIDs(t *testing.T) {
 	}
 }
 
+func TestDeleteSubscriptionUsesMonetizationEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Fatalf("method = %s, want DELETE", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium_monthly" {
+			t.Fatalf("path = %q, want subscription delete endpoint", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	err := publisher.DeleteSubscription(context.Background(), SubscriptionDeleteOptions{
+		PackageName: "com.example.app",
+		ProductID:   "premium_monthly",
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteSubscription() error = %v", err)
+	}
+}
+
+func TestDeleteSubscriptionRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	err := publisher.DeleteSubscription(context.Background(), SubscriptionDeleteOptions{
+		PackageName: "com.example.app",
+		ProductID:   "premium_monthly",
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+}
+
 func TestUpdateBasePlanStateUsesDeactivateEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

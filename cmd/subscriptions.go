@@ -20,6 +20,7 @@ func newSubscriptionsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 		newSubscriptionsListCommand(out, options, &packageName),
 		newSubscriptionsGetCommand(out, options, &packageName),
 		newSubscriptionsBatchGetCommand(out, options, &packageName),
+		newSubscriptionsDeleteCommand(out, options, &packageName),
 		newSubscriptionsBasePlanCommand(out, options, &packageName),
 	)
 	return cmd
@@ -216,6 +217,59 @@ func newSubscriptionsBatchGetCommand(out io.Writer, options *globalOptions, pack
 		},
 	}
 	cmd.Flags().StringArrayVar(&productIDs, "product-id", nil, "Subscription product ID; repeatable, up to 100")
+	return cmd
+}
+
+func newSubscriptionsDeleteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID string
+		confirm   bool
+		dryRun    bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "delete",
+		Short: "Delete a monetization subscription",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedProductID, err := play.NewSubscriptionProductID(productID)
+			if err != nil {
+				return err
+			}
+			deleteOptions := play.SubscriptionDeleteOptions{
+				PackageName: typedPackageName,
+				ProductID:   typedProductID,
+				Confirm:     confirm,
+				DryRun:      dryRun,
+			}
+			if err := deleteOptions.Validate(); err != nil {
+				return err
+			}
+			if dryRun {
+				result, err := play.DeleteSubscription(cmd.Context(), nil, deleteOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.DeleteSubscription(cmd.Context(), publisher, deleteOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription deletion")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription deletion without calling Google Play")
 	return cmd
 }
 
