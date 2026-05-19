@@ -5456,6 +5456,45 @@ func TestOneTimeProductsCreateRejectsJSONWithBasicFlagsBeforeAuth(t *testing.T) 
 	}
 }
 
+func TestOneTimeProductsCreateBasicFlagsRejectsTooManyOfferTagsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	args := []string{
+		"one-time-products",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--listing",
+		"en-US,100 coins,Buy coins.",
+		"--price",
+		"US:USD:1",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	}
+	for index := range 21 {
+		args = append(args, "--offer-tag", fmt.Sprintf("tag%d", index))
+	}
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs(args)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected offer tag limit validation error")
+	}
+	if !strings.Contains(err.Error(), "at most 20 offer tags") {
+		t.Fatalf("error = %v, want offer tag limit validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestOneTimeProductsCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "one-time-product.json")

@@ -615,6 +615,9 @@ func validateOneTimeProductForCreate(product OneTimeProduct) error {
 			}
 		}
 	}
+	if len(product.OfferTags) > 20 {
+		return fmt.Errorf("one-time product create supports at most 20 offer tags")
+	}
 	for _, tag := range product.OfferTags {
 		if err := validateSubscriptionOfferTag(tag); err != nil {
 			return err
@@ -636,6 +639,9 @@ func validateOneTimeProductForCreate(product OneTimeProduct) error {
 func validateOneTimeProductPurchaseOptionForCreate(option OneTimeProductPurchaseOption) error {
 	if _, err := NewOneTimeProductPurchaseOptionID(option.PurchaseOptionID); err != nil {
 		return err
+	}
+	if len(option.OfferTags) > 20 {
+		return fmt.Errorf("one-time product purchase option create supports at most 20 offer tags")
 	}
 	for _, tag := range option.OfferTags {
 		if err := validateSubscriptionOfferTag(tag); err != nil {

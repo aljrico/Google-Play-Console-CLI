@@ -277,6 +277,28 @@ func TestCreateOneTimeProductRejectsInvalidBody(t *testing.T) {
 			}(),
 		},
 		{
+			name: "too many product offer tags",
+			product: func() OneTimeProduct {
+				product := validOneTimeProductForCreate()
+				product.OfferTags = make([]string, 21)
+				for index := range product.OfferTags {
+					product.OfferTags[index] = fmt.Sprintf("tag%d", index)
+				}
+				return product
+			}(),
+		},
+		{
+			name: "too many purchase option offer tags",
+			product: func() OneTimeProduct {
+				product := validOneTimeProductForCreate()
+				product.PurchaseOptions[0].OfferTags = make([]string, 21)
+				for index := range product.PurchaseOptions[0].OfferTags {
+					product.PurchaseOptions[0].OfferTags[index] = fmt.Sprintf("tag%d", index)
+				}
+				return product
+			}(),
+		},
+		{
 			name: "rent option missing duration",
 			product: func() OneTimeProduct {
 				product := validOneTimeProductForCreate()

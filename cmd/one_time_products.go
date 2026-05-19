@@ -52,8 +52,8 @@ func newOneTimeProductsCreateCommand(out io.Writer, options *globalOptions, pack
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a one-time product",
-		Long: "Create a one-time product from a Google Play API OneTimeProduct JSON body or gpc one-time product JSON output. " +
-			"Immutable package and product IDs come from flags and override the JSON body; output-only purchase option state is ignored.",
+		Long: "Create a one-time product from a Google Play API OneTimeProduct JSON body, gpc one-time product JSON output, or basic buy-product flags. " +
+			"Immutable package and product IDs come from flags and override JSON bodies; output-only purchase option state is ignored.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, err := play.NewPackageName(*packageName)
