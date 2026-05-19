@@ -35,6 +35,7 @@ gpc [flags]
 - `gpc internal-sharing`: Upload artifacts to Google Play internal app sharing
 - `gpc listings`: Manage localized Google Play store listings
 - `gpc migrate`: Inspect local metadata for migration
+- `gpc notify`: Send release workflow notifications
 - `gpc one-time-product-offers`: Inspect Google Play one-time product offers
 - `gpc one-time-products`: Inspect Google Play one-time products
 - `gpc orders`: Inspect and refund Google Play orders
@@ -781,6 +782,36 @@ gpc migrate supply inspect [flags]
 ###### Flags
 
 - `--directory`: fastlane supply metadata directory (default `fastlane/metadata/android`)
+
+### gpc notify
+
+Send release workflow notifications
+
+```sh
+gpc notify
+```
+
+#### Commands
+
+- `gpc notify send`: Send a JSON notification webhook
+
+#### gpc notify send
+
+Send a JSON notification webhook
+
+```sh
+gpc notify send [flags]
+```
+
+##### Flags
+
+- `--confirm`: Send the notification webhook (default `false`)
+- `--dry-run`: Print the notification payload without sending (default `false`)
+- `--field`: Notification field as name=value; repeatable (default `[]`)
+- `--message`: Notification message
+- `--severity`: Notification severity label
+- `--title`: Notification title
+- `--webhook-url`: HTTP webhook URL
 
 ### gpc one-time-product-offers
 
