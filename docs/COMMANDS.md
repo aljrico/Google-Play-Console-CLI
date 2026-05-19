@@ -2640,6 +2640,7 @@ gpc subscription-offers create [flags]
 - `--price`: Basic create regional phase price as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
 - `--product-id`: Parent subscription product ID
 - `--regions-version`: Google Play regions version required by subscriptionOffers.create
+- `--relative-discount`: Basic create regional phase relative discount as REGION:0.5, where 0.5 means the user pays 50% of the base plan price; repeatable (default `[]`)
 
 #### gpc subscription-offers deactivate
 

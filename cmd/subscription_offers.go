@@ -129,25 +129,26 @@ func newSubscriptionOffersBatchPatchAvailabilityCommand(out io.Writer, options *
 
 func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	var (
-		productID       string
-		basePlanID      string
-		offerID         string
-		fromJSON        string
-		offerTags       []string
-		freeRegions     []string
-		prices          []string
-		phaseDuration   string
-		phaseRecurrence int64
-		regionsVersion  string
-		confirm         bool
-		dryRun          bool
+		productID         string
+		basePlanID        string
+		offerID           string
+		fromJSON          string
+		offerTags         []string
+		freeRegions       []string
+		prices            []string
+		relativeDiscounts []string
+		phaseDuration     string
+		phaseRecurrence   int64
+		regionsVersion    string
+		confirm           bool
+		dryRun            bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a draft subscription offer",
 		Long: "Create a draft subscription offer from a Google Play API SubscriptionOffer JSON body or gpc subscription offer JSON output. " +
-			"Basic flags build one free or paid-price phase across explicit regions; use JSON for discounts, multi-phase offers, targeting, or other-regions config. " +
+			"Basic flags build one free, paid-price, or relative-discount phase across explicit regions; use JSON for absolute discounts, multi-phase offers, targeting, or other-regions config. " +
 			"Immutable parent IDs come from flags and override the JSON body; output-only state is ignored because Google creates draft offers.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -168,15 +169,17 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 				return err
 			}
 			offer, err := subscriptionOfferCreateBody(subscriptionOfferCreateBodyOptions{
-				FromJSON:        fromJSON,
-				OfferTags:       offerTags,
-				FreeRegions:     freeRegions,
-				Prices:          prices,
-				PhaseDuration:   phaseDuration,
-				PhaseRecurrence: phaseRecurrence,
+				FromJSON:          fromJSON,
+				OfferTags:         offerTags,
+				FreeRegions:       freeRegions,
+				Prices:            prices,
+				RelativeDiscounts: relativeDiscounts,
+				PhaseDuration:     phaseDuration,
+				PhaseRecurrence:   phaseRecurrence,
 				BasicFlagsSet: cmd.Flags().Changed("offer-tag") ||
 					cmd.Flags().Changed("free-region") ||
 					cmd.Flags().Changed("price") ||
+					cmd.Flags().Changed("relative-discount") ||
 					cmd.Flags().Changed("phase-duration") ||
 					cmd.Flags().Changed("phase-recurrence"),
 			})
@@ -226,6 +229,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 	cmd.Flags().StringArrayVar(&offerTags, "offer-tag", nil, "Basic create offer tag; repeatable")
 	cmd.Flags().StringArrayVar(&freeRegions, "free-region", nil, "Basic create region with new-subscriber availability and a free phase price mode; repeatable")
 	cmd.Flags().StringArrayVar(&prices, "price", nil, "Basic create regional phase price as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
+	cmd.Flags().StringArrayVar(&relativeDiscounts, "relative-discount", nil, "Basic create regional phase relative discount as REGION:0.5, where 0.5 means the user pays 50% of the base plan price; repeatable")
 	cmd.Flags().StringVar(&phaseDuration, "phase-duration", "", "Basic create phase duration as an ISO 8601 period, for example P7D or P1M")
 	cmd.Flags().Int64Var(&phaseRecurrence, "phase-recurrence", 1, "Basic create phase recurrence count")
 	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by subscriptionOffers.create")
@@ -235,13 +239,14 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 }
 
 type subscriptionOfferCreateBodyOptions struct {
-	FromJSON        string
-	OfferTags       []string
-	FreeRegions     []string
-	Prices          []string
-	PhaseDuration   string
-	PhaseRecurrence int64
-	BasicFlagsSet   bool
+	FromJSON          string
+	OfferTags         []string
+	FreeRegions       []string
+	Prices            []string
+	RelativeDiscounts []string
+	PhaseDuration     string
+	PhaseRecurrence   int64
+	BasicFlagsSet     bool
 }
 
 func subscriptionOfferCreateBody(options subscriptionOfferCreateBodyOptions) (play.SubscriptionOffer, error) {
@@ -254,7 +259,7 @@ func subscriptionOfferCreateBody(options subscriptionOfferCreateBodyOptions) (pl
 	if !options.UsesBasicFlags() {
 		return play.SubscriptionOffer{}, fmt.Errorf("subscription offer create requires --from-json or basic create flags")
 	}
-	regionalConfigs, phaseRegionalConfigs, err := parseSubscriptionOfferCreatePhaseRegions(options.FreeRegions, options.Prices)
+	regionalConfigs, phaseRegionalConfigs, err := parseSubscriptionOfferCreatePhaseRegions(options.FreeRegions, options.Prices, options.RelativeDiscounts)
 	if err != nil {
 		return play.SubscriptionOffer{}, err
 	}
@@ -273,12 +278,12 @@ func (o subscriptionOfferCreateBodyOptions) UsesBasicFlags() bool {
 	return o.BasicFlagsSet
 }
 
-func parseSubscriptionOfferCreatePhaseRegions(freeRegions []string, priceValues []string) ([]play.SubscriptionOfferRegionalConfig, []play.SubscriptionOfferPhaseRegionalConfig, error) {
-	if len(freeRegions) == 0 && len(priceValues) == 0 {
-		return nil, nil, fmt.Errorf("basic subscription offer create requires at least one --free-region or --price")
+func parseSubscriptionOfferCreatePhaseRegions(freeRegions []string, priceValues []string, relativeDiscountValues []string) ([]play.SubscriptionOfferRegionalConfig, []play.SubscriptionOfferPhaseRegionalConfig, error) {
+	if len(freeRegions) == 0 && len(priceValues) == 0 && len(relativeDiscountValues) == 0 {
+		return nil, nil, fmt.Errorf("basic subscription offer create requires at least one --free-region, --price, or --relative-discount")
 	}
-	regionalConfigs := make([]play.SubscriptionOfferRegionalConfig, 0, len(freeRegions)+len(priceValues))
-	phaseConfigs := make([]play.SubscriptionOfferPhaseRegionalConfig, 0, len(freeRegions)+len(priceValues))
+	regionalConfigs := make([]play.SubscriptionOfferRegionalConfig, 0, len(freeRegions)+len(priceValues)+len(relativeDiscountValues))
+	phaseConfigs := make([]play.SubscriptionOfferPhaseRegionalConfig, 0, len(freeRegions)+len(priceValues)+len(relativeDiscountValues))
 	for _, value := range freeRegions {
 		region := strings.ToUpper(strings.TrimSpace(value))
 		regionalConfigs = append(regionalConfigs, play.SubscriptionOfferRegionalConfig{
@@ -309,11 +314,34 @@ func parseSubscriptionOfferCreatePhaseRegions(freeRegions []string, priceValues 
 			Price:      &price,
 		})
 	}
+	for _, value := range relativeDiscountValues {
+		region, rawDiscount, ok := strings.Cut(strings.TrimSpace(value), ":")
+		if !ok {
+			return nil, nil, errSubscriptionOfferCreateRelativeDiscountFormat()
+		}
+		relativeDiscount, err := strconv.ParseFloat(strings.TrimSpace(rawDiscount), 64)
+		if err != nil {
+			return nil, nil, errSubscriptionOfferCreateRelativeDiscountFormat()
+		}
+		normalizedRegion := strings.ToUpper(strings.TrimSpace(region))
+		regionalConfigs = append(regionalConfigs, play.SubscriptionOfferRegionalConfig{
+			RegionCode:                normalizedRegion,
+			NewSubscriberAvailability: true,
+		})
+		phaseConfigs = append(phaseConfigs, play.SubscriptionOfferPhaseRegionalConfig{
+			RegionCode:       normalizedRegion,
+			RelativeDiscount: relativeDiscount,
+		})
+	}
 	return regionalConfigs, phaseConfigs, nil
 }
 
 func errSubscriptionOfferCreatePriceFormat() error {
 	return fmt.Errorf("subscription offer create price must use REGION:CURRENCY:UNITS[:NANOS]")
+}
+
+func errSubscriptionOfferCreateRelativeDiscountFormat() error {
+	return fmt.Errorf("subscription offer create relative discount must use REGION:0.5")
 }
 
 func newSubscriptionOffersBatchPatchPhaseRelativeDiscountsCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
