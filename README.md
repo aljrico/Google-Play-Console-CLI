@@ -168,6 +168,7 @@ gpc subscription-offers batch-deactivate --package com.example.app --offer premi
 gpc subscription-offers batch-patch-availability --package com.example.app --availability premium_monthly/monthly/intro/US:false --availability premium_monthly/monthly/intro/FR:true --regions-version 2026/05 --dry-run
 gpc subscription-offers batch-patch-phase-relative-discounts --package com.example.app --relative-discount premium_monthly/monthly/intro/0/US:0.75 --regions-version 2026/05 --dry-run # phaseIndex 0 is the first phase
 gpc subscription-offers batch-patch-phase-absolute-discounts --package com.example.app --absolute-discount premium_monthly/monthly/intro/0/US:USD:1:500000000 --regions-version 2026/05 --dry-run # phaseIndex 0 is the first phase
+gpc subscription-offers batch-patch-phase-prices --package com.example.app --price premium_monthly/monthly/intro/0/US:USD:1:990000000 --regions-version 2026/05 --dry-run # phaseIndex 0 is the first phase
 gpc purchases product --package com.example.app --token PURCHASE_TOKEN
 gpc purchases product acknowledge --package com.example.app --product-id coins_100 --token PURCHASE_TOKEN --dry-run
 gpc purchases product consume --package com.example.app --product-id coins_100 --token PURCHASE_TOKEN --dry-run

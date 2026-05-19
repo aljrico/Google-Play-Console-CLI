@@ -810,6 +810,144 @@ func TestBatchPatchSubscriptionOfferPhaseAbsoluteDiscountsPassesOptionsToPatcher
 	}
 }
 
+func TestBatchPatchSubscriptionOfferPhasePricesDryRunBuildsPlanWithoutPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchPatchSubscriptionOfferPhasePrices(context.Background(), nil, SubscriptionOfferBatchPatchPhasePricesOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		RegionsVersion: "2026/05",
+		Requests: []SubscriptionOfferPhasePricePatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "US", Price: Money{CurrencyCode: "USD", Units: 1}},
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 1, RegionCode: "FR", Price: Money{CurrencyCode: "EUR", Nanos: 500000000}},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchSubscriptionOfferPhasePrices() error = %v", err)
+	}
+	if !result.DryRun || result.Applied {
+		t.Fatalf("result = %#v, want dry-run phase price patch", result)
+	}
+	if result.Plan.UpdateMask != subscriptionOfferPhasesUpdateMask {
+		t.Fatalf("UpdateMask = %q, want %q", result.Plan.UpdateMask, subscriptionOfferPhasesUpdateMask)
+	}
+	if len(result.Desired) != 1 || len(result.Desired[0].Phases) != 2 {
+		t.Fatalf("Desired = %#v, want one offer with two phase patches", result.Desired)
+	}
+}
+
+func TestBatchPatchSubscriptionOfferPhasePricesRejectsInvalidPatch(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		request SubscriptionOfferPhasePricePatchRequest
+	}{
+		{
+			name:    "negative phase index",
+			request: SubscriptionOfferPhasePricePatchRequest{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: -1, RegionCode: "US", Price: Money{CurrencyCode: "USD", Units: 1}},
+		},
+		{
+			name:    "invalid region",
+			request: SubscriptionOfferPhasePricePatchRequest{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "USA", Price: Money{CurrencyCode: "USD", Units: 1}},
+		},
+		{
+			name:    "zero money",
+			request: SubscriptionOfferPhasePricePatchRequest{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "US", Price: Money{CurrencyCode: "USD"}},
+		},
+		{
+			name:    "negative units",
+			request: SubscriptionOfferPhasePricePatchRequest{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "US", Price: Money{CurrencyCode: "USD", Units: -1}},
+		},
+		{
+			name:    "negative nanos",
+			request: SubscriptionOfferPhasePricePatchRequest{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "US", Price: Money{CurrencyCode: "USD", Nanos: -1}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err = NewSubscriptionOfferBatchPatchPhasePricesPlan(SubscriptionOfferBatchPatchPhasePricesOptions{
+				PackageName:      packageName,
+				ProductID:        "premium",
+				BasePlanID:       "monthly",
+				RegionsVersion:   "2026/05",
+				Requests:         []SubscriptionOfferPhasePricePatchRequest{test.request},
+				LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+				DryRun:           true,
+			})
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
+func TestBatchPatchSubscriptionOfferPhasePricesRejectsDuplicateOfferPhaseRegion(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewSubscriptionOfferBatchPatchPhasePricesPlan(SubscriptionOfferBatchPatchPhasePricesOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		RegionsVersion: "2026/05",
+		Requests: []SubscriptionOfferPhasePricePatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "US", Price: Money{CurrencyCode: "USD", Units: 1}},
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "US", Price: Money{CurrencyCode: "USD", Units: 2}},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate offer phase region validation error")
+	}
+}
+
+func TestBatchPatchSubscriptionOfferPhasePricesPassesOptionsToPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	patcher := &fakeSubscriptionOfferClient{
+		batchPhasePriceResult: SubscriptionOfferBatchPatchPhasePricesResult{
+			Offers: []SubscriptionOffer{{OfferID: "intro"}},
+		},
+	}
+	options := SubscriptionOfferBatchPatchPhasePricesOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		RegionsVersion: "2026/05",
+		Requests: []SubscriptionOfferPhasePricePatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "US", Price: Money{CurrencyCode: "USD", Units: 1}},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := BatchPatchSubscriptionOfferPhasePrices(context.Background(), patcher, options)
+	if err != nil {
+		t.Fatalf("BatchPatchSubscriptionOfferPhasePrices() error = %v", err)
+	}
+	if !result.Applied || len(result.Offers) != 1 {
+		t.Fatalf("result = %#v, want applied offer", result)
+	}
+	if !reflect.DeepEqual(patcher.batchPhasePriceOptions, options) {
+		t.Fatalf("batchPhasePriceOptions = %#v, want %#v", patcher.batchPhasePriceOptions, options)
+	}
+}
+
 func TestDeleteSubscriptionOfferDryRunBuildsPlanWithoutDeleter(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -935,6 +1073,8 @@ type fakeSubscriptionOfferClient struct {
 	batchPhaseRelativeDiscountResult  SubscriptionOfferBatchPatchPhaseRelativeDiscountsResult
 	batchPhaseAbsoluteDiscountOptions SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsOptions
 	batchPhaseAbsoluteDiscountResult  SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsResult
+	batchPhasePriceOptions            SubscriptionOfferBatchPatchPhasePricesOptions
+	batchPhasePriceResult             SubscriptionOfferBatchPatchPhasePricesResult
 	deleteOptions                     SubscriptionOfferDeleteOptions
 	offerID                           SubscriptionOfferID
 	offer                             SubscriptionOffer
@@ -974,6 +1114,11 @@ func (c *fakeSubscriptionOfferClient) BatchPatchSubscriptionOfferPhaseRelativeDi
 func (c *fakeSubscriptionOfferClient) BatchPatchSubscriptionOfferPhaseAbsoluteDiscounts(ctx context.Context, options SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsOptions) (SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsResult, error) {
 	c.batchPhaseAbsoluteDiscountOptions = options
 	return c.batchPhaseAbsoluteDiscountResult, nil
+}
+
+func (c *fakeSubscriptionOfferClient) BatchPatchSubscriptionOfferPhasePrices(ctx context.Context, options SubscriptionOfferBatchPatchPhasePricesOptions) (SubscriptionOfferBatchPatchPhasePricesResult, error) {
+	c.batchPhasePriceOptions = options
+	return c.batchPhasePriceResult, nil
 }
 
 func (c *fakeSubscriptionOfferClient) DeleteSubscriptionOffer(ctx context.Context, options SubscriptionOfferDeleteOptions) error {

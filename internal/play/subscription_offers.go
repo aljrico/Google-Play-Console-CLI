@@ -340,6 +340,15 @@ type SubscriptionOfferPhaseAbsoluteDiscountPatchRequest struct {
 	AbsoluteDiscount Money                  `json:"absoluteDiscount"`
 }
 
+type SubscriptionOfferPhasePricePatchRequest struct {
+	ProductID  SubscriptionProductID  `json:"productId"`
+	BasePlanID SubscriptionBasePlanID `json:"basePlanId"`
+	OfferID    SubscriptionOfferID    `json:"offerId"`
+	PhaseIndex int                    `json:"phaseIndex"`
+	RegionCode string                 `json:"regionCode"`
+	Price      Money                  `json:"price"`
+}
+
 type SubscriptionOfferBatchPatchAvailabilityOptions struct {
 	PackageName      PackageName                                 `json:"packageName"`
 	ProductID        SubscriptionProductID                       `json:"productId"`
@@ -371,6 +380,17 @@ type SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsOptions struct {
 	LatencyTolerance ProductUpdateLatencyTolerance                        `json:"latencyTolerance"`
 	Confirm          bool                                                 `json:"confirm"`
 	DryRun           bool                                                 `json:"dryRun"`
+}
+
+type SubscriptionOfferBatchPatchPhasePricesOptions struct {
+	PackageName      PackageName                               `json:"packageName"`
+	ProductID        SubscriptionProductID                     `json:"productId"`
+	BasePlanID       SubscriptionBasePlanID                    `json:"basePlanId"`
+	Requests         []SubscriptionOfferPhasePricePatchRequest `json:"requests"`
+	RegionsVersion   string                                    `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance             `json:"latencyTolerance"`
+	Confirm          bool                                      `json:"confirm"`
+	DryRun           bool                                      `json:"dryRun"`
 }
 
 func (o SubscriptionOfferBatchGetOptions) Validate() error {
@@ -515,6 +535,31 @@ func (o SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsOptions) Validate() err
 	return nil
 }
 
+func (o SubscriptionOfferBatchPatchPhasePricesOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if err := validateSubscriptionOfferPhasePricePatchParents(o.ProductID, o.BasePlanID, o.Requests); err != nil {
+		return err
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("subscription offer phase price batch patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
 func (o SubscriptionOfferBatchStateUpdateOptions) ValidateLive() error {
 	if err := o.Validate(); err != nil {
 		return err
@@ -563,6 +608,19 @@ func (o SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsOptions) ValidateLive()
 	}
 	if !o.Confirm {
 		return fmt.Errorf("live subscription offer phase absolute discount batch patch requires --confirm")
+	}
+	return nil
+}
+
+func (o SubscriptionOfferBatchPatchPhasePricesOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live subscription offer phase price batch patch cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live subscription offer phase price batch patch requires --confirm")
 	}
 	return nil
 }
@@ -704,6 +762,36 @@ func validateSubscriptionOfferPhaseAbsoluteDiscountPatchParents(productID Subscr
 		})
 	}
 	return validateSubscriptionOfferBatchMutationParents(productID, basePlanID, deduplicateSubscriptionOfferMutationRequests(mutationRequests), "phase absolute discount batch patch")
+}
+
+func validateSubscriptionOfferPhasePricePatchParents(productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, requests []SubscriptionOfferPhasePricePatchRequest) error {
+	if len(requests) == 0 {
+		return fmt.Errorf("at least one subscription offer phase price patch is required")
+	}
+	mutationRequests := make([]SubscriptionOfferBatchMutationRequest, 0, len(requests))
+	seenRegions := map[string]struct{}{}
+	for _, request := range requests {
+		if request.PhaseIndex < 0 {
+			return fmt.Errorf("subscription offer phase index must be 0 or greater")
+		}
+		if !isValidRegionCode(request.RegionCode) {
+			return fmt.Errorf("subscription offer phase price region must be a two-letter ISO 3166 code")
+		}
+		if err := validateMoney(request.Price); err != nil {
+			return fmt.Errorf("subscription offer phase price for %s/%s/%s/%d/%s: %w", request.ProductID, request.BasePlanID, request.OfferID, request.PhaseIndex, request.RegionCode, err)
+		}
+		key := subscriptionOfferKey(request.ProductID, request.BasePlanID, request.OfferID) + fmt.Sprintf("/%d/%s", request.PhaseIndex, request.RegionCode)
+		if _, ok := seenRegions[key]; ok {
+			return fmt.Errorf("subscription offer phase price %s is duplicated", key)
+		}
+		seenRegions[key] = struct{}{}
+		mutationRequests = append(mutationRequests, SubscriptionOfferBatchMutationRequest{
+			ProductID:  request.ProductID,
+			BasePlanID: request.BasePlanID,
+			OfferID:    request.OfferID,
+		})
+	}
+	return validateSubscriptionOfferBatchMutationParents(productID, basePlanID, deduplicateSubscriptionOfferMutationRequests(mutationRequests), "phase price batch patch")
 }
 
 func deduplicateSubscriptionOfferMutationRequests(requests []SubscriptionOfferBatchMutationRequest) []SubscriptionOfferBatchMutationRequest {
@@ -872,6 +960,48 @@ type SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsResult struct {
 	Plan        SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsPlan           `json:"plan"`
 }
 
+type SubscriptionOfferBatchPatchPhasePricesPlan struct {
+	PackageName      PackageName                               `json:"packageName"`
+	ProductID        SubscriptionProductID                     `json:"productId"`
+	BasePlanID       SubscriptionBasePlanID                    `json:"basePlanId"`
+	Requests         []SubscriptionOfferPhasePricePatchRequest `json:"requests"`
+	UpdateMask       string                                    `json:"updateMask"`
+	RegionsVersion   string                                    `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance             `json:"latencyTolerance"`
+	Confirm          bool                                      `json:"confirm"`
+	Steps            []string                                  `json:"steps"`
+}
+
+type SubscriptionOfferBatchPatchPhasePricesDesiredOffer struct {
+	PackageName PackageName                                          `json:"packageName"`
+	ProductID   SubscriptionProductID                                `json:"productId"`
+	BasePlanID  SubscriptionBasePlanID                               `json:"basePlanId"`
+	OfferID     SubscriptionOfferID                                  `json:"offerId"`
+	Phases      []SubscriptionOfferBatchPatchPhasePricesDesiredPhase `json:"phases"`
+}
+
+type SubscriptionOfferBatchPatchPhasePricesDesiredPhase struct {
+	PhaseIndex      int                                                           `json:"phaseIndex"`
+	RegionalConfigs []SubscriptionOfferBatchPatchPhasePricesDesiredRegionalConfig `json:"regionalConfigs"`
+}
+
+type SubscriptionOfferBatchPatchPhasePricesDesiredRegionalConfig struct {
+	RegionCode string `json:"regionCode"`
+	Price      Money  `json:"price"`
+}
+
+type SubscriptionOfferBatchPatchPhasePricesResult struct {
+	PackageName PackageName                                          `json:"packageName"`
+	ProductID   SubscriptionProductID                                `json:"productId"`
+	BasePlanID  SubscriptionBasePlanID                               `json:"basePlanId"`
+	Requests    []SubscriptionOfferPhasePricePatchRequest            `json:"requests"`
+	DryRun      bool                                                 `json:"dryRun"`
+	Applied     bool                                                 `json:"applied"`
+	Offers      []SubscriptionOffer                                  `json:"offers,omitempty"`
+	Desired     []SubscriptionOfferBatchPatchPhasePricesDesiredOffer `json:"desiredOffers"`
+	Plan        SubscriptionOfferBatchPatchPhasePricesPlan           `json:"plan"`
+}
+
 type SubscriptionOfferBatchGetter interface {
 	BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error)
 }
@@ -890,6 +1020,10 @@ type SubscriptionOfferBatchPhaseRelativeDiscountPatcher interface {
 
 type SubscriptionOfferBatchPhaseAbsoluteDiscountPatcher interface {
 	BatchPatchSubscriptionOfferPhaseAbsoluteDiscounts(ctx context.Context, options SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsOptions) (SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsResult, error)
+}
+
+type SubscriptionOfferBatchPhasePricePatcher interface {
+	BatchPatchSubscriptionOfferPhasePrices(ctx context.Context, options SubscriptionOfferBatchPatchPhasePricesOptions) (SubscriptionOfferBatchPatchPhasePricesResult, error)
 }
 
 type SubscriptionOfferDeleter interface {
@@ -1058,6 +1192,42 @@ func BatchPatchSubscriptionOfferPhaseAbsoluteDiscounts(ctx context.Context, patc
 	return updated, nil
 }
 
+func BatchPatchSubscriptionOfferPhasePrices(ctx context.Context, patcher SubscriptionOfferBatchPhasePricePatcher, options SubscriptionOfferBatchPatchPhasePricesOptions) (SubscriptionOfferBatchPatchPhasePricesResult, error) {
+	plan, err := NewSubscriptionOfferBatchPatchPhasePricesPlan(options)
+	if err != nil {
+		return SubscriptionOfferBatchPatchPhasePricesResult{}, err
+	}
+	requests := append([]SubscriptionOfferPhasePricePatchRequest(nil), options.Requests...)
+	result := SubscriptionOfferBatchPatchPhasePricesResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		BasePlanID:  options.BasePlanID,
+		Requests:    requests,
+		DryRun:      options.DryRun,
+		Desired:     desiredSubscriptionOffersForPhasePricePatch(options),
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if patcher == nil {
+		return SubscriptionOfferBatchPatchPhasePricesResult{}, fmt.Errorf("subscription offer phase price batch patcher is required")
+	}
+	updated, err := patcher.BatchPatchSubscriptionOfferPhasePrices(ctx, options)
+	if err != nil {
+		return SubscriptionOfferBatchPatchPhasePricesResult{}, err
+	}
+	updated.PackageName = options.PackageName
+	updated.ProductID = options.ProductID
+	updated.BasePlanID = options.BasePlanID
+	updated.Requests = requests
+	updated.DryRun = false
+	updated.Applied = true
+	updated.Desired = result.Desired
+	updated.Plan = plan
+	return updated, nil
+}
+
 func NewSubscriptionOfferBatchPatchAvailabilityPlan(options SubscriptionOfferBatchPatchAvailabilityOptions) (SubscriptionOfferBatchPatchAvailabilityPlan, error) {
 	if err := options.Validate(); err != nil {
 		return SubscriptionOfferBatchPatchAvailabilityPlan{}, err
@@ -1106,6 +1276,23 @@ func NewSubscriptionOfferBatchPatchPhaseAbsoluteDiscountsPlan(options Subscripti
 		LatencyTolerance: options.LatencyTolerance,
 		Confirm:          options.Confirm,
 		Steps:            subscriptionOfferBatchPatchPhaseAbsoluteDiscountsSteps(options),
+	}, nil
+}
+
+func NewSubscriptionOfferBatchPatchPhasePricesPlan(options SubscriptionOfferBatchPatchPhasePricesOptions) (SubscriptionOfferBatchPatchPhasePricesPlan, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionOfferBatchPatchPhasePricesPlan{}, err
+	}
+	return SubscriptionOfferBatchPatchPhasePricesPlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		BasePlanID:       options.BasePlanID,
+		Requests:         append([]SubscriptionOfferPhasePricePatchRequest(nil), options.Requests...),
+		UpdateMask:       subscriptionOfferPhasesUpdateMask,
+		RegionsVersion:   options.RegionsVersion,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            subscriptionOfferBatchPatchPhasePricesSteps(options),
 	}, nil
 }
 
@@ -1201,6 +1388,42 @@ func desiredSubscriptionOffersForPhaseAbsoluteDiscountPatch(options Subscription
 		offers[offerIndex].Phases[phaseIndex].RegionalConfigs = append(offers[offerIndex].Phases[phaseIndex].RegionalConfigs, SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsDesiredRegionalConfig{
 			RegionCode:       request.RegionCode,
 			AbsoluteDiscount: request.AbsoluteDiscount,
+		})
+	}
+	return offers
+}
+
+func desiredSubscriptionOffersForPhasePricePatch(options SubscriptionOfferBatchPatchPhasePricesOptions) []SubscriptionOfferBatchPatchPhasePricesDesiredOffer {
+	byOffer := map[string]int{}
+	phaseIndexesByOffer := map[string]map[int]int{}
+	offers := make([]SubscriptionOfferBatchPatchPhasePricesDesiredOffer, 0)
+	for _, request := range options.Requests {
+		offerKey := subscriptionOfferKey(request.ProductID, request.BasePlanID, request.OfferID)
+		offerIndex, ok := byOffer[offerKey]
+		if !ok {
+			byOffer[offerKey] = len(offers)
+			phaseIndexesByOffer[offerKey] = map[int]int{}
+			offers = append(offers, SubscriptionOfferBatchPatchPhasePricesDesiredOffer{
+				PackageName: options.PackageName,
+				ProductID:   request.ProductID,
+				BasePlanID:  request.BasePlanID,
+				OfferID:     request.OfferID,
+				Phases:      []SubscriptionOfferBatchPatchPhasePricesDesiredPhase{},
+			})
+			offerIndex = len(offers) - 1
+		}
+		phaseIndex, ok := phaseIndexesByOffer[offerKey][request.PhaseIndex]
+		if !ok {
+			phaseIndexesByOffer[offerKey][request.PhaseIndex] = len(offers[offerIndex].Phases)
+			offers[offerIndex].Phases = append(offers[offerIndex].Phases, SubscriptionOfferBatchPatchPhasePricesDesiredPhase{
+				PhaseIndex:      request.PhaseIndex,
+				RegionalConfigs: []SubscriptionOfferBatchPatchPhasePricesDesiredRegionalConfig{},
+			})
+			phaseIndex = len(offers[offerIndex].Phases) - 1
+		}
+		offers[offerIndex].Phases[phaseIndex].RegionalConfigs = append(offers[offerIndex].Phases[phaseIndex].RegionalConfigs, SubscriptionOfferBatchPatchPhasePricesDesiredRegionalConfig{
+			RegionCode: request.RegionCode,
+			Price:      request.Price,
 		})
 	}
 	return offers
@@ -1462,4 +1685,11 @@ func subscriptionOfferBatchPatchPhaseAbsoluteDiscountsSteps(options Subscription
 		return []string{"plan subscription offer phase absolute discount batch patch"}
 	}
 	return []string{"fetch current subscription offers", "merge phase regional absolute discounts", "batch patch subscription offer phase absolute discounts"}
+}
+
+func subscriptionOfferBatchPatchPhasePricesSteps(options SubscriptionOfferBatchPatchPhasePricesOptions) []string {
+	if options.DryRun {
+		return []string{"plan subscription offer phase price batch patch"}
+	}
+	return []string{"fetch current subscription offers", "merge phase regional prices", "batch patch subscription offer phase prices"}
 }
