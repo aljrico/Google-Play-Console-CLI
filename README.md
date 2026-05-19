@@ -11,6 +11,13 @@ gpc version
 gpc --help
 ```
 
+From this repo:
+
+```sh
+make build
+make install PREFIX="$HOME/.local"
+```
+
 ### Authenticate
 
 ```sh
