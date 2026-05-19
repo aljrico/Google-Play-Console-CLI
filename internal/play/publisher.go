@@ -1,6 +1,7 @@
 package play
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -51,6 +52,22 @@ func (p GooglePublisher) doJSON(req *http.Request, target any) error {
 	}
 	decoder := json.NewDecoder(response.Body)
 	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p GooglePublisher) doNoContent(req *http.Request) error {
+	httpClient := p.httpClient
+	if httpClient == nil {
+		return fmt.Errorf("Google Play HTTP client is required")
+	}
+	response, err := httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if err := googleapi.CheckResponse(response); err != nil {
 		return err
 	}
 	return nil
@@ -1194,6 +1211,9 @@ func (p GooglePublisher) AcknowledgeSubscriptionPurchase(ctx context.Context, op
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
+	if options.Action != SubscriptionPurchaseMutationActionAcknowledge {
+		return fmt.Errorf("acknowledge subscription purchase requires action %q", SubscriptionPurchaseMutationActionAcknowledge)
+	}
 	request := &androidpublisher.SubscriptionPurchasesAcknowledgeRequest{}
 	if options.DeveloperPayload != "" {
 		request.DeveloperPayload = options.DeveloperPayload
@@ -1210,10 +1230,30 @@ func (p GooglePublisher) CancelSubscriptionPurchase(ctx context.Context, options
 	if err := options.ValidateLive(); err != nil {
 		return err
 	}
-	if err := p.service.Purchases.Subscriptions.Cancel(options.PackageName.String(), options.SubscriptionID.String(), options.Token.String()).
-		Context(ctx).
-		Do(); err != nil {
-		return fmt.Errorf("cancel subscription purchase %s for %s/%s: %w", options.Token, options.PackageName, options.SubscriptionID, err)
+	if options.Action != SubscriptionPurchaseMutationActionCancel {
+		return fmt.Errorf("cancel subscription purchase requires action %q", SubscriptionPurchaseMutationActionCancel)
+	}
+	requestBody := subscriptionCancelRequestToAPI(options)
+	body, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("encode subscription cancel request: %w", err)
+	}
+	requestURL := googleapi.ResolveRelative(p.basePath, "androidpublisher/v3/applications/{packageName}/purchases/subscriptionsv2/tokens/{token}:cancel")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create subscription cancel request: %w", err)
+	}
+	googleapi.Expand(req.URL, map[string]string{
+		"packageName": options.PackageName.String(),
+		"token":       options.Token.String(),
+	})
+	query := req.URL.Query()
+	query.Set("alt", "json")
+	query.Set("prettyPrint", "false")
+	req.URL.RawQuery = query.Encode()
+	req.Header.Set("Content-Type", "application/json")
+	if err := p.doNoContent(req); err != nil {
+		return fmt.Errorf("cancel subscription purchase %s for %s: %w", options.Token, options.PackageName, err)
 	}
 	return nil
 }
@@ -3364,6 +3404,33 @@ func subscriptionRevokeRequestToAPI(options SubscriptionPurchaseRevokeOptions) *
 	}
 	return &androidpublisher.RevokeSubscriptionPurchaseRequest{
 		RevocationContext: context,
+	}
+}
+
+type rawSubscriptionCancelRequest struct {
+	CancellationContext rawSubscriptionCancellationContext `json:"cancellationContext"`
+}
+
+type rawSubscriptionCancellationContext struct {
+	CancellationType string `json:"cancellationType"`
+}
+
+func subscriptionCancelRequestToAPI(options SubscriptionPurchaseMutationOptions) rawSubscriptionCancelRequest {
+	return rawSubscriptionCancelRequest{
+		CancellationContext: rawSubscriptionCancellationContext{
+			CancellationType: subscriptionCancellationTypeToAPI(options.CancellationType),
+		},
+	}
+}
+
+func subscriptionCancellationTypeToAPI(cancellationType SubscriptionCancellationType) string {
+	switch cancellationType {
+	case SubscriptionCancellationTypeUserRequestedStopRenewals:
+		return "USER_REQUESTED_STOP_RENEWALS"
+	case SubscriptionCancellationTypeDeveloperRequestedStopPayments:
+		return "DEVELOPER_REQUESTED_STOP_PAYMENTS"
+	default:
+		return "CANCELLATION_TYPE_UNSPECIFIED"
 	}
 }
 

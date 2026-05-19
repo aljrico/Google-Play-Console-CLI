@@ -1349,7 +1349,7 @@ gpc purchases
 #### Commands
 
 - `gpc purchases product`: Get or mutate one in-app product purchase
-- `gpc purchases subscription`: Get or revoke one subscription purchase
+- `gpc purchases subscription`: Get or mutate one subscription purchase
 - `gpc purchases voided`: Inspect voided Google Play purchases
 
 #### gpc purchases product
@@ -1403,7 +1403,7 @@ gpc purchases product consume [flags]
 
 #### gpc purchases subscription
 
-Get or revoke one subscription purchase
+Get or mutate one subscription purchase
 
 ```sh
 gpc purchases subscription [flags]
@@ -1416,7 +1416,7 @@ gpc purchases subscription [flags]
 ##### Commands
 
 - `gpc purchases subscription acknowledge`: Acknowledge a subscription purchase through the legacy subscriptions API
-- `gpc purchases subscription cancel`: Cancel a subscription purchase through the legacy subscriptions API
+- `gpc purchases subscription cancel`: Cancel a subscription purchase through the subscriptions v2 API
 - `gpc purchases subscription revoke`: Revoke a subscription purchase
 
 ##### gpc purchases subscription acknowledge
@@ -1437,7 +1437,7 @@ gpc purchases subscription acknowledge [flags]
 
 ##### gpc purchases subscription cancel
 
-Cancel a subscription purchase through the legacy subscriptions API
+Cancel a subscription purchase through the subscriptions v2 API
 
 ```sh
 gpc purchases subscription cancel [flags]
@@ -1445,9 +1445,9 @@ gpc purchases subscription cancel [flags]
 
 ###### Flags
 
+- `--cancellation-type`: Cancellation type: userRequestedStopRenewals or developerRequestedStopPayments
 - `--confirm`: Apply the subscription purchase mutation (default `false`)
 - `--dry-run`: Print the planned subscription purchase mutation without calling Google Play (default `false`)
-- `--subscription-id`: Legacy subscription product ID
 - `--token`: Purchase token
 
 ##### gpc purchases subscription revoke

@@ -275,6 +275,32 @@ type SubscriptionPurchaseMutator interface {
 	CancelSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseMutationOptions) error
 }
 
+type SubscriptionCancellationType string
+
+const (
+	SubscriptionCancellationTypeUserRequestedStopRenewals      SubscriptionCancellationType = "userRequestedStopRenewals"
+	SubscriptionCancellationTypeDeveloperRequestedStopPayments SubscriptionCancellationType = "developerRequestedStopPayments"
+)
+
+func NewSubscriptionCancellationType(value string) (SubscriptionCancellationType, error) {
+	cancellationType := SubscriptionCancellationType(strings.TrimSpace(value))
+	switch cancellationType {
+	case SubscriptionCancellationTypeUserRequestedStopRenewals, SubscriptionCancellationTypeDeveloperRequestedStopPayments:
+		return cancellationType, nil
+	default:
+		return "", fmt.Errorf("unsupported subscription cancellation type %q", value)
+	}
+}
+
+func (t SubscriptionCancellationType) String() string {
+	return string(t)
+}
+
+func (t SubscriptionCancellationType) Validate() error {
+	_, err := NewSubscriptionCancellationType(t.String())
+	return err
+}
+
 func GetSubscriptionPurchase(ctx context.Context, getter SubscriptionPurchaseGetter, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error) {
 	if err := options.Validate(); err != nil {
 		return SubscriptionPurchase{}, err
@@ -287,10 +313,11 @@ func GetSubscriptionPurchase(ctx context.Context, getter SubscriptionPurchaseGet
 
 type SubscriptionPurchaseMutationOptions struct {
 	PackageName      PackageName                        `json:"packageName"`
-	SubscriptionID   SubscriptionProductID              `json:"subscriptionId"`
+	SubscriptionID   SubscriptionProductID              `json:"subscriptionId,omitempty"`
 	Token            PurchaseToken                      `json:"token"`
 	Action           SubscriptionPurchaseMutationAction `json:"action"`
 	DeveloperPayload string                             `json:"developerPayload,omitempty"`
+	CancellationType SubscriptionCancellationType       `json:"cancellationType,omitempty"`
 	Confirm          bool                               `json:"confirm"`
 	DryRun           bool                               `json:"dryRun"`
 }
@@ -299,17 +326,30 @@ func (o SubscriptionPurchaseMutationOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
 	}
-	if _, err := NewSubscriptionProductID(o.SubscriptionID.String()); err != nil {
-		return err
-	}
 	if _, err := NewPurchaseToken(o.Token.String()); err != nil {
 		return err
 	}
 	if err := o.Action.Validate(); err != nil {
 		return err
 	}
+	if o.Action == SubscriptionPurchaseMutationActionAcknowledge {
+		if _, err := NewSubscriptionProductID(o.SubscriptionID.String()); err != nil {
+			return err
+		}
+	}
+	if o.Action == SubscriptionPurchaseMutationActionCancel && o.SubscriptionID != "" {
+		return fmt.Errorf("subscription ID is not used for v2 subscription purchase cancel")
+	}
 	if o.DeveloperPayload != "" && o.Action != SubscriptionPurchaseMutationActionAcknowledge {
 		return fmt.Errorf("developer payload is only supported for subscription purchase acknowledge")
+	}
+	if o.Action == SubscriptionPurchaseMutationActionCancel {
+		if err := o.CancellationType.Validate(); err != nil {
+			return err
+		}
+	}
+	if o.Action != SubscriptionPurchaseMutationActionCancel && o.CancellationType != "" {
+		return fmt.Errorf("cancellation type is only supported for subscription purchase cancel")
 	}
 	if o.Confirm && o.DryRun {
 		return fmt.Errorf("--confirm and --dry-run cannot be used together")
@@ -336,21 +376,23 @@ func (o SubscriptionPurchaseMutationOptions) ValidateLive() error {
 type SubscriptionPurchaseMutationPlan struct {
 	Action           SubscriptionPurchaseMutationAction `json:"action"`
 	PackageName      PackageName                        `json:"packageName"`
-	SubscriptionID   SubscriptionProductID              `json:"subscriptionId"`
+	SubscriptionID   SubscriptionProductID              `json:"subscriptionId,omitempty"`
 	Token            PurchaseToken                      `json:"token"`
 	DeveloperPayload string                             `json:"developerPayload,omitempty"`
+	CancellationType SubscriptionCancellationType       `json:"cancellationType,omitempty"`
 	Confirm          bool                               `json:"confirm"`
 	Steps            []string                           `json:"steps"`
 }
 
 type SubscriptionPurchaseMutationResult struct {
-	Action         SubscriptionPurchaseMutationAction `json:"action"`
-	PackageName    PackageName                        `json:"packageName"`
-	SubscriptionID SubscriptionProductID              `json:"subscriptionId"`
-	Token          PurchaseToken                      `json:"token"`
-	DryRun         bool                               `json:"dryRun"`
-	Applied        bool                               `json:"applied"`
-	Plan           SubscriptionPurchaseMutationPlan   `json:"plan"`
+	Action           SubscriptionPurchaseMutationAction `json:"action"`
+	PackageName      PackageName                        `json:"packageName"`
+	SubscriptionID   SubscriptionProductID              `json:"subscriptionId,omitempty"`
+	Token            PurchaseToken                      `json:"token"`
+	CancellationType SubscriptionCancellationType       `json:"cancellationType,omitempty"`
+	DryRun           bool                               `json:"dryRun"`
+	Applied          bool                               `json:"applied"`
+	Plan             SubscriptionPurchaseMutationPlan   `json:"plan"`
 }
 
 func MutateSubscriptionPurchase(ctx context.Context, mutator SubscriptionPurchaseMutator, options SubscriptionPurchaseMutationOptions) (SubscriptionPurchaseMutationResult, error) {
@@ -358,19 +400,21 @@ func MutateSubscriptionPurchase(ctx context.Context, mutator SubscriptionPurchas
 		return SubscriptionPurchaseMutationResult{}, err
 	}
 	result := SubscriptionPurchaseMutationResult{
-		Action:         options.Action,
-		PackageName:    options.PackageName,
-		SubscriptionID: options.SubscriptionID,
-		Token:          options.Token,
-		DryRun:         options.DryRun,
+		Action:           options.Action,
+		PackageName:      options.PackageName,
+		SubscriptionID:   options.SubscriptionID,
+		Token:            options.Token,
+		CancellationType: options.CancellationType,
+		DryRun:           options.DryRun,
 		Plan: SubscriptionPurchaseMutationPlan{
 			Action:           options.Action,
 			PackageName:      options.PackageName,
 			SubscriptionID:   options.SubscriptionID,
 			Token:            options.Token,
 			DeveloperPayload: options.DeveloperPayload,
+			CancellationType: options.CancellationType,
 			Confirm:          options.Confirm,
-			Steps:            []string{fmt.Sprintf("%s subscription purchase", options.Action)},
+			Steps:            subscriptionPurchaseMutationSteps(options),
 		},
 	}
 	if options.DryRun {
@@ -393,6 +437,14 @@ func MutateSubscriptionPurchase(ctx context.Context, mutator SubscriptionPurchas
 	}
 	result.Applied = true
 	return result, nil
+}
+
+func subscriptionPurchaseMutationSteps(options SubscriptionPurchaseMutationOptions) []string {
+	steps := []string{fmt.Sprintf("%s subscription purchase", options.Action)}
+	if options.Action == SubscriptionPurchaseMutationActionCancel {
+		steps = append(steps, "use v2 cancellation type "+options.CancellationType.String())
+	}
+	return steps
 }
 
 type SubscriptionRefundType string

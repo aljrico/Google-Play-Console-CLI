@@ -4476,10 +4476,10 @@ func TestPurchasesSubscriptionCancelRequiresConfirmOrDryRunBeforeAuth(t *testing
 		"cancel",
 		"--package",
 		"com.example.app",
-		"--subscription-id",
-		"premium_monthly",
 		"--token",
 		"token-123",
+		"--cancellation-type",
+		"userRequestedStopRenewals",
 		"--output",
 		"json",
 	})
@@ -4493,6 +4493,43 @@ func TestPurchasesSubscriptionCancelRequiresConfirmOrDryRunBeforeAuth(t *testing
 	}
 	if strings.Contains(err.Error(), "no active auth profile") {
 		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestPurchasesSubscriptionCancelDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"purchases",
+		"subscription",
+		"cancel",
+		"--package",
+		"com.example.app",
+		"--token",
+		"token-123",
+		"--cancellation-type",
+		"userRequestedStopRenewals",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{`"action":"cancel"`, `"cancellationType":"userRequestedStopRenewals"`, `"dryRun":true`, `"applied":false`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "subscriptionId") {
+		t.Fatalf("output = %s, did not expect legacy subscription ID for v2 cancel", output)
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
 	}
 }
 

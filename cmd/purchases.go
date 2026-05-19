@@ -159,7 +159,7 @@ func newPurchasesSubscriptionCommand(out io.Writer, options *globalOptions, pack
 
 	cmd := &cobra.Command{
 		Use:   "subscription",
-		Short: "Get or revoke one subscription purchase",
+		Short: "Get or mutate one subscription purchase",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, typedToken, err := parsePurchaseParent(*packageName, token)
@@ -187,7 +187,7 @@ func newPurchasesSubscriptionCommand(out io.Writer, options *globalOptions, pack
 	cmd.Flags().StringVar(&token, "token", "", "Purchase token")
 	cmd.AddCommand(
 		newPurchasesSubscriptionMutationCommand(out, options, packageName, play.SubscriptionPurchaseMutationActionAcknowledge, "Acknowledge a subscription purchase through the legacy subscriptions API"),
-		newPurchasesSubscriptionMutationCommand(out, options, packageName, play.SubscriptionPurchaseMutationActionCancel, "Cancel a subscription purchase through the legacy subscriptions API"),
+		newPurchasesSubscriptionMutationCommand(out, options, packageName, play.SubscriptionPurchaseMutationActionCancel, "Cancel a subscription purchase through the subscriptions v2 API"),
 		newPurchasesSubscriptionRevokeCommand(out, options, packageName),
 	)
 	return cmd
@@ -198,6 +198,7 @@ func newPurchasesSubscriptionMutationCommand(out io.Writer, options *globalOptio
 		subscriptionID   string
 		token            string
 		developerPayload string
+		cancellationType string
 		confirm          bool
 		dryRun           bool
 	)
@@ -211,9 +212,19 @@ func newPurchasesSubscriptionMutationCommand(out io.Writer, options *globalOptio
 			if err != nil {
 				return err
 			}
-			typedSubscriptionID, err := play.NewSubscriptionProductID(subscriptionID)
-			if err != nil {
-				return err
+			var typedSubscriptionID play.SubscriptionProductID
+			if subscriptionID != "" {
+				typedSubscriptionID, err = play.NewSubscriptionProductID(subscriptionID)
+				if err != nil {
+					return err
+				}
+			}
+			var typedCancellationType play.SubscriptionCancellationType
+			if cancellationType != "" {
+				typedCancellationType, err = play.NewSubscriptionCancellationType(cancellationType)
+				if err != nil {
+					return err
+				}
 			}
 			mutationOptions := play.SubscriptionPurchaseMutationOptions{
 				PackageName:      typedPackageName,
@@ -221,6 +232,7 @@ func newPurchasesSubscriptionMutationCommand(out io.Writer, options *globalOptio
 				Token:            typedToken,
 				Action:           action,
 				DeveloperPayload: developerPayload,
+				CancellationType: typedCancellationType,
 				Confirm:          confirm,
 				DryRun:           dryRun,
 			}
@@ -245,10 +257,13 @@ func newPurchasesSubscriptionMutationCommand(out io.Writer, options *globalOptio
 			return output.Write(out, options.output, options.pretty, result)
 		},
 	}
-	cmd.Flags().StringVar(&subscriptionID, "subscription-id", "", "Legacy subscription product ID")
 	cmd.Flags().StringVar(&token, "token", "", "Purchase token")
 	if action == play.SubscriptionPurchaseMutationActionAcknowledge {
+		cmd.Flags().StringVar(&subscriptionID, "subscription-id", "", "Legacy subscription product ID")
 		cmd.Flags().StringVar(&developerPayload, "developer-payload", "", "Optional developer payload to attach to the acknowledgement")
+	}
+	if action == play.SubscriptionPurchaseMutationActionCancel {
+		cmd.Flags().StringVar(&cancellationType, "cancellation-type", "", "Cancellation type: userRequestedStopRenewals or developerRequestedStopPayments")
 	}
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription purchase mutation")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription purchase mutation without calling Google Play")

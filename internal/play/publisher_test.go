@@ -1162,27 +1162,79 @@ func TestAcknowledgeSubscriptionPurchaseUsesLegacyEndpoint(t *testing.T) {
 	}
 }
 
-func TestCancelSubscriptionPurchaseUsesLegacyEndpoint(t *testing.T) {
+func TestCancelSubscriptionPurchaseUsesV2Endpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("method = %s, want POST", r.Method)
 		}
-		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/purchases/subscriptions/premium_monthly/tokens/token-123:cancel" {
-			t.Fatalf("path = %q, want legacy subscription cancel endpoint", r.URL.Path)
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/purchases/subscriptionsv2/tokens/token-123:cancel" {
+			t.Fatalf("path = %q, want subscription v2 cancel endpoint", r.URL.Path)
+		}
+		var request rawSubscriptionCancelRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.CancellationContext.CancellationType != "USER_REQUESTED_STOP_RENEWALS" {
+			t.Fatalf("CancellationType = %q, want user requested stop renewals", request.CancellationContext.CancellationType)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{}`))
 	}))
 
 	err := publisher.CancelSubscriptionPurchase(context.Background(), SubscriptionPurchaseMutationOptions{
-		PackageName:    "com.example.app",
-		SubscriptionID: "premium_monthly",
-		Token:          "token-123",
-		Action:         SubscriptionPurchaseMutationActionCancel,
-		Confirm:        true,
+		PackageName:      "com.example.app",
+		Token:            "token-123",
+		Action:           SubscriptionPurchaseMutationActionCancel,
+		CancellationType: SubscriptionCancellationTypeUserRequestedStopRenewals,
+		Confirm:          true,
 	})
 	if err != nil {
 		t.Fatalf("CancelSubscriptionPurchase() error = %v", err)
+	}
+}
+
+func TestAcknowledgeSubscriptionPurchaseRejectsMismatchedActionBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	err := publisher.AcknowledgeSubscriptionPurchase(context.Background(), SubscriptionPurchaseMutationOptions{
+		PackageName:      "com.example.app",
+		SubscriptionID:   "premium_monthly",
+		Token:            "token-123",
+		Action:           SubscriptionPurchaseMutationActionCancel,
+		CancellationType: SubscriptionCancellationTypeUserRequestedStopRenewals,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected action mismatch")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
+func TestCancelSubscriptionPurchaseRejectsMismatchedActionBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	err := publisher.CancelSubscriptionPurchase(context.Background(), SubscriptionPurchaseMutationOptions{
+		PackageName:    "com.example.app",
+		SubscriptionID: "premium_monthly",
+		Token:          "token-123",
+		Action:         SubscriptionPurchaseMutationActionAcknowledge,
+		Confirm:        true,
+	})
+	if err == nil {
+		t.Fatal("expected action mismatch")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
 	}
 }
 
@@ -1194,11 +1246,11 @@ func TestCancelSubscriptionPurchaseRejectsDryRunBeforeRequest(t *testing.T) {
 	}))
 
 	err := publisher.CancelSubscriptionPurchase(context.Background(), SubscriptionPurchaseMutationOptions{
-		PackageName:    "com.example.app",
-		SubscriptionID: "premium_monthly",
-		Token:          "token-123",
-		Action:         SubscriptionPurchaseMutationActionCancel,
-		DryRun:         true,
+		PackageName:      "com.example.app",
+		Token:            "token-123",
+		Action:           SubscriptionPurchaseMutationActionCancel,
+		CancellationType: SubscriptionCancellationTypeUserRequestedStopRenewals,
+		DryRun:           true,
 	})
 	if err == nil {
 		t.Fatal("expected dry-run rejection")

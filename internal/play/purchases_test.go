@@ -141,14 +141,33 @@ func TestMutateSubscriptionPurchaseDryRunDoesNotCallMutator(t *testing.T) {
 	}
 }
 
+func TestMutateSubscriptionPurchaseCancelDryRunIncludesCancellationType(t *testing.T) {
+	result, err := MutateSubscriptionPurchase(context.Background(), nil, SubscriptionPurchaseMutationOptions{
+		PackageName:      "com.example.app",
+		Token:            "token-123",
+		Action:           SubscriptionPurchaseMutationActionCancel,
+		CancellationType: SubscriptionCancellationTypeDeveloperRequestedStopPayments,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("MutateSubscriptionPurchase() error = %v", err)
+	}
+	if result.CancellationType != SubscriptionCancellationTypeDeveloperRequestedStopPayments {
+		t.Fatalf("CancellationType = %q, want developer requested stop payments", result.CancellationType)
+	}
+	if !reflect.DeepEqual(result.Plan.Steps, []string{"cancel subscription purchase", "use v2 cancellation type developerRequestedStopPayments"}) {
+		t.Fatalf("Steps = %#v", result.Plan.Steps)
+	}
+}
+
 func TestMutateSubscriptionPurchasePassesOptionsToMutator(t *testing.T) {
 	mutator := &fakePurchaseClient{}
 	options := SubscriptionPurchaseMutationOptions{
-		PackageName:    "com.example.app",
-		SubscriptionID: "premium_monthly",
-		Token:          "token-123",
-		Action:         SubscriptionPurchaseMutationActionCancel,
-		Confirm:        true,
+		PackageName:      "com.example.app",
+		Token:            "token-123",
+		Action:           SubscriptionPurchaseMutationActionCancel,
+		CancellationType: SubscriptionCancellationTypeUserRequestedStopRenewals,
+		Confirm:          true,
 	}
 
 	result, err := MutateSubscriptionPurchase(context.Background(), mutator, options)
@@ -171,6 +190,8 @@ func TestSubscriptionPurchaseMutationRejectsInvalidOptions(t *testing.T) {
 		{PackageName: "com.example.app", SubscriptionID: "premium_monthly", Action: SubscriptionPurchaseMutationActionAcknowledge, DryRun: true},
 		{PackageName: "com.example.app", SubscriptionID: "premium_monthly", Token: "token-123", DryRun: true},
 		{PackageName: "com.example.app", SubscriptionID: "premium_monthly", Token: "token-123", Action: SubscriptionPurchaseMutationActionCancel, DeveloperPayload: "payload", DryRun: true},
+		{PackageName: "com.example.app", SubscriptionID: "premium_monthly", Token: "token-123", Action: SubscriptionPurchaseMutationActionCancel, CancellationType: SubscriptionCancellationTypeUserRequestedStopRenewals, DryRun: true},
+		{PackageName: "com.example.app", Token: "token-123", Action: SubscriptionPurchaseMutationActionCancel, DryRun: true},
 		{PackageName: "com.example.app", SubscriptionID: "premium_monthly", Token: "token-123", Action: SubscriptionPurchaseMutationActionAcknowledge},
 		{PackageName: "com.example.app", SubscriptionID: "premium_monthly", Token: "token-123", Action: SubscriptionPurchaseMutationActionAcknowledge, Confirm: true, DryRun: true},
 	}
