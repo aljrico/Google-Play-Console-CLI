@@ -2311,6 +2311,7 @@ gpc subscription-offers
 - `gpc subscription-offers batch-deactivate`: deactivate multiple subscription offers
 - `gpc subscription-offers batch-get`: Get multiple subscription offers
 - `gpc subscription-offers batch-patch-availability`: Batch patch subscription offer regional availability
+- `gpc subscription-offers batch-patch-phase-relative-discounts`: Batch patch subscription offer phase relative discounts
 - `gpc subscription-offers deactivate`: deactivate a subscription offer
 - `gpc subscription-offers delete`: Delete a draft subscription offer
 - `gpc subscription-offers get`: Get one subscription offer
@@ -2398,6 +2399,24 @@ gpc subscription-offers batch-patch-availability [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
 - `--regions-version`: Google Play regions version required by subscriptionOffers.batchUpdate
+
+#### gpc subscription-offers batch-patch-phase-relative-discounts
+
+Batch patch subscription offer phase relative discounts
+
+```sh
+gpc subscription-offers batch-patch-phase-relative-discounts [flags]
+```
+
+##### Flags
+
+- `--base-plan-id`: Parent subscription base plan ID, or - for offers across base plans; inferred when omitted
+- `--confirm`: Apply the subscription offer phase relative discount batch patch (default `false`)
+- `--dry-run`: Print the planned subscription offer phase relative discount batch patch without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
+- `--regions-version`: Google Play regions version required by subscriptionOffers.batchUpdate
+- `--relative-discount`: Phase relative discount patch as productId/basePlanId/offerId/phaseIndex/REGION:0.75; phaseIndex is zero-based, so 0 is the first phase; 0.75 means the user pays 75% of the base plan price prorated over the phase duration; repeatable (default `[]`)
 
 #### gpc subscription-offers deactivate
 

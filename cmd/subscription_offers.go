@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
@@ -24,6 +25,7 @@ func newSubscriptionOffersCommand(out io.Writer, options *globalOptions) *cobra.
 		newSubscriptionOffersBatchGetCommand(out, options, &packageName),
 		newSubscriptionOffersDeleteCommand(out, options, &packageName),
 		newSubscriptionOffersBatchPatchAvailabilityCommand(out, options, &packageName),
+		newSubscriptionOffersBatchPatchPhaseRelativeDiscountsCommand(out, options, &packageName),
 		newSubscriptionOffersBatchStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionActivate),
 		newSubscriptionOffersBatchStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionDeactivate),
 		newSubscriptionOffersStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionActivate),
@@ -121,6 +123,95 @@ func newSubscriptionOffersBatchPatchAvailabilityCommand(out io.Writer, options *
 	return cmd
 }
 
+func newSubscriptionOffersBatchPatchPhaseRelativeDiscountsCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID        string
+		basePlanID       string
+		relativeDiscount []string
+		regionsVersion   string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-patch-phase-relative-discounts",
+		Short: "Batch patch subscription offer phase relative discounts",
+		Long: "Batch patch subscription offer phase relative discounts. Omit parent IDs to infer the narrowest valid parent path from --relative-discount values. " +
+			"Use --product-id - when the batch spans products, and --base-plan-id - when it spans base plans.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			requests, err := parseSubscriptionOfferPhaseRelativeDiscountPatches(relativeDiscount)
+			if err != nil {
+				return err
+			}
+			if len(requests) == 0 {
+				return play.SubscriptionOfferBatchPatchPhaseRelativeDiscountsOptions{PackageName: typedPackageName}.Validate()
+			}
+			mutationRequests := subscriptionOfferPhaseRelativeDiscountPatchesToMutationRequests(requests)
+			resolvedProductID, resolvedBasePlanID := inferSubscriptionOfferBatchParent(productID, basePlanID, mutationRequests)
+			typedProductID, err := play.NewSubscriptionOfferListProductID(resolvedProductID)
+			if err != nil {
+				return err
+			}
+			typedBasePlanID, err := play.NewSubscriptionOfferListBasePlanID(resolvedBasePlanID)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			patchOptions := play.SubscriptionOfferBatchPatchPhaseRelativeDiscountsOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				BasePlanID:       typedBasePlanID,
+				Requests:         requests,
+				RegionsVersion:   regionsVersion,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.BatchPatchSubscriptionOfferPhaseRelativeDiscounts(cmd.Context(), nil, patchOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewSubscriptionOfferBatchPatchPhaseRelativeDiscountsPlan(patchOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchPatchSubscriptionOfferPhaseRelativeDiscounts(cmd.Context(), publisher, patchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	addSubscriptionOfferParentFlags(
+		cmd,
+		&productID,
+		&basePlanID,
+		"Parent subscription product ID, or - for offers across products; inferred when omitted",
+		"Parent subscription base plan ID, or - for offers across base plans; inferred when omitted",
+	)
+	cmd.Flags().StringArrayVar(&relativeDiscount, "relative-discount", nil, "Phase relative discount patch as productId/basePlanId/offerId/phaseIndex/REGION:0.75; phaseIndex is zero-based, so 0 is the first phase; 0.75 means the user pays 75% of the base plan price prorated over the phase duration; repeatable")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by subscriptionOffers.batchUpdate")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription offer phase relative discount batch patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription offer phase relative discount batch patch without calling Google Play")
+	return cmd
+}
+
 func parseSubscriptionOfferAvailabilityPatches(values []string) ([]play.SubscriptionOfferAvailabilityPatchRequest, error) {
 	requests := make([]play.SubscriptionOfferAvailabilityPatchRequest, 0, len(values))
 	for _, value := range values {
@@ -183,6 +274,73 @@ func parseSubscriptionOfferAvailabilityValue(value string) (bool, error) {
 }
 
 func subscriptionOfferAvailabilityPatchesToMutationRequests(requests []play.SubscriptionOfferAvailabilityPatchRequest) []play.SubscriptionOfferBatchMutationRequest {
+	mutations := make([]play.SubscriptionOfferBatchMutationRequest, 0, len(requests))
+	for _, request := range requests {
+		mutations = append(mutations, play.SubscriptionOfferBatchMutationRequest{
+			ProductID:  request.ProductID,
+			BasePlanID: request.BasePlanID,
+			OfferID:    request.OfferID,
+		})
+	}
+	return mutations
+}
+
+func parseSubscriptionOfferPhaseRelativeDiscountPatches(values []string) ([]play.SubscriptionOfferPhaseRelativeDiscountPatchRequest, error) {
+	requests := make([]play.SubscriptionOfferPhaseRelativeDiscountPatchRequest, 0, len(values))
+	for _, value := range values {
+		request, err := parseSubscriptionOfferPhaseRelativeDiscountPatch(value)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, nil
+}
+
+func parseSubscriptionOfferPhaseRelativeDiscountPatch(value string) (play.SubscriptionOfferPhaseRelativeDiscountPatchRequest, error) {
+	path, rawRelativeDiscount, ok := strings.Cut(strings.TrimSpace(value), ":")
+	if !ok {
+		return play.SubscriptionOfferPhaseRelativeDiscountPatchRequest{}, errSubscriptionOfferPhaseRelativeDiscountFormat()
+	}
+	parts := strings.Split(path, "/")
+	if len(parts) != 5 {
+		return play.SubscriptionOfferPhaseRelativeDiscountPatchRequest{}, errSubscriptionOfferPhaseRelativeDiscountFormat()
+	}
+	productID, err := play.NewSubscriptionProductID(parts[0])
+	if err != nil {
+		return play.SubscriptionOfferPhaseRelativeDiscountPatchRequest{}, err
+	}
+	basePlanID, err := play.NewSubscriptionBasePlanID(parts[1])
+	if err != nil {
+		return play.SubscriptionOfferPhaseRelativeDiscountPatchRequest{}, err
+	}
+	offerID, err := play.NewSubscriptionOfferID(parts[2])
+	if err != nil {
+		return play.SubscriptionOfferPhaseRelativeDiscountPatchRequest{}, err
+	}
+	phaseIndex, err := strconv.Atoi(strings.TrimSpace(parts[3]))
+	if err != nil {
+		return play.SubscriptionOfferPhaseRelativeDiscountPatchRequest{}, errSubscriptionOfferPhaseRelativeDiscountFormat()
+	}
+	relativeDiscount, err := strconv.ParseFloat(strings.TrimSpace(rawRelativeDiscount), 64)
+	if err != nil {
+		return play.SubscriptionOfferPhaseRelativeDiscountPatchRequest{}, errSubscriptionOfferPhaseRelativeDiscountFormat()
+	}
+	return play.SubscriptionOfferPhaseRelativeDiscountPatchRequest{
+		ProductID:        productID,
+		BasePlanID:       basePlanID,
+		OfferID:          offerID,
+		PhaseIndex:       phaseIndex,
+		RegionCode:       strings.ToUpper(strings.TrimSpace(parts[4])),
+		RelativeDiscount: relativeDiscount,
+	}, nil
+}
+
+func errSubscriptionOfferPhaseRelativeDiscountFormat() error {
+	return fmt.Errorf("subscription offer phase relative discount must use productId/basePlanId/offerId/phaseIndex/REGION:0.75")
+}
+
+func subscriptionOfferPhaseRelativeDiscountPatchesToMutationRequests(requests []play.SubscriptionOfferPhaseRelativeDiscountPatchRequest) []play.SubscriptionOfferBatchMutationRequest {
 	mutations := make([]play.SubscriptionOfferBatchMutationRequest, 0, len(requests))
 	for _, request := range requests {
 		mutations = append(mutations, play.SubscriptionOfferBatchMutationRequest{

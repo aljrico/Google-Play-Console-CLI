@@ -5176,6 +5176,114 @@ func TestBatchPatchSubscriptionOfferAvailabilityMergesAndBatchUpdates(t *testing
 	}
 }
 
+func TestBatchPatchSubscriptionOfferPhaseRelativeDiscountsMergesAndBatchUpdates(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium/basePlans/monthly/offers/intro" {
+				t.Fatalf("path = %q, want subscription offer get endpoint", r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","basePlanId":"monthly","offerId":"intro","regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true},{"regionCode":"FR","newSubscriberAvailability":true}],"phases":[{"duration":"P1M","recurrenceCount":1,"regionalConfigs":[{"regionCode":"US","price":{"currencyCode":"USD","units":"1"}},{"regionCode":"FR","absoluteDiscount":{"currencyCode":"EUR","units":"2"}}],"otherRegionsConfig":{"relativeDiscount":0.5}},{"duration":"P2M","recurrenceCount":2,"regionalConfigs":[{"regionCode":"US","free":{}},{"regionCode":"FR","relativeDiscount":0.25}]}]}`)
+		case http.MethodPost:
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium/basePlans/monthly/offers:batchUpdate" {
+				t.Fatalf("path = %q, want subscription offer batchUpdate endpoint", r.URL.Path)
+			}
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("ReadAll() error = %v", err)
+			}
+			var request androidpublisher.BatchUpdateSubscriptionOffersRequest
+			if err := json.Unmarshal(body, &request); err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+			if len(request.Requests) != 1 {
+				t.Fatalf("len(Requests) = %d, want 1", len(request.Requests))
+			}
+			update := request.Requests[0]
+			if update.UpdateMask != "phases" {
+				t.Fatalf("UpdateMask = %q, want phases", update.UpdateMask)
+			}
+			if update.RegionsVersion == nil || update.RegionsVersion.Version != "2026/05" {
+				t.Fatalf("RegionsVersion = %#v, want 2026/05", update.RegionsVersion)
+			}
+			if update.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+				t.Fatalf("LatencyTolerance = %q, want tolerant", update.LatencyTolerance)
+			}
+			phases := update.SubscriptionOffer.Phases
+			if len(phases) != 2 {
+				t.Fatalf("len(Phases) = %d, want preserved phases", len(phases))
+			}
+			firstUS := phases[0].RegionalConfigs[0]
+			if firstUS.RegionCode != "US" || firstUS.RelativeDiscount != 0.75 || firstUS.Price != nil || firstUS.AbsoluteDiscount != nil || firstUS.Free != nil {
+				t.Fatalf("first US phase config = %#v, want relative discount with old price modes cleared", firstUS)
+			}
+			firstFR := phases[0].RegionalConfigs[1]
+			if firstFR.RegionCode != "FR" || firstFR.AbsoluteDiscount == nil || firstFR.RelativeDiscount != 0 {
+				t.Fatalf("first FR phase config = %#v, want preserved absolute discount", firstFR)
+			}
+			secondFR := phases[1].RegionalConfigs[1]
+			if secondFR.RegionCode != "FR" || secondFR.RelativeDiscount != 0.5 {
+				t.Fatalf("second FR phase config = %#v, want patched relative discount", secondFR)
+			}
+			if phases[0].OtherRegionsConfig == nil || phases[0].OtherRegionsConfig.RelativeDiscount != 0.5 {
+				t.Fatalf("OtherRegionsConfig = %#v, want preserved relative discount", phases[0].OtherRegionsConfig)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"subscriptionOffers":[{"packageName":"com.example.app","productId":"premium","basePlanId":"monthly","offerId":"intro","phases":[{"duration":"P1M","recurrenceCount":1,"regionalConfigs":[{"regionCode":"US","relativeDiscount":0.75},{"regionCode":"FR","absoluteDiscount":{"currencyCode":"EUR","units":"2"}}]},{"duration":"P2M","recurrenceCount":2,"regionalConfigs":[{"regionCode":"US","free":{}},{"regionCode":"FR","relativeDiscount":0.5}]}]}]}`)
+		default:
+			t.Fatalf("method = %s, want GET or POST", r.Method)
+		}
+	}))
+
+	result, err := publisher.BatchPatchSubscriptionOfferPhaseRelativeDiscounts(context.Background(), SubscriptionOfferBatchPatchPhaseRelativeDiscountsOptions{
+		PackageName:    "com.example.app",
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		RegionsVersion: "2026/05",
+		Requests: []SubscriptionOfferPhaseRelativeDiscountPatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "US", RelativeDiscount: 0.75},
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 1, RegionCode: "FR", RelativeDiscount: 0.5},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchSubscriptionOfferPhaseRelativeDiscounts() error = %v", err)
+	}
+	if !result.Applied || len(result.Offers) != 1 || result.Offers[0].Phases[0].RegionalConfigs[0].RelativeDiscount != 0.75 {
+		t.Fatalf("result = %#v, want applied offer with relative discount", result)
+	}
+}
+
+func TestBatchPatchSubscriptionOfferPhaseRelativeDiscountsRejectsMissingPhaseOrRegion(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium/basePlans/monthly/offers/intro" {
+			t.Fatalf("path = %q, want get only", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","basePlanId":"monthly","offerId":"intro","phases":[{"duration":"P1M","recurrenceCount":1,"regionalConfigs":[{"regionCode":"US","relativeDiscount":0.75}]}]}`)
+	}))
+
+	_, err := publisher.BatchPatchSubscriptionOfferPhaseRelativeDiscounts(context.Background(), SubscriptionOfferBatchPatchPhaseRelativeDiscountsOptions{
+		PackageName:    "com.example.app",
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		RegionsVersion: "2026/05",
+		Requests: []SubscriptionOfferPhaseRelativeDiscountPatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 1, RegionCode: "FR", RelativeDiscount: 0.5},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected missing phase or region validation error")
+	}
+	if !strings.Contains(err.Error(), "phase or region that is not already configured") {
+		t.Fatalf("error = %v, want missing phase or region message", err)
+	}
+}
+
 func TestBatchUpdateSubscriptionOfferStatesRejectsDryRunBeforeRequest(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
