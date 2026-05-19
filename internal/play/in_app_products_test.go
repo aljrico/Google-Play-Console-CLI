@@ -217,6 +217,29 @@ func TestDeleteInAppProductRejectsLegacySubscription(t *testing.T) {
 	}
 }
 
+func TestDeleteInAppProductRejectsUnspecifiedPurchaseType(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	deleter := &fakeInAppProductClient{
+		product: InAppProduct{SKU: "coins_100", PurchaseType: ProductPurchaseTypeUnspecified},
+	}
+
+	_, err = DeleteInAppProduct(context.Background(), deleter, InAppProductDeleteOptions{
+		PackageName:      packageName,
+		SKU:              "coins_100",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected unspecified purchase type rejection")
+	}
+	if deleter.deleteOptions.SKU != "" {
+		t.Fatalf("deleteOptions = %#v, did not expect delete after preflight", deleter.deleteOptions)
+	}
+}
+
 func TestNewProductPriceParsesCurrencyAndMicros(t *testing.T) {
 	price, err := NewProductPrice("usd:1990000")
 	if err != nil {

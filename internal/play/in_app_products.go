@@ -490,8 +490,8 @@ func DeleteInAppProduct(ctx context.Context, deleter InAppProductDeleter, option
 	if err != nil {
 		return InAppProductDeleteResult{}, err
 	}
-	if current.PurchaseType == ProductPurchaseTypeSubscription {
-		return InAppProductDeleteResult{}, fmt.Errorf("legacy subscription products cannot be deleted with in-app-products; use subscriptions commands")
+	if current.PurchaseType != ProductPurchaseTypeManagedUser {
+		return InAppProductDeleteResult{}, fmt.Errorf("only managed in-app products can be deleted with in-app-products; got purchase type %q", current.PurchaseType)
 	}
 	if err := deleter.DeleteInAppProduct(ctx, options); err != nil {
 		return InAppProductDeleteResult{}, err
