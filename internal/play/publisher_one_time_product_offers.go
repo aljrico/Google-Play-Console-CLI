@@ -917,3 +917,10 @@ func oneTimeProductOfferAvailabilityToAPI(availability string) string {
 		return availability
 	}
 }
+
+func regionsVersionFromGeneratedAPI(apiVersion *androidpublisher.RegionsVersion) *RegionsVersion {
+	if apiVersion == nil {
+		return nil
+	}
+	return &RegionsVersion{Version: apiVersion.Version}
+}

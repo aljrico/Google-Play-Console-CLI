@@ -226,3 +226,65 @@ func inAppProductListingsFromAPI(apiListings map[string]androidpublisher.InAppPr
 	}
 	return listings
 }
+
+func productPriceFromAPI(apiPrice *androidpublisher.Price) *ProductPrice {
+	if apiPrice == nil {
+		return nil
+	}
+	return &ProductPrice{Currency: apiPrice.Currency, PriceMicros: apiPrice.PriceMicros}
+}
+
+func productPriceToAPI(price ProductPrice) *androidpublisher.Price {
+	return &androidpublisher.Price{Currency: price.Currency, PriceMicros: price.PriceMicros}
+}
+
+func productPricesToAPI(prices map[string]ProductPrice) map[string]androidpublisher.Price {
+	if len(prices) == 0 {
+		return nil
+	}
+	apiPrices := make(map[string]androidpublisher.Price, len(prices))
+	for region, price := range prices {
+		apiPrices[region] = androidpublisher.Price{Currency: price.Currency, PriceMicros: price.PriceMicros}
+	}
+	return apiPrices
+}
+
+func managedProductTaxComplianceSettingsToAPI(settings *ProductTaxComplianceSettings) *androidpublisher.ManagedProductTaxAndComplianceSettings {
+	if settings == nil {
+		return nil
+	}
+	apiSettings := &androidpublisher.ManagedProductTaxAndComplianceSettings{
+		EeaWithdrawalRightType: settings.EEAWithdrawalRightType,
+	}
+	if settings.IsTokenizedDigitalAsset != nil {
+		apiSettings.IsTokenizedDigitalAsset = *settings.IsTokenizedDigitalAsset
+		apiSettings.ForceSendFields = append(apiSettings.ForceSendFields, "IsTokenizedDigitalAsset")
+	}
+	if len(settings.TaxRateInfoByRegionCode) > 0 {
+		apiSettings.TaxRateInfoByRegionCode = regionalTaxRateInfoToAPI(settings.TaxRateInfoByRegionCode)
+	}
+	return apiSettings
+}
+
+func productPricesFromAPI(apiPrices map[string]androidpublisher.Price) map[string]ProductPrice {
+	if len(apiPrices) == 0 {
+		return nil
+	}
+	prices := make(map[string]ProductPrice, len(apiPrices))
+	for region, apiPrice := range apiPrices {
+		prices[region] = ProductPrice{Currency: apiPrice.Currency, PriceMicros: apiPrice.PriceMicros}
+	}
+	return prices
+}
+
+func managedProductTaxComplianceSettingsFromAPI(apiSettings *androidpublisher.ManagedProductTaxAndComplianceSettings) *ProductTaxComplianceSettings {
+	if apiSettings == nil {
+		return nil
+	}
+	tokenizedDigitalAsset := apiSettings.IsTokenizedDigitalAsset
+	return &ProductTaxComplianceSettings{
+		EEAWithdrawalRightType:  apiSettings.EeaWithdrawalRightType,
+		IsTokenizedDigitalAsset: &tokenizedDigitalAsset,
+		TaxRateInfoByRegionCode: regionalTaxRateInfoFromAPI(apiSettings.TaxRateInfoByRegionCode),
+	}
+}

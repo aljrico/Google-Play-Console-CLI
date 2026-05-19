@@ -1058,3 +1058,124 @@ func oneTimeProductPreOrderOfferToAPI(offer *OneTimeProductPreOrderOffer) *andro
 		PriceChangeBehavior: offer.PriceChangeBehavior,
 	}
 }
+
+func isGoogleNotFound(err error) bool {
+	apiError, ok := err.(*googleapi.Error)
+	return ok && apiError.Code == http.StatusNotFound
+}
+
+type rawOfferTag struct {
+	Tag string `json:"tag,omitempty"`
+}
+
+type rawRegionalProductAgeRating struct {
+	RegionCode           string `json:"regionCode,omitempty"`
+	ProductAgeRatingTier string `json:"productAgeRatingTier,omitempty"`
+}
+
+type rawRegionalTaxConfig struct {
+	RegionCode                         string `json:"regionCode,omitempty"`
+	EligibleForStreamingServiceTaxRate bool   `json:"eligibleForStreamingServiceTaxRate,omitempty"`
+	StreamingTaxType                   string `json:"streamingTaxType,omitempty"`
+	TaxTier                            string `json:"taxTier,omitempty"`
+}
+
+type rawRestrictedPaymentCountries struct {
+	RegionCodes []string `json:"regionCodes,omitempty"`
+}
+
+type rawRegionsVersion struct {
+	Version string `json:"version,omitempty"`
+}
+
+type rawMoney struct {
+	CurrencyCode string        `json:"currencyCode,omitempty"`
+	Units        flexibleInt64 `json:"units,omitempty"`
+	Nanos        int64         `json:"nanos,omitempty"`
+}
+
+type flexibleInt64 int64
+
+func (i *flexibleInt64) UnmarshalJSON(data []byte) error {
+	var stringValue string
+	if err := json.Unmarshal(data, &stringValue); err == nil {
+		parsed, err := strconv.ParseInt(stringValue, 10, 64)
+		if err != nil {
+			return err
+		}
+		*i = flexibleInt64(parsed)
+		return nil
+	}
+	var numberValue int64
+	if err := json.Unmarshal(data, &numberValue); err != nil {
+		return err
+	}
+	*i = flexibleInt64(numberValue)
+	return nil
+}
+
+func regionalAgeRatingsFromAPI(apiRatings []rawRegionalProductAgeRating) []RegionalAgeRating {
+	if len(apiRatings) == 0 {
+		return nil
+	}
+	ratings := make([]RegionalAgeRating, 0, len(apiRatings))
+	for _, apiRating := range apiRatings {
+		ratings = append(ratings, RegionalAgeRating{
+			RegionCode:           apiRating.RegionCode,
+			ProductAgeRatingTier: apiRating.ProductAgeRatingTier,
+		})
+	}
+	return ratings
+}
+
+func regionalTaxConfigsFromAPI(apiConfigs []rawRegionalTaxConfig) []RegionalTaxConfig {
+	if len(apiConfigs) == 0 {
+		return nil
+	}
+	configs := make([]RegionalTaxConfig, 0, len(apiConfigs))
+	for _, apiConfig := range apiConfigs {
+		configs = append(configs, RegionalTaxConfig{
+			RegionCode:                         apiConfig.RegionCode,
+			EligibleForStreamingServiceTaxRate: apiConfig.EligibleForStreamingServiceTaxRate,
+			StreamingTaxType:                   apiConfig.StreamingTaxType,
+			TaxTier:                            apiConfig.TaxTier,
+		})
+	}
+	return configs
+}
+
+func regionsVersionFromAPI(apiVersion *rawRegionsVersion) *RegionsVersion {
+	if apiVersion == nil {
+		return nil
+	}
+	return &RegionsVersion{Version: apiVersion.Version}
+}
+
+func rawMoneyFromAPI(apiMoney *rawMoney) *Money {
+	if apiMoney == nil {
+		return nil
+	}
+	return &Money{
+		CurrencyCode: apiMoney.CurrencyCode,
+		Units:        int64(apiMoney.Units),
+		Nanos:        apiMoney.Nanos,
+	}
+}
+
+func rawOfferTagsFromAPI(apiOfferTags []rawOfferTag) []string {
+	if len(apiOfferTags) == 0 {
+		return nil
+	}
+	tags := make([]string, 0, len(apiOfferTags))
+	for _, apiOfferTag := range apiOfferTags {
+		tags = append(tags, apiOfferTag.Tag)
+	}
+	return tags
+}
+
+func rawRestrictedCountriesFromAPI(apiCountries *rawRestrictedPaymentCountries) []string {
+	if apiCountries == nil {
+		return nil
+	}
+	return apiCountries.RegionCodes
+}

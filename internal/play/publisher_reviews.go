@@ -138,3 +138,29 @@ func reviewCommentFromAPI(apiComment *androidpublisher.Comment) ReviewComment {
 	}
 	return ReviewComment{}
 }
+
+func deviceMetadataFromAPI(apiMetadata *androidpublisher.DeviceMetadata) *DeviceMetadata {
+	if apiMetadata == nil {
+		return nil
+	}
+	return &DeviceMetadata{
+		CPUMake:            apiMetadata.CpuMake,
+		CPUModel:           apiMetadata.CpuModel,
+		DeviceClass:        apiMetadata.DeviceClass,
+		GLESVersion:        apiMetadata.GlEsVersion,
+		Manufacturer:       apiMetadata.Manufacturer,
+		NativePlatform:     apiMetadata.NativePlatform,
+		ProductName:        apiMetadata.ProductName,
+		RAMMegabytes:       apiMetadata.RamMb,
+		ScreenDensityDPI:   apiMetadata.ScreenDensityDpi,
+		ScreenHeightPixels: apiMetadata.ScreenHeightPx,
+		ScreenWidthPixels:  apiMetadata.ScreenWidthPx,
+	}
+}
+
+func timestampFromAPI(apiTimestamp *androidpublisher.Timestamp) *Timestamp {
+	if apiTimestamp == nil {
+		return nil
+	}
+	return &Timestamp{Seconds: apiTimestamp.Seconds, Nanos: apiTimestamp.Nanos}
+}

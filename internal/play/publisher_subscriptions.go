@@ -825,3 +825,52 @@ func subscriptionRevokeRequestToAPI(options SubscriptionPurchaseRevokeOptions) *
 		RevocationContext: context,
 	}
 }
+
+func regionalPriceMigrationsToAPI(regions []BasePlanPriceMigrationConfig) []*androidpublisher.RegionalPriceMigrationConfig {
+	apiRegions := make([]*androidpublisher.RegionalPriceMigrationConfig, 0, len(regions))
+	for _, region := range regions {
+		apiRegions = append(apiRegions, &androidpublisher.RegionalPriceMigrationConfig{
+			RegionCode:                    region.RegionCode,
+			OldestAllowedPriceVersionTime: region.OldestAllowedPriceVersionTime,
+			PriceIncreaseType:             basePlanPriceIncreaseTypeToAPI(region.PriceIncreaseType),
+		})
+	}
+	return apiRegions
+}
+
+func regionalTaxRateInfoToAPI(taxRateInfo map[string]RegionalTaxRateInfo) map[string]androidpublisher.RegionalTaxRateInfo {
+	if len(taxRateInfo) == 0 {
+		return nil
+	}
+	apiTaxRateInfo := make(map[string]androidpublisher.RegionalTaxRateInfo, len(taxRateInfo))
+	for region, info := range taxRateInfo {
+		apiTaxRateInfo[region] = androidpublisher.RegionalTaxRateInfo{
+			EligibleForStreamingServiceTaxRate: info.EligibleForStreamingServiceTaxRate,
+			StreamingTaxType:                   info.StreamingTaxType,
+			TaxTier:                            info.TaxTier,
+		}
+	}
+	return apiTaxRateInfo
+}
+
+func regionalTaxRateInfoFromAPI(apiTaxRateInfo map[string]androidpublisher.RegionalTaxRateInfo) map[string]RegionalTaxRateInfo {
+	if len(apiTaxRateInfo) == 0 {
+		return nil
+	}
+	taxRateInfo := make(map[string]RegionalTaxRateInfo, len(apiTaxRateInfo))
+	for region, apiInfo := range apiTaxRateInfo {
+		taxRateInfo[region] = RegionalTaxRateInfo{
+			EligibleForStreamingServiceTaxRate: apiInfo.EligibleForStreamingServiceTaxRate,
+			StreamingTaxType:                   apiInfo.StreamingTaxType,
+			TaxTier:                            apiInfo.TaxTier,
+		}
+	}
+	return taxRateInfo
+}
+
+func restrictedCountriesFromAPI(apiCountries *androidpublisher.RestrictedPaymentCountries) []string {
+	if apiCountries == nil {
+		return nil
+	}
+	return apiCountries.RegionCodes
+}
