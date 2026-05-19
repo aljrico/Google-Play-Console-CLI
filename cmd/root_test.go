@@ -796,6 +796,36 @@ func TestNotificationsPubSubSetupDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestNotificationsPubSubPullRejectsAckWithoutConfirmBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"notifications",
+		"pubsub",
+		"pull",
+		"--project",
+		"play-project",
+		"--subscription",
+		"play-rtdn-sub",
+		"--ack",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected acknowledgement confirmation validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm") {
+		t.Fatalf("error = %v, want confirmation validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestInsightsAnomaliesSummarizeOutputsCountsWithoutAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	file := writeRootTestPathContent(t, filepath.Join(t.TempDir(), "anomalies.json"), `{

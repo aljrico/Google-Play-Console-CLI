@@ -1082,7 +1082,25 @@ gpc notifications pubsub
 
 ##### Commands
 
+- `gpc notifications pubsub pull`: Pull Pub/Sub messages for Play notifications
 - `gpc notifications pubsub setup`: Create Pub/Sub resources for Play real-time developer notifications
+
+##### gpc notifications pubsub pull
+
+Pull Pub/Sub messages for Play notifications
+
+```sh
+gpc notifications pubsub pull [flags]
+```
+
+###### Flags
+
+- `--ack`: Acknowledge pulled messages after output succeeds (default `false`)
+- `--confirm`: Confirm acknowledgement when --ack is set (default `false`)
+- `--decode-rtdn`: Decode each message data field as a Google Play RTDN payload (default `false`)
+- `--max-messages`: Maximum Pub/Sub messages to pull (default `10`)
+- `--project`: Google Cloud project ID that owns the Pub/Sub subscription
+- `--subscription`: Pub/Sub subscription ID to pull from
 
 ##### gpc notifications pubsub setup
 

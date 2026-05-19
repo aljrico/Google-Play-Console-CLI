@@ -31,11 +31,8 @@ type PubSubSetupOptions struct {
 }
 
 func (o PubSubSetupOptions) Validate() error {
-	if strings.TrimSpace(o.ProjectID) == "" {
-		return fmt.Errorf("project ID is required")
-	}
-	if strings.TrimSpace(o.ProjectID) != o.ProjectID {
-		return fmt.Errorf("project ID cannot have leading or trailing whitespace")
+	if err := validateProjectID(o.ProjectID); err != nil {
+		return err
 	}
 	if err := validatePubSubID("topic ID", o.TopicID); err != nil {
 		return err
@@ -277,6 +274,16 @@ func (p PubSubPolicy) WithMember(role string, member string) (PubSubPolicy, bool
 		return bindings[i].Role < bindings[j].Role
 	})
 	return PubSubPolicy{Bindings: bindings, Etag: p.Etag, Version: p.Version}, true
+}
+
+func validateProjectID(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("project ID is required")
+	}
+	if strings.TrimSpace(value) != value {
+		return fmt.Errorf("project ID cannot have leading or trailing whitespace")
+	}
+	return nil
 }
 
 func validatePubSubID(label string, value string) error {

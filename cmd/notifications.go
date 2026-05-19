@@ -22,7 +22,43 @@ func newNotificationsPubSubCommand(out io.Writer, options *globalOptions) *cobra
 		Use:   "pubsub",
 		Short: "Set up Google Cloud Pub/Sub for Play notifications",
 	}
-	cmd.AddCommand(newNotificationsPubSubSetupCommand(out, options))
+	cmd.AddCommand(newNotificationsPubSubPullCommand(out, options), newNotificationsPubSubSetupCommand(out, options))
+	return cmd
+}
+
+func newNotificationsPubSubPullCommand(out io.Writer, options *globalOptions) *cobra.Command {
+	var pullOptions notifications.PubSubPullOptions
+	cmd := &cobra.Command{
+		Use:   "pull",
+		Short: "Pull Pub/Sub messages for Play notifications",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := pullOptions.Validate(); err != nil {
+				return err
+			}
+			client, err := notifications.NewPubSubClientFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := notifications.PullPubSub(cmd.Context(), client, pullOptions)
+			if err != nil {
+				return err
+			}
+			if err := output.Write(out, options.output, options.pretty, result); err != nil {
+				return err
+			}
+			if pullOptions.Ack {
+				return notifications.AcknowledgePulledPubSub(cmd.Context(), client, result.SubscriptionName, result.AckIDs)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&pullOptions.ProjectID, "project", "", "Google Cloud project ID that owns the Pub/Sub subscription")
+	cmd.Flags().StringVar(&pullOptions.SubscriptionID, "subscription", "", "Pub/Sub subscription ID to pull from")
+	cmd.Flags().Int64Var(&pullOptions.MaxMessages, "max-messages", 10, "Maximum Pub/Sub messages to pull")
+	cmd.Flags().BoolVar(&pullOptions.DecodeRTDN, "decode-rtdn", false, "Decode each message data field as a Google Play RTDN payload")
+	cmd.Flags().BoolVar(&pullOptions.Ack, "ack", false, "Acknowledge pulled messages after output succeeds")
+	cmd.Flags().BoolVar(&pullOptions.Confirm, "confirm", false, "Confirm acknowledgement when --ack is set")
 	return cmd
 }
 

@@ -68,6 +68,7 @@ GPC_NOTIFY_WEBHOOK_URL="$WEBHOOK_URL" gpc notify send --message "Internal releas
 gpc search "release upload" --limit 5
 gpc snitch report --title "Confusing release output" --command "gpc releases list --package com.example.app"
 gpc notifications pubsub setup --project play-project --topic play-rtdn --subscription play-rtdn-sub --dry-run
+gpc notifications pubsub pull --project play-project --subscription play-rtdn-sub --decode-rtdn
 gpc notifications rtdn decode --file ./pubsub-rtdn.json
 gpc notifications rtdn decode --file ./unwrapped-rtdn.json --unwrapped
 gpc insights anomalies summarize --file ./vitals-anomalies.json
@@ -183,6 +184,8 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 `notifications rtdn decode` expects a wrapped Pub/Sub push JSON body with `message.data` containing the base64-encoded Google Play `DeveloperNotification`; add `--unwrapped` when Pub/Sub push delivery sends the developer notification JSON directly. Pass exactly one of `--file` or `--data`.
 
 `notifications pubsub setup` creates the Google Cloud side of Play real-time developer notifications: a topic, a subscription, and the Pub/Sub Publisher IAM binding for `google-play-developer-notifications@system.gserviceaccount.com`. You still need to select the topic in Play Console and send a test notification there.
+
+`notifications pubsub pull` reads messages from a pull subscription and can decode each message as a Google Play RTDN payload. It only acknowledges messages after output succeeds and only when both `--ack` and `--confirm` are passed.
 
 `finance reports download` and `analytics stats download` fetch report objects from the Google Play reports Cloud Storage bucket. Use the bucket ID shown in Play Console, usually shaped like `pubsite_prod_rev_0123456789`, and pass the exact object path for the report you want. Financial reports are ZIP files; statistics reports are CSV files.
 
