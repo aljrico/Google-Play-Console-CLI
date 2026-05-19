@@ -341,6 +341,39 @@ func TestAppsListReportsBlockedSurfaceWithoutAuth(t *testing.T) {
 	}
 }
 
+func TestTestersUpdateDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"testers",
+		"update",
+		"--package",
+		"com.example.app",
+		"--track",
+		"internal",
+		"--google-group",
+		"qa@example.com",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{`"track":"internal"`, `"dryRun":true`, `"googleGroups":["qa@example.com"]`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestInitDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

@@ -47,7 +47,7 @@ Sources:
 
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `testflight` | `tracks` / `testers` | `edits.tracks`, `edits.testers` | implemented | `gpc tracks list` lists Play tracks through a temporary edit; tester management is still planned. |
+| `testflight` | `tracks` / `testers` | `edits.tracks`, `edits.testers` | tested | `gpc tracks list` lists Play tracks through a temporary edit; `gpc testers get` reads track tester Google Groups, and `gpc testers update` replaces them with dry-run/confirm edit gating. |
 | `sandbox` | N/A | N/A | not applicable | Apple sandbox testers are App Store-specific. |
 | `xcode` | N/A | N/A | not applicable | Local Xcode helpers do not belong in a Play Console CLI. |
 | `xcode-cloud` | N/A | N/A | not applicable | Apple CI service. |

@@ -35,6 +35,8 @@ gpc docs commands --output markdown
 gpc schema --resource edits.tracks --method list --pretty
 gpc device-tier-configs list --package com.example.app --page-size 25
 gpc device-tier-configs get --package com.example.app --id 7
+gpc testers get --package com.example.app --track internal
+gpc testers update --package com.example.app --track internal --google-group qa@example.com --dry-run
 gpc status --package com.example.app
 gpc validate --package com.example.app
 gpc releases list --package com.example.app --track internal
