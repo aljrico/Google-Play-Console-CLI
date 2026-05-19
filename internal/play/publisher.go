@@ -535,6 +535,39 @@ func (p GooglePublisher) BatchGetOneTimeProducts(ctx context.Context, options On
 	return oneTimeProductBatchGetResultFromAPI(options, response)
 }
 
+func (p GooglePublisher) CreateOneTimeProduct(ctx context.Context, options OneTimeProductCreateOptions) (OneTimeProduct, error) {
+	if err := options.ValidateLive(); err != nil {
+		return OneTimeProduct{}, err
+	}
+	existing, err := p.service.Monetization.Onetimeproducts.Get(options.PackageName.String(), options.ProductID.String()).Context(ctx).Do()
+	if err == nil {
+		if existing == nil {
+			return OneTimeProduct{}, fmt.Errorf("one-time product %s for %s existence check returned an empty product", options.ProductID, options.PackageName)
+		}
+		return OneTimeProduct{}, fmt.Errorf("one-time product %s for %s already exists; use patch for updates", options.ProductID, options.PackageName)
+	}
+	if !isGoogleNotFound(err) {
+		return OneTimeProduct{}, fmt.Errorf("check one-time product %s for %s before create: %w", options.ProductID, options.PackageName, err)
+	}
+	desired := oneTimeProductCreateDesiredProduct(options)
+	product, err := p.service.Monetization.Onetimeproducts.Patch(options.PackageName.String(), options.ProductID.String(), oneTimeProductToAPI(desired)).
+		AllowMissing(true).
+		UpdateMask(oneTimeProductCreateUpdateMask).
+		RegionsVersionVersion(options.RegionsVersion).
+		LatencyTolerance(productUpdateLatencyToleranceToAPI(options.LatencyTolerance)).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return OneTimeProduct{}, fmt.Errorf("create one-time product %s for %s: %w", options.ProductID, options.PackageName, err)
+	}
+	return oneTimeProductFromGeneratedAPI(product)
+}
+
+func isGoogleNotFound(err error) bool {
+	apiError, ok := err.(*googleapi.Error)
+	return ok && apiError.Code == http.StatusNotFound
+}
+
 func (p GooglePublisher) PatchOneTimeProduct(ctx context.Context, options OneTimeProductPatchOptions) (OneTimeProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProduct{}, err
@@ -3798,6 +3831,18 @@ func oneTimeProductFromGeneratedAPI(apiProduct *androidpublisher.OneTimeProduct)
 	return oneTimeProductFromAPI(rawProduct), nil
 }
 
+func oneTimeProductToAPI(product OneTimeProduct) *androidpublisher.OneTimeProduct {
+	return &androidpublisher.OneTimeProduct{
+		PackageName:                product.PackageName.String(),
+		ProductId:                  product.ProductID.String(),
+		Listings:                   oneTimeProductListingsToAPI(product.Listings),
+		OfferTags:                  offerTagsToAPI(product.OfferTags),
+		PurchaseOptions:            oneTimeProductPurchaseOptionsToAPI(product.PurchaseOptions),
+		RestrictedPaymentCountries: restrictedCountriesToAPI(product.RestrictedCountries),
+		TaxAndComplianceSettings:   oneTimeProductTaxComplianceSettingsToAPI(product.TaxAndComplianceSettings),
+	}
+}
+
 func purchaseOptionStateRequestToAPI(options PurchaseOptionStateUpdateOptions) *androidpublisher.UpdatePurchaseOptionStateRequest {
 	latencyTolerance := productUpdateLatencyToleranceToAPI(options.LatencyTolerance)
 	switch options.Action {
@@ -4066,6 +4111,20 @@ func oneTimeProductTaxComplianceSettingsFromAPI(apiSettings *rawOneTimeProductTa
 	}
 }
 
+func oneTimeProductTaxComplianceSettingsToAPI(settings *OneTimeProductTaxComplianceSetting) *androidpublisher.OneTimeProductTaxAndComplianceSettings {
+	if settings == nil {
+		return nil
+	}
+	apiSettings := &androidpublisher.OneTimeProductTaxAndComplianceSettings{
+		IsTokenizedDigitalAsset: settings.IsTokenizedDigitalAsset,
+		RegionalTaxConfigs:      oneTimeProductRegionalTaxConfigsToAPI(settings.RegionalTaxConfigs),
+	}
+	if settings.IsTokenizedDigitalAsset {
+		apiSettings.ForceSendFields = append(apiSettings.ForceSendFields, "IsTokenizedDigitalAsset")
+	}
+	return apiSettings
+}
+
 func regionalAgeRatingsFromAPI(apiRatings []rawRegionalProductAgeRating) []RegionalAgeRating {
 	if len(apiRatings) == 0 {
 		return nil
@@ -4094,6 +4153,22 @@ func regionalTaxConfigsFromAPI(apiConfigs []rawRegionalTaxConfig) []RegionalTaxC
 		})
 	}
 	return configs
+}
+
+func oneTimeProductRegionalTaxConfigsToAPI(configs []RegionalTaxConfig) []*androidpublisher.RegionalTaxConfig {
+	if len(configs) == 0 {
+		return nil
+	}
+	apiConfigs := make([]*androidpublisher.RegionalTaxConfig, 0, len(configs))
+	for _, config := range configs {
+		apiConfigs = append(apiConfigs, &androidpublisher.RegionalTaxConfig{
+			RegionCode:                         config.RegionCode,
+			EligibleForStreamingServiceTaxRate: config.EligibleForStreamingServiceTaxRate,
+			StreamingTaxType:                   config.StreamingTaxType,
+			TaxTier:                            config.TaxTier,
+		})
+	}
+	return apiConfigs
 }
 
 func oneTimeProductPurchaseOptionTaxComplianceSettingsFromAPI(apiSettings *rawPurchaseOptionTaxComplianceSettings) *OneTimeProductPurchaseOptionTaxComplianceSettings {

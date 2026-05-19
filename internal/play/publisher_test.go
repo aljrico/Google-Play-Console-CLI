@@ -3421,6 +3421,83 @@ func TestGooglePublisherPatchOneTimeProductMergesListing(t *testing.T) {
 	}
 }
 
+func TestGooglePublisherCreateOneTimeProductUsesAllowMissingPatch(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100" {
+				t.Fatalf("path = %q, want one-time product get endpoint", r.URL.Path)
+			}
+			http.Error(w, `{"error":{"code":404,"message":"not found"}}`, http.StatusNotFound)
+			return
+		case http.MethodPatch:
+		default:
+			t.Fatalf("method = %s, want GET or PATCH", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/onetimeproducts/coins_100" {
+			t.Fatalf("path = %q, want one-time product patch endpoint", r.URL.Path)
+		}
+		assertQueryValue(t, r.URL.Query(), "allowMissing", "true")
+		assertQueryValue(t, r.URL.Query(), "updateMask", oneTimeProductCreateUpdateMask)
+		assertQueryValue(t, r.URL.Query(), "regionsVersion.version", "2026/05")
+		var request androidpublisher.OneTimeProduct
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.PackageName != "com.example.app" || request.ProductId != "coins_100" {
+			t.Fatalf("request = %#v, want package/product IDs from flags", request)
+		}
+		if len(request.PurchaseOptions) != 1 || request.PurchaseOptions[0].BuyOption == nil {
+			t.Fatalf("purchase options = %#v, want buy option", request.PurchaseOptions)
+		}
+		if request.PurchaseOptions[0].State != "" {
+			t.Fatalf("state = %q, want omitted output-only state", request.PurchaseOptions[0].State)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"coins_100","listings":[{"languageCode":"en-US","title":"100 coins","description":"Buy coins."}],"purchaseOptions":[{"purchaseOptionId":"buy","buyOption":{"legacyCompatible":true}}]}`)
+	}))
+
+	product, err := publisher.CreateOneTimeProduct(context.Background(), OneTimeProductCreateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		Product:          validOneTimeProductForCreate(),
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateOneTimeProduct() error = %v", err)
+	}
+	if product.ProductID != "coins_100" {
+		t.Fatalf("ProductID = %q, want coins_100", product.ProductID)
+	}
+}
+
+func TestGooglePublisherCreateOneTimeProductRejectsExistingProduct(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want only GET", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"coins_100"}`)
+	}))
+
+	_, err := publisher.CreateOneTimeProduct(context.Background(), OneTimeProductCreateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		Product:          validOneTimeProductForCreate(),
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected existing product error")
+	}
+	if !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("error = %v, want already exists", err)
+	}
+}
+
 func TestGooglePublisherBatchPatchOneTimeProductListingsUsesBatchUpdateEndpoint(t *testing.T) {
 	var getCount int
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

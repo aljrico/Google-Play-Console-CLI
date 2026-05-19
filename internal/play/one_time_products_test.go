@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -144,6 +145,204 @@ func TestBatchGetOneTimeProductsRejectsDuplicates(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected duplicate product ID validation error")
+	}
+}
+
+func TestCreateOneTimeProductDryRunBuildsPlanWithoutCreator(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := CreateOneTimeProduct(context.Background(), nil, OneTimeProductCreateOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		Product:          validOneTimeProductForCreate(),
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("CreateOneTimeProduct() error = %v", err)
+	}
+	if !result.DryRun || result.Created {
+		t.Fatalf("result = %#v, want dry-run create plan", result)
+	}
+	if result.Desired.PackageName != packageName || result.Desired.ProductID != "coins_100" {
+		t.Fatalf("desired = %#v, want flag package/product IDs", result.Desired)
+	}
+	if result.Desired.PurchaseOptions[0].State != "" {
+		t.Fatalf("state = %q, want cleared output-only state", result.Desired.PurchaseOptions[0].State)
+	}
+}
+
+func TestCreateOneTimeProductPassesOptionsToCreator(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	creator := &fakeOneTimeProductClient{product: OneTimeProduct{ProductID: "coins_100"}}
+
+	result, err := CreateOneTimeProduct(context.Background(), creator, OneTimeProductCreateOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		Product:          validOneTimeProductForCreate(),
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateOneTimeProduct() error = %v", err)
+	}
+	if !result.Created {
+		t.Fatal("Created = false, want true")
+	}
+	if creator.createOptions.ProductID != "coins_100" {
+		t.Fatalf("createOptions = %#v, want coins_100", creator.createOptions)
+	}
+}
+
+func TestDecodeOneTimeProductCreateJSONAcceptsAPIShape(t *testing.T) {
+	product, err := DecodeOneTimeProductCreateJSON([]byte(`{
+		"packageName":"ignored.by.flags",
+		"productId":"ignored_by_flags",
+		"listings":[{"languageCode":"en-US","title":"100 coins","description":"Buy coins."}],
+		"purchaseOptions":[{
+			"purchaseOptionId":"buy",
+			"state":"ACTIVE",
+			"buyOption":{"legacyCompatible":true,"multiQuantityEnabled":true},
+			"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","price":{"currencyCode":"USD","units":"1","nanos":990000000}}],
+			"newRegionsConfig":{"availability":"AVAILABLE","usdPrice":{"currencyCode":"USD","units":"1"},"eurPrice":{"currencyCode":"EUR","units":"1"}}
+		}]
+	}`))
+	if err != nil {
+		t.Fatalf("DecodeOneTimeProductCreateJSON() error = %v", err)
+	}
+	if product.PurchaseOptions[0].Type != OneTimeProductPurchaseOptionTypeBuy || !product.PurchaseOptions[0].LegacyCompatible {
+		t.Fatalf("purchase option = %#v, want buy option", product.PurchaseOptions[0])
+	}
+}
+
+func TestDecodeOneTimeProductCreateJSONRejectsNestedUnknownField(t *testing.T) {
+	_, err := DecodeOneTimeProductCreateJSON([]byte(`{
+		"listings":[{"languageCode":"en-US","title":"100 coins","description":"Buy coins.","bad":true}],
+		"purchaseOptions":[{"purchaseOptionId":"buy","buyOption":{}}]
+	}`))
+	if err == nil {
+		t.Fatal("expected unknown field error")
+	}
+}
+
+func TestDecodeOneTimeProductCreateJSONRejectsMultiplePurchaseOptionTypes(t *testing.T) {
+	_, err := DecodeOneTimeProductCreateJSON([]byte(`{
+		"listings":[{"languageCode":"en-US","title":"100 coins","description":"Buy coins."}],
+		"purchaseOptions":[{"purchaseOptionId":"buy","buyOption":{},"rentOption":{"rentalPeriod":"P7D","expirationPeriod":"P30D"}}]
+	}`))
+	if err == nil {
+		t.Fatal("expected purchase option union validation error")
+	}
+}
+
+func TestDecodeOneTimeProductCreateJSONRejectsUnsupportedRegionalAgeRatings(t *testing.T) {
+	_, err := DecodeOneTimeProductCreateJSON([]byte(`{
+		"listings":[{"languageCode":"en-US","title":"100 coins","description":"Buy coins."}],
+		"purchaseOptions":[{"purchaseOptionId":"buy","buyOption":{}}],
+		"taxAndComplianceSettings":{"regionalProductAgeRatingInfos":[{"regionCode":"US","productAgeRatingTier":"PRODUCT_AGE_RATING_TIER_THIRTEEN_AND_ABOVE"}]}
+	}`))
+	if err == nil {
+		t.Fatal("expected unsupported regional age ratings error")
+	}
+	if !strings.Contains(err.Error(), "regionalProductAgeRatingInfos") {
+		t.Fatalf("error = %v, want regionalProductAgeRatingInfos", err)
+	}
+}
+
+func TestCreateOneTimeProductRejectsInvalidBody(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	tests := []struct {
+		name    string
+		product OneTimeProduct
+	}{
+		{name: "missing listings", product: OneTimeProduct{PurchaseOptions: validOneTimeProductForCreate().PurchaseOptions}},
+		{name: "missing purchase options", product: OneTimeProduct{Listings: validOneTimeProductForCreate().Listings}},
+		{
+			name: "bad purchase option ID",
+			product: func() OneTimeProduct {
+				product := validOneTimeProductForCreate()
+				product.PurchaseOptions[0].PurchaseOptionID = "Buy"
+				return product
+			}(),
+		},
+		{
+			name: "rent option missing duration",
+			product: func() OneTimeProduct {
+				product := validOneTimeProductForCreate()
+				product.PurchaseOptions[0].Type = OneTimeProductPurchaseOptionTypeRent
+				product.PurchaseOptions[0].LegacyCompatible = false
+				product.PurchaseOptions[0].MultiQuantityEnabled = false
+				return product
+			}(),
+		},
+		{
+			name: "duplicate legacy compatible purchase options",
+			product: func() OneTimeProduct {
+				product := validOneTimeProductForCreate()
+				secondOption := product.PurchaseOptions[0]
+				secondOption.PurchaseOptionID = "buytwo"
+				product.PurchaseOptions = append(product.PurchaseOptions, secondOption)
+				return product
+			}(),
+		},
+		{
+			name: "bad regional availability",
+			product: func() OneTimeProduct {
+				product := validOneTimeProductForCreate()
+				product.PurchaseOptions[0].RegionalConfigs[0].Availability = "NOPE"
+				return product
+			}(),
+		},
+		{
+			name: "regional config missing price",
+			product: func() OneTimeProduct {
+				product := validOneTimeProductForCreate()
+				product.PurchaseOptions[0].RegionalConfigs[0].Price = nil
+				return product
+			}(),
+		},
+		{
+			name: "new regions missing EUR price",
+			product: func() OneTimeProduct {
+				product := validOneTimeProductForCreate()
+				product.PurchaseOptions[0].NewRegionsConfig.EURPrice = nil
+				return product
+			}(),
+		},
+		{
+			name: "new regions bad USD currency",
+			product: func() OneTimeProduct {
+				product := validOneTimeProductForCreate()
+				product.PurchaseOptions[0].NewRegionsConfig.USDPrice.CurrencyCode = "EUR"
+				return product
+			}(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := CreateOneTimeProduct(context.Background(), nil, OneTimeProductCreateOptions{
+				PackageName:      packageName,
+				ProductID:        "coins_100",
+				Product:          test.product,
+				RegionsVersion:   "2026/05",
+				LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+				DryRun:           true,
+			})
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
 	}
 }
 
@@ -961,11 +1160,36 @@ func testRegionCode(index int) string {
 	return string([]byte{first, second})
 }
 
+func validOneTimeProductForCreate() OneTimeProduct {
+	return OneTimeProduct{
+		Listings: []OneTimeProductListing{{LanguageCode: "en-US", Title: "100 coins", Description: "Buy coins."}},
+		PurchaseOptions: []OneTimeProductPurchaseOption{{
+			PurchaseOptionID:     "buy",
+			Type:                 OneTimeProductPurchaseOptionTypeBuy,
+			LegacyCompatible:     true,
+			MultiQuantityEnabled: true,
+			OfferTags:            []string{"public"},
+			RegionalConfigs: []OneTimeProductRegionalConfig{{
+				RegionCode:   "US",
+				Availability: "available",
+				Price:        &Money{CurrencyCode: "USD", Units: 1, Nanos: 990000000},
+			}},
+			NewRegionsConfig: &OneTimeProductNewRegionsPricingAndAvailability{
+				Availability: "available",
+				USDPrice:     &Money{CurrencyCode: "USD", Units: 1},
+				EURPrice:     &Money{CurrencyCode: "EUR", Units: 1},
+			},
+			TaxAndComplianceSettings: &OneTimeProductPurchaseOptionTaxComplianceSettings{WithdrawalRightType: "WITHDRAWAL_RIGHT_SERVICE"},
+		}},
+	}
+}
+
 type fakeOneTimeProductClient struct {
 	listOptions                       OneTimeProductListOptions
 	listResult                        OneTimeProductListResult
 	batchOptions                      OneTimeProductBatchGetOptions
 	batchResult                       OneTimeProductBatchGetResult
+	createOptions                     OneTimeProductCreateOptions
 	deleteOptions                     OneTimeProductDeleteOptions
 	patchOptions                      OneTimeProductPatchOptions
 	batchPatchOptions                 OneTimeProductBatchPatchListingsOptions
@@ -994,6 +1218,11 @@ func (c *fakeOneTimeProductClient) GetOneTimeProduct(ctx context.Context, packag
 func (c *fakeOneTimeProductClient) BatchGetOneTimeProducts(ctx context.Context, options OneTimeProductBatchGetOptions) (OneTimeProductBatchGetResult, error) {
 	c.batchOptions = options
 	return c.batchResult, nil
+}
+
+func (c *fakeOneTimeProductClient) CreateOneTimeProduct(ctx context.Context, options OneTimeProductCreateOptions) (OneTimeProduct, error) {
+	c.createOptions = options
+	return c.product, nil
 }
 
 func (c *fakeOneTimeProductClient) DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error {

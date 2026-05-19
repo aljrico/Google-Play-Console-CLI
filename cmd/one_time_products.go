@@ -24,6 +24,7 @@ func newOneTimeProductsCommand(out io.Writer, options *globalOptions) *cobra.Com
 		newOneTimeProductsListCommand(out, options, &packageName),
 		newOneTimeProductsGetCommand(out, options, &packageName),
 		newOneTimeProductsBatchGetCommand(out, options, &packageName),
+		newOneTimeProductsCreateCommand(out, options, &packageName),
 		newOneTimeProductsPatchCommand(out, options, &packageName),
 		newOneTimeProductsBatchPatchListingsCommand(out, options, &packageName),
 		newOneTimeProductsDeleteCommand(out, options, &packageName),
@@ -31,6 +32,93 @@ func newOneTimeProductsCommand(out io.Writer, options *globalOptions) *cobra.Com
 		newOneTimeProductsPurchaseOptionCommand(out, options, &packageName),
 	)
 	return cmd
+}
+
+func newOneTimeProductsCreateCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID        string
+		fromJSON         string
+		regionsVersion   string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a one-time product",
+		Long: "Create a one-time product from a Google Play API OneTimeProduct JSON body or gpc one-time product JSON output. " +
+			"Immutable package and product IDs come from flags and override the JSON body; output-only purchase option state is ignored.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedProductID, err := play.NewOneTimeProductID(productID)
+			if err != nil {
+				return err
+			}
+			product, err := readOneTimeProductJSON(fromJSON)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			createOptions := play.OneTimeProductCreateOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				Product:          product,
+				RegionsVersion:   regionsVersion,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.CreateOneTimeProduct(cmd.Context(), nil, createOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if err := createOptions.Validate(); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.CreateOneTimeProduct(cmd.Context(), publisher, createOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&productID, "product-id", "", "One-time product ID")
+	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or gpc JSON one-time product body")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by oneTimeProducts.patch")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Create the one-time product")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product creation without calling Google Play")
+	return cmd
+}
+
+func readOneTimeProductJSON(path string) (play.OneTimeProduct, error) {
+	if strings.TrimSpace(path) == "" {
+		return play.OneTimeProduct{}, fmt.Errorf("one-time product create requires --from-json")
+	}
+	data, err := osReadFile(path)
+	if err != nil {
+		return play.OneTimeProduct{}, fmt.Errorf("read one-time product JSON %s: %w", path, err)
+	}
+	product, err := play.DecodeOneTimeProductCreateJSON(data)
+	if err != nil {
+		return play.OneTimeProduct{}, fmt.Errorf("parse one-time product JSON %s: %w", path, err)
+	}
+	return product, nil
 }
 
 func newOneTimeProductsBatchPatchListingsCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {

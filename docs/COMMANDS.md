@@ -1577,6 +1577,7 @@ gpc one-time-products
 - `gpc one-time-products batch-delete`: Delete multiple one-time products
 - `gpc one-time-products batch-get`: Get multiple one-time products
 - `gpc one-time-products batch-patch-listings`: Batch patch localized one-time product listings
+- `gpc one-time-products create`: Create a one-time product
 - `gpc one-time-products delete`: Delete a one-time product
 - `gpc one-time-products get`: Get a one-time product
 - `gpc one-time-products list`: List one-time products
@@ -1625,6 +1626,23 @@ gpc one-time-products batch-patch-listings [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--listing`: CSV listing patch productId,language,title,description; repeat for multiple localized listings (default `[]`)
 - `--regions-version`: Google Play regions version required by oneTimeProducts.batchUpdate
+
+#### gpc one-time-products create
+
+Create a one-time product
+
+```sh
+gpc one-time-products create [flags]
+```
+
+##### Flags
+
+- `--confirm`: Create the one-time product (default `false`)
+- `--dry-run`: Print the planned one-time product creation without calling Google Play (default `false`)
+- `--from-json`: Path to a Google Play API or gpc JSON one-time product body
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: One-time product ID
+- `--regions-version`: Google Play regions version required by oneTimeProducts.patch
 
 #### gpc one-time-products delete
 

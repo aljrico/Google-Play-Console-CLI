@@ -4986,6 +4986,106 @@ func TestOneTimeProductsBatchGetRejectsMissingProductIDBeforeAuth(t *testing.T) 
 	}
 }
 
+func TestOneTimeProductsCreateDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "one-time-product.json")
+	if err := os.WriteFile(bodyPath, []byte(`{
+		"packageName":"ignored.by.flags",
+		"productId":"ignored_by_flags",
+		"listings":[{"languageCode":"en-US","title":"100 coins","description":"Buy coins."}],
+		"purchaseOptions":[{
+			"purchaseOptionId":"buy",
+			"state":"ACTIVE",
+			"buyOption":{"legacyCompatible":true},
+			"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","price":{"currencyCode":"USD","units":"1","nanos":990000000}}],
+			"newRegionsConfig":{"availability":"AVAILABLE","usdPrice":{"currencyCode":"USD","units":"1"},"eurPrice":{"currencyCode":"EUR","units":"1"}}
+		}]
+	}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-products",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--from-json",
+		bodyPath,
+		"--regions-version",
+		"2026/05",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"packageName":"com.example.app"`,
+		`"productId":"coins_100"`,
+		`"purchaseOptionId":"buy"`,
+		`"regionsVersion":"2026/05"`,
+		`"latencyTolerance":"latencyTolerant"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+	if strings.Contains(output, `"state":"ACTIVE"`) {
+		t.Fatalf("output = %s, did not expect output-only state from input JSON", output)
+	}
+}
+
+func TestOneTimeProductsCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "one-time-product.json")
+	if err := os.WriteFile(bodyPath, []byte(`{"listings":[{"languageCode":"en-US","title":"100 coins","description":"Buy coins."}]}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-products",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--from-json",
+		bodyPath,
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected product body validation error")
+	}
+	if !strings.Contains(err.Error(), "requires at least one") {
+		t.Fatalf("error = %v, want body validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestOneTimeProductsPatchDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

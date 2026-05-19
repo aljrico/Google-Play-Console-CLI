@@ -240,6 +240,10 @@ type OneTimeProductGetter interface {
 	GetOneTimeProduct(ctx context.Context, packageName PackageName, productID OneTimeProductID) (OneTimeProduct, error)
 }
 
+type OneTimeProductCreator interface {
+	CreateOneTimeProduct(ctx context.Context, options OneTimeProductCreateOptions) (OneTimeProduct, error)
+}
+
 type OneTimeProductDeleter interface {
 	DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error
 }
@@ -330,6 +334,16 @@ type OneTimeProductDeleteOptions struct {
 	DryRun           bool                          `json:"dryRun"`
 }
 
+type OneTimeProductCreateOptions struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        OneTimeProductID              `json:"productId"`
+	Product          OneTimeProduct                `json:"product"`
+	RegionsVersion   string                        `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	DryRun           bool                          `json:"dryRun"`
+}
+
 type OneTimeProductPatchOptions struct {
 	PackageName      PackageName                   `json:"packageName"`
 	ProductID        OneTimeProductID              `json:"productId"`
@@ -373,6 +387,31 @@ func (o OneTimeProductDeleteOptions) Validate() error {
 		return fmt.Errorf("one-time product deletion requires --confirm or --dry-run")
 	}
 	return nil
+}
+
+func (o OneTimeProductCreateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("one-time product creation requires --confirm or --dry-run")
+	}
+	return validateOneTimeProductForCreate(oneTimeProductCreateDesiredProduct(o))
 }
 
 func (o OneTimeProductPatchOptions) Validate() error {
@@ -443,6 +482,19 @@ func (o OneTimeProductBatchPatchListingsOptions) Validate() error {
 	}
 	if !o.Confirm && !o.DryRun {
 		return fmt.Errorf("one-time product listing batch patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o OneTimeProductCreateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live one-time product creation cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live one-time product creation requires --confirm")
 	}
 	return nil
 }
@@ -522,9 +574,207 @@ func validateRequiredOneTimeProductListing(listing OneTimeProductListing) error 
 	return nil
 }
 
+func validateOneTimeProductForCreate(product OneTimeProduct) error {
+	if _, err := NewOneTimeProductID(product.ProductID.String()); err != nil {
+		return err
+	}
+	if len(product.Listings) == 0 {
+		return fmt.Errorf("one-time product create requires at least one listing")
+	}
+	seenListings := map[string]struct{}{}
+	for _, listing := range product.Listings {
+		if err := validateRequiredOneTimeProductListing(listing); err != nil {
+			return err
+		}
+		language, err := NewListingLanguage(listing.LanguageCode)
+		if err != nil {
+			return err
+		}
+		if _, ok := seenListings[language.String()]; ok {
+			return fmt.Errorf("one-time product create listing %s is duplicated", language)
+		}
+		seenListings[language.String()] = struct{}{}
+	}
+	if len(product.PurchaseOptions) == 0 {
+		return fmt.Errorf("one-time product create requires at least one purchase option")
+	}
+	legacyCompatibleCount := 0
+	seenOptions := map[string]struct{}{}
+	for _, option := range product.PurchaseOptions {
+		if err := validateOneTimeProductPurchaseOptionForCreate(option); err != nil {
+			return err
+		}
+		if _, ok := seenOptions[option.PurchaseOptionID]; ok {
+			return fmt.Errorf("one-time product purchase option %s is duplicated", option.PurchaseOptionID)
+		}
+		seenOptions[option.PurchaseOptionID] = struct{}{}
+		if option.LegacyCompatible {
+			legacyCompatibleCount++
+			if legacyCompatibleCount > 1 {
+				return fmt.Errorf("one-time product create can set at most one legacy-compatible purchase option")
+			}
+		}
+	}
+	for _, tag := range product.OfferTags {
+		if err := validateSubscriptionOfferTag(tag); err != nil {
+			return err
+		}
+	}
+	for _, country := range product.RestrictedCountries {
+		if !isValidRegionCode(country) {
+			return fmt.Errorf("restricted country must be a two-letter ISO 3166 code")
+		}
+	}
+	if product.TaxAndComplianceSettings != nil {
+		if err := validateOneTimeProductTaxComplianceSettingsForCreate(*product.TaxAndComplianceSettings); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateOneTimeProductPurchaseOptionForCreate(option OneTimeProductPurchaseOption) error {
+	if _, err := NewOneTimeProductPurchaseOptionID(option.PurchaseOptionID); err != nil {
+		return err
+	}
+	for _, tag := range option.OfferTags {
+		if err := validateSubscriptionOfferTag(tag); err != nil {
+			return err
+		}
+	}
+	switch option.Type {
+	case OneTimeProductPurchaseOptionTypeBuy:
+		if option.RentalPeriod != "" || option.ExpirationPeriod != "" {
+			return fmt.Errorf("buy purchase options cannot set rent fields")
+		}
+	case OneTimeProductPurchaseOptionTypeRent:
+		if option.LegacyCompatible || option.MultiQuantityEnabled {
+			return fmt.Errorf("rent purchase options cannot set buy fields")
+		}
+		if err := validateISODuration("rental period", option.RentalPeriod); err != nil {
+			return err
+		}
+		if err := validateISODuration("expiration period", option.ExpirationPeriod); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("purchase option type must be buy or rent")
+	}
+	if err := validateOneTimeProductRegionalConfigsForCreate(option.RegionalConfigs); err != nil {
+		return err
+	}
+	if option.NewRegionsConfig != nil {
+		if err := validateOneTimeProductNewRegionsConfigForCreate(*option.NewRegionsConfig); err != nil {
+			return err
+		}
+	}
+	if option.TaxAndComplianceSettings != nil && strings.TrimSpace(option.TaxAndComplianceSettings.WithdrawalRightType) == "" {
+		return fmt.Errorf("purchase option tax compliance settings require withdrawal right type")
+	}
+	return nil
+}
+
+func validateOneTimeProductRegionalConfigsForCreate(configs []OneTimeProductRegionalConfig) error {
+	seen := map[string]struct{}{}
+	for _, config := range configs {
+		if !isValidRegionCode(config.RegionCode) {
+			return fmt.Errorf("regional config region must be a two-letter ISO 3166 code")
+		}
+		if _, ok := seen[config.RegionCode]; ok {
+			return fmt.Errorf("regional config %s is duplicated", config.RegionCode)
+		}
+		seen[config.RegionCode] = struct{}{}
+		if config.Availability != "" {
+			if err := validateOneTimeProductAvailability(config.Availability); err != nil {
+				return err
+			}
+		}
+		if config.Price != nil {
+			if err := validateMoney(*config.Price); err != nil {
+				return fmt.Errorf("regional config %s: %w", config.RegionCode, err)
+			}
+		}
+		if config.Price == nil {
+			return fmt.Errorf("regional config %s requires price", config.RegionCode)
+		}
+		if strings.TrimSpace(config.Availability) == "" {
+			return fmt.Errorf("regional config %s requires availability", config.RegionCode)
+		}
+	}
+	return nil
+}
+
+func validateOneTimeProductNewRegionsConfigForCreate(config OneTimeProductNewRegionsPricingAndAvailability) error {
+	if strings.TrimSpace(config.Availability) == "" {
+		return fmt.Errorf("new regions config requires availability")
+	}
+	if config.Availability != "" {
+		if err := validateOneTimeProductAvailability(config.Availability); err != nil {
+			return fmt.Errorf("new regions %w", err)
+		}
+	}
+	if config.USDPrice == nil {
+		return fmt.Errorf("new regions config requires USD price")
+	}
+	if config.USDPrice != nil {
+		if config.USDPrice.CurrencyCode != "USD" {
+			return fmt.Errorf("new regions USD price currency must be USD")
+		}
+		if err := validateMoney(*config.USDPrice); err != nil {
+			return fmt.Errorf("new regions USD price: %w", err)
+		}
+	}
+	if config.EURPrice == nil {
+		return fmt.Errorf("new regions config requires EUR price")
+	}
+	if config.EURPrice != nil {
+		if config.EURPrice.CurrencyCode != "EUR" {
+			return fmt.Errorf("new regions EUR price currency must be EUR")
+		}
+		if err := validateMoney(*config.EURPrice); err != nil {
+			return fmt.Errorf("new regions EUR price: %w", err)
+		}
+	}
+	return nil
+}
+
+func validateOneTimeProductTaxComplianceSettingsForCreate(settings OneTimeProductTaxComplianceSetting) error {
+	if strings.TrimSpace(settings.ProductTaxCategoryCode) != "" {
+		return fmt.Errorf("one-time product product tax category code is not supported by the pinned Google API client")
+	}
+	if len(settings.RegionalAgeRatings) > 0 {
+		return fmt.Errorf("one-time product regional age ratings are not supported by the pinned Google API client")
+	}
+	for _, config := range settings.RegionalTaxConfigs {
+		if !isValidRegionCode(config.RegionCode) {
+			return fmt.Errorf("regional tax config region must be a two-letter ISO 3166 code")
+		}
+	}
+	return nil
+}
+
+func validateOneTimeProductAvailability(value string) error {
+	switch value {
+	case "available", "noLongerAvailable", "availableIfReleased", "availableForOffersOnly",
+		"AVAILABLE", "NO_LONGER_AVAILABLE", "AVAILABLE_IF_RELEASED", "AVAILABLE_FOR_OFFERS_ONLY":
+		return nil
+	default:
+		return fmt.Errorf("unsupported purchase option availability %q", value)
+	}
+}
+
 type OneTimeProductDeletePlan struct {
 	PackageName      PackageName                   `json:"packageName"`
 	ProductID        OneTimeProductID              `json:"productId"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	Steps            []string                      `json:"steps"`
+}
+
+type OneTimeProductCreatePlan struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        OneTimeProductID              `json:"productId"`
+	RegionsVersion   string                        `json:"regionsVersion"`
 	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
 	Confirm          bool                          `json:"confirm"`
 	Steps            []string                      `json:"steps"`
@@ -536,6 +786,16 @@ type OneTimeProductDeleteResult struct {
 	DryRun      bool                     `json:"dryRun"`
 	Deleted     bool                     `json:"deleted"`
 	Plan        OneTimeProductDeletePlan `json:"plan"`
+}
+
+type OneTimeProductCreateResult struct {
+	PackageName PackageName              `json:"packageName"`
+	ProductID   OneTimeProductID         `json:"productId"`
+	DryRun      bool                     `json:"dryRun"`
+	Created     bool                     `json:"created"`
+	Desired     OneTimeProduct           `json:"desiredProduct"`
+	Product     *OneTimeProduct          `json:"product,omitempty"`
+	Plan        OneTimeProductCreatePlan `json:"plan"`
 }
 
 type OneTimeProductPatchPlan struct {
@@ -578,6 +838,47 @@ type OneTimeProductBatchPatchListingsResult struct {
 	Desired     []OneTimeProduct                     `json:"desiredProducts"`
 	Products    []OneTimeProduct                     `json:"products,omitempty"`
 	Plan        OneTimeProductBatchPatchListingsPlan `json:"plan"`
+}
+
+func NewOneTimeProductCreatePlan(options OneTimeProductCreateOptions) (OneTimeProductCreatePlan, error) {
+	if err := options.Validate(); err != nil {
+		return OneTimeProductCreatePlan{}, err
+	}
+	return OneTimeProductCreatePlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		RegionsVersion:   options.RegionsVersion,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            []string{"patch one-time product with allowMissing=true"},
+	}, nil
+}
+
+func CreateOneTimeProduct(ctx context.Context, creator OneTimeProductCreator, options OneTimeProductCreateOptions) (OneTimeProductCreateResult, error) {
+	plan, err := NewOneTimeProductCreatePlan(options)
+	if err != nil {
+		return OneTimeProductCreateResult{}, err
+	}
+	result := OneTimeProductCreateResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		DryRun:      options.DryRun,
+		Desired:     oneTimeProductCreateDesiredProduct(options),
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if creator == nil {
+		return OneTimeProductCreateResult{}, fmt.Errorf("one-time product creator is required")
+	}
+	product, err := creator.CreateOneTimeProduct(ctx, options)
+	if err != nil {
+		return OneTimeProductCreateResult{}, err
+	}
+	result.Created = true
+	result.Product = &product
+	return result, nil
 }
 
 func DeleteOneTimeProduct(ctx context.Context, deleter OneTimeProductDeleter, options OneTimeProductDeleteOptions) (OneTimeProductDeleteResult, error) {
@@ -724,6 +1025,27 @@ func desiredOneTimeProductsForBatchListingPatch(options OneTimeProductBatchPatch
 	return products
 }
 
+func oneTimeProductCreateDesiredProduct(options OneTimeProductCreateOptions) OneTimeProduct {
+	product := options.Product
+	product.PackageName = options.PackageName
+	product.ProductID = options.ProductID
+	if product.Listings == nil {
+		product.Listings = []OneTimeProductListing{}
+	}
+	if product.PurchaseOptions == nil {
+		product.PurchaseOptions = []OneTimeProductPurchaseOption{}
+	}
+	for index := range product.Listings {
+		if language, err := NewListingLanguage(product.Listings[index].LanguageCode); err == nil {
+			product.Listings[index].LanguageCode = language.String()
+		}
+	}
+	for index := range product.PurchaseOptions {
+		product.PurchaseOptions[index].State = ""
+	}
+	return product
+}
+
 type OneTimeProductBatchDeleteOptions struct {
 	PackageName      PackageName                   `json:"packageName"`
 	ProductIDs       []OneTimeProductID            `json:"productIds"`
@@ -823,7 +1145,10 @@ func BatchDeleteOneTimeProducts(ctx context.Context, deleter OneTimeProductBatch
 	return result, nil
 }
 
-const oneTimeProductPatchUpdateMask = "listings"
+const (
+	oneTimeProductCreateUpdateMask = "listings,offerTags,purchaseOptions,restrictedPaymentCountries,taxAndComplianceSettings"
+	oneTimeProductPatchUpdateMask  = "listings"
+)
 
 func oneTimeProductPatchSteps(options OneTimeProductPatchOptions) []string {
 	if options.DryRun {
