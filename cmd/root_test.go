@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/config"
+	"github.com/aljrico/Google-Play-Console-CLI/internal/websurface"
 )
 
 func TestVersionJSON(t *testing.T) {
@@ -1080,16 +1081,14 @@ func TestWebStatusDocumentsBlockedSurfaceWithoutAuth(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	output := buf.String()
-	for _, want := range []string{
-		`"surface":"Play Console browser workflows"`,
-		`"status":"blocked"`,
-		`"alternatives"`,
-	} {
-		if !strings.Contains(output, want) {
-			t.Fatalf("output = %s, want %s", output, want)
-		}
+	var status websurface.Status
+	if err := json.Unmarshal(buf.Bytes(), &status); err != nil {
+		t.Fatalf("Unmarshal() error = %v; output = %s", err, buf.String())
 	}
+	if status.Status != "blocked" || status.Surface != "Play Console browser workflows" || len(status.Alternatives) == 0 {
+		t.Fatalf("status = %#v, want blocked web boundary", status)
+	}
+	output := buf.String()
 	if strings.Contains(output, "no active auth profile") {
 		t.Fatalf("output = %s, did not expect auth", output)
 	}

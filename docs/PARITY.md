@@ -140,7 +140,7 @@ Sources:
 | `search` | `search` | N/A | tested | `gpc search QUERY` searches command paths, descriptions, and flag names for agent-oriented command discovery. |
 | `schema` | `schema` | Discovery document | tested | `gpc schema` fetches the Android Publisher discovery document and emits a stable resource/method summary, with resource and method filters. |
 | `snitch` | `snitch` | N/A | tested | `gpc snitch report` generates a deterministic GitHub issue URL for CLI friction without network or auth side effects. |
-| `web` | `web status` | N/A | tested | `gpc web status` documents why Play Console browser automation is blocked from the Go CLI until there is a stable, testable automation contract. Console-only workflows should use explicit operator-driven browser automation outside the CLI. |
+| `web` | `web status` | N/A | blocked | Boundary command is tested; Play Console browser automation remains blocked from the Go CLI until there is a stable, testable automation contract. Console-only workflows should use explicit operator-driven browser automation outside the CLI. |
 
 ## First Vertical Slice
 

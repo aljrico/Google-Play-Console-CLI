@@ -1,6 +1,10 @@
 package capabilities
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/aljrico/Google-Play-Console-CLI/internal/websurface"
+)
 
 func TestListParsesEmbeddedParityMatrix(t *testing.T) {
 	items, err := List(ListOptions{})
@@ -68,4 +72,21 @@ func TestParseHandlesEscapedMarkdownPipes(t *testing.T) {
 	if items[0].Notes != "Preserves escaped | pipe." {
 		t.Fatalf("Notes = %q, want unescaped pipe", items[0].Notes)
 	}
+}
+
+func TestWebCapabilityMatchesBoundaryStatus(t *testing.T) {
+	items, err := List(ListOptions{})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	for _, item := range items {
+		if item.ASCFamily != "web" {
+			continue
+		}
+		if string(item.Status) != websurface.CurrentStatus().Status {
+			t.Fatalf("web capability status = %q, boundary status = %q", item.Status, websurface.CurrentStatus().Status)
+		}
+		return
+	}
+	t.Fatal("web capability row not found")
 }
