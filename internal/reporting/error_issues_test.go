@@ -3,6 +3,7 @@ package reporting
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/play"
@@ -13,11 +14,11 @@ func TestErrorIssueSearchOptionsValidate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewPackageName() error = %v", err)
 	}
-	startDate, err := NewQueryDate("2026-05-01", "America/Los_Angeles")
+	startDate, err := NewQueryDate("2026-05-01", "UTC")
 	if err != nil {
 		t.Fatalf("NewQueryDate() error = %v", err)
 	}
-	endDate, err := NewQueryDate("2026-05-19", "America/Los_Angeles")
+	endDate, err := NewQueryDate("2026-05-19", "UTC")
 	if err != nil {
 		t.Fatalf("NewQueryDate() error = %v", err)
 	}
@@ -48,6 +49,13 @@ func TestErrorIssueSearchOptionsValidate(t *testing.T) {
 	if err := options.Validate(); err == nil {
 		t.Fatal("expected date range error")
 	}
+	options.StartDate = QueryDate{Year: 2026, Month: 5, Day: 1, TimeZone: "America/Los_Angeles"}
+	options.EndDate = QueryDate{Year: 2026, Month: 5, Day: 19, TimeZone: "America/Los_Angeles"}
+	if err := options.Validate(); err == nil {
+		t.Fatal("expected unsupported timezone error")
+	} else if !strings.Contains(err.Error(), "only support UTC") {
+		t.Fatalf("error = %v, want UTC validation", err)
+	}
 }
 
 func TestClientSearchErrorIssuesUsesReportingEndpoint(t *testing.T) {
@@ -62,11 +70,11 @@ func TestClientSearchErrorIssuesUsesReportingEndpoint(t *testing.T) {
 			"interval.startTime.year":        "2026",
 			"interval.startTime.month":       "5",
 			"interval.startTime.day":         "1",
-			"interval.startTime.timeZone.id": "America/Los_Angeles",
+			"interval.startTime.timeZone.id": "UTC",
 			"interval.endTime.year":          "2026",
 			"interval.endTime.month":         "5",
 			"interval.endTime.day":           "19",
-			"interval.endTime.timeZone.id":   "America/Los_Angeles",
+			"interval.endTime.timeZone.id":   "UTC",
 			"pageSize":                       "25",
 			"pageToken":                      "page-1",
 			"sampleErrorReportLimit":         "1",
@@ -101,11 +109,11 @@ func TestClientSearchErrorIssuesUsesReportingEndpoint(t *testing.T) {
 		}`))
 	}))
 
-	startDate, err := NewQueryDate("2026-05-01", "America/Los_Angeles")
+	startDate, err := NewQueryDate("2026-05-01", "UTC")
 	if err != nil {
 		t.Fatalf("NewQueryDate() error = %v", err)
 	}
-	endDate, err := NewQueryDate("2026-05-19", "America/Los_Angeles")
+	endDate, err := NewQueryDate("2026-05-19", "UTC")
 	if err != nil {
 		t.Fatalf("NewQueryDate() error = %v", err)
 	}

@@ -234,7 +234,7 @@ func newVitalsErrorsIssuesSearchCommand(out io.Writer, options *globalOptions, p
 	cmd.Flags().StringVar(&orderBy, "order-by", "", "Order issues by errorReportCount|distinctUsers asc|desc")
 	cmd.Flags().StringVar(&startDate, "start-date", "", "Start date, inclusive, in YYYY-MM-DD format")
 	cmd.Flags().StringVar(&endDate, "end-date", "", "End date, exclusive, in YYYY-MM-DD format")
-	cmd.Flags().StringVar(&timeZone, "time-zone", "", "IANA time zone for the interval, for example America/Los_Angeles")
+	cmd.Flags().StringVar(&timeZone, "time-zone", "", "Time zone for the interval; only UTC is supported when set")
 	cmd.Flags().Int64Var(&pageSize, "page-size", 0, "Maximum issues to return, capped by Google at 1000")
 	cmd.Flags().StringVar(&pageToken, "page-token", "", "Pagination token from a previous response")
 	cmd.Flags().Int64Var(&sampleErrorReportLimit, "sample-error-report-limit", 0, "Sample reports per issue; Google currently supports 0 or 1")
