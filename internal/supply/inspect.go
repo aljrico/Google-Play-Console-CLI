@@ -80,6 +80,9 @@ func Inspect(ctx context.Context, options InspectOptions) (Inventory, error) {
 			return Inventory{}, ctx.Err()
 		default:
 		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return Inventory{}, fmt.Errorf("supply locale cannot be a symlink: %s", filepath.Join(directory, entry.Name()))
+		}
 		if !entry.IsDir() {
 			continue
 		}
@@ -124,19 +127,21 @@ func inspectLocale(path string, language string) (Locale, error) {
 		entryPath := filepath.Join(path, entry.Name())
 		switch {
 		case entry.IsDir() && entry.Name() == "changelogs":
-			changelogs, err := inspectFlatFiles(entryPath)
+			changelogs, unknownFiles, err := inspectChangelogs(entryPath, path)
 			if err != nil {
 				return Locale{}, err
 			}
 			locale.Changelogs = changelogs
+			locale.UnknownFiles = append(locale.UnknownFiles, unknownFiles...)
 		case entry.IsDir() && entry.Name() == "images":
-			imageSets, err := inspectImageSets(entryPath)
+			imageSets, unknownFiles, err := inspectImageSets(entryPath, path)
 			if err != nil {
 				return Locale{}, err
 			}
 			locale.ImageSets = imageSets
+			locale.UnknownFiles = append(locale.UnknownFiles, unknownFiles...)
 		case entry.IsDir():
-			files, err := inspectTreeFiles(entryPath)
+			files, err := inspectTreeFiles(entryPath, path)
 			if err != nil {
 				return Locale{}, err
 			}
@@ -164,47 +169,68 @@ func inspectLocale(path string, language string) (Locale, error) {
 	return locale, nil
 }
 
-func inspectImageSets(path string) ([]ImageSet, error) {
+func inspectImageSets(path string, localePath string) ([]ImageSet, []File, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		return nil, fmt.Errorf("read supply image directory %s: %w", path, err)
+		return nil, nil, fmt.Errorf("read supply image directory %s: %w", path, err)
 	}
 	imageSets := make([]ImageSet, 0)
+	unknownFiles := make([]File, 0)
 	for _, entry := range entries {
 		entryPath := filepath.Join(path, entry.Name())
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil, nil, fmt.Errorf("supply image set cannot be a symlink: %s", entryPath)
+		}
 		if !entry.IsDir() {
+			file, err := relativeFileInfo(entryPath, localePath)
+			if err != nil {
+				return nil, nil, err
+			}
+			unknownFiles = append(unknownFiles, file)
 			continue
 		}
-		files, err := inspectTreeFiles(entryPath)
+		files, err := inspectTreeFiles(entryPath, entryPath)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		imageSets = append(imageSets, ImageSet{Type: entry.Name(), Path: filepath.ToSlash(entryPath), Files: files})
 	}
-	return imageSets, nil
+	sortFiles(unknownFiles)
+	return imageSets, unknownFiles, nil
 }
 
-func inspectFlatFiles(path string) ([]File, error) {
+func inspectChangelogs(path string, localePath string) ([]File, []File, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		return nil, fmt.Errorf("read supply directory %s: %w", path, err)
+		return nil, nil, fmt.Errorf("read supply directory %s: %w", path, err)
 	}
 	files := make([]File, 0)
+	unknownFiles := make([]File, 0)
 	for _, entry := range entries {
+		entryPath := filepath.Join(path, entry.Name())
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil, nil, fmt.Errorf("supply changelog file cannot be a symlink: %s", entryPath)
+		}
 		if entry.IsDir() {
+			dirFiles, err := inspectTreeFiles(entryPath, localePath)
+			if err != nil {
+				return nil, nil, err
+			}
+			unknownFiles = append(unknownFiles, dirFiles...)
 			continue
 		}
-		file, err := fileInfo(filepath.Join(path, entry.Name()), entry.Name())
+		file, err := fileInfo(entryPath, entry.Name())
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		files = append(files, file)
 	}
 	sortFiles(files)
-	return files, nil
+	sortFiles(unknownFiles)
+	return files, unknownFiles, nil
 }
 
-func inspectTreeFiles(path string) ([]File, error) {
+func inspectTreeFiles(path string, nameRoot string) ([]File, error) {
 	files := make([]File, 0)
 	err := filepath.WalkDir(path, func(currentPath string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -213,11 +239,7 @@ func inspectTreeFiles(path string) ([]File, error) {
 		if entry.IsDir() {
 			return nil
 		}
-		name, err := filepath.Rel(path, currentPath)
-		if err != nil {
-			return fmt.Errorf("relativize supply file %s: %w", currentPath, err)
-		}
-		file, err := fileInfo(currentPath, filepath.ToSlash(name))
+		file, err := relativeFileInfo(currentPath, nameRoot)
 		if err != nil {
 			return err
 		}
@@ -229,6 +251,14 @@ func inspectTreeFiles(path string) ([]File, error) {
 	}
 	sortFiles(files)
 	return files, nil
+}
+
+func relativeFileInfo(path string, nameRoot string) (File, error) {
+	name, err := filepath.Rel(nameRoot, path)
+	if err != nil {
+		return File{}, fmt.Errorf("relativize supply file %s: %w", path, err)
+	}
+	return fileInfo(path, filepath.ToSlash(name))
 }
 
 func fileInfo(path string, name string) (File, error) {
@@ -247,6 +277,9 @@ func fileInfo(path string, name string) (File, error) {
 
 func sortFiles(files []File) {
 	sort.Slice(files, func(i, j int) bool {
+		if files[i].Name == files[j].Name {
+			return strings.Compare(files[i].Path, files[j].Path) < 0
+		}
 		return strings.Compare(files[i].Name, files[j].Name) < 0
 	})
 }

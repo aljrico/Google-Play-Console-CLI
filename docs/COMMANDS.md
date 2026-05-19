@@ -34,7 +34,7 @@ gpc [flags]
 - `gpc install-skills`: Install bundled gpc agent skills
 - `gpc internal-sharing`: Upload artifacts to Google Play internal app sharing
 - `gpc listings`: Manage localized Google Play store listings
-- `gpc migrate`: Inspect and migrate local Google Play metadata
+- `gpc migrate`: Inspect local metadata for migration
 - `gpc one-time-product-offers`: Inspect Google Play one-time product offers
 - `gpc one-time-products`: Inspect Google Play one-time products
 - `gpc orders`: Inspect and refund Google Play orders
@@ -748,7 +748,7 @@ gpc listings update [flags]
 
 ### gpc migrate
 
-Inspect and migrate local Google Play metadata
+Inspect local metadata for migration
 
 ```sh
 gpc migrate

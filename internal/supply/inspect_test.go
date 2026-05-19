@@ -14,8 +14,11 @@ func TestInspectInventoriesSupplyMetadata(t *testing.T) {
 	writeFile(t, filepath.Join(directory, "en-US", "title.txt"), "Example")
 	writeFile(t, filepath.Join(directory, "en-US", "short_description.txt"), "Short")
 	writeFile(t, filepath.Join(directory, "en-US", "changelogs", "42.txt"), "Bug fixes")
+	writeFile(t, filepath.Join(directory, "en-US", "changelogs", "drafts", "43.txt"), "Draft")
+	writeFile(t, filepath.Join(directory, "en-US", "images", "README.txt"), "notes")
 	writeFile(t, filepath.Join(directory, "en-US", "images", "phoneScreenshots", "1.png"), "png")
 	writeFile(t, filepath.Join(directory, "en-US", "notes", "todo.txt"), "todo")
+	writeFile(t, filepath.Join(directory, "en-US", "legal", "todo.txt"), "legal")
 	writeFile(t, filepath.Join(directory, "es-ES", "full_description.txt"), "Completo")
 
 	inventory, err := Inspect(context.Background(), InspectOptions{Directory: directory})
@@ -37,14 +40,22 @@ func TestInspectInventoriesSupplyMetadata(t *testing.T) {
 	if inventory.Summary.ImageFileCount != 1 {
 		t.Fatalf("ImageFileCount = %d, want 1", inventory.Summary.ImageFileCount)
 	}
-	if inventory.Summary.UnknownFileCount != 1 {
-		t.Fatalf("UnknownFileCount = %d, want 1", inventory.Summary.UnknownFileCount)
+	if inventory.Summary.UnknownFileCount != 4 {
+		t.Fatalf("UnknownFileCount = %d, want 4", inventory.Summary.UnknownFileCount)
 	}
 	if inventory.Locales[0].Language != "en-US" || inventory.Locales[1].Language != "es-ES" {
 		t.Fatalf("locale order = %#v", inventory.Locales)
 	}
 	if got := inventory.Locales[0].ImageSets[0].Type; got != "phoneScreenshots" {
 		t.Fatalf("image set type = %q", got)
+	}
+	gotUnknownNames := make([]string, 0, len(inventory.Locales[0].UnknownFiles))
+	for _, file := range inventory.Locales[0].UnknownFiles {
+		gotUnknownNames = append(gotUnknownNames, file.Name)
+	}
+	wantUnknownNames := strings.Join([]string{"changelogs/drafts/43.txt", "images/README.txt", "legal/todo.txt", "notes/todo.txt"}, ",")
+	if strings.Join(gotUnknownNames, ",") != wantUnknownNames {
+		t.Fatalf("unknown files = %q, want %q", strings.Join(gotUnknownNames, ","), wantUnknownNames)
 	}
 }
 
@@ -65,12 +76,30 @@ func TestInspectRejectsSymlinkRoot(t *testing.T) {
 		t.Fatalf("Mkdir() error = %v", err)
 	}
 	link := filepath.Join(root, "link")
-	if err := os.Symlink(target, link); err != nil {
-		t.Fatalf("Symlink() error = %v", err)
-	}
+	createSymlinkOrSkip(t, target, link)
 	_, err := Inspect(context.Background(), InspectOptions{Directory: link})
 	if err == nil {
 		t.Fatalf("Inspect() expected error")
+	}
+}
+
+func TestInspectRejectsSymlinkLocale(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "metadata")
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	target := filepath.Join(root, "outside-locale")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	createSymlinkOrSkip(t, target, filepath.Join(directory, "en-US"))
+	_, err := Inspect(context.Background(), InspectOptions{Directory: directory})
+	if err == nil {
+		t.Fatalf("Inspect() expected error")
+	}
+	if !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("error = %v, want symlink", err)
 	}
 }
 
@@ -80,9 +109,25 @@ func TestInspectRejectsSymlinkFile(t *testing.T) {
 	writeFile(t, filepath.Join(directory, "en-US", "title.txt"), "Example")
 	target := filepath.Join(root, "outside.txt")
 	writeFile(t, target, "outside")
-	if err := os.Symlink(target, filepath.Join(directory, "en-US", "short_description.txt")); err != nil {
-		t.Fatalf("Symlink() error = %v", err)
+	createSymlinkOrSkip(t, target, filepath.Join(directory, "en-US", "short_description.txt"))
+	_, err := Inspect(context.Background(), InspectOptions{Directory: directory})
+	if err == nil {
+		t.Fatalf("Inspect() expected error")
 	}
+	if !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("error = %v, want symlink", err)
+	}
+}
+
+func TestInspectRejectsSymlinkImageSet(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "metadata")
+	writeFile(t, filepath.Join(directory, "en-US", "title.txt"), "Example")
+	target := filepath.Join(root, "outside-images")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	createSymlinkOrSkip(t, target, filepath.Join(directory, "en-US", "images", "phoneScreenshots"))
 	_, err := Inspect(context.Background(), InspectOptions{Directory: directory})
 	if err == nil {
 		t.Fatalf("Inspect() expected error")
@@ -99,5 +144,18 @@ func writeFile(t *testing.T, path string, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s) error = %v", path, err)
+	}
+}
+
+func createSymlinkOrSkip(t *testing.T, oldname string, newname string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(newname), 0o755); err != nil {
+		t.Fatalf("MkdirAll(%s) error = %v", filepath.Dir(newname), err)
+	}
+	if err := os.Symlink(oldname, newname); err != nil {
+		if os.IsPermission(err) {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		t.Fatalf("Symlink() error = %v", err)
 	}
 }

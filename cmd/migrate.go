@@ -11,7 +11,7 @@ import (
 func newMigrateCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "migrate",
-		Short: "Inspect and migrate local Google Play metadata",
+		Short: "Inspect local metadata for migration",
 	}
 	cmd.AddCommand(newMigrateSupplyCommand(out, options))
 	return cmd
