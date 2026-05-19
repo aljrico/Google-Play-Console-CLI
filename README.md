@@ -132,6 +132,8 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 
 `vitals` uses the Play Developer Reporting API, which is separate from Android Publisher and requires the Play Developer Reporting API to be enabled plus app-level "View app information (read-only)" access. Query and search commands accept explicit metrics, filters, and date ranges so automation never relies on API defaults; error issue and report search intervals use UTC when a timezone is set, and omitting it uses the API's UTC default.
 
+`notifications rtdn decode` expects a wrapped Pub/Sub push JSON body with `message.data` containing the base64-encoded Google Play `DeveloperNotification`; pass exactly one of `--file` or `--data`.
+
 `in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources.
 
 ### First Publish Flow

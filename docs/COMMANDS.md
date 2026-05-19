@@ -820,8 +820,8 @@ gpc notifications rtdn decode [flags]
 
 ###### Flags
 
-- `--data`: Inline Pub/Sub push JSON payload
-- `--file`: Pub/Sub push JSON payload file
+- `--data`: Inline Pub/Sub wrapped push JSON payload; required unless --file is set
+- `--file`: Pub/Sub wrapped push JSON payload file; required unless --data is set
 
 ### gpc notify
 
