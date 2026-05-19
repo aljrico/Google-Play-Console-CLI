@@ -713,6 +713,47 @@ func TestNotificationsRTDNDecodeOutputsKindWithoutAuth(t *testing.T) {
 	}
 }
 
+func TestInsightsAnomaliesSummarizeOutputsCountsWithoutAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	file := writeRootTestPathContent(t, filepath.Join(t.TempDir(), "anomalies.json"), `{
+		"packageName": "com.example.app",
+		"anomalies": [
+			{"name":"a1","metricSet":"apps/com.example.app/crashRateMetricSet","metric":{"metric":"crashRate"}},
+			{"name":"a2","metricSet":"apps/com.example.app/crashRateMetricSet","metric":{"metric":"crashRate"}}
+		]
+	}`)
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"insights",
+		"anomalies",
+		"summarize",
+		"--file",
+		file,
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"total":2`,
+		`"packageName":"com.example.app"`,
+		`"name":"apps/com.example.app/crashRateMetricSet","count":2`,
+		`"top metric: crashRate (2)"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func writeRootTestPathContent(t *testing.T, path string, content string) string {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

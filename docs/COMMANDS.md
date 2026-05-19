@@ -31,6 +31,7 @@ gpc [flags]
 - `gpc images`: Manage localized Google Play store images
 - `gpc in-app-products`: Inspect legacy Google Play in-app products
 - `gpc init`: Create a local gpc workspace
+- `gpc insights`: Summarize Google Play data exports
 - `gpc install-skills`: Install bundled gpc agent skills
 - `gpc internal-sharing`: Upload artifacts to Google Play internal app sharing
 - `gpc listings`: Manage localized Google Play store listings
@@ -626,6 +627,42 @@ gpc init [flags]
 - `--directory`: Directory for gpc helper files (default `.gpc`)
 - `--dry-run`: Print the planned init files without writing (default `false`)
 - `--force`: Overwrite existing gpc helper files (default `false`)
+
+### gpc insights
+
+Summarize Google Play data exports
+
+```sh
+gpc insights
+```
+
+#### Commands
+
+- `gpc insights anomalies`: Summarize Android vitals anomalies
+
+#### gpc insights anomalies
+
+Summarize Android vitals anomalies
+
+```sh
+gpc insights anomalies
+```
+
+##### Commands
+
+- `gpc insights anomalies summarize`: Summarize a vitals anomalies JSON export
+
+##### gpc insights anomalies summarize
+
+Summarize a vitals anomalies JSON export
+
+```sh
+gpc insights anomalies summarize [flags]
+```
+
+###### Flags
+
+- `--file`: JSON output from gpc vitals anomalies list
 
 ### gpc install-skills
 
