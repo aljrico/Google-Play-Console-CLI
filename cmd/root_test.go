@@ -4867,6 +4867,37 @@ func TestOneTimeProductOffersBatchDeleteRequiresConfirmOrDryRunBeforeAuth(t *tes
 	}
 }
 
+func TestOneTimeProductOffersBatchDeleteInfersOmittedPurchaseOptionBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"batch-delete",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--offer",
+		"coins_100/buy/intro",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, `"purchaseOptionId":"buy"`) {
+		t.Fatalf("output = %s, want inferred purchase option", output)
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestOneTimeProductOffersDeactivateDryRunPrintsPlanBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

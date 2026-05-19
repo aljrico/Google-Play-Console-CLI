@@ -266,6 +266,49 @@ func TestBatchDeleteOneTimeProductOffersRejectsDuplicates(t *testing.T) {
 	}
 }
 
+func TestBatchDeleteOneTimeProductOffersRejectsOverbroadWildcardParent(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchDeleteOneTimeProductOffers(context.Background(), nil, OneTimeProductOfferBatchDeleteOptions{
+		PackageName:      packageName,
+		ProductID:        "-",
+		PurchaseOptionID: "-",
+		Requests: []OneTimeProductOfferBatchDeleteRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro"},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected overbroad wildcard parent validation error")
+	}
+}
+
+func TestBatchDeleteOneTimeProductOffersRejectsConcreteParentForMultiplePurchaseOptions(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchDeleteOneTimeProductOffers(context.Background(), nil, OneTimeProductOfferBatchDeleteOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Requests: []OneTimeProductOfferBatchDeleteRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro"},
+			{ProductID: "coins_100", PurchaseOptionID: "rent", OfferID: "preorder"},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected multi-purchase-option parent validation error")
+	}
+}
+
 func TestBatchDeleteOneTimeProductOffersPassesOptionsToDeleter(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {

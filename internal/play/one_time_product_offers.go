@@ -324,6 +324,8 @@ func (o OneTimeProductOfferBatchDeleteOptions) Validate() error {
 		return fmt.Errorf("one-time product offer batch-delete cannot exceed 100 offers")
 	}
 	seen := map[string]struct{}{}
+	seenProducts := map[OneTimeProductID]struct{}{}
+	seenPurchaseOptions := map[OneTimeProductPurchaseOptionID]struct{}{}
 	for _, request := range o.Requests {
 		if _, err := NewOneTimeProductID(request.ProductID.String()); err != nil {
 			return err
@@ -345,6 +347,20 @@ func (o OneTimeProductOfferBatchDeleteOptions) Validate() error {
 			return fmt.Errorf("one-time product offer %s is duplicated", key)
 		}
 		seen[key] = struct{}{}
+		seenProducts[request.ProductID] = struct{}{}
+		seenPurchaseOptions[request.PurchaseOptionID] = struct{}{}
+	}
+	if len(seenProducts) == 1 && o.ProductID.String() == OneTimeProductOfferWildcardID {
+		return fmt.Errorf("single-product offer batch-delete requires parent product ID, not %q", OneTimeProductOfferWildcardID)
+	}
+	if len(seenProducts) > 1 && o.ProductID.String() != OneTimeProductOfferWildcardID {
+		return fmt.Errorf("multi-product offer batch-delete requires parent product ID %q", OneTimeProductOfferWildcardID)
+	}
+	if len(seenProducts) == 1 && len(seenPurchaseOptions) == 1 && o.PurchaseOptionID.String() == OneTimeProductOfferWildcardID {
+		return fmt.Errorf("single-purchase-option offer batch-delete requires parent purchase option ID, not %q", OneTimeProductOfferWildcardID)
+	}
+	if len(seenProducts) == 1 && len(seenPurchaseOptions) > 1 && o.PurchaseOptionID.String() != OneTimeProductOfferWildcardID {
+		return fmt.Errorf("multi-purchase-option offer batch-delete requires parent purchase option ID %q", OneTimeProductOfferWildcardID)
 	}
 	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
 		return err

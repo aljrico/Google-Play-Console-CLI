@@ -391,18 +391,28 @@ func parseOneTimeProductOfferBatchDeleteRequests(values []string) ([]play.OneTim
 }
 
 func inferOneTimeProductOfferBatchParent(productID string, purchaseOptionID string, requests []play.OneTimeProductOfferBatchDeleteRequest) (string, string) {
-	if productID != "" || purchaseOptionID != "" || len(requests) == 0 {
+	if len(requests) == 0 {
 		return productID, purchaseOptionID
 	}
 	firstProductID := requests[0].ProductID.String()
 	firstPurchaseOptionID := requests[0].PurchaseOptionID.String()
+	inferredProductID := firstProductID
+	inferredPurchaseOptionID := firstPurchaseOptionID
 	for _, request := range requests[1:] {
 		if request.ProductID.String() != firstProductID {
-			return play.OneTimeProductOfferWildcardID, play.OneTimeProductOfferWildcardID
+			inferredProductID = play.OneTimeProductOfferWildcardID
+			inferredPurchaseOptionID = play.OneTimeProductOfferWildcardID
+			break
 		}
 		if request.PurchaseOptionID.String() != firstPurchaseOptionID {
-			return firstProductID, play.OneTimeProductOfferWildcardID
+			inferredPurchaseOptionID = play.OneTimeProductOfferWildcardID
 		}
 	}
-	return firstProductID, firstPurchaseOptionID
+	if productID != "" {
+		inferredProductID = productID
+	}
+	if purchaseOptionID != "" {
+		inferredPurchaseOptionID = purchaseOptionID
+	}
+	return inferredProductID, inferredPurchaseOptionID
 }
