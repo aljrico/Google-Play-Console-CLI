@@ -197,6 +197,69 @@ func TestDeleteSubscriptionPassesOptionsToDeleter(t *testing.T) {
 	}
 }
 
+func TestDeleteBasePlanDryRunBuildsPlanWithoutDeleter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := DeleteBasePlan(context.Background(), nil, BasePlanDeleteOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteBasePlan() error = %v", err)
+	}
+	if !result.DryRun || result.Deleted {
+		t.Fatalf("result = %#v, want dry-run deletion plan", result)
+	}
+	if !reflect.DeepEqual(result.Plan.Steps, []string{"delete base plan"}) {
+		t.Fatalf("steps = %#v, want delete step", result.Plan.Steps)
+	}
+}
+
+func TestDeleteBasePlanRequiresConfirmOrDryRun(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = DeleteBasePlan(context.Background(), nil, BasePlanDeleteOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+	})
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+}
+
+func TestDeleteBasePlanPassesOptionsToDeleter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	deleter := &fakeSubscriptionClient{}
+
+	result, err := DeleteBasePlan(context.Background(), deleter, BasePlanDeleteOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteBasePlan() error = %v", err)
+	}
+	if !result.Deleted {
+		t.Fatal("Deleted = false, want true")
+	}
+	if deleter.basePlanDeleteOptions.BasePlanID != "monthly" {
+		t.Fatalf("basePlanDeleteOptions = %#v, want monthly", deleter.basePlanDeleteOptions)
+	}
+}
+
 func TestUpdateBasePlanStateDryRunBuildsPlanWithoutUpdater(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -754,6 +817,7 @@ type fakeSubscriptionClient struct {
 	batchPatchListingsResult  SubscriptionBatchPatchListingsResult
 	productID                 SubscriptionProductID
 	subscription              Subscription
+	basePlanDeleteOptions     BasePlanDeleteOptions
 	stateOptions              BasePlanStateUpdateOptions
 	batchStateOptions         BasePlanBatchStateUpdateOptions
 	batchStateResult          BasePlanBatchStateUpdateResult
@@ -778,6 +842,11 @@ func (c *fakeSubscriptionClient) BatchGetSubscriptions(ctx context.Context, opti
 
 func (c *fakeSubscriptionClient) DeleteSubscription(ctx context.Context, options SubscriptionDeleteOptions) error {
 	c.deleteOptions = options
+	return nil
+}
+
+func (c *fakeSubscriptionClient) DeleteBasePlan(ctx context.Context, options BasePlanDeleteOptions) error {
+	c.basePlanDeleteOptions = options
 	return nil
 }
 

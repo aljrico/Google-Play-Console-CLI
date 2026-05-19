@@ -1009,6 +1009,20 @@ func (p GooglePublisher) DeleteSubscription(ctx context.Context, options Subscri
 	return nil
 }
 
+func (p GooglePublisher) DeleteBasePlan(ctx context.Context, options BasePlanDeleteOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	if err := p.service.Monetization.Subscriptions.BasePlans.Delete(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.BasePlanID.String(),
+	).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("delete base plan %s for %s/%s: %w", options.BasePlanID, options.PackageName, options.ProductID, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) PatchSubscription(ctx context.Context, options SubscriptionPatchOptions) (Subscription, error) {
 	if err := options.ValidateLive(); err != nil {
 		return Subscription{}, err

@@ -4297,6 +4297,77 @@ func TestSubscriptionsBasePlanRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestSubscriptionsBasePlanDeleteDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"base-plan",
+		"delete",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"dryRun":true`,
+		`"deleted":false`,
+		`"steps":["delete base plan"]`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionsBasePlanDeleteRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"base-plan",
+		"delete",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestSubscriptionsBatchPatchListingsDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

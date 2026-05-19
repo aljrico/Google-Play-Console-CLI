@@ -148,6 +148,7 @@ gpc subscriptions batch-get --package com.example.app --product-id premium_month
 gpc subscriptions patch --package com.example.app --product-id premium_monthly --listing-language en-US --title "Premium" --description "Full access" --regions-version 2022/02 --dry-run
 gpc subscriptions batch-patch-listings --package com.example.app --listing 'premium_monthly,en-US,Premium,Full access' --listing 'premium_yearly,en-US,Premium Yearly,Full access for a year' --regions-version 2026/05 --dry-run
 gpc subscriptions delete --package com.example.app --product-id premium_draft --dry-run
+gpc subscriptions base-plan delete --package com.example.app --product-id premium_monthly --base-plan-id draft-monthly --dry-run
 gpc subscriptions base-plan deactivate --package com.example.app --product-id premium_monthly --base-plan-id monthly --dry-run
 gpc subscriptions base-plan batch-deactivate --package com.example.app --product-id premium_monthly --base-plan-id monthly --base-plan-id annual --dry-run
 gpc subscriptions base-plan batch-activate --package com.example.app --base-plan premium_monthly/monthly --base-plan premium_yearly/annual --dry-run

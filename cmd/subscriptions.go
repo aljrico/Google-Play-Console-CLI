@@ -144,12 +144,73 @@ func newSubscriptionsBasePlanCommand(out io.Writer, options *globalOptions, pack
 		Short: "Manage subscription base plans",
 	}
 	cmd.AddCommand(
+		newSubscriptionsBasePlanDeleteCommand(out, options, packageName),
 		newSubscriptionsBasePlanStateCommand(out, options, packageName, play.BasePlanStateActionActivate),
 		newSubscriptionsBasePlanStateCommand(out, options, packageName, play.BasePlanStateActionDeactivate),
 		newSubscriptionsBasePlanBatchStateCommand(out, options, packageName, play.BasePlanStateActionActivate),
 		newSubscriptionsBasePlanBatchStateCommand(out, options, packageName, play.BasePlanStateActionDeactivate),
 		newSubscriptionsBasePlanBatchMigratePricesCommand(out, options, packageName),
 	)
+	return cmd
+}
+
+func newSubscriptionsBasePlanDeleteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID  string
+		basePlanID string
+		confirm    bool
+		dryRun     bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "delete",
+		Short: "Delete a draft-only subscription base plan",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedProductID, err := play.NewSubscriptionProductID(productID)
+			if err != nil {
+				return err
+			}
+			typedBasePlanID, err := play.NewSubscriptionBasePlanID(basePlanID)
+			if err != nil {
+				return err
+			}
+			deleteOptions := play.BasePlanDeleteOptions{
+				PackageName: typedPackageName,
+				ProductID:   typedProductID,
+				BasePlanID:  typedBasePlanID,
+				Confirm:     confirm,
+				DryRun:      dryRun,
+			}
+			if dryRun {
+				result, err := play.DeleteBasePlan(cmd.Context(), nil, deleteOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if err := deleteOptions.Validate(); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.DeleteBasePlan(cmd.Context(), publisher, deleteOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID")
+	cmd.Flags().StringVar(&basePlanID, "base-plan-id", "", "Subscription base plan ID")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the base plan deletion")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned base plan deletion without calling Google Play")
 	return cmd
 }
 

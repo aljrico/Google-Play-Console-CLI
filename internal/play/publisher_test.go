@@ -4715,6 +4715,44 @@ func TestDeleteSubscriptionRejectsDryRunBeforeRequest(t *testing.T) {
 	}
 }
 
+func TestDeleteBasePlanUsesDeleteEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Fatalf("method = %s, want DELETE", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium/basePlans/monthly" {
+			t.Fatalf("path = %q, want base plan delete endpoint", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	err := publisher.DeleteBasePlan(context.Background(), BasePlanDeleteOptions{
+		PackageName: "com.example.app",
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteBasePlan() error = %v", err)
+	}
+}
+
+func TestDeleteBasePlanRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	err := publisher.DeleteBasePlan(context.Background(), BasePlanDeleteOptions{
+		PackageName: "com.example.app",
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+}
+
 func TestUpdateBasePlanStateUsesDeactivateEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

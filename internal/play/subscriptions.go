@@ -264,6 +264,14 @@ type SubscriptionDeleteOptions struct {
 	DryRun      bool                  `json:"dryRun"`
 }
 
+type BasePlanDeleteOptions struct {
+	PackageName PackageName            `json:"packageName"`
+	ProductID   SubscriptionProductID  `json:"productId"`
+	BasePlanID  SubscriptionBasePlanID `json:"basePlanId"`
+	Confirm     bool                   `json:"confirm"`
+	DryRun      bool                   `json:"dryRun"`
+}
+
 func (o SubscriptionDeleteOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
@@ -276,6 +284,25 @@ func (o SubscriptionDeleteOptions) Validate() error {
 	}
 	if !o.Confirm && !o.DryRun {
 		return fmt.Errorf("subscription deletion requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o BasePlanDeleteOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionBasePlanID(o.BasePlanID.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("base plan deletion requires --confirm or --dry-run")
 	}
 	return nil
 }
@@ -293,11 +320,32 @@ func (o SubscriptionDeleteOptions) ValidateLive() error {
 	return nil
 }
 
+func (o BasePlanDeleteOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live base plan deletion cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live base plan deletion requires --confirm")
+	}
+	return nil
+}
+
 type SubscriptionDeletePlan struct {
 	PackageName PackageName           `json:"packageName"`
 	ProductID   SubscriptionProductID `json:"productId"`
 	Confirm     bool                  `json:"confirm"`
 	Steps       []string              `json:"steps"`
+}
+
+type BasePlanDeletePlan struct {
+	PackageName PackageName            `json:"packageName"`
+	ProductID   SubscriptionProductID  `json:"productId"`
+	BasePlanID  SubscriptionBasePlanID `json:"basePlanId"`
+	Confirm     bool                   `json:"confirm"`
+	Steps       []string               `json:"steps"`
 }
 
 type SubscriptionDeleteResult struct {
@@ -306,6 +354,15 @@ type SubscriptionDeleteResult struct {
 	DryRun      bool                   `json:"dryRun"`
 	Deleted     bool                   `json:"deleted"`
 	Plan        SubscriptionDeletePlan `json:"plan"`
+}
+
+type BasePlanDeleteResult struct {
+	PackageName PackageName            `json:"packageName"`
+	ProductID   SubscriptionProductID  `json:"productId"`
+	BasePlanID  SubscriptionBasePlanID `json:"basePlanId"`
+	DryRun      bool                   `json:"dryRun"`
+	Deleted     bool                   `json:"deleted"`
+	Plan        BasePlanDeletePlan     `json:"plan"`
 }
 
 func DeleteSubscription(ctx context.Context, deleter SubscriptionDeleter, options SubscriptionDeleteOptions) (SubscriptionDeleteResult, error) {
@@ -331,6 +388,40 @@ func DeleteSubscription(ctx context.Context, deleter SubscriptionDeleter, option
 	}
 	if err := deleter.DeleteSubscription(ctx, options); err != nil {
 		return SubscriptionDeleteResult{}, err
+	}
+	result.Deleted = true
+	return result, nil
+}
+
+type BasePlanDeleter interface {
+	DeleteBasePlan(ctx context.Context, options BasePlanDeleteOptions) error
+}
+
+func DeleteBasePlan(ctx context.Context, deleter BasePlanDeleter, options BasePlanDeleteOptions) (BasePlanDeleteResult, error) {
+	if err := options.Validate(); err != nil {
+		return BasePlanDeleteResult{}, err
+	}
+	result := BasePlanDeleteResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		BasePlanID:  options.BasePlanID,
+		DryRun:      options.DryRun,
+		Plan: BasePlanDeletePlan{
+			PackageName: options.PackageName,
+			ProductID:   options.ProductID,
+			BasePlanID:  options.BasePlanID,
+			Confirm:     options.Confirm,
+			Steps:       []string{"delete base plan"},
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if deleter == nil {
+		return BasePlanDeleteResult{}, fmt.Errorf("base plan deleter is required")
+	}
+	if err := deleter.DeleteBasePlan(ctx, options); err != nil {
+		return BasePlanDeleteResult{}, err
 	}
 	result.Deleted = true
 	return result, nil

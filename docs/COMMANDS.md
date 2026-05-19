@@ -2386,6 +2386,7 @@ gpc subscriptions base-plan
 - `gpc subscriptions base-plan batch-deactivate`: Batch deactivate subscription base plans
 - `gpc subscriptions base-plan batch-migrate-prices`: Batch migrate subscription base plan prices
 - `gpc subscriptions base-plan deactivate`: deactivate a subscription base plan
+- `gpc subscriptions base-plan delete`: Delete a draft-only subscription base plan
 
 ##### gpc subscriptions base-plan activate
 
@@ -2469,6 +2470,21 @@ gpc subscriptions base-plan deactivate [flags]
 - `--confirm`: Apply the base plan state update (default `false`)
 - `--dry-run`: Print the planned base plan state update without calling Google Play (default `false`)
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: Subscription product ID
+
+##### gpc subscriptions base-plan delete
+
+Delete a draft-only subscription base plan
+
+```sh
+gpc subscriptions base-plan delete [flags]
+```
+
+###### Flags
+
+- `--base-plan-id`: Subscription base plan ID
+- `--confirm`: Apply the base plan deletion (default `false`)
+- `--dry-run`: Print the planned base plan deletion without calling Google Play (default `false`)
 - `--product-id`: Subscription product ID
 
 #### gpc subscriptions batch-get
