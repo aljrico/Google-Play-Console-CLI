@@ -76,6 +76,7 @@ gpc reviews reply --package com.example.app --review-id review-123 --text "Thank
 gpc vitals metric-set get --package com.example.app --metric-set crash-rate
 gpc vitals metric-set query --package com.example.app --metric-set crash-rate --metric crashRate --dimension versionCode --aggregation DAILY --start-date 2026-05-01 --end-date 2026-05-19
 gpc vitals errors issues search --package com.example.app --filter "errorIssueType = CRASH" --start-date 2026-05-01 --end-date 2026-05-19 --order-by "errorReportCount desc"
+gpc vitals errors reports search --package com.example.app --filter "errorIssueId = issue-123" --start-date 2026-05-01 --end-date 2026-05-19 --time-zone UTC
 gpc in-app-products list --package com.example.app
 gpc in-app-products get --package com.example.app --sku coins_100
 gpc one-time-products list --package com.example.app --page-size 50

@@ -162,9 +162,12 @@ func newVitalsMetricSetQueryCommand(out io.Writer, options *globalOptions, packa
 func newVitalsErrorsCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "errors",
-		Short: "Search Android vitals error issues",
+		Short: "Search Android vitals errors",
 	}
-	cmd.AddCommand(newVitalsErrorsIssuesCommand(out, options, packageName))
+	cmd.AddCommand(
+		newVitalsErrorsIssuesCommand(out, options, packageName),
+		newVitalsErrorsReportsCommand(out, options, packageName),
+	)
 	return cmd
 }
 
@@ -238,5 +241,72 @@ func newVitalsErrorsIssuesSearchCommand(out io.Writer, options *globalOptions, p
 	cmd.Flags().Int64Var(&pageSize, "page-size", 0, "Maximum issues to return, capped by Google at 1000")
 	cmd.Flags().StringVar(&pageToken, "page-token", "", "Pagination token from a previous response")
 	cmd.Flags().Int64Var(&sampleErrorReportLimit, "sample-error-report-limit", 0, "Sample reports per issue; Google currently supports 0 or 1")
+	return cmd
+}
+
+func newVitalsErrorsReportsCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "reports",
+		Short: "Search Android vitals error reports",
+	}
+	cmd.AddCommand(newVitalsErrorsReportsSearchCommand(out, options, packageName))
+	return cmd
+}
+
+func newVitalsErrorsReportsSearchCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		filter    string
+		startDate string
+		endDate   string
+		timeZone  string
+		pageSize  int64
+		pageToken string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "search",
+		Short: "Search individual Android vitals error reports",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedStartDate, err := reporting.NewQueryDate(startDate, timeZone)
+			if err != nil {
+				return err
+			}
+			typedEndDate, err := reporting.NewQueryDate(endDate, timeZone)
+			if err != nil {
+				return err
+			}
+			searchOptions := reporting.ErrorReportSearchOptions{
+				PackageName: typedPackageName,
+				Filter:      filter,
+				StartDate:   typedStartDate,
+				EndDate:     typedEndDate,
+				PageSize:    pageSize,
+				PageToken:   pageToken,
+			}
+			if err := searchOptions.Validate(); err != nil {
+				return err
+			}
+			client, err := reporting.NewClientFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := reporting.SearchErrorReports(cmd.Context(), client, searchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&filter, "filter", "", "AIP-160 filter expression for report fields")
+	cmd.Flags().StringVar(&startDate, "start-date", "", "Start date, inclusive, in YYYY-MM-DD format")
+	cmd.Flags().StringVar(&endDate, "end-date", "", "End date, exclusive, in YYYY-MM-DD format")
+	cmd.Flags().StringVar(&timeZone, "time-zone", "", "Time zone for the interval; only UTC is supported when set")
+	cmd.Flags().Int64Var(&pageSize, "page-size", 0, "Maximum reports to return, capped by Google at 100")
+	cmd.Flags().StringVar(&pageToken, "page-token", "", "Pagination token from a previous response")
 	return cmd
 }

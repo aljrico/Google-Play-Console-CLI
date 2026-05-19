@@ -157,6 +157,7 @@ func TestDocsCommandsOutputsJSONReferenceWithoutAuth(t *testing.T) {
 		`"path":"gpc releases"`,
 		`"path":"gpc vitals metric-set query"`,
 		`"path":"gpc vitals errors issues search"`,
+		`"path":"gpc vitals errors reports search"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -192,6 +193,7 @@ func TestDocsCommandsOutputsMarkdownReference(t *testing.T) {
 		"`gpc releases`",
 		"`gpc vitals metric-set query`",
 		"`gpc vitals errors issues search`",
+		"`gpc vitals errors reports search`",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -2509,6 +2511,37 @@ func TestVitalsErrorsIssuesSearchRejectsInvalidRangeBeforeAuth(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "start date must be before end date") {
 		t.Fatalf("error = %v, want date range validation", err)
+	}
+}
+
+func TestVitalsErrorsReportsSearchRejectsUnsupportedTimeZoneBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"vitals",
+		"errors",
+		"reports",
+		"search",
+		"--package",
+		"com.example.app",
+		"--start-date",
+		"2026-05-01",
+		"--end-date",
+		"2026-05-19",
+		"--time-zone",
+		"America/Los_Angeles",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected timezone validation error")
+	}
+	if !strings.Contains(err.Error(), "only support UTC") {
+		t.Fatalf("error = %v, want timezone validation", err)
 	}
 }
 

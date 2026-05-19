@@ -38,7 +38,7 @@ func (o ErrorIssueSearchOptions) Validate() error {
 	if o.StartDate.TimeZone != o.EndDate.TimeZone {
 		return fmt.Errorf("start and end time zones must match")
 	}
-	if err := validateErrorIssueIntervalTimeZone(o.StartDate.TimeZone); err != nil {
+	if err := validateErrorSearchIntervalTimeZone(o.StartDate.TimeZone); err != nil {
 		return err
 	}
 	if o.PageSize < 0 {
@@ -53,12 +53,12 @@ func (o ErrorIssueSearchOptions) Validate() error {
 	return nil
 }
 
-func validateErrorIssueIntervalTimeZone(value string) error {
+func validateErrorSearchIntervalTimeZone(value string) error {
 	if value == "" {
 		return nil
 	}
 	if value != "UTC" {
-		return fmt.Errorf("error issue search intervals only support UTC time zone")
+		return fmt.Errorf("error search intervals only support UTC time zone")
 	}
 	if _, err := time.LoadLocation(value); err != nil {
 		return fmt.Errorf("invalid time zone %q: %w", value, err)
