@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
@@ -34,23 +35,27 @@ func newSubscriptionsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 
 func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	var (
-		productID           string
-		fromJSON            string
-		prepaid             bool
-		installments        bool
-		listings            []string
-		basePlanID          string
-		billingPeriod       string
-		timeExtension       string
-		committedPayments   int64
-		renewalType         string
-		restrictedCountries []string
-		prices              []string
-		offerTags           []string
-		legacyCompatible    bool
-		regionsVersion      string
-		confirm             bool
-		dryRun              bool
+		productID              string
+		fromJSON               string
+		prepaid                bool
+		installments           bool
+		listings               []string
+		basePlanID             string
+		billingPeriod          string
+		timeExtension          string
+		committedPayments      int64
+		renewalType            string
+		restrictedCountries    []string
+		regionalTaxTiers       []string
+		regionalStreamingTaxes []string
+		eeaWithdrawalRightType string
+		tokenizedDigitalAsset  string
+		prices                 []string
+		offerTags              []string
+		legacyCompatible       bool
+		regionsVersion         string
+		confirm                bool
+		dryRun                 bool
 	)
 
 	cmd := &cobra.Command{
@@ -70,23 +75,27 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 				return err
 			}
 			subscription, err := subscriptionCreateBody(subscriptionCreateBodyOptions{
-				FromJSON:             fromJSON,
-				Prepaid:              prepaid,
-				Installments:         installments,
-				Listings:             listings,
-				BasePlanID:           basePlanID,
-				BillingPeriod:        billingPeriod,
-				TimeExtension:        timeExtension,
-				TimeExtensionSet:     cmd.Flags().Changed("time-extension"),
-				CommittedPayments:    committedPayments,
-				CommittedPaymentsSet: cmd.Flags().Changed("committed-payments"),
-				RenewalType:          renewalType,
-				RenewalTypeSet:       cmd.Flags().Changed("renewal-type"),
-				RestrictedCountries:  restrictedCountries,
-				Prices:               prices,
-				OfferTags:            offerTags,
-				LegacyCompatible:     legacyCompatible,
-				LegacySet:            cmd.Flags().Changed("legacy-compatible"),
+				FromJSON:               fromJSON,
+				Prepaid:                prepaid,
+				Installments:           installments,
+				Listings:               listings,
+				BasePlanID:             basePlanID,
+				BillingPeriod:          billingPeriod,
+				TimeExtension:          timeExtension,
+				TimeExtensionSet:       cmd.Flags().Changed("time-extension"),
+				CommittedPayments:      committedPayments,
+				CommittedPaymentsSet:   cmd.Flags().Changed("committed-payments"),
+				RenewalType:            renewalType,
+				RenewalTypeSet:         cmd.Flags().Changed("renewal-type"),
+				RestrictedCountries:    restrictedCountries,
+				RegionalTaxTiers:       regionalTaxTiers,
+				RegionalStreamingTaxes: regionalStreamingTaxes,
+				EEAWithdrawalRightType: eeaWithdrawalRightType,
+				TokenizedDigitalAsset:  tokenizedDigitalAsset,
+				Prices:                 prices,
+				OfferTags:              offerTags,
+				LegacyCompatible:       legacyCompatible,
+				LegacySet:              cmd.Flags().Changed("legacy-compatible"),
 				BasicFlagsSet: cmd.Flags().Changed("prepaid") ||
 					cmd.Flags().Changed("installments") ||
 					cmd.Flags().Changed("listing") ||
@@ -96,6 +105,10 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 					cmd.Flags().Changed("committed-payments") ||
 					cmd.Flags().Changed("renewal-type") ||
 					cmd.Flags().Changed("restricted-country") ||
+					cmd.Flags().Changed("regional-tax-tier") ||
+					cmd.Flags().Changed("regional-streaming-tax") ||
+					cmd.Flags().Changed("eea-withdrawal-right-type") ||
+					cmd.Flags().Changed("tokenized-digital-asset") ||
 					cmd.Flags().Changed("price") ||
 					cmd.Flags().Changed("offer-tag") ||
 					cmd.Flags().Changed("legacy-compatible"),
@@ -143,6 +156,10 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 	cmd.Flags().Int64Var(&committedPayments, "committed-payments", 0, "Basic installments committed payments count")
 	cmd.Flags().StringVar(&renewalType, "renewal-type", "", "Basic installments renewal type: RENEWAL_TYPE_RENEWS_WITHOUT_COMMITMENT or RENEWAL_TYPE_RENEWS_WITH_COMMITMENT")
 	cmd.Flags().StringArrayVar(&restrictedCountries, "restricted-country", nil, "Basic create restricted payment country as REGION; repeatable")
+	cmd.Flags().StringArrayVar(&regionalTaxTiers, "regional-tax-tier", nil, "Basic create regional reduced tax tier as REGION:TAX_TIER; repeatable")
+	cmd.Flags().StringArrayVar(&regionalStreamingTaxes, "regional-streaming-tax", nil, "Basic create US streaming tax type as US:STREAMING_TAX_TYPE; repeatable")
+	cmd.Flags().StringVar(&eeaWithdrawalRightType, "eea-withdrawal-right-type", "", "Basic create EEA withdrawal right type: WITHDRAWAL_RIGHT_DIGITAL_CONTENT or WITHDRAWAL_RIGHT_SERVICE")
+	cmd.Flags().StringVar(&tokenizedDigitalAsset, "tokenized-digital-asset", "", "Basic create tokenized digital asset declaration: true or false")
 	cmd.Flags().StringArrayVar(&prices, "price", nil, "Basic create regional price as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
 	cmd.Flags().StringArrayVar(&offerTags, "offer-tag", nil, "Basic create base plan offer tag; repeatable")
 	cmd.Flags().BoolVar(&legacyCompatible, "legacy-compatible", true, "Mark the basic auto-renewing base plan as legacy compatible")
@@ -153,24 +170,28 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 }
 
 type subscriptionCreateBodyOptions struct {
-	FromJSON             string
-	Prepaid              bool
-	Installments         bool
-	Listings             []string
-	BasePlanID           string
-	BillingPeriod        string
-	TimeExtension        string
-	TimeExtensionSet     bool
-	CommittedPayments    int64
-	CommittedPaymentsSet bool
-	RenewalType          string
-	RenewalTypeSet       bool
-	RestrictedCountries  []string
-	Prices               []string
-	OfferTags            []string
-	LegacyCompatible     bool
-	LegacySet            bool
-	BasicFlagsSet        bool
+	FromJSON               string
+	Prepaid                bool
+	Installments           bool
+	Listings               []string
+	BasePlanID             string
+	BillingPeriod          string
+	TimeExtension          string
+	TimeExtensionSet       bool
+	CommittedPayments      int64
+	CommittedPaymentsSet   bool
+	RenewalType            string
+	RenewalTypeSet         bool
+	RestrictedCountries    []string
+	RegionalTaxTiers       []string
+	RegionalStreamingTaxes []string
+	EEAWithdrawalRightType string
+	TokenizedDigitalAsset  string
+	Prices                 []string
+	OfferTags              []string
+	LegacyCompatible       bool
+	LegacySet              bool
+	BasicFlagsSet          bool
 }
 
 func subscriptionCreateBody(options subscriptionCreateBodyOptions) (play.Subscription, error) {
@@ -188,6 +209,10 @@ func subscriptionCreateBody(options subscriptionCreateBodyOptions) (play.Subscri
 		return play.Subscription{}, err
 	}
 	regionalConfigs, err := parseSubscriptionCreateRegionalPrices(options.Prices)
+	if err != nil {
+		return play.Subscription{}, err
+	}
+	taxComplianceSettings, err := subscriptionCreateTaxComplianceSettings(options)
 	if err != nil {
 		return play.Subscription{}, err
 	}
@@ -233,8 +258,9 @@ func subscriptionCreateBody(options subscriptionCreateBodyOptions) (play.Subscri
 		}
 	}
 	return play.Subscription{
-		Listings:            listings,
-		RestrictedCountries: parseSubscriptionCreateRestrictedCountries(options.RestrictedCountries),
+		Listings:                 listings,
+		RestrictedCountries:      parseSubscriptionCreateRestrictedCountries(options.RestrictedCountries),
+		TaxAndComplianceSettings: taxComplianceSettings,
 		BasePlans: []play.SubscriptionBasePlan{{
 			BasePlanID:             basePlanID.String(),
 			Type:                   basePlanType,
@@ -247,6 +273,40 @@ func subscriptionCreateBody(options subscriptionCreateBodyOptions) (play.Subscri
 			RegionalConfigs:        regionalConfigs,
 		}},
 	}, nil
+}
+
+func subscriptionCreateTaxComplianceSettings(options subscriptionCreateBodyOptions) (*play.ProductTaxComplianceSettings, error) {
+	if options.EEAWithdrawalRightType == "" && options.TokenizedDigitalAsset == "" && len(options.RegionalTaxTiers) == 0 && len(options.RegionalStreamingTaxes) == 0 {
+		return nil, nil
+	}
+	settings := play.ProductTaxComplianceSettings{
+		EEAWithdrawalRightType: options.EEAWithdrawalRightType,
+	}
+	if options.TokenizedDigitalAsset != "" {
+		tokenizedDigitalAsset, err := strconv.ParseBool(options.TokenizedDigitalAsset)
+		if err != nil {
+			return nil, err
+		}
+		settings.IsTokenizedDigitalAsset = &tokenizedDigitalAsset
+	}
+	regionalTaxTiers, err := parseRegionalProductTaxTiers(options.RegionalTaxTiers)
+	if err != nil {
+		return nil, err
+	}
+	taxRateInfo, err := play.RegionalProductTaxTiersToTaxRateInfo(regionalTaxTiers)
+	if err != nil {
+		return nil, err
+	}
+	regionalStreamingTaxes, err := parseRegionalProductStreamingTaxes(options.RegionalStreamingTaxes)
+	if err != nil {
+		return nil, err
+	}
+	streamingTaxRateInfo, err := play.RegionalProductStreamingTaxesToTaxRateInfo(regionalStreamingTaxes)
+	if err != nil {
+		return nil, err
+	}
+	settings.TaxRateInfoByRegionCode = play.MergeRegionalTaxRateInfo(taxRateInfo, streamingTaxRateInfo)
+	return &settings, nil
 }
 
 func parseSubscriptionCreateRestrictedCountries(values []string) []string {

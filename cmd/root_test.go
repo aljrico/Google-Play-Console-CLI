@@ -4669,6 +4669,14 @@ func TestSubscriptionsCreateBasicFlagsDryRunDoesNotRequireAuth(t *testing.T) {
 		"us:USD:4:990000000",
 		"--restricted-country",
 		"br",
+		"--eea-withdrawal-right-type",
+		"WITHDRAWAL_RIGHT_SERVICE",
+		"--tokenized-digital-asset",
+		"false",
+		"--regional-tax-tier",
+		"FR:TAX_TIER_NEWS_1",
+		"--regional-streaming-tax",
+		"US:STREAMING_TAX_TYPE_TELCO_VIDEO_SALES",
 		"--offer-tag",
 		"public",
 		"--regions-version",
@@ -4698,6 +4706,10 @@ func TestSubscriptionsCreateBasicFlagsDryRunDoesNotRequireAuth(t *testing.T) {
 		`"currencyCode":"USD"`,
 		`"nanos":990000000`,
 		`"restrictedCountries":["BR"]`,
+		`"eeaWithdrawalRightType":"WITHDRAWAL_RIGHT_SERVICE"`,
+		`"isTokenizedDigitalAsset":false`,
+		`"taxTier":"TAX_TIER_NEWS_1"`,
+		`"streamingTaxType":"STREAMING_TAX_TYPE_TELCO_VIDEO_SALES"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -4946,6 +4958,47 @@ func TestSubscriptionsCreateBasicFlagsRejectDuplicateRestrictedCountryBeforeAuth
 	}
 	if !strings.Contains(err.Error(), "restricted country BR is duplicated") {
 		t.Fatalf("error = %v, want duplicate restricted country validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestSubscriptionsCreateBasicFlagsRejectInvalidTokenizedDigitalAssetBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--listing",
+		"en-US,Premium,Full access",
+		"--base-plan-id",
+		"monthly",
+		"--billing-period",
+		"P1M",
+		"--price",
+		"US:USD:4",
+		"--tokenized-digital-asset",
+		"maybe",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected tokenized digital asset validation error")
+	}
+	if !strings.Contains(err.Error(), "invalid syntax") {
+		t.Fatalf("error = %v, want bool parse validation", err)
 	}
 	if strings.Contains(err.Error(), "no active auth profile") {
 		t.Fatalf("error = %v, did not expect auth", err)

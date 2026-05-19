@@ -6070,12 +6070,24 @@ func TestCreateSubscriptionSendsTypedSubscriptionBody(t *testing.T) {
 		if request.RestrictedPaymentCountries == nil || !reflect.DeepEqual(request.RestrictedPaymentCountries.RegionCodes, []string{"BR", "IN"}) {
 			t.Fatalf("RestrictedPaymentCountries = %#v, want BR and IN", request.RestrictedPaymentCountries)
 		}
+		if request.TaxAndComplianceSettings == nil || request.TaxAndComplianceSettings.EeaWithdrawalRightType != "WITHDRAWAL_RIGHT_SERVICE" || request.TaxAndComplianceSettings.IsTokenizedDigitalAsset {
+			t.Fatalf("TaxAndComplianceSettings = %#v, want withdrawal right and explicit false tokenized asset", request.TaxAndComplianceSettings)
+		}
+		if request.TaxAndComplianceSettings.TaxRateInfoByRegionCode["FR"].TaxTier != "TAX_TIER_NEWS_1" {
+			t.Fatalf("TaxRateInfoByRegionCode = %#v, want FR tax tier", request.TaxAndComplianceSettings.TaxRateInfoByRegionCode)
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","listings":[{"languageCode":"en-US","title":"Premium"}],"basePlans":[{"basePlanId":"monthly","state":"DRAFT","autoRenewingBasePlanType":{"billingPeriodDuration":"P1M"},"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"4","nanos":990000000}}]}],"restrictedPaymentCountries":{"regionCodes":["BR","IN"]}}`)
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","listings":[{"languageCode":"en-US","title":"Premium"}],"basePlans":[{"basePlanId":"monthly","state":"DRAFT","autoRenewingBasePlanType":{"billingPeriodDuration":"P1M"},"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"4","nanos":990000000}}]}],"restrictedPaymentCountries":{"regionCodes":["BR","IN"]},"taxAndComplianceSettings":{"eeaWithdrawalRightType":"WITHDRAWAL_RIGHT_SERVICE","isTokenizedDigitalAsset":false,"taxRateInfoByRegionCode":{"FR":{"taxTier":"TAX_TIER_NEWS_1"}}}}`)
 	}))
 
+	tokenizedDigitalAsset := false
 	subscription := validSubscriptionForCreate()
 	subscription.RestrictedCountries = []string{"BR", "IN"}
+	subscription.TaxAndComplianceSettings = &ProductTaxComplianceSettings{
+		EEAWithdrawalRightType:  "WITHDRAWAL_RIGHT_SERVICE",
+		IsTokenizedDigitalAsset: &tokenizedDigitalAsset,
+		TaxRateInfoByRegionCode: map[string]RegionalTaxRateInfo{"FR": {TaxTier: "TAX_TIER_NEWS_1"}},
+	}
 	result, err := publisher.CreateSubscription(context.Background(), SubscriptionCreateOptions{
 		PackageName:    "com.example.app",
 		ProductID:      "premium",
@@ -6091,6 +6103,9 @@ func TestCreateSubscriptionSendsTypedSubscriptionBody(t *testing.T) {
 	}
 	if !reflect.DeepEqual(result.RestrictedCountries, []string{"BR", "IN"}) {
 		t.Fatalf("RestrictedCountries = %#v, want BR and IN", result.RestrictedCountries)
+	}
+	if result.TaxAndComplianceSettings == nil || result.TaxAndComplianceSettings.IsTokenizedDigitalAsset == nil || *result.TaxAndComplianceSettings.IsTokenizedDigitalAsset {
+		t.Fatalf("TaxAndComplianceSettings = %#v, want explicit false tokenized asset", result.TaxAndComplianceSettings)
 	}
 }
 
