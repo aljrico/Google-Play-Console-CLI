@@ -1,10 +1,10 @@
 # Google Play Console CLI
 
-`gpc` is a fast, scriptable CLI for the Google Play Developer API.
+`gpc` is a Go CLI for Google Play Developer API workflows: releases, listings, reviews, reports, finance, monetization, purchases, notifications, and CI automation.
 
-The goal is the Android-side sibling to `asc`: predictable commands, JSON-friendly output, CI-first behavior, and no interactive prompts unless a command explicitly opts in.
+It is built from mobile games release and revenue-ops pain: less Play Console clicking, stable JSON for scripts, guarded mutations, and commands that can survive CI.
 
-Inspired by [`rorkai/App-Store-Connect-CLI`](https://github.com/rorkai/App-Store-Connect-CLI), this project aims to provide a similarly scriptable experience for Google Play Console workflows.
+Heavily inspired by [`rorkai/App-Store-Connect-CLI`](https://github.com/rorkai/App-Store-Connect-CLI), this project maps that scriptable App Store Connect CLI style onto Google Play Console workflows powered by the Google Play Developer API.
 
 ## Quick Start
 
@@ -377,3 +377,9 @@ Early but functional. Auth/profile storage, the command taxonomy, generated comm
 
 See [docs/PARITY.md](docs/PARITY.md) for the working parity map against App Store Connect CLI.
 See [docs/COMMANDS.md](docs/COMMANDS.md) for the generated command reference.
+
+## Prior Art
+
+This project is not pretending to be the first Google Play CLI. [`tamtom/play-console-cli`](https://github.com/tamtom/play-console-cli) is an active Go CLI for Play Console automation, [`Vacxe/google-play-cli`](https://github.com/Vacxe/google-play-cli) covers Google Play publishing workflows, and [`matlink/gplaycli`](https://github.com/matlink/gplaycli) is older prior art focused on Play Store downloading rather than publisher operations.
+
+The reason for this project is narrower and more opinionated: an ASC CLI-inspired command shape, stable JSON by default, mutation commands guarded by `--dry-run` and `--confirm`, generated command/capability docs, and broad coverage for the Play workflows mobile teams tend to operate repeatedly: releases, store metadata, reviews, financial/statistics reports, monetization catalogs, purchases, orders, and RTDN Pub/Sub helpers. `gpc notifications pubsub setup` creates the Google Cloud topic/subscription/IAM pieces, `gpc notifications pubsub pull` can decode RTDN payloads from a pull subscription, and `gpc notifications rtdn decode` handles wrapped or unwrapped notification payloads; selecting the app-level RTDN topic in Play Console is still an operator step.
