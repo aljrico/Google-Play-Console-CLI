@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 )
@@ -34,6 +36,7 @@ type RunOptions struct {
 	Name    string `json:"name"`
 	WorkDir string `json:"workDir,omitempty"`
 	DryRun  bool   `json:"dryRun"`
+	Confirm bool   `json:"confirm"`
 }
 
 type Summary struct {
@@ -46,6 +49,7 @@ type RunResult struct {
 	File    string       `json:"file"`
 	WorkDir string       `json:"workDir"`
 	DryRun  bool         `json:"dryRun"`
+	Confirm bool         `json:"confirm"`
 	Success bool         `json:"success"`
 	Steps   []StepResult `json:"steps"`
 }
@@ -107,6 +111,7 @@ func Run(ctx context.Context, runner Runner, options RunOptions) (RunResult, err
 		File:    options.file(),
 		WorkDir: workDir,
 		DryRun:  options.DryRun,
+		Confirm: options.Confirm,
 		Success: true,
 		Steps:   make([]StepResult, 0, len(steps)),
 	}
@@ -144,8 +149,15 @@ func Load(path string) (Definition, error) {
 	if err := dec.Decode(&definition); err != nil {
 		return Definition{}, fmt.Errorf("parse workflow file %s: %w", path, err)
 	}
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err != nil {
+			return Definition{}, fmt.Errorf("parse workflow file %s: %w", path, err)
+		}
+		return Definition{}, fmt.Errorf("parse workflow file %s: trailing JSON value", path)
+	}
 	if err := definition.Validate(); err != nil {
-		return Definition{}, err
+		return Definition{}, fmt.Errorf("validate workflow file %s: %w", path, err)
 	}
 	return definition, nil
 }
@@ -158,9 +170,12 @@ func (d Definition) Validate() error {
 		return fmt.Errorf("at least one workflow is required")
 	}
 	for name, steps := range d.Workflows {
-		name = strings.TrimSpace(name)
-		if name == "" {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName == "" {
 			return fmt.Errorf("workflow name is required")
+		}
+		if name != trimmedName {
+			return fmt.Errorf("workflow name %q cannot have leading or trailing whitespace", name)
 		}
 		if len(steps) == 0 {
 			return fmt.Errorf("workflow %q requires at least one step", name)
@@ -178,6 +193,12 @@ func (o RunOptions) Validate() error {
 	if strings.TrimSpace(o.Name) == "" {
 		return fmt.Errorf("workflow name is required")
 	}
+	if o.DryRun && o.Confirm {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.DryRun && !o.Confirm {
+		return fmt.Errorf("workflow run requires --confirm or --dry-run")
+	}
 	_, err := o.workDir()
 	return err
 }
@@ -192,7 +213,7 @@ func (o RunOptions) file() string {
 
 func (o RunOptions) workDir() (string, error) {
 	if strings.TrimSpace(o.WorkDir) == "" {
-		return os.Getwd()
+		return defaultWorkDir(o.file())
 	}
 	info, err := os.Stat(o.WorkDir)
 	if err != nil {
@@ -209,13 +230,20 @@ func (ShellRunner) Run(ctx context.Context, step Step, directory string) StepRes
 		Name: step.Name,
 		Run:  step.Run,
 	}
-	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", step.Run)
+	shellPath, shellArgs, err := shellCommand(step.Run)
+	if err != nil {
+		result.Success = false
+		result.ExitCode = -1
+		result.Error = err.Error()
+		return result
+	}
+	cmd := exec.CommandContext(ctx, shellPath, shellArgs...)
 	cmd.Dir = directory
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err = cmd.Run()
 	result.Stdout = stdout.String()
 	result.Stderr = stderr.String()
 	result.ExitCode = 0
@@ -231,6 +259,25 @@ func (ShellRunner) Run(ctx context.Context, step Step, directory string) StepRes
 		}
 	}
 	return result
+}
+
+func defaultWorkDir(file string) (string, error) {
+	absoluteFile, err := filepath.Abs(file)
+	if err != nil {
+		return "", fmt.Errorf("resolve workflow file %s: %w", file, err)
+	}
+	directory := filepath.Dir(absoluteFile)
+	if filepath.Base(directory) == ".gpc" {
+		return filepath.Dir(directory), nil
+	}
+	return directory, nil
+}
+
+func shellCommand(command string) (string, []string, error) {
+	if runtime.GOOS == "windows" {
+		return "", nil, fmt.Errorf("workflow shell execution is not supported on windows yet")
+	}
+	return "/bin/sh", []string{"-c", command}, nil
 }
 
 func normalizedFile(path string) string {

@@ -512,6 +512,7 @@ func TestWorkflowRunFailureWritesResultAndReturnsError(t *testing.T) {
 		workflowFile,
 		"run",
 		"release",
+		"--confirm",
 		"--output",
 		"json",
 	})
@@ -537,6 +538,7 @@ func TestWorkflowRunMissingFileReturnsErrorWithoutZeroResult(t *testing.T) {
 		t.TempDir() + "/missing.json",
 		"run",
 		"release",
+		"--confirm",
 		"--output",
 		"json",
 	})
@@ -544,6 +546,38 @@ func TestWorkflowRunMissingFileReturnsErrorWithoutZeroResult(t *testing.T) {
 	err := cmd.Execute()
 	if err == nil {
 		t.Fatal("Execute() error = nil, want missing workflow file")
+	}
+	if buf.String() != "" {
+		t.Fatalf("output = %s, want empty output", buf.String())
+	}
+}
+
+func TestWorkflowRunRejectsConfirmAndDryRun(t *testing.T) {
+	workflowFile := writeRootTestContent(t, "workflow.json", `{
+	  "version": 1,
+	  "workflows": {
+	    "release": [{"run": "echo release"}]
+	  }
+	}`)
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"workflow",
+		"--file",
+		workflowFile,
+		"run",
+		"release",
+		"--confirm",
+		"--dry-run",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil, want confirm and dry-run conflict")
+	}
+	if !strings.Contains(err.Error(), "--confirm and --dry-run cannot be used together") {
+		t.Fatalf("error = %v, want confirm and dry-run conflict", err)
 	}
 	if buf.String() != "" {
 		t.Fatalf("output = %s, want empty output", buf.String())

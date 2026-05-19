@@ -43,6 +43,7 @@ func newWorkflowRunCommand(out io.Writer, options *globalOptions, file *string) 
 	var (
 		workDir string
 		dryRun  bool
+		confirm bool
 	)
 
 	cmd := &cobra.Command{
@@ -55,6 +56,7 @@ func newWorkflowRunCommand(out io.Writer, options *globalOptions, file *string) 
 				Name:    args[0],
 				WorkDir: workDir,
 				DryRun:  dryRun,
+				Confirm: confirm,
 			})
 			if result.Name == "" && len(result.Steps) == 0 {
 				return err
@@ -65,7 +67,8 @@ func newWorkflowRunCommand(out io.Writer, options *globalOptions, file *string) 
 			return err
 		},
 	}
-	cmd.Flags().StringVar(&workDir, "workdir", "", "Working directory for shell steps; defaults to the current directory")
+	cmd.Flags().StringVar(&workDir, "workdir", "", "Working directory for shell steps; defaults to the workflow root")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned workflow steps without executing them")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Execute the workflow shell steps")
 	return cmd
 }
