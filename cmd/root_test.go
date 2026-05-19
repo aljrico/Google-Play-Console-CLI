@@ -6502,6 +6502,141 @@ func TestOneTimeProductOffersCreateBasicRelativeDiscountDryRunDoesNotRequireAuth
 	}
 }
 
+func TestOneTimeProductOffersCreateBasicAbsoluteDiscountDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"intro",
+		"--start-time",
+		"2026-06-01T00:00:00Z",
+		"--end-time",
+		"2026-07-01T00:00:00Z",
+		"--absolute-discount",
+		"us:USD:1:500000000",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"type":"discounted"`,
+		`"regionCode":"US"`,
+		`"availability":"available"`,
+		`"absoluteDiscount":{"currencyCode":"USD","units":1,"nanos":500000000}`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestOneTimeProductOffersCreateBasicMixedDiscountModesDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"intro",
+		"--relative-discount",
+		"US:0.5",
+		"--absolute-discount",
+		"JP:JPY:100",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"regionCode":"US"`,
+		`"relativeDiscount":0.5`,
+		`"regionCode":"JP"`,
+		`"absoluteDiscount":{"currencyCode":"JPY","units":100}`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestOneTimeProductOffersCreateBasicFlagsRejectsDuplicateDiscountRegionBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"intro",
+		"--relative-discount",
+		"US:0.5",
+		"--absolute-discount",
+		"US:USD:1",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected duplicated region validation error")
+	}
+	if !strings.Contains(err.Error(), "region US is duplicated") {
+		t.Fatalf("error = %v, want duplicate region validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestOneTimeProductOffersCreateRejectsJSONWithBasicFlagsBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "offer.json")
@@ -6631,6 +6766,46 @@ func TestOneTimeProductOffersCreateBasicFlagsRejectsInvalidRelativeDiscountBefor
 	}
 	if strings.Contains(err.Error(), "requires exactly one") {
 		t.Fatalf("error = %v, did not expect downstream price mode error", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestOneTimeProductOffersCreateBasicFlagsRejectsMalformedAbsoluteDiscountBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"intro",
+		"--absolute-discount",
+		"US:USD:x",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected absolute discount format validation error")
+	}
+	if !strings.Contains(err.Error(), "absolute discount must use REGION:CURRENCY:UNITS[:NANOS]") {
+		t.Fatalf("error = %v, want absolute discount format validation", err)
+	}
+	if strings.Contains(err.Error(), "price units") {
+		t.Fatalf("error = %v, did not expect generic price units error", err)
 	}
 	if strings.Contains(err.Error(), "no active auth profile") {
 		t.Fatalf("error = %v, did not expect auth error", err)

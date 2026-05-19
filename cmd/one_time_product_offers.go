@@ -52,6 +52,7 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 		endTime          string
 		redemptionLimit  int64
 		relativeDiscount []string
+		absoluteDiscount []string
 		regionsVersion   string
 		latencyTolerance string
 		confirm          bool
@@ -62,7 +63,7 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 		Use:   "create",
 		Short: "Create a one-time product offer",
 		Long: "Create a one-time product offer from a Google Play API OneTimeProductOffer JSON body or gpc one-time product offer JSON output. " +
-			"Basic flags build one discounted offer with regional relative discounts; use JSON for absolute discounts, no-override regions, or pre-order offers. " +
+			"Basic flags build one discounted offer with regional relative or absolute discounts; use JSON for no-override regions or pre-order offers. " +
 			"Parent IDs come from flags and override the JSON body; output-only state and regionsVersion are ignored.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -89,11 +90,13 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 				EndTime:          endTime,
 				RedemptionLimit:  redemptionLimit,
 				RelativeDiscount: relativeDiscount,
+				AbsoluteDiscount: absoluteDiscount,
 				BasicFlagsSet: cmd.Flags().Changed("offer-tag") ||
 					cmd.Flags().Changed("start-time") ||
 					cmd.Flags().Changed("end-time") ||
 					cmd.Flags().Changed("redemption-limit") ||
-					cmd.Flags().Changed("relative-discount"),
+					cmd.Flags().Changed("relative-discount") ||
+					cmd.Flags().Changed("absolute-discount"),
 			})
 			if err != nil {
 				return err
@@ -143,6 +146,7 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 	cmd.Flags().StringVar(&endTime, "end-time", "", "Basic discounted offer end time as RFC3339")
 	cmd.Flags().Int64Var(&redemptionLimit, "redemption-limit", 0, "Basic discounted offer redemption limit from 0 to 50")
 	cmd.Flags().StringArrayVar(&relativeDiscount, "relative-discount", nil, "Basic create regional relative discount as REGION:0.5, where 0.5 means the user pays 50% of the purchase option price; repeatable")
+	cmd.Flags().StringArrayVar(&absoluteDiscount, "absolute-discount", nil, "Basic create regional absolute discount as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
 	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by oneTimeProductOffers.batchUpdate")
 	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Create the one-time product offer")
@@ -157,6 +161,7 @@ type oneTimeProductOfferCreateBodyOptions struct {
 	EndTime          string
 	RedemptionLimit  int64
 	RelativeDiscount []string
+	AbsoluteDiscount []string
 	BasicFlagsSet    bool
 }
 
@@ -170,7 +175,7 @@ func oneTimeProductOfferCreateBody(options oneTimeProductOfferCreateBodyOptions)
 	if !options.UsesBasicFlags() {
 		return play.OneTimeProductOffer{}, fmt.Errorf("one-time product offer create requires --from-json or basic create flags")
 	}
-	regionalConfigs, err := parseOneTimeProductOfferCreateRelativeDiscounts(options.RelativeDiscount)
+	regionalConfigs, err := oneTimeProductOfferCreateRegionalConfigs(options.RelativeDiscount, options.AbsoluteDiscount)
 	if err != nil {
 		return play.OneTimeProductOffer{}, err
 	}
@@ -196,10 +201,29 @@ func (o oneTimeProductOfferCreateBodyOptions) UsesBasicFlags() bool {
 	return o.BasicFlagsSet
 }
 
-func parseOneTimeProductOfferCreateRelativeDiscounts(values []string) ([]play.OneTimeProductOfferRegion, error) {
-	if len(values) == 0 {
-		return nil, fmt.Errorf("basic one-time product offer create requires at least one --relative-discount")
+func oneTimeProductOfferCreateRegionalConfigs(relativeDiscounts []string, absoluteDiscounts []string) ([]play.OneTimeProductOfferRegion, error) {
+	if len(relativeDiscounts) == 0 && len(absoluteDiscounts) == 0 {
+		return nil, fmt.Errorf("basic one-time product offer create requires at least one --relative-discount or --absolute-discount")
 	}
+	regions := make([]play.OneTimeProductOfferRegion, 0, len(relativeDiscounts)+len(absoluteDiscounts))
+	if len(relativeDiscounts) > 0 {
+		relativeRegions, err := parseOneTimeProductOfferCreateRelativeDiscounts(relativeDiscounts)
+		if err != nil {
+			return nil, err
+		}
+		regions = append(regions, relativeRegions...)
+	}
+	if len(absoluteDiscounts) > 0 {
+		absoluteRegions, err := parseOneTimeProductOfferCreateAbsoluteDiscounts(absoluteDiscounts)
+		if err != nil {
+			return nil, err
+		}
+		regions = append(regions, absoluteRegions...)
+	}
+	return regions, nil
+}
+
+func parseOneTimeProductOfferCreateRelativeDiscounts(values []string) ([]play.OneTimeProductOfferRegion, error) {
 	regions := make([]play.OneTimeProductOfferRegion, 0, len(values))
 	for _, value := range values {
 		region, rawDiscount, ok := strings.Cut(strings.TrimSpace(value), ":")
@@ -222,6 +246,26 @@ func parseOneTimeProductOfferCreateRelativeDiscounts(values []string) ([]play.On
 	return regions, nil
 }
 
+func parseOneTimeProductOfferCreateAbsoluteDiscounts(values []string) ([]play.OneTimeProductOfferRegion, error) {
+	regions := make([]play.OneTimeProductOfferRegion, 0, len(values))
+	for _, value := range values {
+		region, priceValue, ok := strings.Cut(strings.TrimSpace(value), ":")
+		if !ok {
+			return nil, errOneTimeProductOfferCreateAbsoluteDiscountFormat()
+		}
+		discount, err := parseRegionalPricePatchMoney(priceValue, errOneTimeProductOfferCreateAbsoluteDiscountFormat)
+		if err != nil {
+			return nil, errOneTimeProductOfferCreateAbsoluteDiscountFormat()
+		}
+		regions = append(regions, play.OneTimeProductOfferRegion{
+			RegionCode:       strings.ToUpper(strings.TrimSpace(region)),
+			Availability:     play.OneTimeProductOfferAvailabilityAvailable.String(),
+			AbsoluteDiscount: &discount,
+		})
+	}
+	return regions, nil
+}
+
 func validateOneTimeProductOfferCreateRFC3339(fieldName, value string) error {
 	if value == "" {
 		return nil
@@ -237,6 +281,10 @@ func validateOneTimeProductOfferCreateRFC3339(fieldName, value string) error {
 
 func errOneTimeProductOfferCreateRelativeDiscountFormat() error {
 	return fmt.Errorf("one-time product offer create relative discount must use REGION:0.5")
+}
+
+func errOneTimeProductOfferCreateAbsoluteDiscountFormat() error {
+	return fmt.Errorf("one-time product offer create absolute discount must use REGION:CURRENCY:UNITS[:NANOS]")
 }
 
 func readOneTimeProductOfferJSON(path string) (play.OneTimeProductOffer, error) {

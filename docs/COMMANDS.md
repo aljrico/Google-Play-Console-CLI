@@ -1613,6 +1613,7 @@ gpc one-time-product-offers create [flags]
 
 ##### Flags
 
+- `--absolute-discount`: Basic create regional absolute discount as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
 - `--confirm`: Create the one-time product offer (default `false`)
 - `--dry-run`: Print the planned one-time product offer creation without calling Google Play (default `false`)
 - `--end-time`: Basic discounted offer end time as RFC3339
