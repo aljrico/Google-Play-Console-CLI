@@ -193,6 +193,62 @@ type InAppProductBatchGetResult struct {
 	Options     InAppProductBatchGetOptions `json:"options"`
 }
 
+type InAppProductDeleteOptions struct {
+	PackageName      PackageName                   `json:"packageName"`
+	SKU              InAppProductSKU               `json:"sku"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	DryRun           bool                          `json:"dryRun"`
+}
+
+func (o InAppProductDeleteOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewInAppProductSKU(o.SKU.String()); err != nil {
+		return err
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("in-app product deletion requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o InAppProductDeleteOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live in-app product deletion cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live in-app product deletion requires --confirm")
+	}
+	return nil
+}
+
+type InAppProductDeletePlan struct {
+	PackageName      PackageName                   `json:"packageName"`
+	SKU              InAppProductSKU               `json:"sku"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	Steps            []string                      `json:"steps"`
+}
+
+type InAppProductDeleteResult struct {
+	PackageName PackageName            `json:"packageName"`
+	SKU         InAppProductSKU        `json:"sku"`
+	DryRun      bool                   `json:"dryRun"`
+	Deleted     bool                   `json:"deleted"`
+	Plan        InAppProductDeletePlan `json:"plan"`
+}
+
 type InAppProductCreateOptions struct {
 	PackageName     PackageName         `json:"packageName"`
 	SKU             InAppProductSKU     `json:"sku"`
@@ -380,6 +436,10 @@ type InAppProductBatchGetter interface {
 	BatchGetInAppProducts(ctx context.Context, options InAppProductBatchGetOptions) (InAppProductBatchGetResult, error)
 }
 
+type InAppProductDeleter interface {
+	DeleteInAppProduct(ctx context.Context, options InAppProductDeleteOptions) error
+}
+
 func GetInAppProduct(ctx context.Context, getter InAppProductGetter, options InAppProductGetOptions) (InAppProduct, error) {
 	if err := options.Validate(); err != nil {
 		return InAppProduct{}, err
@@ -398,6 +458,53 @@ func BatchGetInAppProducts(ctx context.Context, getter InAppProductBatchGetter, 
 		return InAppProductBatchGetResult{}, fmt.Errorf("in-app product batch getter is required")
 	}
 	return getter.BatchGetInAppProducts(ctx, options)
+}
+
+func DeleteInAppProduct(ctx context.Context, deleter InAppProductDeleter, options InAppProductDeleteOptions) (InAppProductDeleteResult, error) {
+	if err := options.Validate(); err != nil {
+		return InAppProductDeleteResult{}, err
+	}
+	result := InAppProductDeleteResult{
+		PackageName: options.PackageName,
+		SKU:         options.SKU,
+		DryRun:      options.DryRun,
+		Plan: InAppProductDeletePlan{
+			PackageName:      options.PackageName,
+			SKU:              options.SKU,
+			LatencyTolerance: options.LatencyTolerance,
+			Confirm:          options.Confirm,
+			Steps:            inAppProductDeleteSteps(options),
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if deleter == nil {
+		return InAppProductDeleteResult{}, fmt.Errorf("in-app product deleter is required")
+	}
+	getter, ok := deleter.(InAppProductGetter)
+	if !ok {
+		return InAppProductDeleteResult{}, fmt.Errorf("in-app product getter is required for live deletion preflight")
+	}
+	current, err := getter.GetInAppProduct(ctx, options.PackageName, options.SKU)
+	if err != nil {
+		return InAppProductDeleteResult{}, err
+	}
+	if current.PurchaseType == ProductPurchaseTypeSubscription {
+		return InAppProductDeleteResult{}, fmt.Errorf("legacy subscription products cannot be deleted with in-app-products; use subscriptions commands")
+	}
+	if err := deleter.DeleteInAppProduct(ctx, options); err != nil {
+		return InAppProductDeleteResult{}, err
+	}
+	result.Deleted = true
+	return result, nil
+}
+
+func inAppProductDeleteSteps(options InAppProductDeleteOptions) []string {
+	if options.DryRun {
+		return []string{"plan in-app product deletion"}
+	}
+	return []string{"fetch current in-app product", "delete in-app product"}
 }
 
 type InAppProductPatchOptions struct {

@@ -737,6 +737,7 @@ gpc in-app-products
 
 - `gpc in-app-products batch-get`: Get multiple legacy in-app products
 - `gpc in-app-products create`: Create a legacy managed in-app product
+- `gpc in-app-products delete`: Delete a legacy managed in-app product
 - `gpc in-app-products get`: Get one legacy in-app product
 - `gpc in-app-products list`: List legacy in-app products
 - `gpc in-app-products patch`: Patch a legacy managed in-app product
@@ -771,6 +772,21 @@ gpc in-app-products create [flags]
 - `--sku`: In-app product SKU
 - `--status`: Initial product status: active or inactive (default `inactive`)
 - `--title`: Default listing title
+
+#### gpc in-app-products delete
+
+Delete a legacy managed in-app product
+
+```sh
+gpc in-app-products delete [flags]
+```
+
+##### Flags
+
+- `--confirm`: Delete the managed in-app product (default `false`)
+- `--dry-run`: Print the planned managed in-app product deletion without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--sku`: In-app product SKU
 
 #### gpc in-app-products get
 

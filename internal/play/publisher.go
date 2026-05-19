@@ -406,6 +406,19 @@ func (p GooglePublisher) BatchGetInAppProducts(ctx context.Context, options InAp
 	return inAppProductBatchGetResultFromAPI(options, response), nil
 }
 
+func (p GooglePublisher) DeleteInAppProduct(ctx context.Context, options InAppProductDeleteOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	if err := p.service.Inappproducts.Delete(options.PackageName.String(), options.SKU.String()).
+		LatencyTolerance(productUpdateLatencyToleranceToAPI(options.LatencyTolerance)).
+		Context(ctx).
+		Do(); err != nil {
+		return fmt.Errorf("delete in-app product %s for %s: %w", options.SKU, options.PackageName, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) CreateInAppProduct(ctx context.Context, options InAppProductCreateOptions) (InAppProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return InAppProduct{}, err

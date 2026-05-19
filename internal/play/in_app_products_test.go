@@ -127,6 +127,96 @@ func TestBatchGetInAppProductsRejectsDuplicateSKU(t *testing.T) {
 	}
 }
 
+func TestDeleteInAppProductDryRunBuildsPlanWithoutDeleter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := DeleteInAppProduct(context.Background(), nil, InAppProductDeleteOptions{
+		PackageName:      packageName,
+		SKU:              "coins_100",
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteInAppProduct() error = %v", err)
+	}
+	if !result.DryRun || result.Deleted {
+		t.Fatalf("result = %#v, want dry-run deletion plan", result)
+	}
+	wantSteps := []string{"plan in-app product deletion"}
+	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
+		t.Fatalf("steps = %#v, want %#v", result.Plan.Steps, wantSteps)
+	}
+}
+
+func TestDeleteInAppProductRequiresConfirmOrDryRun(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = DeleteInAppProduct(context.Background(), nil, InAppProductDeleteOptions{
+		PackageName:      packageName,
+		SKU:              "coins_100",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+	})
+	if err == nil {
+		t.Fatal("expected confirmation validation error")
+	}
+}
+
+func TestDeleteInAppProductPassesOptionsToDeleter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	deleter := &fakeInAppProductClient{
+		product: InAppProduct{SKU: "coins_100", PurchaseType: ProductPurchaseTypeManagedUser},
+	}
+	options := InAppProductDeleteOptions{
+		PackageName:      packageName,
+		SKU:              "coins_100",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := DeleteInAppProduct(context.Background(), deleter, options)
+	if err != nil {
+		t.Fatalf("DeleteInAppProduct() error = %v", err)
+	}
+	if !result.Deleted {
+		t.Fatal("Deleted = false, want true")
+	}
+	if !reflect.DeepEqual(deleter.deleteOptions, options) {
+		t.Fatalf("deleteOptions = %#v, want %#v", deleter.deleteOptions, options)
+	}
+}
+
+func TestDeleteInAppProductRejectsLegacySubscription(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	deleter := &fakeInAppProductClient{
+		product: InAppProduct{SKU: "premium", PurchaseType: ProductPurchaseTypeSubscription},
+	}
+
+	_, err = DeleteInAppProduct(context.Background(), deleter, InAppProductDeleteOptions{
+		PackageName:      packageName,
+		SKU:              "premium",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected legacy subscription rejection")
+	}
+	if deleter.deleteOptions.SKU != "" {
+		t.Fatalf("deleteOptions = %#v, did not expect delete after preflight", deleter.deleteOptions)
+	}
+}
+
 func TestNewProductPriceParsesCurrencyAndMicros(t *testing.T) {
 	price, err := NewProductPrice("usd:1990000")
 	if err != nil {
@@ -536,6 +626,7 @@ type fakeInAppProductClient struct {
 	batchOptions  InAppProductBatchGetOptions
 	batchResult   InAppProductBatchGetResult
 	createOptions InAppProductCreateOptions
+	deleteOptions InAppProductDeleteOptions
 	patchOptions  InAppProductPatchOptions
 	sku           InAppProductSKU
 	product       InAppProduct
@@ -559,6 +650,11 @@ func (c *fakeInAppProductClient) BatchGetInAppProducts(ctx context.Context, opti
 func (c *fakeInAppProductClient) CreateInAppProduct(ctx context.Context, options InAppProductCreateOptions) (InAppProduct, error) {
 	c.createOptions = options
 	return c.product, nil
+}
+
+func (c *fakeInAppProductClient) DeleteInAppProduct(ctx context.Context, options InAppProductDeleteOptions) error {
+	c.deleteOptions = options
+	return nil
 }
 
 func (c *fakeInAppProductClient) PatchInAppProduct(ctx context.Context, options InAppProductPatchOptions) (InAppProduct, error) {

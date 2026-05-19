@@ -616,6 +616,47 @@ func TestBatchGetInAppProductsUsesRepeatedSKUs(t *testing.T) {
 	}
 }
 
+func TestDeleteInAppProductUsesDeleteEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/inappproducts/coins_100" {
+			t.Fatalf("path = %q, want in-app product delete endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("method = %s, want DELETE", r.Method)
+		}
+		if got := r.URL.Query().Get("latencyTolerance"); got != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+			t.Fatalf("latencyTolerance = %q, want tolerant", got)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	err := publisher.DeleteInAppProduct(context.Background(), InAppProductDeleteOptions{
+		PackageName:      "com.example.app",
+		SKU:              "coins_100",
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("DeleteInAppProduct() error = %v", err)
+	}
+}
+
+func TestDeleteInAppProductRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	err := publisher.DeleteInAppProduct(context.Background(), InAppProductDeleteOptions{
+		PackageName:      "com.example.app",
+		SKU:              "coins_100",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+}
+
 func TestGooglePublisherPatchInAppProductSendsStatusPatch(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPatch {
