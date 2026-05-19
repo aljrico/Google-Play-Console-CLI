@@ -79,6 +79,8 @@ func TestInsightsReportsSummarizeOutputsFinanceAndStatsWithoutAuth(t *testing.T)
 		`"name":"Store listing acquisitions"`,
 		`"kind":"finance"`,
 		`"kind":"stats"`,
+		`"name":"netRevenuePerStoreListingAcquisition"`,
+		`"value":"1.9"`,
 		`top transaction by count is Charge`,
 	} {
 		if !strings.Contains(output, want) {

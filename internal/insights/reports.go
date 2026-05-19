@@ -2,9 +2,12 @@ package insights
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/analytics"
+	"github.com/aljrico/Google-Play-Console-CLI/internal/decimal"
 	"github.com/aljrico/Google-Play-Console-CLI/internal/finance"
 )
 
@@ -17,12 +20,21 @@ type ReportInsights struct {
 	FinanceReports []finance.ReportSummary  `json:"financeReports"`
 	StatsReports   []analytics.StatsSummary `json:"statsReports"`
 	Highlights     []ReportInsightHighlight `json:"highlights,omitempty"`
+	KPIs           []ReportInsightKPI       `json:"kpis"`
 }
 
 type ReportInsightHighlight struct {
 	Kind    string `json:"kind"`
 	File    string `json:"file"`
 	Summary string `json:"summary"`
+}
+
+type ReportInsightKPI struct {
+	Name       string `json:"name"`
+	Value      string `json:"value"`
+	Currency   string `json:"currency,omitempty"`
+	ReportType string `json:"reportType,omitempty"`
+	Summary    string `json:"summary"`
 }
 
 func SummarizeReports(options ReportInsightsOptions) (ReportInsights, error) {
@@ -50,6 +62,7 @@ func SummarizeReports(options ReportInsightsOptions) (ReportInsights, error) {
 		result.StatsReports = append(result.StatsReports, summary)
 		result.Highlights = append(result.Highlights, statsReportHighlight(summary))
 	}
+	result.KPIs = reportInsightKPIs(result.FinanceReports, result.StatsReports)
 	return result, nil
 }
 
@@ -132,6 +145,127 @@ func topMetricSummary(metrics []analytics.MetricSummary) analytics.MetricSummary
 		return analytics.MetricSummary{}
 	}
 	return metrics[0]
+}
+
+func reportInsightKPIs(financeReports []finance.ReportSummary, statsReports []analytics.StatsSummary) []ReportInsightKPI {
+	kpis := []ReportInsightKPI{}
+	netRevenueByBasis := financeTotalsByBasis(financeReports)
+	for _, basis := range sortedFinanceBasisKeys(netRevenueByBasis) {
+		total := netRevenueByBasis[basis]
+		kpis = append(kpis, ReportInsightKPI{
+			Name:       "netRevenue",
+			Value:      total.String(),
+			Currency:   basis.Currency,
+			ReportType: basis.ReportType,
+			Summary:    fmt.Sprintf("%s net finance total is %s %s", basis.ReportType, total.String(), basis.Currency),
+		})
+	}
+	acquisitions := sumStatsMetric(statsReports, "Store listing acquisitions")
+	if acquisitions != "" {
+		kpis = append(kpis, ReportInsightKPI{
+			Name:    "storeListingAcquisitions",
+			Value:   acquisitions,
+			Summary: fmt.Sprintf("store listing acquisitions total %s", acquisitions),
+		})
+	}
+	visitors := sumStatsMetric(statsReports, "Store listing visitors")
+	if acquisitions != "" && visitors != "" {
+		if visitorCount, ok := positiveInt(visitors); ok {
+			acquisitionAmount, _ := decimal.Parse(acquisitions)
+			rate := acquisitionAmount.Average(visitorCount)
+			kpis = append(kpis, ReportInsightKPI{
+				Name:    "storeListingAcquisitionRate",
+				Value:   rate,
+				Summary: fmt.Sprintf("store listing acquisitions per visitor %s", rate),
+			})
+		}
+	}
+	if acquisitions != "" {
+		if acquisitionCount, ok := positiveInt(acquisitions); ok {
+			for _, basis := range sortedFinanceBasisKeys(netRevenueByBasis) {
+				total := netRevenueByBasis[basis]
+				value := total.Average(acquisitionCount)
+				kpis = append(kpis, ReportInsightKPI{
+					Name:       "netRevenuePerStoreListingAcquisition",
+					Value:      value,
+					Currency:   basis.Currency,
+					ReportType: basis.ReportType,
+					Summary:    fmt.Sprintf("%s net revenue per store listing acquisition is %s %s", basis.ReportType, value, basis.Currency),
+				})
+			}
+		}
+	}
+	return kpis
+}
+
+type financeKPIBasis struct {
+	ReportType string
+	Currency   string
+}
+
+func financeTotalsByBasis(reports []finance.ReportSummary) map[financeKPIBasis]decimal.Amount {
+	totals := map[financeKPIBasis]decimal.Amount{}
+	for _, report := range reports {
+		for _, transactionType := range report.TransactionTypes {
+			if transactionType.Currency == "" {
+				continue
+			}
+			total, err := decimal.Parse(transactionType.Total)
+			if err != nil {
+				continue
+			}
+			basis := financeKPIBasis{ReportType: report.ReportType, Currency: transactionType.Currency}
+			totals[basis] = totals[basis].Add(total)
+		}
+	}
+	return totals
+}
+
+func sumStatsMetric(reports []analytics.StatsSummary, metricName string) string {
+	var total decimal.Amount
+	found := false
+	for _, report := range reports {
+		for _, metric := range report.Metrics {
+			if metric.Name != metricName || metric.Aggregation != "sum" {
+				continue
+			}
+			value, err := decimal.Parse(metric.Value)
+			if err != nil {
+				continue
+			}
+			total = total.Add(value)
+			found = true
+		}
+	}
+	if !found {
+		return ""
+	}
+	return total.String()
+}
+
+func positiveInt(value string) (int, bool) {
+	if strings.Contains(value, ".") {
+		return 0, false
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return 0, false
+	}
+	return parsed, true
+}
+
+func sortedFinanceBasisKeys(values map[financeKPIBasis]decimal.Amount) []financeKPIBasis {
+	keys := make([]financeKPIBasis, 0, len(values))
+	for basis := range values {
+		keys = append(keys, basis)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].ReportType == keys[j].ReportType {
+			return keys[i].Currency < keys[j].Currency
+		}
+		return keys[i].ReportType < keys[j].ReportType
+	})
+	return keys
 }
 
 func formatRowCount(rows int) string {

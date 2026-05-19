@@ -41,6 +41,50 @@ func TestSummarizeReportsCombinesFinanceAndStatsReports(t *testing.T) {
 	if !strings.Contains(summary.Highlights[1].Summary, "Store listing acquisitions") {
 		t.Fatalf("stats highlight = %#v, want first sum metric", summary.Highlights[1])
 	}
+	for _, want := range []ReportInsightKPI{
+		{Name: "netRevenue", Value: "9.5", Currency: "USD", ReportType: "earnings"},
+		{Name: "storeListingAcquisitions", Value: "5"},
+		{Name: "storeListingAcquisitionRate", Value: "0.166667"},
+		{Name: "netRevenuePerStoreListingAcquisition", Value: "1.9", Currency: "USD", ReportType: "earnings"},
+	} {
+		if !hasKPI(summary.KPIs, want) {
+			t.Fatalf("KPIs = %#v, want %#v", summary.KPIs, want)
+		}
+	}
+}
+
+func TestSummarizeReportsKeepsFinanceKPIsSeparateByReportType(t *testing.T) {
+	dir := t.TempDir()
+	earningsFile := filepath.Join(dir, "earnings.csv")
+	estimatedSalesFile := filepath.Join(dir, "estimated-sales.csv")
+	statsFile := filepath.Join(dir, "stats.csv")
+	if err := os.WriteFile(earningsFile, []byte("Transaction Type,Merchant Currency,Amount (Merchant Currency)\nCharge,USD,9.99\nGoogle fee,USD,-1.99\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(estimatedSalesFile, []byte("Financial Status,Currency of Sale,Charged Amount\nCharged,USD,12.00\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(statsFile, []byte("Date,Package name,Store listing acquisitions\n2026-05-01,com.example.app,4\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	summary, err := SummarizeReports(ReportInsightsOptions{
+		FinanceFiles: []string{earningsFile, estimatedSalesFile},
+		StatsFiles:   []string{statsFile},
+	})
+	if err != nil {
+		t.Fatalf("SummarizeReports() error = %v", err)
+	}
+	for _, want := range []ReportInsightKPI{
+		{Name: "netRevenue", Value: "8", Currency: "USD", ReportType: "earnings"},
+		{Name: "netRevenue", Value: "12", Currency: "USD", ReportType: "estimated-sales"},
+		{Name: "netRevenuePerStoreListingAcquisition", Value: "2", Currency: "USD", ReportType: "earnings"},
+		{Name: "netRevenuePerStoreListingAcquisition", Value: "3", Currency: "USD", ReportType: "estimated-sales"},
+	} {
+		if !hasKPI(summary.KPIs, want) {
+			t.Fatalf("KPIs = %#v, want %#v", summary.KPIs, want)
+		}
+	}
 }
 
 func TestSummarizeReportsRequiresAtLeastOneFile(t *testing.T) {
@@ -70,7 +114,7 @@ func TestSummarizeReportsKeepsStableJSONArraysWhenOnlyFinanceProvided(t *testing
 	if err != nil {
 		t.Fatalf("Marshal() error = %v", err)
 	}
-	for _, want := range []string{`"financeReports":[`, `"statsReports":[]`, `1 row`} {
+	for _, want := range []string{`"financeReports":[`, `"statsReports":[]`, `"kpis":[`, `1 row`} {
 		if !strings.Contains(string(content), want) {
 			t.Fatalf("JSON = %s, want %s", content, want)
 		}
@@ -90,9 +134,18 @@ func TestSummarizeReportsKeepsStableJSONArraysWhenOnlyStatsProvided(t *testing.T
 	if err != nil {
 		t.Fatalf("Marshal() error = %v", err)
 	}
-	for _, want := range []string{`"financeReports":[]`, `"statsReports":[`, `1 row`} {
+	for _, want := range []string{`"financeReports":[]`, `"statsReports":[`, `"kpis":[]`, `1 row`} {
 		if !strings.Contains(string(content), want) {
 			t.Fatalf("JSON = %s, want %s", content, want)
 		}
 	}
+}
+
+func hasKPI(kpis []ReportInsightKPI, want ReportInsightKPI) bool {
+	for _, kpi := range kpis {
+		if kpi.Name == want.Name && kpi.Value == want.Value && kpi.Currency == want.Currency && kpi.ReportType == want.ReportType {
+			return true
+		}
+	}
+	return false
 }
