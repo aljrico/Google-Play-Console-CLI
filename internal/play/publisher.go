@@ -492,7 +492,7 @@ func (p GooglePublisher) DeleteOneTimeProduct(ctx context.Context, options OneTi
 	err := p.service.Monetization.Onetimeproducts.Delete(
 		options.PackageName.String(),
 		options.ProductID.String(),
-	).LatencyTolerance(options.LatencyTolerance.String()).
+	).LatencyTolerance(productUpdateLatencyToleranceToAPI(options.LatencyTolerance)).
 		Context(ctx).
 		Do()
 	if err != nil {

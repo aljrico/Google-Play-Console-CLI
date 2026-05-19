@@ -2906,7 +2906,7 @@ func TestGooglePublisherDeleteOneTimeProductUsesMonetizationEndpoint(t *testing.
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100" {
 			t.Fatalf("path = %q, want one-time product delete endpoint", r.URL.Path)
 		}
-		assertQueryValue(t, r.URL.Query(), "latencyTolerance", "latencyTolerant")
+		assertQueryValue(t, r.URL.Query(), "latencyTolerance", "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT")
 		w.WriteHeader(http.StatusNoContent)
 	}))
 
