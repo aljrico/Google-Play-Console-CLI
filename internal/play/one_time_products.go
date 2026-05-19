@@ -256,6 +256,10 @@ type PurchaseOptionBatchAvailabilityPatcher interface {
 	BatchPatchPurchaseOptionAvailability(ctx context.Context, options PurchaseOptionBatchPatchAvailabilityOptions) (PurchaseOptionBatchPatchAvailabilityResult, error)
 }
 
+type PurchaseOptionBatchPricePatcher interface {
+	BatchPatchPurchaseOptionPrices(ctx context.Context, options PurchaseOptionBatchPatchPriceOptions) (PurchaseOptionBatchPatchPriceResult, error)
+}
+
 type OneTimeProductBatchDeleter interface {
 	BatchDeleteOneTimeProducts(ctx context.Context, options OneTimeProductBatchDeleteOptions) error
 }
@@ -1044,6 +1048,22 @@ type PurchaseOptionBatchPatchAvailabilityOptions struct {
 	DryRun           bool                                     `json:"dryRun"`
 }
 
+type PurchaseOptionPricePatchRequest struct {
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+	RegionCode       string                         `json:"regionCode"`
+	Price            Money                          `json:"price"`
+}
+
+type PurchaseOptionBatchPatchPriceOptions struct {
+	PackageName      PackageName                       `json:"packageName"`
+	Requests         []PurchaseOptionPricePatchRequest `json:"requests"`
+	RegionsVersion   string                            `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance     `json:"latencyTolerance"`
+	Confirm          bool                              `json:"confirm"`
+	DryRun           bool                              `json:"dryRun"`
+}
+
 func (o PurchaseOptionStateUpdateOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
@@ -1136,6 +1156,93 @@ func purchaseOptionAvailabilityPatchKey(productID OneTimeProductID, purchaseOpti
 	return productID.String() + "/" + purchaseOptionID.String() + "/" + regionCode
 }
 
+func (o PurchaseOptionBatchPatchPriceOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if len(o.Requests) == 0 {
+		return fmt.Errorf("at least one purchase option price patch is required")
+	}
+	seen := map[string]struct{}{}
+	seenProducts := map[OneTimeProductID]struct{}{}
+	for _, request := range o.Requests {
+		if _, err := NewOneTimeProductID(request.ProductID.String()); err != nil {
+			return err
+		}
+		if _, err := NewOneTimeProductPurchaseOptionID(request.PurchaseOptionID.String()); err != nil {
+			return err
+		}
+		if !isValidRegionCode(request.RegionCode) {
+			return fmt.Errorf("purchase option price region must be a two-letter ISO 3166 code")
+		}
+		if err := validateMoney(request.Price); err != nil {
+			return fmt.Errorf("purchase option price for %s/%s/%s: %w", request.ProductID, request.PurchaseOptionID, request.RegionCode, err)
+		}
+		key := purchaseOptionPricePatchKey(request.ProductID, request.PurchaseOptionID, request.RegionCode)
+		if _, ok := seen[key]; ok {
+			return fmt.Errorf("purchase option price %s is duplicated", key)
+		}
+		seen[key] = struct{}{}
+		seenProducts[request.ProductID] = struct{}{}
+	}
+	if len(seenProducts) > 100 {
+		return fmt.Errorf("purchase option price batch patch cannot exceed 100 products")
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("purchase option price batch patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func validateMoney(money Money) error {
+	currency, err := NewCurrencyCode(money.CurrencyCode)
+	if err != nil {
+		return err
+	}
+	if currency.String() != money.CurrencyCode {
+		return fmt.Errorf("currency code must be normalized uppercase without surrounding whitespace")
+	}
+	if money.Units < 0 {
+		return fmt.Errorf("price units must be 0 or greater")
+	}
+	if money.Nanos < 0 || money.Nanos > 999999999 {
+		return fmt.Errorf("price nanos must be between 0 and 999999999")
+	}
+	if money.Units == 0 && money.Nanos == 0 {
+		return fmt.Errorf("price must be greater than 0")
+	}
+	return nil
+}
+
+func (o PurchaseOptionBatchPatchPriceOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live purchase option price batch patch cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live purchase option price batch patch requires --confirm")
+	}
+	return nil
+}
+
+func purchaseOptionPricePatchKey(productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, regionCode string) string {
+	return productID.String() + "/" + purchaseOptionID.String() + "/" + regionCode
+}
+
 func (o PurchaseOptionStateUpdateOptions) ValidateLive() error {
 	if err := o.Validate(); err != nil {
 		return err
@@ -1204,6 +1311,42 @@ type PurchaseOptionBatchPatchAvailabilityResult struct {
 	Products    []OneTimeProduct                                     `json:"products,omitempty"`
 	Desired     []PurchaseOptionBatchPatchAvailabilityDesiredProduct `json:"desiredProducts"`
 	Plan        PurchaseOptionBatchPatchAvailabilityPlan             `json:"plan"`
+}
+
+type PurchaseOptionBatchPatchPricePlan struct {
+	PackageName      PackageName                       `json:"packageName"`
+	Requests         []PurchaseOptionPricePatchRequest `json:"requests"`
+	UpdateMask       string                            `json:"updateMask"`
+	RegionsVersion   string                            `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance     `json:"latencyTolerance"`
+	Confirm          bool                              `json:"confirm"`
+	Steps            []string                          `json:"steps"`
+}
+
+type PurchaseOptionBatchPatchPriceDesiredProduct struct {
+	PackageName     PackageName                                  `json:"packageName"`
+	ProductID       OneTimeProductID                             `json:"productId"`
+	PurchaseOptions []PurchaseOptionBatchPatchPriceDesiredOption `json:"purchaseOptions"`
+}
+
+type PurchaseOptionBatchPatchPriceDesiredOption struct {
+	PurchaseOptionID OneTimeProductPurchaseOptionID               `json:"purchaseOptionId"`
+	RegionalConfigs  []PurchaseOptionBatchPatchPriceDesiredRegion `json:"regionalConfigs"`
+}
+
+type PurchaseOptionBatchPatchPriceDesiredRegion struct {
+	RegionCode string `json:"regionCode"`
+	Price      Money  `json:"price"`
+}
+
+type PurchaseOptionBatchPatchPriceResult struct {
+	PackageName PackageName                                   `json:"packageName"`
+	Requests    []PurchaseOptionPricePatchRequest             `json:"requests"`
+	DryRun      bool                                          `json:"dryRun"`
+	Applied     bool                                          `json:"applied"`
+	Products    []OneTimeProduct                              `json:"products,omitempty"`
+	Desired     []PurchaseOptionBatchPatchPriceDesiredProduct `json:"desiredProducts"`
+	Plan        PurchaseOptionBatchPatchPricePlan             `json:"plan"`
 }
 
 type PurchaseOptionStateUpdater interface {
@@ -1301,6 +1444,53 @@ func BatchPatchPurchaseOptionAvailability(ctx context.Context, patcher PurchaseO
 	return updated, nil
 }
 
+func NewPurchaseOptionBatchPatchPricePlan(options PurchaseOptionBatchPatchPriceOptions) (PurchaseOptionBatchPatchPricePlan, error) {
+	if err := options.Validate(); err != nil {
+		return PurchaseOptionBatchPatchPricePlan{}, err
+	}
+	return PurchaseOptionBatchPatchPricePlan{
+		PackageName:      options.PackageName,
+		Requests:         append([]PurchaseOptionPricePatchRequest(nil), options.Requests...),
+		UpdateMask:       purchaseOptionAvailabilityUpdateMask,
+		RegionsVersion:   options.RegionsVersion,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            purchaseOptionBatchPatchPriceSteps(options),
+	}, nil
+}
+
+func BatchPatchPurchaseOptionPrices(ctx context.Context, patcher PurchaseOptionBatchPricePatcher, options PurchaseOptionBatchPatchPriceOptions) (PurchaseOptionBatchPatchPriceResult, error) {
+	plan, err := NewPurchaseOptionBatchPatchPricePlan(options)
+	if err != nil {
+		return PurchaseOptionBatchPatchPriceResult{}, err
+	}
+	requests := append([]PurchaseOptionPricePatchRequest(nil), options.Requests...)
+	result := PurchaseOptionBatchPatchPriceResult{
+		PackageName: options.PackageName,
+		Requests:    requests,
+		DryRun:      options.DryRun,
+		Desired:     desiredOneTimeProductsForPurchaseOptionPricePatch(options),
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if patcher == nil {
+		return PurchaseOptionBatchPatchPriceResult{}, fmt.Errorf("purchase option price batch patcher is required")
+	}
+	updated, err := patcher.BatchPatchPurchaseOptionPrices(ctx, options)
+	if err != nil {
+		return PurchaseOptionBatchPatchPriceResult{}, err
+	}
+	updated.PackageName = options.PackageName
+	updated.Requests = requests
+	updated.DryRun = false
+	updated.Applied = true
+	updated.Desired = result.Desired
+	updated.Plan = plan
+	return updated, nil
+}
+
 func desiredOneTimeProductsForPurchaseOptionAvailabilityPatch(options PurchaseOptionBatchPatchAvailabilityOptions) []PurchaseOptionBatchPatchAvailabilityDesiredProduct {
 	byProduct := map[OneTimeProductID]int{}
 	byOption := map[string]int{}
@@ -1334,6 +1524,39 @@ func desiredOneTimeProductsForPurchaseOptionAvailabilityPatch(options PurchaseOp
 	return products
 }
 
+func desiredOneTimeProductsForPurchaseOptionPricePatch(options PurchaseOptionBatchPatchPriceOptions) []PurchaseOptionBatchPatchPriceDesiredProduct {
+	byProduct := map[OneTimeProductID]int{}
+	byOption := map[string]int{}
+	products := make([]PurchaseOptionBatchPatchPriceDesiredProduct, 0)
+	for _, request := range options.Requests {
+		productIndex, ok := byProduct[request.ProductID]
+		if !ok {
+			byProduct[request.ProductID] = len(products)
+			products = append(products, PurchaseOptionBatchPatchPriceDesiredProduct{
+				PackageName:     options.PackageName,
+				ProductID:       request.ProductID,
+				PurchaseOptions: []PurchaseOptionBatchPatchPriceDesiredOption{},
+			})
+			productIndex = len(products) - 1
+		}
+		optionKey := request.ProductID.String() + "/" + request.PurchaseOptionID.String()
+		optionIndex, ok := byOption[optionKey]
+		if !ok {
+			byOption[optionKey] = len(products[productIndex].PurchaseOptions)
+			products[productIndex].PurchaseOptions = append(products[productIndex].PurchaseOptions, PurchaseOptionBatchPatchPriceDesiredOption{
+				PurchaseOptionID: request.PurchaseOptionID,
+				RegionalConfigs:  []PurchaseOptionBatchPatchPriceDesiredRegion{},
+			})
+			optionIndex = len(products[productIndex].PurchaseOptions) - 1
+		}
+		products[productIndex].PurchaseOptions[optionIndex].RegionalConfigs = append(products[productIndex].PurchaseOptions[optionIndex].RegionalConfigs, PurchaseOptionBatchPatchPriceDesiredRegion{
+			RegionCode: request.RegionCode,
+			Price:      request.Price,
+		})
+	}
+	return products
+}
+
 func purchaseOptionStateUpdateSteps(options PurchaseOptionStateUpdateOptions) []string {
 	if options.DryRun {
 		return []string{fmt.Sprintf("plan %s purchase option", options.Action)}
@@ -1348,4 +1571,11 @@ func purchaseOptionBatchPatchAvailabilitySteps(options PurchaseOptionBatchPatchA
 		return []string{"plan purchase option availability batch patch"}
 	}
 	return []string{"fetch current one-time products", "merge purchase option regional availability", "batch patch purchase option availability"}
+}
+
+func purchaseOptionBatchPatchPriceSteps(options PurchaseOptionBatchPatchPriceOptions) []string {
+	if options.DryRun {
+		return []string{"plan purchase option price batch patch"}
+	}
+	return []string{"fetch current one-time products", "merge purchase option regional prices", "batch patch purchase option prices"}
 }

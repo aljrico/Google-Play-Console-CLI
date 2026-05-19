@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
@@ -147,6 +148,7 @@ func newOneTimeProductsPurchaseOptionCommand(out io.Writer, options *globalOptio
 	cmd.AddCommand(
 		newOneTimeProductsPurchaseOptionBatchDeleteCommand(out, options, packageName),
 		newOneTimeProductsPurchaseOptionBatchPatchAvailabilityCommand(out, options, packageName),
+		newOneTimeProductsPurchaseOptionBatchPatchPricesCommand(out, options, packageName),
 		newOneTimeProductsPurchaseOptionStateCommand(out, options, packageName, play.PurchaseOptionStateActionActivate),
 		newOneTimeProductsPurchaseOptionStateCommand(out, options, packageName, play.PurchaseOptionStateActionDeactivate),
 	)
@@ -259,6 +261,137 @@ func parsePurchaseOptionAvailabilityPatch(value string) (play.PurchaseOptionAvai
 
 func errPurchaseOptionAvailabilityFormat() error {
 	return fmt.Errorf("purchase option availability must use productId/purchaseOptionId/REGION:available|noLongerAvailable|availableIfReleased|availableForOffersOnly")
+}
+
+func newOneTimeProductsPurchaseOptionBatchPatchPricesCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		prices           []string
+		regionsVersion   string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-patch-prices",
+		Short: "Batch patch one-time product purchase option regional prices",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			requests, err := parsePurchaseOptionPricePatches(prices)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			patchOptions := play.PurchaseOptionBatchPatchPriceOptions{
+				PackageName:      typedPackageName,
+				Requests:         requests,
+				RegionsVersion:   regionsVersion,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.BatchPatchPurchaseOptionPrices(cmd.Context(), nil, patchOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewPurchaseOptionBatchPatchPricePlan(patchOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchPatchPurchaseOptionPrices(cmd.Context(), publisher, patchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringArrayVar(&prices, "price", nil, "Regional price patch as productId/purchaseOptionId/REGION:CURRENCY:UNITS[:NANOS]; repeatable")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by oneTimeProducts.batchUpdate")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the purchase option price batch patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned purchase option price batch patch without calling Google Play")
+	return cmd
+}
+
+func parsePurchaseOptionPricePatches(values []string) ([]play.PurchaseOptionPricePatchRequest, error) {
+	requests := make([]play.PurchaseOptionPricePatchRequest, 0, len(values))
+	for _, value := range values {
+		request, err := parsePurchaseOptionPricePatch(value)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, nil
+}
+
+func parsePurchaseOptionPricePatch(value string) (play.PurchaseOptionPricePatchRequest, error) {
+	path, priceValue, ok := strings.Cut(value, ":")
+	if !ok {
+		return play.PurchaseOptionPricePatchRequest{}, errPurchaseOptionPriceFormat()
+	}
+	parts := strings.Split(path, "/")
+	if len(parts) != 3 {
+		return play.PurchaseOptionPricePatchRequest{}, errPurchaseOptionPriceFormat()
+	}
+	productID, err := play.NewOneTimeProductID(parts[0])
+	if err != nil {
+		return play.PurchaseOptionPricePatchRequest{}, err
+	}
+	purchaseOptionID, err := play.NewOneTimeProductPurchaseOptionID(parts[1])
+	if err != nil {
+		return play.PurchaseOptionPricePatchRequest{}, err
+	}
+	price, err := parsePurchaseOptionPatchMoney(priceValue)
+	if err != nil {
+		return play.PurchaseOptionPricePatchRequest{}, err
+	}
+	return play.PurchaseOptionPricePatchRequest{
+		ProductID:        productID,
+		PurchaseOptionID: purchaseOptionID,
+		RegionCode:       strings.ToUpper(parts[2]),
+		Price:            price,
+	}, nil
+}
+
+func parsePurchaseOptionPatchMoney(value string) (play.Money, error) {
+	parts := strings.Split(value, ":")
+	if len(parts) != 2 && len(parts) != 3 {
+		return play.Money{}, errPurchaseOptionPriceFormat()
+	}
+	currency, err := play.NewCurrencyCode(parts[0])
+	if err != nil {
+		return play.Money{}, err
+	}
+	units, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return play.Money{}, fmt.Errorf("price units must be an integer: %w", err)
+	}
+	var nanos int64
+	if len(parts) == 3 {
+		nanos, err = strconv.ParseInt(parts[2], 10, 64)
+		if err != nil {
+			return play.Money{}, fmt.Errorf("price nanos must be an integer: %w", err)
+		}
+	}
+	return play.Money{CurrencyCode: currency.String(), Units: units, Nanos: nanos}, nil
+}
+
+func errPurchaseOptionPriceFormat() error {
+	return fmt.Errorf("purchase option price must use productId/purchaseOptionId/REGION:CURRENCY:UNITS[:NANOS]")
 }
 
 func newOneTimeProductsPurchaseOptionBatchDeleteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {

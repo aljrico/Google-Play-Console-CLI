@@ -767,6 +767,61 @@ func (p GooglePublisher) BatchPatchPurchaseOptionAvailability(ctx context.Contex
 	}, nil
 }
 
+func (p GooglePublisher) BatchPatchPurchaseOptionPrices(ctx context.Context, options PurchaseOptionBatchPatchPriceOptions) (PurchaseOptionBatchPatchPriceResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return PurchaseOptionBatchPatchPriceResult{}, err
+	}
+	requestsByProduct := purchaseOptionPricePatchRequestsByProduct(options.Requests)
+	request := &androidpublisher.BatchUpdateOneTimeProductsRequest{
+		Requests: make([]*androidpublisher.UpdateOneTimeProductRequest, 0, len(requestsByProduct)),
+	}
+	for _, productPatch := range requestsByProduct {
+		current, err := p.service.Monetization.Onetimeproducts.Get(options.PackageName.String(), productPatch.ProductID.String()).Context(ctx).Do()
+		if err != nil {
+			return PurchaseOptionBatchPatchPriceResult{}, fmt.Errorf("get one-time product %s for %s before purchase option price patch: %w", productPatch.ProductID, options.PackageName, err)
+		}
+		currentProduct, err := oneTimeProductFromGeneratedAPI(current)
+		if err != nil {
+			return PurchaseOptionBatchPatchPriceResult{}, fmt.Errorf("decode one-time product %s for %s before purchase option price patch: %w", productPatch.ProductID, options.PackageName, err)
+		}
+		mergedOptions, err := mergePurchaseOptionPricePatches(currentProduct.PurchaseOptions, productPatch.Requests)
+		if err != nil {
+			return PurchaseOptionBatchPatchPriceResult{}, err
+		}
+		request.Requests = append(request.Requests, &androidpublisher.UpdateOneTimeProductRequest{
+			OneTimeProduct: &androidpublisher.OneTimeProduct{
+				PackageName:     options.PackageName.String(),
+				ProductId:       productPatch.ProductID.String(),
+				PurchaseOptions: oneTimeProductPurchaseOptionsToAPI(mergedOptions),
+			},
+			UpdateMask:       purchaseOptionAvailabilityUpdateMask,
+			RegionsVersion:   &androidpublisher.RegionsVersion{Version: options.RegionsVersion},
+			LatencyTolerance: productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+		})
+	}
+	response, err := p.service.Monetization.Onetimeproducts.BatchUpdate(options.PackageName.String(), request).Context(ctx).Do()
+	if err != nil {
+		return PurchaseOptionBatchPatchPriceResult{}, fmt.Errorf("batch patch purchase option prices for %s: %w", options.PackageName, err)
+	}
+	products := make([]OneTimeProduct, 0)
+	if response != nil {
+		products = make([]OneTimeProduct, 0, len(response.OneTimeProducts))
+		for _, apiProduct := range response.OneTimeProducts {
+			product, err := oneTimeProductFromGeneratedAPI(apiProduct)
+			if err != nil {
+				return PurchaseOptionBatchPatchPriceResult{}, err
+			}
+			products = append(products, product)
+		}
+	}
+	return PurchaseOptionBatchPatchPriceResult{
+		PackageName: options.PackageName,
+		DryRun:      false,
+		Applied:     true,
+		Products:    products,
+	}, nil
+}
+
 type purchaseOptionAvailabilityPatchProduct struct {
 	ProductID OneTimeProductID
 	Requests  []PurchaseOptionAvailabilityPatchRequest
@@ -780,6 +835,26 @@ func purchaseOptionAvailabilityPatchRequestsByProduct(requests []PurchaseOptionA
 		if !ok {
 			byProduct[request.ProductID] = len(products)
 			products = append(products, purchaseOptionAvailabilityPatchProduct{ProductID: request.ProductID})
+			index = len(products) - 1
+		}
+		products[index].Requests = append(products[index].Requests, request)
+	}
+	return products
+}
+
+type purchaseOptionPricePatchProduct struct {
+	ProductID OneTimeProductID
+	Requests  []PurchaseOptionPricePatchRequest
+}
+
+func purchaseOptionPricePatchRequestsByProduct(requests []PurchaseOptionPricePatchRequest) []purchaseOptionPricePatchProduct {
+	byProduct := map[OneTimeProductID]int{}
+	products := make([]purchaseOptionPricePatchProduct, 0)
+	for _, request := range requests {
+		index, ok := byProduct[request.ProductID]
+		if !ok {
+			byProduct[request.ProductID] = len(products)
+			products = append(products, purchaseOptionPricePatchProduct{ProductID: request.ProductID})
 			index = len(products) - 1
 		}
 		products[index].Requests = append(products[index].Requests, request)
@@ -3498,6 +3573,54 @@ func mergePurchaseOptionRegionalAvailabilityPatch(current []OneTimeProductRegion
 		return append(merged, current[len(merged):]...), nil
 	}
 	return nil, fmt.Errorf("purchase option availability patch for %s/%s/%s references a region that is not already configured; availability-only patches cannot add regional price data", patch.ProductID, patch.PurchaseOptionID, patch.RegionCode)
+}
+
+func mergePurchaseOptionPricePatches(current []OneTimeProductPurchaseOption, patches []PurchaseOptionPricePatchRequest) ([]OneTimeProductPurchaseOption, error) {
+	merged := append([]OneTimeProductPurchaseOption(nil), current...)
+	for _, patch := range patches {
+		next, err := mergePurchaseOptionPricePatch(merged, patch)
+		if err != nil {
+			return nil, err
+		}
+		merged = next
+	}
+	return merged, nil
+}
+
+func mergePurchaseOptionPricePatch(current []OneTimeProductPurchaseOption, patch PurchaseOptionPricePatchRequest) ([]OneTimeProductPurchaseOption, error) {
+	merged := make([]OneTimeProductPurchaseOption, 0, len(current))
+	for _, option := range current {
+		if option.PurchaseOptionID != patch.PurchaseOptionID.String() {
+			merged = append(merged, option)
+			continue
+		}
+		regionalConfigs, err := mergePurchaseOptionRegionalPricePatch(option.RegionalConfigs, patch)
+		if err != nil {
+			return nil, err
+		}
+		option.RegionalConfigs = regionalConfigs
+		merged = append(merged, option)
+		return append(merged, current[len(merged):]...), nil
+	}
+	return nil, fmt.Errorf("purchase option price patch for %s/%s references a purchase option that is not already configured", patch.ProductID, patch.PurchaseOptionID)
+}
+
+func mergePurchaseOptionRegionalPricePatch(current []OneTimeProductRegionalConfig, patch PurchaseOptionPricePatchRequest) ([]OneTimeProductRegionalConfig, error) {
+	merged := make([]OneTimeProductRegionalConfig, 0, len(current))
+	for _, region := range current {
+		if region.RegionCode != patch.RegionCode {
+			merged = append(merged, region)
+			continue
+		}
+		region.Price = &Money{
+			CurrencyCode: patch.Price.CurrencyCode,
+			Units:        patch.Price.Units,
+			Nanos:        patch.Price.Nanos,
+		}
+		merged = append(merged, region)
+		return append(merged, current[len(merged):]...), nil
+	}
+	return nil, fmt.Errorf("purchase option price patch for %s/%s/%s references a region that is not already configured; price patches cannot add regional availability", patch.ProductID, patch.PurchaseOptionID, patch.RegionCode)
 }
 
 func purchaseOptionAvailabilityToAPI(availability string) string {
