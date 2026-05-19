@@ -131,7 +131,7 @@ Sources:
 
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `workflow` | `workflow` | N/A | planned | Repo-local automation runner, independent of Google APIs. |
+| `workflow` | `workflow` | N/A | tested | `gpc workflow list` reads `.gpc/workflow.json`; `gpc workflow run NAME` executes steps sequentially or prints the plan with `--dry-run`. |
 | `webhooks` | `notifications` | Pub/Sub and Real-time developer notifications | planned | Likely separate setup from Android Publisher REST. |
 | `notify` | `notify` | N/A | planned | External notifications are CLI utility behavior. |
 | `migrate` | `migrate` | N/A | planned | Should support fastlane supply metadata migration. |

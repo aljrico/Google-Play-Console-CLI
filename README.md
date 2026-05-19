@@ -40,6 +40,8 @@ gpc capabilities --status tested
 gpc docs parity --output markdown
 gpc docs commands --output markdown
 gpc schema --resource edits.tracks --method list --pretty
+gpc workflow list
+gpc workflow run release-internal --dry-run
 gpc device-tier-configs list --package com.example.app --page-size 25
 gpc device-tier-configs get --package com.example.app --id 7
 gpc testers get --package com.example.app --track internal
