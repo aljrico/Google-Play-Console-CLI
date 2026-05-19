@@ -18,6 +18,13 @@ make build
 make install PREFIX="$HOME/.local"
 ```
 
+From a Homebrew tap after a tagged release:
+
+```sh
+brew tap aljrico/tap
+brew install --cask gpc
+```
+
 ### Authenticate
 
 ```sh
@@ -135,6 +142,19 @@ gpc version --output json --pretty
 gpc version --output table
 gpc version --output markdown
 ```
+
+## Releases
+
+Tagged releases are built with GoReleaser for macOS, Linux, and Windows on `amd64` and `arm64`. The release workflow publishes archives, checksums, and a Homebrew cask from `.goreleaser.yaml`.
+
+```sh
+make release-check
+make snapshot
+git tag -a v0.1.0 -m "Release v0.1.0"
+git push origin v0.1.0
+```
+
+Publishing the Homebrew cask requires `HOMEBREW_TAP_GITHUB_TOKEN` with write access to `aljrico/homebrew-tap`.
 
 ## Status
 
