@@ -304,6 +304,14 @@ type OneTimeProductOfferAbsoluteDiscountPatchRequest struct {
 	AbsoluteDiscount Money                          `json:"absoluteDiscount"`
 }
 
+type OneTimeProductOfferNoOverridePatchRequest struct {
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+	OfferID          OneTimeProductOfferID          `json:"offerId"`
+	RegionCode       string                         `json:"regionCode"`
+	NoOverride       bool                           `json:"noOverride"`
+}
+
 type OneTimeProductOfferBatchPatchAvailabilityOptions struct {
 	PackageName      PackageName                                   `json:"packageName"`
 	ProductID        OneTimeProductID                              `json:"productId"`
@@ -335,6 +343,17 @@ type OneTimeProductOfferBatchPatchAbsoluteDiscountsOptions struct {
 	LatencyTolerance ProductUpdateLatencyTolerance                     `json:"latencyTolerance"`
 	Confirm          bool                                              `json:"confirm"`
 	DryRun           bool                                              `json:"dryRun"`
+}
+
+type OneTimeProductOfferBatchPatchNoOverridesOptions struct {
+	PackageName      PackageName                                 `json:"packageName"`
+	ProductID        OneTimeProductID                            `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID              `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferNoOverridePatchRequest `json:"requests"`
+	RegionsVersion   string                                      `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance               `json:"latencyTolerance"`
+	Confirm          bool                                        `json:"confirm"`
+	DryRun           bool                                        `json:"dryRun"`
 }
 
 type OneTimeProductOfferCreateOptions struct {
@@ -557,6 +576,31 @@ func (o OneTimeProductOfferBatchPatchAbsoluteDiscountsOptions) Validate() error 
 	return nil
 }
 
+func (o OneTimeProductOfferBatchPatchNoOverridesOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if err := validateOneTimeProductOfferNoOverridePatchParents(o.ProductID, o.PurchaseOptionID, o.Requests); err != nil {
+		return err
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("one-time product offer no-override batch patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
 func (o OneTimeProductOfferCreateOptions) ValidateLive() error {
 	if err := o.Validate(); err != nil {
 		return err
@@ -631,6 +675,19 @@ func (o OneTimeProductOfferBatchPatchAbsoluteDiscountsOptions) ValidateLive() er
 	}
 	if !o.Confirm {
 		return fmt.Errorf("live one-time product offer absolute discount batch patch requires --confirm")
+	}
+	return nil
+}
+
+func (o OneTimeProductOfferBatchPatchNoOverridesOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live one-time product offer no-override batch patch cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live one-time product offer no-override batch patch requires --confirm")
 	}
 	return nil
 }
@@ -714,6 +771,33 @@ func validateOneTimeProductOfferAbsoluteDiscountPatchParents(productID OneTimePr
 		})
 	}
 	return validateOneTimeProductOfferBatchMutationParents(productID, purchaseOptionID, deduplicateOneTimeProductOfferMutationRequests(mutationRequests), "absolute discount batch patch")
+}
+
+func validateOneTimeProductOfferNoOverridePatchParents(productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, requests []OneTimeProductOfferNoOverridePatchRequest) error {
+	if len(requests) == 0 {
+		return fmt.Errorf("at least one one-time product offer no-override patch is required")
+	}
+	mutationRequests := make([]OneTimeProductOfferBatchMutationRequest, 0, len(requests))
+	seenRegions := map[string]struct{}{}
+	for _, request := range requests {
+		if !isValidRegionCode(request.RegionCode) {
+			return fmt.Errorf("one-time product offer no-override region must be a two-letter ISO 3166 code")
+		}
+		if !request.NoOverride {
+			return fmt.Errorf("one-time product offer no-override patch for %s/%s/%s/%s must set noOverride true", request.ProductID, request.PurchaseOptionID, request.OfferID, request.RegionCode)
+		}
+		key := oneTimeProductOfferKey(request.ProductID, request.PurchaseOptionID, request.OfferID) + "/" + request.RegionCode
+		if _, ok := seenRegions[key]; ok {
+			return fmt.Errorf("one-time product offer no-override %s is duplicated", key)
+		}
+		seenRegions[key] = struct{}{}
+		mutationRequests = append(mutationRequests, OneTimeProductOfferBatchMutationRequest{
+			ProductID:        request.ProductID,
+			PurchaseOptionID: request.PurchaseOptionID,
+			OfferID:          request.OfferID,
+		})
+	}
+	return validateOneTimeProductOfferBatchMutationParents(productID, purchaseOptionID, deduplicateOneTimeProductOfferMutationRequests(mutationRequests), "no-override batch patch")
 }
 
 func deduplicateOneTimeProductOfferMutationRequests(requests []OneTimeProductOfferBatchMutationRequest) []OneTimeProductOfferBatchMutationRequest {
@@ -944,6 +1028,10 @@ type OneTimeProductOfferBatchAbsoluteDiscountPatcher interface {
 	BatchPatchOneTimeProductOfferAbsoluteDiscounts(ctx context.Context, options OneTimeProductOfferBatchPatchAbsoluteDiscountsOptions) (OneTimeProductOfferBatchPatchAbsoluteDiscountsResult, error)
 }
 
+type OneTimeProductOfferBatchNoOverridePatcher interface {
+	BatchPatchOneTimeProductOfferNoOverrides(ctx context.Context, options OneTimeProductOfferBatchPatchNoOverridesOptions) (OneTimeProductOfferBatchPatchNoOverridesResult, error)
+}
+
 type OneTimeProductOfferBatchGetResult struct {
 	PackageName      PackageName                        `json:"packageName"`
 	ProductID        OneTimeProductID                   `json:"productId"`
@@ -1127,6 +1215,43 @@ type OneTimeProductOfferBatchPatchAbsoluteDiscountsResult struct {
 	Offers           []OneTimeProductOffer                                        `json:"offers,omitempty"`
 	Desired          []OneTimeProductOfferBatchPatchAbsoluteDiscountsDesiredOffer `json:"desiredOffers"`
 	Plan             OneTimeProductOfferBatchPatchAbsoluteDiscountsPlan           `json:"plan"`
+}
+
+type OneTimeProductOfferBatchPatchNoOverridesPlan struct {
+	PackageName      PackageName                                 `json:"packageName"`
+	ProductID        OneTimeProductID                            `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID              `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferNoOverridePatchRequest `json:"requests"`
+	UpdateMask       string                                      `json:"updateMask"`
+	RegionsVersion   string                                      `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance               `json:"latencyTolerance"`
+	Confirm          bool                                        `json:"confirm"`
+	Steps            []string                                    `json:"steps"`
+}
+
+type OneTimeProductOfferBatchPatchNoOverridesDesiredOffer struct {
+	PackageName      PackageName                                             `json:"packageName"`
+	ProductID        OneTimeProductID                                        `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID                          `json:"purchaseOptionId"`
+	OfferID          OneTimeProductOfferID                                   `json:"offerId"`
+	RegionalConfigs  []OneTimeProductOfferBatchPatchNoOverridesDesiredRegion `json:"regionalConfigs"`
+}
+
+type OneTimeProductOfferBatchPatchNoOverridesDesiredRegion struct {
+	RegionCode string `json:"regionCode"`
+	NoOverride bool   `json:"noOverride"`
+}
+
+type OneTimeProductOfferBatchPatchNoOverridesResult struct {
+	PackageName      PackageName                                            `json:"packageName"`
+	ProductID        OneTimeProductID                                       `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID                         `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferNoOverridePatchRequest            `json:"requests"`
+	DryRun           bool                                                   `json:"dryRun"`
+	Applied          bool                                                   `json:"applied"`
+	Offers           []OneTimeProductOffer                                  `json:"offers,omitempty"`
+	Desired          []OneTimeProductOfferBatchPatchNoOverridesDesiredOffer `json:"desiredOffers"`
+	Plan             OneTimeProductOfferBatchPatchNoOverridesPlan           `json:"plan"`
 }
 
 func GetOneTimeProductOffer(ctx context.Context, getter OneTimeProductOfferGetter, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error) {
@@ -1380,6 +1505,42 @@ func BatchPatchOneTimeProductOfferAbsoluteDiscounts(ctx context.Context, patcher
 	return updated, nil
 }
 
+func BatchPatchOneTimeProductOfferNoOverrides(ctx context.Context, patcher OneTimeProductOfferBatchNoOverridePatcher, options OneTimeProductOfferBatchPatchNoOverridesOptions) (OneTimeProductOfferBatchPatchNoOverridesResult, error) {
+	plan, err := NewOneTimeProductOfferBatchPatchNoOverridesPlan(options)
+	if err != nil {
+		return OneTimeProductOfferBatchPatchNoOverridesResult{}, err
+	}
+	requests := append([]OneTimeProductOfferNoOverridePatchRequest(nil), options.Requests...)
+	result := OneTimeProductOfferBatchPatchNoOverridesResult{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		Requests:         requests,
+		DryRun:           options.DryRun,
+		Desired:          desiredOneTimeProductOffersForNoOverridePatch(options),
+		Plan:             plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if patcher == nil {
+		return OneTimeProductOfferBatchPatchNoOverridesResult{}, fmt.Errorf("one-time product offer no-override batch patcher is required")
+	}
+	updated, err := patcher.BatchPatchOneTimeProductOfferNoOverrides(ctx, options)
+	if err != nil {
+		return OneTimeProductOfferBatchPatchNoOverridesResult{}, err
+	}
+	updated.PackageName = options.PackageName
+	updated.ProductID = options.ProductID
+	updated.PurchaseOptionID = options.PurchaseOptionID
+	updated.Requests = requests
+	updated.DryRun = false
+	updated.Applied = true
+	updated.Desired = result.Desired
+	updated.Plan = plan
+	return updated, nil
+}
+
 func NewOneTimeProductOfferBatchPatchAvailabilityPlan(options OneTimeProductOfferBatchPatchAvailabilityOptions) (OneTimeProductOfferBatchPatchAvailabilityPlan, error) {
 	if err := options.Validate(); err != nil {
 		return OneTimeProductOfferBatchPatchAvailabilityPlan{}, err
@@ -1428,6 +1589,23 @@ func NewOneTimeProductOfferBatchPatchAbsoluteDiscountsPlan(options OneTimeProduc
 		LatencyTolerance: options.LatencyTolerance,
 		Confirm:          options.Confirm,
 		Steps:            oneTimeProductOfferBatchPatchAbsoluteDiscountsSteps(options),
+	}, nil
+}
+
+func NewOneTimeProductOfferBatchPatchNoOverridesPlan(options OneTimeProductOfferBatchPatchNoOverridesOptions) (OneTimeProductOfferBatchPatchNoOverridesPlan, error) {
+	if err := options.Validate(); err != nil {
+		return OneTimeProductOfferBatchPatchNoOverridesPlan{}, err
+	}
+	return OneTimeProductOfferBatchPatchNoOverridesPlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		Requests:         append([]OneTimeProductOfferNoOverridePatchRequest(nil), options.Requests...),
+		UpdateMask:       oneTimeProductOfferRegionalConfigsUpdateMask,
+		RegionsVersion:   options.RegionsVersion,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            oneTimeProductOfferBatchPatchNoOverridesSteps(options),
 	}, nil
 }
 
@@ -1506,6 +1684,31 @@ func desiredOneTimeProductOffersForAbsoluteDiscountPatch(options OneTimeProductO
 	return offers
 }
 
+func desiredOneTimeProductOffersForNoOverridePatch(options OneTimeProductOfferBatchPatchNoOverridesOptions) []OneTimeProductOfferBatchPatchNoOverridesDesiredOffer {
+	byOffer := map[string]int{}
+	offers := make([]OneTimeProductOfferBatchPatchNoOverridesDesiredOffer, 0)
+	for _, request := range options.Requests {
+		key := oneTimeProductOfferKey(request.ProductID, request.PurchaseOptionID, request.OfferID)
+		index, ok := byOffer[key]
+		if !ok {
+			byOffer[key] = len(offers)
+			offers = append(offers, OneTimeProductOfferBatchPatchNoOverridesDesiredOffer{
+				PackageName:      options.PackageName,
+				ProductID:        request.ProductID,
+				PurchaseOptionID: request.PurchaseOptionID,
+				OfferID:          request.OfferID,
+				RegionalConfigs:  []OneTimeProductOfferBatchPatchNoOverridesDesiredRegion{},
+			})
+			index = len(offers) - 1
+		}
+		offers[index].RegionalConfigs = append(offers[index].RegionalConfigs, OneTimeProductOfferBatchPatchNoOverridesDesiredRegion{
+			RegionCode: request.RegionCode,
+			NoOverride: request.NoOverride,
+		})
+	}
+	return offers
+}
+
 func oneTimeProductOfferCreateDesiredOffer(options OneTimeProductOfferCreateOptions) OneTimeProductOffer {
 	offer := options.Offer
 	offer.PackageName = options.PackageName
@@ -1572,6 +1775,13 @@ func oneTimeProductOfferBatchPatchAbsoluteDiscountsSteps(options OneTimeProductO
 		return []string{"plan one-time product offer absolute discount batch patch"}
 	}
 	return []string{"fetch current one-time product offers", "merge regional absolute discounts", "batch patch one-time product offer absolute discounts"}
+}
+
+func oneTimeProductOfferBatchPatchNoOverridesSteps(options OneTimeProductOfferBatchPatchNoOverridesOptions) []string {
+	if options.DryRun {
+		return []string{"plan one-time product offer no-override batch patch"}
+	}
+	return []string{"fetch current one-time product offers", "merge regional no-overrides", "batch patch one-time product offer no-overrides"}
 }
 
 type OneTimeProductOfferStateUpdateOptions struct {

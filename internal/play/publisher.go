@@ -1226,6 +1226,55 @@ func (p GooglePublisher) BatchPatchOneTimeProductOfferAbsoluteDiscounts(ctx cont
 	}, nil
 }
 
+func (p GooglePublisher) BatchPatchOneTimeProductOfferNoOverrides(ctx context.Context, options OneTimeProductOfferBatchPatchNoOverridesOptions) (OneTimeProductOfferBatchPatchNoOverridesResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return OneTimeProductOfferBatchPatchNoOverridesResult{}, err
+	}
+	requestsByOffer := oneTimeProductOfferNoOverridePatchRequestsByOffer(options.Requests)
+	request := &androidpublisher.BatchUpdateOneTimeProductOffersRequest{
+		Requests: make([]*androidpublisher.UpdateOneTimeProductOfferRequest, 0, len(requestsByOffer)),
+	}
+	for _, offerPatch := range requestsByOffer {
+		current, err := p.getOneTimeProductOfferForRegionalPatch(ctx, options.PackageName, offerPatch.ProductID, offerPatch.PurchaseOptionID, offerPatch.OfferID, "no-override")
+		if err != nil {
+			return OneTimeProductOfferBatchPatchNoOverridesResult{}, err
+		}
+		mergedRegionalConfigs := mergeOneTimeProductOfferNoOverridePatches(oneTimeProductOfferRegionsFromAPI(current.RegionalPricingAndAvailabilityConfigs), offerPatch.Requests)
+		if mergedRegionalConfigs == nil {
+			return OneTimeProductOfferBatchPatchNoOverridesResult{}, fmt.Errorf("one-time product offer no-override patch for %s/%s/%s references a region that is not already configured on the offer; no-override patches cannot add regional price overrides", offerPatch.ProductID, offerPatch.PurchaseOptionID, offerPatch.OfferID)
+		}
+		request.Requests = append(request.Requests, &androidpublisher.UpdateOneTimeProductOfferRequest{
+			OneTimeProductOffer: &androidpublisher.OneTimeProductOffer{
+				PackageName:                           options.PackageName.String(),
+				ProductId:                             offerPatch.ProductID.String(),
+				PurchaseOptionId:                      offerPatch.PurchaseOptionID.String(),
+				OfferId:                               offerPatch.OfferID.String(),
+				RegionalPricingAndAvailabilityConfigs: oneTimeProductOfferRegionsToAPI(mergedRegionalConfigs),
+			},
+			UpdateMask:       oneTimeProductOfferRegionalConfigsUpdateMask,
+			RegionsVersion:   &androidpublisher.RegionsVersion{Version: options.RegionsVersion},
+			LatencyTolerance: productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+		})
+	}
+	response, err := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.BatchUpdate(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.PurchaseOptionID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return OneTimeProductOfferBatchPatchNoOverridesResult{}, fmt.Errorf("batch patch one-time product offer no-overrides for %s/%s/%s: %w", options.PackageName, options.ProductID, options.PurchaseOptionID, err)
+	}
+	return OneTimeProductOfferBatchPatchNoOverridesResult{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		Requests:         append([]OneTimeProductOfferNoOverridePatchRequest(nil), options.Requests...),
+		Applied:          true,
+		Offers:           oneTimeProductOffersFromBatchUpdateResponse(response),
+	}, nil
+}
+
 func (p GooglePublisher) getOneTimeProductOfferForAvailabilityPatch(ctx context.Context, packageName PackageName, productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, offerID OneTimeProductOfferID) (*androidpublisher.OneTimeProductOffer, error) {
 	return p.getOneTimeProductOfferForRegionalPatch(ctx, packageName, productID, purchaseOptionID, offerID, "availability")
 }
@@ -1389,6 +1438,13 @@ type oneTimeProductOfferAbsoluteDiscountPatchOffer struct {
 	Requests         []OneTimeProductOfferAbsoluteDiscountPatchRequest
 }
 
+type oneTimeProductOfferNoOverridePatchOffer struct {
+	ProductID        OneTimeProductID
+	PurchaseOptionID OneTimeProductPurchaseOptionID
+	OfferID          OneTimeProductOfferID
+	Requests         []OneTimeProductOfferNoOverridePatchRequest
+}
+
 func oneTimeProductOfferAvailabilityPatchRequestsByOffer(requests []OneTimeProductOfferAvailabilityPatchRequest) []oneTimeProductOfferAvailabilityPatchOffer {
 	byOffer := map[string]int{}
 	offers := make([]oneTimeProductOfferAvailabilityPatchOffer, 0)
@@ -1438,6 +1494,26 @@ func oneTimeProductOfferAbsoluteDiscountPatchRequestsByOffer(requests []OneTimeP
 		if !ok {
 			byOffer[key] = len(offers)
 			offers = append(offers, oneTimeProductOfferAbsoluteDiscountPatchOffer{
+				ProductID:        request.ProductID,
+				PurchaseOptionID: request.PurchaseOptionID,
+				OfferID:          request.OfferID,
+			})
+			index = len(offers) - 1
+		}
+		offers[index].Requests = append(offers[index].Requests, request)
+	}
+	return offers
+}
+
+func oneTimeProductOfferNoOverridePatchRequestsByOffer(requests []OneTimeProductOfferNoOverridePatchRequest) []oneTimeProductOfferNoOverridePatchOffer {
+	byOffer := map[string]int{}
+	offers := make([]oneTimeProductOfferNoOverridePatchOffer, 0)
+	for _, request := range requests {
+		key := oneTimeProductOfferKey(request.ProductID, request.PurchaseOptionID, request.OfferID)
+		index, ok := byOffer[key]
+		if !ok {
+			byOffer[key] = len(offers)
+			offers = append(offers, oneTimeProductOfferNoOverridePatchOffer{
 				ProductID:        request.ProductID,
 				PurchaseOptionID: request.PurchaseOptionID,
 				OfferID:          request.OfferID,
@@ -4722,6 +4798,37 @@ func mergeOneTimeProductOfferAbsoluteDiscountPatch(current []OneTimeProductOffer
 			region.AbsoluteDiscount = &absoluteDiscount
 			region.RelativeDiscount = 0
 			region.NoOverride = false
+			merged = append(merged, region)
+			replaced = true
+			continue
+		}
+		merged = append(merged, region)
+	}
+	if !replaced {
+		return nil
+	}
+	return merged
+}
+
+func mergeOneTimeProductOfferNoOverridePatches(current []OneTimeProductOfferRegion, patches []OneTimeProductOfferNoOverridePatchRequest) []OneTimeProductOfferRegion {
+	merged := append([]OneTimeProductOfferRegion(nil), current...)
+	for _, patch := range patches {
+		merged = mergeOneTimeProductOfferNoOverridePatch(merged, patch)
+		if merged == nil {
+			return nil
+		}
+	}
+	return merged
+}
+
+func mergeOneTimeProductOfferNoOverridePatch(current []OneTimeProductOfferRegion, patch OneTimeProductOfferNoOverridePatchRequest) []OneTimeProductOfferRegion {
+	merged := make([]OneTimeProductOfferRegion, 0, len(current)+1)
+	replaced := false
+	for _, region := range current {
+		if region.RegionCode == patch.RegionCode {
+			region.NoOverride = true
+			region.RelativeDiscount = 0
+			region.AbsoluteDiscount = nil
 			merged = append(merged, region)
 			replaced = true
 			continue

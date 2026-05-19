@@ -4822,6 +4822,106 @@ func TestBatchPatchOneTimeProductOfferAbsoluteDiscountsRejectsMissingRegion(t *t
 	}
 }
 
+func TestBatchPatchOneTimeProductOfferNoOverridesMergesAndBatchUpdates(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchGet", r.Method)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro","regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","relativeDiscount":0.25},{"regionCode":"FR","availability":"AVAILABLE","absoluteDiscount":{"currencyCode":"EUR","units":"1","nanos":500000000}}]}]}`)
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchUpdate":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchUpdate", r.Method)
+			}
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("ReadAll() error = %v", err)
+			}
+			rawBody := string(body)
+			if strings.Contains(rawBody, "relativeDiscount") {
+				t.Fatalf("body = %s, did not expect relativeDiscount in no-override patch request", rawBody)
+			}
+			if strings.Contains(rawBody, "absoluteDiscount") {
+				t.Fatalf("body = %s, did not expect absoluteDiscount in no-override patch request", rawBody)
+			}
+			var request androidpublisher.BatchUpdateOneTimeProductOffersRequest
+			if err := json.Unmarshal(body, &request); err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+			if len(request.Requests) != 1 {
+				t.Fatalf("len(Requests) = %d, want 1", len(request.Requests))
+			}
+			update := request.Requests[0]
+			if update.UpdateMask != "regionalPricingAndAvailabilityConfigs" {
+				t.Fatalf("UpdateMask = %q, want regionalPricingAndAvailabilityConfigs", update.UpdateMask)
+			}
+			configs := update.OneTimeProductOffer.RegionalPricingAndAvailabilityConfigs
+			if len(configs) != 2 {
+				t.Fatalf("len(RegionalPricingAndAvailabilityConfigs) = %d, want preserved configs", len(configs))
+			}
+			if configs[0].RegionCode != "US" || configs[0].Availability != "AVAILABLE" || configs[0].NoOverride == nil || configs[0].RelativeDiscount != 0 || configs[0].AbsoluteDiscount != nil {
+				t.Fatalf("first config = %#v, want US noOverride with old price mode cleared", configs[0])
+			}
+			if configs[1].RegionCode != "FR" || configs[1].Availability != "AVAILABLE" || configs[1].NoOverride == nil || configs[1].AbsoluteDiscount != nil {
+				t.Fatalf("second config = %#v, want FR noOverride with absolute discount cleared", configs[1])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro","regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","noOverride":{}},{"regionCode":"FR","availability":"AVAILABLE","noOverride":{}}]}]}`)
+		default:
+			t.Fatalf("unexpected path = %q", r.URL.Path)
+		}
+	}))
+
+	result, err := publisher.BatchPatchOneTimeProductOfferNoOverrides(context.Background(), OneTimeProductOfferBatchPatchNoOverridesOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferNoOverridePatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "US", NoOverride: true},
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "FR", NoOverride: true},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchOneTimeProductOfferNoOverrides() error = %v", err)
+	}
+	if !result.Applied || len(result.Offers) != 1 || !result.Offers[0].RegionalConfigs[0].NoOverride {
+		t.Fatalf("result = %#v, want applied offer with no override", result)
+	}
+}
+
+func TestBatchPatchOneTimeProductOfferNoOverridesRejectsMissingRegion(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet" {
+			t.Fatalf("path = %q, want batchGet only", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro","regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","relativeDiscount":0.5}]}]}`)
+	}))
+
+	_, err := publisher.BatchPatchOneTimeProductOfferNoOverrides(context.Background(), OneTimeProductOfferBatchPatchNoOverridesOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferNoOverridePatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "FR", NoOverride: true},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected missing region validation error")
+	}
+	if !strings.Contains(err.Error(), "region that is not already configured") {
+		t.Fatalf("error = %v, want missing configured region message", err)
+	}
+}
+
 func TestBatchUpdateOneTimeProductOfferStatesRejectsDryRunBeforeRequest(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)

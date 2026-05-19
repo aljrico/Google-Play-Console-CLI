@@ -1338,6 +1338,7 @@ gpc one-time-product-offers
 - `gpc one-time-product-offers batch-get`: Get multiple one-time product offers
 - `gpc one-time-product-offers batch-patch-absolute-discounts`: Batch patch one-time product offer absolute discounts
 - `gpc one-time-product-offers batch-patch-availability`: Batch patch one-time product offer regional availability
+- `gpc one-time-product-offers batch-patch-no-overrides`: Batch reset one-time product offer regional discounts to no override
 - `gpc one-time-product-offers batch-patch-relative-discounts`: Batch patch one-time product offer relative discounts
 - `gpc one-time-product-offers cancel`: cancel a one-time product offer
 - `gpc one-time-product-offers create`: Create a one-time product offer
@@ -1476,6 +1477,24 @@ gpc one-time-product-offers batch-patch-availability [flags]
 - `--confirm`: Apply the one-time product offer availability batch patch (default `false`)
 - `--dry-run`: Print the planned one-time product offer availability batch patch without calling Google Play (default `false`)
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: Parent one-time product ID, or - for offers across products; inferred when omitted
+- `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
+- `--regions-version`: Google Play regions version required by oneTimeProductOffers.batchUpdate
+
+#### gpc one-time-product-offers batch-patch-no-overrides
+
+Batch reset one-time product offer regional discounts to no override
+
+```sh
+gpc one-time-product-offers batch-patch-no-overrides [flags]
+```
+
+##### Flags
+
+- `--confirm`: Apply the one-time product offer no-override batch patch (default `false`)
+- `--dry-run`: Print the planned one-time product offer no-override batch patch without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--no-override`: No-override patch as productId/purchaseOptionId/offerId/REGION; repeatable (default `[]`)
 - `--product-id`: Parent one-time product ID, or - for offers across products; inferred when omitted
 - `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
 - `--regions-version`: Google Play regions version required by oneTimeProductOffers.batchUpdate

@@ -147,6 +147,7 @@ gpc one-time-product-offers batch-delete --package com.example.app --offer coins
 gpc one-time-product-offers batch-patch-availability --package com.example.app --availability coins_100/buy/intro/US:noLongerAvailable --availability coins_100/buy/intro/BR:available --regions-version 2026/05 --dry-run
 gpc one-time-product-offers batch-patch-relative-discounts --package com.example.app --relative-discount coins_100/buy/intro/US:0.75 --regions-version 2026/05 --dry-run
 gpc one-time-product-offers batch-patch-absolute-discounts --package com.example.app --absolute-discount coins_100/buy/intro/US:USD:1:500000000 --regions-version 2026/05 --dry-run
+gpc one-time-product-offers batch-patch-no-overrides --package com.example.app --no-override coins_100/buy/intro/US --regions-version 2026/05 --dry-run
 gpc one-time-product-offers batch-deactivate --package com.example.app --offer coins_100/buy/intro --offer coins_100/rent/winback --dry-run
 gpc one-time-product-offers deactivate --package com.example.app --product-id coins_100 --purchase-option-id buy --offer-id intro --dry-run
 gpc one-time-product-offers cancel --package com.example.app --product-id coins_100 --purchase-option-id buy --offer-id preorder --dry-run
