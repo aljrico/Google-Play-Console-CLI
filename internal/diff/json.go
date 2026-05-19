@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"reflect"
 	"sort"
@@ -59,6 +60,9 @@ func CompareJSONFiles(options JSONOptions) (JSONResult, error) {
 	if err != nil {
 		return JSONResult{}, err
 	}
+	if changes == nil {
+		changes = []JSONChange{}
+	}
 	return JSONResult{
 		FromPath: options.FromPath,
 		ToPath:   options.ToPath,
@@ -102,6 +106,9 @@ func compareValues(path string, before any, after any) ([]JSONChange, error) {
 		}
 		return compareArrays(path, beforeValue, afterValue)
 	default:
+		if numbersEqual(before, after) {
+			return nil, nil
+		}
 		if reflect.DeepEqual(before, after) {
 			return nil, nil
 		}
@@ -174,7 +181,7 @@ func addedValue(path string, value any) (JSONChange, error) {
 	if err != nil {
 		return JSONChange{}, err
 	}
-	return JSONChange{Path: printablePath(path), Kind: ChangeAdded, After: after}, nil
+	return JSONChange{Path: path, Kind: ChangeAdded, After: after}, nil
 }
 
 func removedValue(path string, value any) (JSONChange, error) {
@@ -182,7 +189,7 @@ func removedValue(path string, value any) (JSONChange, error) {
 	if err != nil {
 		return JSONChange{}, err
 	}
-	return JSONChange{Path: printablePath(path), Kind: ChangeRemoved, Before: before}, nil
+	return JSONChange{Path: path, Kind: ChangeRemoved, Before: before}, nil
 }
 
 func changedValue(path string, before any, after any) ([]JSONChange, error) {
@@ -194,7 +201,7 @@ func changedValue(path string, before any, after any) ([]JSONChange, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []JSONChange{{Path: printablePath(path), Kind: ChangeChanged, Before: beforeRaw, After: afterRaw}}, nil
+	return []JSONChange{{Path: path, Kind: ChangeChanged, Before: beforeRaw, After: afterRaw}}, nil
 }
 
 func rawJSON(value any) (*json.RawMessage, error) {
@@ -230,14 +237,24 @@ func joinPath(parent string, token string) string {
 	return parent + "/" + escapedToken
 }
 
-func printablePath(path string) string {
-	if path == "" {
-		return "/"
-	}
-	return path
-}
-
 func escapePointerToken(token string) string {
 	token = strings.ReplaceAll(token, "~", "~0")
 	return strings.ReplaceAll(token, "/", "~1")
+}
+
+func numbersEqual(before any, after any) bool {
+	beforeNumber, beforeOK := before.(json.Number)
+	afterNumber, afterOK := after.(json.Number)
+	if !beforeOK || !afterOK {
+		return false
+	}
+	beforeRat, ok := new(big.Rat).SetString(beforeNumber.String())
+	if !ok {
+		return false
+	}
+	afterRat, ok := new(big.Rat).SetString(afterNumber.String())
+	if !ok {
+		return false
+	}
+	return beforeRat.Cmp(afterRat) == 0
 }

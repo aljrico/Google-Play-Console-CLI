@@ -76,6 +76,81 @@ func TestCompareJSONFilesReportsEqual(t *testing.T) {
 	}
 }
 
+func TestCompareJSONFilesReportsEqualScalarRoots(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value string
+	}{
+		{name: "number", value: `1`},
+		{name: "string", value: `"same"`},
+		{name: "null", value: `null`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			from := writeJSON(t, "from.json", tc.value)
+			to := writeJSON(t, "to.json", tc.value)
+
+			result, err := CompareJSONFiles(JSONOptions{FromPath: from, ToPath: to})
+			if err != nil {
+				t.Fatalf("CompareJSONFiles() error = %v", err)
+			}
+			if !result.Equal {
+				t.Fatalf("Equal = false, changes = %#v", result.Changes)
+			}
+			if result.Changes == nil {
+				t.Fatal("Changes = nil, want empty slice")
+			}
+			if len(result.Changes) != 0 {
+				t.Fatalf("len(Changes) = %d, want 0", len(result.Changes))
+			}
+		})
+	}
+}
+
+func TestCompareJSONFilesTreatsNumericSpellingsAsEqual(t *testing.T) {
+	from := writeJSON(t, "from.json", `{"price":1,"zero":-0}`)
+	to := writeJSON(t, "to.json", `{"price":1.00,"zero":0}`)
+
+	result, err := CompareJSONFiles(JSONOptions{FromPath: from, ToPath: to})
+	if err != nil {
+		t.Fatalf("CompareJSONFiles() error = %v", err)
+	}
+	if !result.Equal {
+		t.Fatalf("Equal = false, changes = %#v", result.Changes)
+	}
+}
+
+func TestCompareJSONFilesUsesEmptyRootPointer(t *testing.T) {
+	from := writeJSON(t, "from.json", `null`)
+	to := writeJSON(t, "to.json", `{"x":1}`)
+
+	result, err := CompareJSONFiles(JSONOptions{FromPath: from, ToPath: to})
+	if err != nil {
+		t.Fatalf("CompareJSONFiles() error = %v", err)
+	}
+	if len(result.Changes) != 1 {
+		t.Fatalf("len(Changes) = %d, want 1", len(result.Changes))
+	}
+	if result.Changes[0].Path != "" {
+		t.Fatalf("Path = %q, want empty root JSON Pointer", result.Changes[0].Path)
+	}
+}
+
+func TestCompareJSONFilesDistinguishesEmptyKeyFromRoot(t *testing.T) {
+	from := writeJSON(t, "from.json", `{"":"old"}`)
+	to := writeJSON(t, "to.json", `{"":"new"}`)
+
+	result, err := CompareJSONFiles(JSONOptions{FromPath: from, ToPath: to})
+	if err != nil {
+		t.Fatalf("CompareJSONFiles() error = %v", err)
+	}
+	if len(result.Changes) != 1 {
+		t.Fatalf("len(Changes) = %d, want 1", len(result.Changes))
+	}
+	if result.Changes[0].Path != "/" {
+		t.Fatalf("Path = %q, want empty-key JSON Pointer", result.Changes[0].Path)
+	}
+}
+
 func TestCompareJSONFilesEscapesJSONPointerTokens(t *testing.T) {
 	from := writeJSON(t, "from.json", `{"a/b":{"~key":"old"}}`)
 	to := writeJSON(t, "to.json", `{"a/b":{"~key":"new"}}`)

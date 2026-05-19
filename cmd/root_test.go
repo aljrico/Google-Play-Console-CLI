@@ -256,6 +256,33 @@ func TestDiffJSONFailOnChangeWritesResultAndReturnsError(t *testing.T) {
 	}
 }
 
+func TestDiffJSONFailOnChangeAllowsEqualFiles(t *testing.T) {
+	from := writeRootTestContent(t, "from.json", `{"title":"Same"}`)
+	to := writeRootTestContent(t, "to.json", `{"title":"Same"}`)
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"diff",
+		"json",
+		from,
+		to,
+		"--fail-on-change",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{`"equal":true`, `"changes":[]`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+}
+
 func TestSchemaOutputsDiscoverySummaryWithoutAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
