@@ -4,6 +4,8 @@
 
 The goal is the Android-side sibling to `asc`: predictable commands, JSON-friendly output, CI-first behavior, and no interactive prompts unless a command explicitly opts in.
 
+Inspired by [`rorkai/App-Store-Connect-CLI`](https://github.com/rorkai/App-Store-Connect-CLI), this project aims to provide a similarly scriptable experience for Google Play Console workflows.
+
 ## Quick Start
 
 ```sh
