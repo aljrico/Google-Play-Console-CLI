@@ -77,6 +77,7 @@ gpc notifications pubsub pull --project play-project --subscription play-rtdn-su
 gpc notifications rtdn decode --file ./pubsub-rtdn.json
 gpc notifications rtdn decode --file ./unwrapped-rtdn.json --unwrapped
 gpc insights anomalies summarize --file ./vitals-anomalies.json
+gpc insights reports summarize --finance-file ./earnings_202605.csv --stats-file ./store_performance_com.example.app_202605_country.csv
 gpc finance reports download --bucket pubsite_prod_rev_0123456789 --object earnings/earnings_202605.zip --file ./earnings_202605.zip --dry-run
 gpc finance reports summarize --file ./earnings_202605.csv
 gpc analytics stats download --bucket pubsite_prod_rev_0123456789 --object stats/store_performance/store_performance_com.example.app_202605_country.csv --file ./store_performance.csv --dry-run
@@ -233,7 +234,7 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 
 `notifications pubsub pull` reads messages from a pull subscription and can decode each message as a Google Play RTDN payload. It only acknowledges messages after output succeeds and only when both `--ack` and `--confirm` are passed.
 
-`finance reports download` and `analytics stats download` fetch report objects from the Google Play reports Cloud Storage bucket. Use the bucket ID shown in Play Console, usually shaped like `pubsite_prod_rev_0123456789`, and pass the exact object path for the report you want. Financial reports are ZIP files; statistics reports are CSV files.
+`finance reports download` and `analytics stats download` fetch report objects from the Google Play reports Cloud Storage bucket. Use the bucket ID shown in Play Console, usually shaped like `pubsite_prod_rev_0123456789`, and pass the exact object path for the report you want. Financial reports are ZIP files; statistics reports are CSV files. `insights reports summarize` composes already-downloaded finance and statistics CSVs into one local JSON artifact with report summaries and highlights.
 
 `in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `create` builds managed products only and asks Google to auto-convert missing regional prices from the default price, while live patches and deletes reject legacy subscription SKUs. Batch deletes preflight every requested SKU and fail closed unless Google returns managed products for all of them. Default and regional price patches also request regional auto-conversion; tax compliance patches can set EEA withdrawal right type, tokenized digital asset declaration, regional reduced-tax tiers, and US streaming tax type. `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources. `one-time-products create` uses Google's patch endpoint with `allowMissing=true`, because that is the actual create surface. One-time product purchase option batch deletion follows Google's current rule that each request targets a different one-time product; use `--force` only when you also intend to delete associated offers.
 

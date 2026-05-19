@@ -878,6 +878,7 @@ gpc insights
 #### Commands
 
 - `gpc insights anomalies`: Summarize Android vitals anomalies
+- `gpc insights reports`: Summarize finance and analytics report insights
 
 #### gpc insights anomalies
 
@@ -902,6 +903,31 @@ gpc insights anomalies summarize [flags]
 ###### Flags
 
 - `--file`: JSON output from gpc vitals anomalies list
+
+#### gpc insights reports
+
+Summarize finance and analytics report insights
+
+```sh
+gpc insights reports
+```
+
+##### Commands
+
+- `gpc insights reports summarize`: Summarize Play finance and statistics report insights
+
+##### gpc insights reports summarize
+
+Summarize Play finance and statistics report insights
+
+```sh
+gpc insights reports summarize [flags]
+```
+
+###### Flags
+
+- `--finance-file`: Downloaded Google Play earnings or estimated-sales CSV; repeatable (default `[]`)
+- `--stats-file`: Downloaded Google Play statistics CSV; repeatable (default `[]`)
 
 ### gpc install-skills
 
