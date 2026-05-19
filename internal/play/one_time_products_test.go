@@ -103,6 +103,49 @@ func TestGetOneTimeProductRejectsMissingProductID(t *testing.T) {
 	}
 }
 
+func TestBatchGetOneTimeProductsPassesOptionsToGetter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	getter := &fakeOneTimeProductClient{
+		batchResult: OneTimeProductBatchGetResult{
+			PackageName: packageName,
+			Products:    []OneTimeProduct{{ProductID: "coins_100"}, {ProductID: "coins_500"}},
+		},
+	}
+	options := OneTimeProductBatchGetOptions{
+		PackageName: packageName,
+		ProductIDs:  []OneTimeProductID{"coins_100", "coins_500"},
+	}
+
+	result, err := BatchGetOneTimeProducts(context.Background(), getter, options)
+	if err != nil {
+		t.Fatalf("BatchGetOneTimeProducts() error = %v", err)
+	}
+	if len(result.Products) != 2 {
+		t.Fatalf("len(Products) = %d, want 2", len(result.Products))
+	}
+	if !reflect.DeepEqual(getter.batchOptions, options) {
+		t.Fatalf("batchOptions = %#v, want %#v", getter.batchOptions, options)
+	}
+}
+
+func TestBatchGetOneTimeProductsRejectsDuplicates(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchGetOneTimeProducts(context.Background(), nil, OneTimeProductBatchGetOptions{
+		PackageName: packageName,
+		ProductIDs:  []OneTimeProductID{"coins_100", "coins_100"},
+	})
+	if err == nil {
+		t.Fatal("expected duplicate product ID validation error")
+	}
+}
+
 func TestDeleteOneTimeProductDryRunBuildsPlanWithoutDeleter(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -241,6 +284,8 @@ func TestUpdatePurchaseOptionStatePassesOptionsToUpdater(t *testing.T) {
 type fakeOneTimeProductClient struct {
 	listOptions   OneTimeProductListOptions
 	listResult    OneTimeProductListResult
+	batchOptions  OneTimeProductBatchGetOptions
+	batchResult   OneTimeProductBatchGetResult
 	deleteOptions OneTimeProductDeleteOptions
 	productID     OneTimeProductID
 	product       OneTimeProduct
@@ -255,6 +300,11 @@ func (c *fakeOneTimeProductClient) ListOneTimeProducts(ctx context.Context, opti
 func (c *fakeOneTimeProductClient) GetOneTimeProduct(ctx context.Context, packageName PackageName, productID OneTimeProductID) (OneTimeProduct, error) {
 	c.productID = productID
 	return c.product, nil
+}
+
+func (c *fakeOneTimeProductClient) BatchGetOneTimeProducts(ctx context.Context, options OneTimeProductBatchGetOptions) (OneTimeProductBatchGetResult, error) {
+	c.batchOptions = options
+	return c.batchResult, nil
 }
 
 func (c *fakeOneTimeProductClient) DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error {

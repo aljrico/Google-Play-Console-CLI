@@ -467,6 +467,24 @@ func (p GooglePublisher) GetOneTimeProduct(ctx context.Context, packageName Pack
 	return oneTimeProductFromAPI(product), nil
 }
 
+func (p GooglePublisher) BatchGetOneTimeProducts(ctx context.Context, options OneTimeProductBatchGetOptions) (OneTimeProductBatchGetResult, error) {
+	if err := options.Validate(); err != nil {
+		return OneTimeProductBatchGetResult{}, err
+	}
+	productIDs := make([]string, 0, len(options.ProductIDs))
+	for _, productID := range options.ProductIDs {
+		productIDs = append(productIDs, productID.String())
+	}
+	response, err := p.service.Monetization.Onetimeproducts.BatchGet(options.PackageName.String()).
+		ProductIds(productIDs...).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return OneTimeProductBatchGetResult{}, fmt.Errorf("batch get one-time products for %s: %w", options.PackageName, err)
+	}
+	return oneTimeProductBatchGetResultFromAPI(options, response)
+}
+
 func (p GooglePublisher) DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
@@ -2010,6 +2028,25 @@ func oneTimeProductListResultFromAPI(options OneTimeProductListOptions, response
 		result.Products = append(result.Products, oneTimeProductFromAPI(apiProduct))
 	}
 	return result
+}
+
+func oneTimeProductBatchGetResultFromAPI(options OneTimeProductBatchGetOptions, response *androidpublisher.BatchGetOneTimeProductsResponse) (OneTimeProductBatchGetResult, error) {
+	result := OneTimeProductBatchGetResult{
+		PackageName: options.PackageName,
+		Products:    []OneTimeProduct{},
+		Options:     options,
+	}
+	if response == nil {
+		return result, nil
+	}
+	for _, apiProduct := range response.OneTimeProducts {
+		product, err := oneTimeProductFromGeneratedAPI(apiProduct)
+		if err != nil {
+			return OneTimeProductBatchGetResult{}, err
+		}
+		result.Products = append(result.Products, product)
+	}
+	return result, nil
 }
 
 func oneTimeProductFromAPI(apiProduct rawOneTimeProduct) OneTimeProduct {

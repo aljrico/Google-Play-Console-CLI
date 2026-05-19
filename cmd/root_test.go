@@ -3829,6 +3829,56 @@ func TestOneTimeProductsGetRejectsInvalidProductIDBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestOneTimeProductsBatchGetRejectsDuplicatesBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-products",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--product-id",
+		"coins_100",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected duplicate product ID validation error")
+	}
+	if !strings.Contains(err.Error(), "duplicated") {
+		t.Fatalf("error = %v, want duplicate validation", err)
+	}
+}
+
+func TestOneTimeProductsBatchGetRejectsMissingProductIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-products",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected missing product ID validation error")
+	}
+	if !strings.Contains(err.Error(), "at least one") {
+		t.Fatalf("error = %v, want missing product ID validation", err)
+	}
+}
+
 func TestOneTimeProductsDeleteDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

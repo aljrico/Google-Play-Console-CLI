@@ -227,6 +227,54 @@ func GetOneTimeProduct(ctx context.Context, getter OneTimeProductGetter, options
 	return getter.GetOneTimeProduct(ctx, options.PackageName, options.ProductID)
 }
 
+type OneTimeProductBatchGetOptions struct {
+	PackageName PackageName        `json:"packageName"`
+	ProductIDs  []OneTimeProductID `json:"productIds"`
+}
+
+func (o OneTimeProductBatchGetOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if len(o.ProductIDs) == 0 {
+		return fmt.Errorf("at least one one-time product ID is required")
+	}
+	if len(o.ProductIDs) > 100 {
+		return fmt.Errorf("one-time product batch-get cannot exceed 100 product IDs")
+	}
+	seen := map[OneTimeProductID]struct{}{}
+	for _, productID := range o.ProductIDs {
+		if _, err := NewOneTimeProductID(productID.String()); err != nil {
+			return err
+		}
+		if _, ok := seen[productID]; ok {
+			return fmt.Errorf("one-time product ID %q is duplicated", productID)
+		}
+		seen[productID] = struct{}{}
+	}
+	return nil
+}
+
+type OneTimeProductBatchGetResult struct {
+	PackageName PackageName                   `json:"packageName"`
+	Products    []OneTimeProduct              `json:"products"`
+	Options     OneTimeProductBatchGetOptions `json:"options"`
+}
+
+type OneTimeProductBatchGetter interface {
+	BatchGetOneTimeProducts(ctx context.Context, options OneTimeProductBatchGetOptions) (OneTimeProductBatchGetResult, error)
+}
+
+func BatchGetOneTimeProducts(ctx context.Context, getter OneTimeProductBatchGetter, options OneTimeProductBatchGetOptions) (OneTimeProductBatchGetResult, error) {
+	if err := options.Validate(); err != nil {
+		return OneTimeProductBatchGetResult{}, err
+	}
+	if getter == nil {
+		return OneTimeProductBatchGetResult{}, fmt.Errorf("one-time product batch getter is required")
+	}
+	return getter.BatchGetOneTimeProducts(ctx, options)
+}
+
 type OneTimeProductDeleteOptions struct {
 	PackageName      PackageName                   `json:"packageName"`
 	ProductID        OneTimeProductID              `json:"productId"`

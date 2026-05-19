@@ -19,6 +19,7 @@ func newOneTimeProductsCommand(out io.Writer, options *globalOptions) *cobra.Com
 	cmd.AddCommand(
 		newOneTimeProductsListCommand(out, options, &packageName),
 		newOneTimeProductsGetCommand(out, options, &packageName),
+		newOneTimeProductsBatchGetCommand(out, options, &packageName),
 		newOneTimeProductsDeleteCommand(out, options, &packageName),
 		newOneTimeProductsPurchaseOptionCommand(out, options, &packageName),
 	)
@@ -176,6 +177,56 @@ func newOneTimeProductsGetCommand(out io.Writer, options *globalOptions, package
 	}
 	cmd.Flags().StringVar(&productID, "product-id", "", "One-time product ID")
 	return cmd
+}
+
+func newOneTimeProductsBatchGetCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var productIDs []string
+
+	cmd := &cobra.Command{
+		Use:   "batch-get",
+		Short: "Get multiple one-time products",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedProductIDs, err := parseOneTimeProductIDs(productIDs)
+			if err != nil {
+				return err
+			}
+			batchOptions := play.OneTimeProductBatchGetOptions{
+				PackageName: typedPackageName,
+				ProductIDs:  typedProductIDs,
+			}
+			if err := batchOptions.Validate(); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchGetOneTimeProducts(cmd.Context(), publisher, batchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringArrayVar(&productIDs, "product-id", nil, "One-time product ID; repeatable, up to 100")
+	return cmd
+}
+
+func parseOneTimeProductIDs(values []string) ([]play.OneTimeProductID, error) {
+	productIDs := make([]play.OneTimeProductID, 0, len(values))
+	for _, value := range values {
+		productID, err := play.NewOneTimeProductID(value)
+		if err != nil {
+			return nil, err
+		}
+		productIDs = append(productIDs, productID)
+	}
+	return productIDs, nil
 }
 
 func newOneTimeProductsDeleteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {

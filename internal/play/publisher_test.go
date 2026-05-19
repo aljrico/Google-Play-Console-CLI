@@ -2869,6 +2869,35 @@ func TestGetOneTimeProductUsesMonetizationEndpoint(t *testing.T) {
 	}
 }
 
+func TestBatchGetOneTimeProductsUsesRepeatedProductIDs(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts:batchGet" {
+			t.Fatalf("path = %q, want one-time products batch-get endpoint", r.URL.Path)
+		}
+		if got := r.URL.Query()["productIds"]; !reflect.DeepEqual(got, []string{"coins_100", "coins_500"}) {
+			t.Fatalf("productIds = %#v, want repeated ids", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{
+			"oneTimeProducts": [
+				{"packageName":"com.example.app","productId":"coins_100","listings":[{"languageCode":"en-US","title":"100 coins"}]},
+				{"packageName":"com.example.app","productId":"coins_500","listings":[{"languageCode":"en-US","title":"500 coins"}]}
+			]
+		}`)
+	}))
+
+	result, err := publisher.BatchGetOneTimeProducts(context.Background(), OneTimeProductBatchGetOptions{
+		PackageName: "com.example.app",
+		ProductIDs:  []OneTimeProductID{"coins_100", "coins_500"},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetOneTimeProducts() error = %v", err)
+	}
+	if len(result.Products) != 2 || result.Products[1].ProductID != "coins_500" {
+		t.Fatalf("Products = %#v, want requested products", result.Products)
+	}
+}
+
 func TestGooglePublisherDeleteOneTimeProductUsesMonetizationEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {

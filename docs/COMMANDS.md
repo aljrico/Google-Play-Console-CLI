@@ -1317,10 +1317,23 @@ gpc one-time-products
 
 #### Commands
 
+- `gpc one-time-products batch-get`: Get multiple one-time products
 - `gpc one-time-products delete`: Delete a one-time product
 - `gpc one-time-products get`: Get a one-time product
 - `gpc one-time-products list`: List one-time products
 - `gpc one-time-products purchase-option`: Manage one-time product purchase options
+
+#### gpc one-time-products batch-get
+
+Get multiple one-time products
+
+```sh
+gpc one-time-products batch-get [flags]
+```
+
+##### Flags
+
+- `--product-id`: One-time product ID; repeatable, up to 100 (default `[]`)
 
 #### gpc one-time-products delete
 
