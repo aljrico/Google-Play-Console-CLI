@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/config"
+	"github.com/aljrico/Google-Play-Console-CLI/internal/play"
 	"github.com/aljrico/Google-Play-Console-CLI/internal/websurface"
 )
 
@@ -3378,6 +3379,74 @@ func TestOneTimeProductOffersGetRejectsInvalidOfferIDBeforeAuth(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "one-time product offer ID") {
 		t.Fatalf("error = %v, want offer ID validation", err)
+	}
+}
+
+func TestOneTimeProductOffersDeactivateDryRunPrintsPlanBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"deactivate",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"intro",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	var result play.OneTimeProductOfferStateUpdateResult
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v\n%s", err, buf.String())
+	}
+	if result.Action != play.OneTimeProductOfferStateActionDeactivate {
+		t.Fatalf("Action = %q, want deactivate", result.Action)
+	}
+	if result.Applied {
+		t.Fatal("Applied = true, want dry-run plan")
+	}
+}
+
+func TestOneTimeProductOffersCancelRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"cancel",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"preorder",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirmation gate")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
 	}
 }
 

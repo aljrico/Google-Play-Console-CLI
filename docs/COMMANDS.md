@@ -1042,8 +1042,62 @@ gpc one-time-product-offers
 
 #### Commands
 
+- `gpc one-time-product-offers activate`: activate a one-time product offer
+- `gpc one-time-product-offers cancel`: cancel a one-time product offer
+- `gpc one-time-product-offers deactivate`: deactivate a one-time product offer
 - `gpc one-time-product-offers get`: Get a one-time product offer
 - `gpc one-time-product-offers list`: List one-time product offers
+
+#### gpc one-time-product-offers activate
+
+activate a one-time product offer
+
+```sh
+gpc one-time-product-offers activate [flags]
+```
+
+##### Flags
+
+- `--confirm`: Apply the one-time product offer state update (default `false`)
+- `--dry-run`: Print the planned one-time product offer state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--offer-id`: One-time product offer ID
+- `--product-id`: Parent one-time product ID
+- `--purchase-option-id`: Parent one-time product purchase option ID
+
+#### gpc one-time-product-offers cancel
+
+cancel a one-time product offer
+
+```sh
+gpc one-time-product-offers cancel [flags]
+```
+
+##### Flags
+
+- `--confirm`: Apply the one-time product offer state update (default `false`)
+- `--dry-run`: Print the planned one-time product offer state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--offer-id`: One-time product offer ID
+- `--product-id`: Parent one-time product ID
+- `--purchase-option-id`: Parent one-time product purchase option ID
+
+#### gpc one-time-product-offers deactivate
+
+deactivate a one-time product offer
+
+```sh
+gpc one-time-product-offers deactivate [flags]
+```
+
+##### Flags
+
+- `--confirm`: Apply the one-time product offer state update (default `false`)
+- `--dry-run`: Print the planned one-time product offer state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--offer-id`: One-time product offer ID
+- `--product-id`: Parent one-time product ID
+- `--purchase-option-id`: Parent one-time product purchase option ID
 
 #### gpc one-time-product-offers get
 

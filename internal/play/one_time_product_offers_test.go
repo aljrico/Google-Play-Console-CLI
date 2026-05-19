@@ -102,11 +102,89 @@ func TestGetOneTimeProductOfferPassesOptionsToGetter(t *testing.T) {
 	}
 }
 
+func TestUpdateOneTimeProductOfferStateDryRunBuildsPlanWithoutUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := UpdateOneTimeProductOfferState(context.Background(), nil, OneTimeProductOfferStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		OfferID:          "intro",
+		Action:           OneTimeProductOfferStateActionCancel,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateOneTimeProductOfferState() error = %v", err)
+	}
+	if result.Applied {
+		t.Fatal("Applied = true, want dry-run result")
+	}
+	if !reflect.DeepEqual(result.Plan.Steps, []string{"plan cancel one-time product offer"}) {
+		t.Fatalf("Steps = %#v", result.Plan.Steps)
+	}
+}
+
+func TestUpdateOneTimeProductOfferStateRequiresConfirmOrDryRun(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewOneTimeProductOfferStateUpdatePlan(OneTimeProductOfferStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		OfferID:          "intro",
+		Action:           OneTimeProductOfferStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+	})
+	if err == nil {
+		t.Fatal("expected confirmation validation error")
+	}
+}
+
+func TestUpdateOneTimeProductOfferStatePassesOptionsToUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	updater := &fakeOneTimeProductOfferClient{
+		offer: OneTimeProductOffer{OfferID: "intro"},
+	}
+
+	result, err := UpdateOneTimeProductOfferState(context.Background(), updater, OneTimeProductOfferStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		OfferID:          "intro",
+		Action:           OneTimeProductOfferStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateOneTimeProductOfferState() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatal("Applied = false, want applied result")
+	}
+	if updater.stateOptions.Action != OneTimeProductOfferStateActionActivate {
+		t.Fatalf("Action = %q, want activate", updater.stateOptions.Action)
+	}
+	if updater.stateOptions.LatencyTolerance != ProductUpdateLatencyToleranceTolerant {
+		t.Fatalf("LatencyTolerance = %q, want tolerant", updater.stateOptions.LatencyTolerance)
+	}
+}
+
 type fakeOneTimeProductOfferClient struct {
-	listOptions OneTimeProductOfferListOptions
-	listResult  OneTimeProductOfferListResult
-	getOptions  OneTimeProductOfferGetOptions
-	offer       OneTimeProductOffer
+	listOptions  OneTimeProductOfferListOptions
+	listResult   OneTimeProductOfferListResult
+	getOptions   OneTimeProductOfferGetOptions
+	stateOptions OneTimeProductOfferStateUpdateOptions
+	offer        OneTimeProductOffer
 }
 
 func (c *fakeOneTimeProductOfferClient) ListOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferListOptions) (OneTimeProductOfferListResult, error) {
@@ -116,5 +194,10 @@ func (c *fakeOneTimeProductOfferClient) ListOneTimeProductOffers(ctx context.Con
 
 func (c *fakeOneTimeProductOfferClient) GetOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error) {
 	c.getOptions = options
+	return c.offer, nil
+}
+
+func (c *fakeOneTimeProductOfferClient) UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error) {
+	c.stateOptions = options
 	return c.offer, nil
 }

@@ -77,6 +77,27 @@ const (
 	OneTimeProductOfferTypePreOrder   OneTimeProductOfferType = "preOrder"
 )
 
+type OneTimeProductOfferStateAction string
+
+const (
+	OneTimeProductOfferStateActionActivate   OneTimeProductOfferStateAction = "activate"
+	OneTimeProductOfferStateActionDeactivate OneTimeProductOfferStateAction = "deactivate"
+	OneTimeProductOfferStateActionCancel     OneTimeProductOfferStateAction = "cancel"
+)
+
+func (a OneTimeProductOfferStateAction) String() string {
+	return string(a)
+}
+
+func (a OneTimeProductOfferStateAction) Validate() error {
+	switch a {
+	case OneTimeProductOfferStateActionActivate, OneTimeProductOfferStateActionDeactivate, OneTimeProductOfferStateActionCancel:
+		return nil
+	default:
+		return fmt.Errorf("unsupported one-time product offer state action %q", a)
+	}
+}
+
 type OneTimeProductOffer struct {
 	PackageName      PackageName                    `json:"packageName"`
 	ProductID        OneTimeProductID               `json:"productId"`
@@ -200,4 +221,136 @@ func GetOneTimeProductOffer(ctx context.Context, getter OneTimeProductOfferGette
 		return OneTimeProductOffer{}, fmt.Errorf("one-time product offer getter is required")
 	}
 	return getter.GetOneTimeProductOffer(ctx, options)
+}
+
+type OneTimeProductOfferStateUpdateOptions struct {
+	PackageName      PackageName                    `json:"packageName"`
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+	OfferID          OneTimeProductOfferID          `json:"offerId"`
+	Action           OneTimeProductOfferStateAction `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance  `json:"latencyTolerance"`
+	Confirm          bool                           `json:"confirm"`
+	DryRun           bool                           `json:"dryRun"`
+}
+
+func (o OneTimeProductOfferStateUpdateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductPurchaseOptionID(o.PurchaseOptionID.String()); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductOfferID(o.OfferID.String()); err != nil {
+		return err
+	}
+	if err := o.Action.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("one-time product offer state update requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o OneTimeProductOfferStateUpdateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live one-time product offer state update cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live one-time product offer state update requires --confirm")
+	}
+	return nil
+}
+
+type OneTimeProductOfferStateUpdatePlan struct {
+	PackageName      PackageName                    `json:"packageName"`
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+	OfferID          OneTimeProductOfferID          `json:"offerId"`
+	Action           OneTimeProductOfferStateAction `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance  `json:"latencyTolerance"`
+	Confirm          bool                           `json:"confirm"`
+	Steps            []string                       `json:"steps"`
+}
+
+type OneTimeProductOfferStateUpdateResult struct {
+	PackageName      PackageName                        `json:"packageName"`
+	ProductID        OneTimeProductID                   `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID     `json:"purchaseOptionId"`
+	OfferID          OneTimeProductOfferID              `json:"offerId"`
+	Action           OneTimeProductOfferStateAction     `json:"action"`
+	DryRun           bool                               `json:"dryRun"`
+	Applied          bool                               `json:"applied"`
+	Offer            *OneTimeProductOffer               `json:"offer,omitempty"`
+	Plan             OneTimeProductOfferStateUpdatePlan `json:"plan"`
+}
+
+type OneTimeProductOfferStateUpdater interface {
+	UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error)
+}
+
+func NewOneTimeProductOfferStateUpdatePlan(options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOfferStateUpdatePlan, error) {
+	if err := options.Validate(); err != nil {
+		return OneTimeProductOfferStateUpdatePlan{}, err
+	}
+	return OneTimeProductOfferStateUpdatePlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		OfferID:          options.OfferID,
+		Action:           options.Action,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            oneTimeProductOfferStateUpdateSteps(options),
+	}, nil
+}
+
+func UpdateOneTimeProductOfferState(ctx context.Context, updater OneTimeProductOfferStateUpdater, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOfferStateUpdateResult, error) {
+	plan, err := NewOneTimeProductOfferStateUpdatePlan(options)
+	if err != nil {
+		return OneTimeProductOfferStateUpdateResult{}, err
+	}
+	result := OneTimeProductOfferStateUpdateResult{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		OfferID:          options.OfferID,
+		Action:           options.Action,
+		DryRun:           options.DryRun,
+		Applied:          false,
+		Plan:             plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if updater == nil {
+		return OneTimeProductOfferStateUpdateResult{}, fmt.Errorf("one-time product offer state updater is required")
+	}
+	offer, err := updater.UpdateOneTimeProductOfferState(ctx, options)
+	if err != nil {
+		return OneTimeProductOfferStateUpdateResult{}, err
+	}
+	result.Applied = true
+	result.Offer = &offer
+	return result, nil
+}
+
+func oneTimeProductOfferStateUpdateSteps(options OneTimeProductOfferStateUpdateOptions) []string {
+	if options.DryRun {
+		return []string{fmt.Sprintf("plan %s one-time product offer", options.Action)}
+	}
+	return []string{fmt.Sprintf("%s one-time product offer", options.Action)}
 }

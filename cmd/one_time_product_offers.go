@@ -19,7 +19,76 @@ func newOneTimeProductOffersCommand(out io.Writer, options *globalOptions) *cobr
 	cmd.AddCommand(
 		newOneTimeProductOffersListCommand(out, options, &packageName),
 		newOneTimeProductOffersGetCommand(out, options, &packageName),
+		newOneTimeProductOffersStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionActivate),
+		newOneTimeProductOffersStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionDeactivate),
+		newOneTimeProductOffersStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionCancel),
 	)
+	return cmd
+}
+
+func newOneTimeProductOffersStateCommand(out io.Writer, options *globalOptions, packageName *string, action play.OneTimeProductOfferStateAction) *cobra.Command {
+	var (
+		productID        string
+		purchaseOptionID string
+		offerID          string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   action.String(),
+		Short: string(action) + " a one-time product offer",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, typedProductID, typedPurchaseOptionID, err := parseOneTimeProductOfferGetParent(*packageName, productID, purchaseOptionID)
+			if err != nil {
+				return err
+			}
+			typedOfferID, err := play.NewOneTimeProductOfferID(offerID)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			updateOptions := play.OneTimeProductOfferStateUpdateOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				PurchaseOptionID: typedPurchaseOptionID,
+				OfferID:          typedOfferID,
+				Action:           action,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.UpdateOneTimeProductOfferState(cmd.Context(), nil, updateOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewOneTimeProductOfferStateUpdatePlan(updateOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.UpdateOneTimeProductOfferState(cmd.Context(), publisher, updateOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	addOneTimeProductOfferParentFlags(cmd, &productID, &purchaseOptionID, "Parent one-time product ID", "Parent one-time product purchase option ID")
+	cmd.Flags().StringVar(&offerID, "offer-id", "", "One-time product offer ID")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the one-time product offer state update")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product offer state update without calling Google Play")
 	return cmd
 }
 
