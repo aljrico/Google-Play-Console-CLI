@@ -85,6 +85,26 @@ type SubscriptionBasePlan struct {
 	OtherRegionsConfig                  *SubscriptionOtherRegionsConfig `json:"otherRegionsConfig,omitempty"`
 }
 
+type BasePlanStateAction string
+
+const (
+	BasePlanStateActionActivate   BasePlanStateAction = "activate"
+	BasePlanStateActionDeactivate BasePlanStateAction = "deactivate"
+)
+
+func (a BasePlanStateAction) String() string {
+	return string(a)
+}
+
+func (a BasePlanStateAction) Validate() error {
+	switch a {
+	case BasePlanStateActionActivate, BasePlanStateActionDeactivate:
+		return nil
+	default:
+		return fmt.Errorf("unsupported base plan state action %q", a)
+	}
+}
+
 type SubscriptionRegionalConfig struct {
 	RegionCode                string `json:"regionCode"`
 	NewSubscriberAvailability bool   `json:"newSubscriberAvailability,omitempty"`
@@ -229,4 +249,115 @@ func BatchGetSubscriptions(ctx context.Context, getter SubscriptionBatchGetter, 
 		return SubscriptionBatchGetResult{}, fmt.Errorf("subscription batch getter is required")
 	}
 	return getter.BatchGetSubscriptions(ctx, options)
+}
+
+type BasePlanStateUpdateOptions struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        SubscriptionProductID         `json:"productId"`
+	BasePlanID       SubscriptionBasePlanID        `json:"basePlanId"`
+	Action           BasePlanStateAction           `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	DryRun           bool                          `json:"dryRun"`
+}
+
+func (o BasePlanStateUpdateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionBasePlanID(o.BasePlanID.String()); err != nil {
+		return err
+	}
+	if err := o.Action.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("base plan state update requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+type BasePlanStateUpdatePlan struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        SubscriptionProductID         `json:"productId"`
+	BasePlanID       SubscriptionBasePlanID        `json:"basePlanId"`
+	Action           BasePlanStateAction           `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	Steps            []string                      `json:"steps"`
+}
+
+type BasePlanStateUpdateResult struct {
+	PackageName  PackageName             `json:"packageName"`
+	ProductID    SubscriptionProductID   `json:"productId"`
+	BasePlanID   SubscriptionBasePlanID  `json:"basePlanId"`
+	Action       BasePlanStateAction     `json:"action"`
+	DryRun       bool                    `json:"dryRun"`
+	Applied      bool                    `json:"applied"`
+	Subscription *Subscription           `json:"subscription,omitempty"`
+	Plan         BasePlanStateUpdatePlan `json:"plan"`
+}
+
+type BasePlanStateUpdater interface {
+	UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error)
+}
+
+func NewBasePlanStateUpdatePlan(options BasePlanStateUpdateOptions) (BasePlanStateUpdatePlan, error) {
+	if err := options.Validate(); err != nil {
+		return BasePlanStateUpdatePlan{}, err
+	}
+	return BasePlanStateUpdatePlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		BasePlanID:       options.BasePlanID,
+		Action:           options.Action,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            basePlanStateUpdateSteps(options),
+	}, nil
+}
+
+func UpdateBasePlanState(ctx context.Context, updater BasePlanStateUpdater, options BasePlanStateUpdateOptions) (BasePlanStateUpdateResult, error) {
+	plan, err := NewBasePlanStateUpdatePlan(options)
+	if err != nil {
+		return BasePlanStateUpdateResult{}, err
+	}
+	result := BasePlanStateUpdateResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		BasePlanID:  options.BasePlanID,
+		Action:      options.Action,
+		DryRun:      options.DryRun,
+		Applied:     false,
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if updater == nil {
+		return BasePlanStateUpdateResult{}, fmt.Errorf("base plan state updater is required")
+	}
+	subscription, err := updater.UpdateBasePlanState(ctx, options)
+	if err != nil {
+		return BasePlanStateUpdateResult{}, err
+	}
+	result.Applied = true
+	result.Subscription = &subscription
+	return result, nil
+}
+
+func basePlanStateUpdateSteps(options BasePlanStateUpdateOptions) []string {
+	if options.DryRun {
+		return []string{fmt.Sprintf("plan %s base plan", options.Action)}
+	}
+	return []string{fmt.Sprintf("%s base plan", options.Action)}
 }

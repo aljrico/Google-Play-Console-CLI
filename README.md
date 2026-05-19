@@ -117,6 +117,7 @@ gpc one-time-product-offers get --package com.example.app --product-id coins_100
 gpc subscriptions list --package com.example.app --page-size 50
 gpc subscriptions get --package com.example.app --product-id premium_monthly
 gpc subscriptions batch-get --package com.example.app --product-id premium_monthly --product-id premium_yearly
+gpc subscriptions base-plan deactivate --package com.example.app --product-id premium_monthly --base-plan-id monthly --dry-run
 gpc subscription-offers list --package com.example.app --product-id premium_monthly --base-plan-id monthly
 gpc subscription-offers get --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro
 gpc subscription-offers batch-get --package com.example.app --product-id - --base-plan-id - --offer premium_monthly/monthly/intro --offer premium_yearly/annual/winback

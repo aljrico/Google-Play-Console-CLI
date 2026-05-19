@@ -547,6 +547,46 @@ func (p GooglePublisher) BatchGetSubscriptions(ctx context.Context, options Subs
 	return subscriptionBatchGetResultFromAPI(options, response), nil
 }
 
+func (p GooglePublisher) UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error) {
+	latencyTolerance := productUpdateLatencyToleranceToAPI(options.LatencyTolerance)
+	var (
+		subscription *androidpublisher.Subscription
+		err          error
+	)
+	switch options.Action {
+	case BasePlanStateActionActivate:
+		subscription, err = p.service.Monetization.Subscriptions.BasePlans.Activate(
+			options.PackageName.String(),
+			options.ProductID.String(),
+			options.BasePlanID.String(),
+			&androidpublisher.ActivateBasePlanRequest{
+				PackageName:      options.PackageName.String(),
+				ProductId:        options.ProductID.String(),
+				BasePlanId:       options.BasePlanID.String(),
+				LatencyTolerance: latencyTolerance,
+			},
+		).Context(ctx).Do()
+	case BasePlanStateActionDeactivate:
+		subscription, err = p.service.Monetization.Subscriptions.BasePlans.Deactivate(
+			options.PackageName.String(),
+			options.ProductID.String(),
+			options.BasePlanID.String(),
+			&androidpublisher.DeactivateBasePlanRequest{
+				PackageName:      options.PackageName.String(),
+				ProductId:        options.ProductID.String(),
+				BasePlanId:       options.BasePlanID.String(),
+				LatencyTolerance: latencyTolerance,
+			},
+		).Context(ctx).Do()
+	default:
+		return Subscription{}, fmt.Errorf("unsupported base plan state action %q", options.Action)
+	}
+	if err != nil {
+		return Subscription{}, fmt.Errorf("%s base plan %s for %s/%s: %w", options.Action, options.BasePlanID, options.PackageName, options.ProductID, err)
+	}
+	return subscriptionFromAPI(subscription), nil
+}
+
 func (p GooglePublisher) ListSubscriptionOffers(ctx context.Context, options SubscriptionOfferListOptions) (SubscriptionOfferListResult, error) {
 	call := p.service.Monetization.Subscriptions.BasePlans.Offers.List(
 		options.PackageName.String(),

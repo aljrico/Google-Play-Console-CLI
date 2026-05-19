@@ -1713,9 +1713,55 @@ gpc subscriptions
 
 #### Commands
 
+- `gpc subscriptions base-plan`: Manage subscription base plans
 - `gpc subscriptions batch-get`: Get multiple monetization subscriptions
 - `gpc subscriptions get`: Get one monetization subscription
 - `gpc subscriptions list`: List monetization subscriptions
+
+#### gpc subscriptions base-plan
+
+Manage subscription base plans
+
+```sh
+gpc subscriptions base-plan
+```
+
+##### Commands
+
+- `gpc subscriptions base-plan activate`: activate a subscription base plan
+- `gpc subscriptions base-plan deactivate`: deactivate a subscription base plan
+
+##### gpc subscriptions base-plan activate
+
+activate a subscription base plan
+
+```sh
+gpc subscriptions base-plan activate [flags]
+```
+
+###### Flags
+
+- `--base-plan-id`: Subscription base plan ID
+- `--confirm`: Apply the base plan state update (default `false`)
+- `--dry-run`: Print the planned base plan state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: Subscription product ID
+
+##### gpc subscriptions base-plan deactivate
+
+deactivate a subscription base plan
+
+```sh
+gpc subscriptions base-plan deactivate [flags]
+```
+
+###### Flags
+
+- `--base-plan-id`: Subscription base plan ID
+- `--confirm`: Apply the base plan state update (default `false`)
+- `--dry-run`: Print the planned base plan state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: Subscription product ID
 
 #### gpc subscriptions batch-get
 

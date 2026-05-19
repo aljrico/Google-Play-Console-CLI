@@ -20,7 +20,88 @@ func newSubscriptionsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 		newSubscriptionsListCommand(out, options, &packageName),
 		newSubscriptionsGetCommand(out, options, &packageName),
 		newSubscriptionsBatchGetCommand(out, options, &packageName),
+		newSubscriptionsBasePlanCommand(out, options, &packageName),
 	)
+	return cmd
+}
+
+func newSubscriptionsBasePlanCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "base-plan",
+		Short: "Manage subscription base plans",
+	}
+	cmd.AddCommand(
+		newSubscriptionsBasePlanStateCommand(out, options, packageName, play.BasePlanStateActionActivate),
+		newSubscriptionsBasePlanStateCommand(out, options, packageName, play.BasePlanStateActionDeactivate),
+	)
+	return cmd
+}
+
+func newSubscriptionsBasePlanStateCommand(out io.Writer, options *globalOptions, packageName *string, action play.BasePlanStateAction) *cobra.Command {
+	var (
+		productID        string
+		basePlanID       string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   action.String(),
+		Short: string(action) + " a subscription base plan",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedProductID, err := play.NewSubscriptionProductID(productID)
+			if err != nil {
+				return err
+			}
+			typedBasePlanID, err := play.NewSubscriptionBasePlanID(basePlanID)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			updateOptions := play.BasePlanStateUpdateOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				BasePlanID:       typedBasePlanID,
+				Action:           action,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.UpdateBasePlanState(cmd.Context(), nil, updateOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewBasePlanStateUpdatePlan(updateOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.UpdateBasePlanState(cmd.Context(), publisher, updateOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID")
+	cmd.Flags().StringVar(&basePlanID, "base-plan-id", "", "Subscription base plan ID")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the base plan state update")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned base plan state update without calling Google Play")
 	return cmd
 }
 

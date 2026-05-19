@@ -136,6 +136,78 @@ func TestBatchGetSubscriptionsRejectsDuplicates(t *testing.T) {
 	}
 }
 
+func TestUpdateBasePlanStateDryRunBuildsPlanWithoutUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := UpdateBasePlanState(context.Background(), nil, BasePlanStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "premium",
+		BasePlanID:       "monthly",
+		Action:           BasePlanStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateBasePlanState() error = %v", err)
+	}
+	if !result.DryRun {
+		t.Fatal("DryRun = false, want true")
+	}
+	wantSteps := []string{"plan activate base plan"}
+	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
+		t.Fatalf("steps = %#v, want %#v", result.Plan.Steps, wantSteps)
+	}
+}
+
+func TestUpdateBasePlanStateRequiresConfirmOrDryRun(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewBasePlanStateUpdatePlan(BasePlanStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "premium",
+		BasePlanID:       "monthly",
+		Action:           BasePlanStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+	})
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+}
+
+func TestUpdateBasePlanStatePassesOptionsToUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	updater := &fakeSubscriptionClient{
+		subscription: Subscription{ProductID: "premium"},
+	}
+
+	result, err := UpdateBasePlanState(context.Background(), updater, BasePlanStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "premium",
+		BasePlanID:       "monthly",
+		Action:           BasePlanStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateBasePlanState() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatal("Applied = false, want true")
+	}
+	if updater.stateOptions.Action != BasePlanStateActionDeactivate {
+		t.Fatalf("Action = %q, want deactivate", updater.stateOptions.Action)
+	}
+}
+
 type fakeSubscriptionClient struct {
 	listOptions  SubscriptionListOptions
 	listResult   SubscriptionListResult
@@ -143,6 +215,7 @@ type fakeSubscriptionClient struct {
 	batchResult  SubscriptionBatchGetResult
 	productID    SubscriptionProductID
 	subscription Subscription
+	stateOptions BasePlanStateUpdateOptions
 }
 
 func (c *fakeSubscriptionClient) ListSubscriptions(ctx context.Context, options SubscriptionListOptions) (SubscriptionListResult, error) {
@@ -158,4 +231,9 @@ func (c *fakeSubscriptionClient) GetSubscription(ctx context.Context, packageNam
 func (c *fakeSubscriptionClient) BatchGetSubscriptions(ctx context.Context, options SubscriptionBatchGetOptions) (SubscriptionBatchGetResult, error) {
 	c.batchOptions = options
 	return c.batchResult, nil
+}
+
+func (c *fakeSubscriptionClient) UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error) {
+	c.stateOptions = options
+	return c.subscription, nil
 }

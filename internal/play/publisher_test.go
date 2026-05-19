@@ -2763,6 +2763,48 @@ func TestBatchGetSubscriptionsUsesRepeatedProductIDs(t *testing.T) {
 	}
 }
 
+func TestUpdateBasePlanStateUsesDeactivateEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium/basePlans/monthly:deactivate" {
+			t.Fatalf("path = %q, want base plan deactivate endpoint", r.URL.Path)
+		}
+		var request androidpublisher.DeactivateBasePlanRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.PackageName != "com.example.app" || request.ProductId != "premium" || request.BasePlanId != "monthly" {
+			t.Fatalf("request = %#v, want identifiers", request)
+		}
+		if request.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+			t.Fatalf("LatencyTolerance = %q, want tolerant", request.LatencyTolerance)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{
+			"packageName": "com.example.app",
+			"productId": "premium",
+			"basePlans": [{"basePlanId": "monthly", "state": "INACTIVE"}]
+		}`)
+	}))
+
+	subscription, err := publisher.UpdateBasePlanState(context.Background(), BasePlanStateUpdateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "premium",
+		BasePlanID:       "monthly",
+		Action:           BasePlanStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateBasePlanState() error = %v", err)
+	}
+	if len(subscription.BasePlans) != 1 || subscription.BasePlans[0].State != SubscriptionStateInactive {
+		t.Fatalf("BasePlans = %#v, want inactive", subscription.BasePlans)
+	}
+}
+
 func newTestPublisher(t *testing.T, handler http.Handler) GooglePublisher {
 	t.Helper()
 	server := httptest.NewServer(handler)
