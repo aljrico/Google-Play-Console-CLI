@@ -53,17 +53,24 @@ func newOneTimeProductsPurchaseOptionBatchDeleteCommand(out io.Writer, options *
 	cmd := &cobra.Command{
 		Use:   "batch-delete",
 		Short: "Delete one-time product purchase options",
-		Args:  cobra.NoArgs,
+		Long: "Delete one-time product purchase options. Each request must target a different one-time product. " +
+			"Omit --product-id to infer the parent path from --purchase-option values; pass --product-id - only when deleting across multiple products. " +
+			"--force also deletes offers under each purchase option.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, err := play.NewPackageName(*packageName)
 			if err != nil {
 				return err
 			}
-			typedParentProductID, err := play.NewOneTimeProductBatchParentProductID(parentProductID)
+			typedPurchaseOptions, err := parsePurchaseOptionBatchDeleteRequests(purchaseOptions)
 			if err != nil {
 				return err
 			}
-			typedPurchaseOptions, err := parsePurchaseOptionBatchDeleteRequests(purchaseOptions)
+			resolvedParentProductID := parentProductID
+			if resolvedParentProductID == "" {
+				resolvedParentProductID = inferPurchaseOptionBatchDeleteParentProductID(typedPurchaseOptions)
+			}
+			typedParentProductID, err := play.NewOneTimeProductBatchParentProductID(resolvedParentProductID)
 			if err != nil {
 				return err
 			}
@@ -101,7 +108,7 @@ func newOneTimeProductsPurchaseOptionBatchDeleteCommand(out io.Writer, options *
 			return output.Write(out, options.output, options.pretty, result)
 		},
 	}
-	cmd.Flags().StringVar(&parentProductID, "product-id", play.OneTimeProductWildcardID, "Parent one-time product ID, or - when deleting across products")
+	cmd.Flags().StringVar(&parentProductID, "product-id", "", "Parent one-time product ID, or - when deleting across products; inferred when omitted")
 	cmd.Flags().StringArrayVar(&purchaseOptions, "purchase-option", nil, "Purchase option to delete as productId/purchaseOptionId; repeatable, up to 100")
 	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
 	cmd.Flags().BoolVar(&force, "force", false, "Also delete associated offers under each purchase option")
@@ -120,6 +127,19 @@ func parsePurchaseOptionBatchDeleteRequests(values []string) ([]play.PurchaseOpt
 		requests = append(requests, request)
 	}
 	return requests, nil
+}
+
+func inferPurchaseOptionBatchDeleteParentProductID(requests []play.PurchaseOptionBatchDeleteRequest) string {
+	if len(requests) == 0 {
+		return ""
+	}
+	firstProductID := requests[0].ProductID.String()
+	for _, request := range requests[1:] {
+		if request.ProductID.String() != firstProductID {
+			return play.OneTimeProductWildcardID
+		}
+	}
+	return firstProductID
 }
 
 func newOneTimeProductsPurchaseOptionStateCommand(out io.Writer, options *globalOptions, packageName *string, action play.PurchaseOptionStateAction) *cobra.Command {

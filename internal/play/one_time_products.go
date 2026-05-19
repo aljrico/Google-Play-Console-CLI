@@ -551,6 +551,12 @@ func (o PurchaseOptionBatchDeleteOptions) Validate() error {
 		}
 		seenProducts[request.ProductID] = struct{}{}
 	}
+	if len(seenProducts) == 1 && o.ParentProductID.IsWildcard() {
+		return fmt.Errorf("single-product purchase option batch-delete requires parent product ID, not %q", OneTimeProductWildcardID)
+	}
+	if len(seenProducts) > 1 && !o.ParentProductID.IsWildcard() {
+		return fmt.Errorf("multi-product purchase option batch-delete requires parent product ID %q", OneTimeProductWildcardID)
+	}
 	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
 		return err
 	}

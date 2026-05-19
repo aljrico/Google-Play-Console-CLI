@@ -4585,6 +4585,36 @@ func TestOneTimeProductsPurchaseOptionBatchDeleteRequiresConfirmOrDryRunBeforeAu
 	}
 }
 
+func TestOneTimeProductsPurchaseOptionBatchDeleteInfersSingleParentBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-products",
+		"purchase-option",
+		"batch-delete",
+		"--package",
+		"com.example.app",
+		"--purchase-option",
+		"coins_100/buy",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, `"parentProductId":"coins_100"`) {
+		t.Fatalf("output = %s, want inferred parent product", output)
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestOneTimeProductsPurchaseOptionBatchDeleteRejectsRepeatedProductBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

@@ -1537,7 +1537,7 @@ gpc one-time-products purchase-option batch-delete [flags]
 - `--dry-run`: Print the planned purchase option batch deletion without calling Google Play (default `false`)
 - `--force`: Also delete associated offers under each purchase option (default `false`)
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
-- `--product-id`: Parent one-time product ID, or - when deleting across products (default `-`)
+- `--product-id`: Parent one-time product ID, or - when deleting across products; inferred when omitted
 - `--purchase-option`: Purchase option to delete as productId/purchaseOptionId; repeatable, up to 100 (default `[]`)
 
 ##### gpc one-time-products purchase-option deactivate

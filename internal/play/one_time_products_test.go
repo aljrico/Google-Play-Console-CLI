@@ -361,6 +361,24 @@ func TestBatchDeletePurchaseOptionsRejectsParentMismatch(t *testing.T) {
 	}
 }
 
+func TestBatchDeletePurchaseOptionsRejectsSingleProductWildcardParent(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchDeletePurchaseOptions(context.Background(), nil, PurchaseOptionBatchDeleteOptions{
+		PackageName:      packageName,
+		ParentProductID:  OneTimeProductBatchParentProductID(OneTimeProductWildcardID),
+		Requests:         []PurchaseOptionBatchDeleteRequest{{ProductID: "coins_100", PurchaseOptionID: "buy"}},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected single-product wildcard parent validation error")
+	}
+}
+
 func TestBatchDeletePurchaseOptionsPassesOptionsToDeleter(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {

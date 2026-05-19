@@ -3261,6 +3261,36 @@ func TestGooglePublisherBatchDeletePurchaseOptionsUsesBatchDeleteEndpoint(t *tes
 	}
 }
 
+func TestGooglePublisherBatchDeletePurchaseOptionsUsesConcreteParentEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions:batchDelete" {
+			t.Fatalf("path = %q, want concrete purchase options batch-delete endpoint", r.URL.Path)
+		}
+		var request androidpublisher.BatchDeletePurchaseOptionsRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if len(request.Requests) != 1 || request.Requests[0].ProductId != "coins_100" {
+			t.Fatalf("Requests = %#v, want concrete product request", request.Requests)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	err := publisher.BatchDeletePurchaseOptions(context.Background(), PurchaseOptionBatchDeleteOptions{
+		PackageName:      "com.example.app",
+		ParentProductID:  "coins_100",
+		Requests:         []PurchaseOptionBatchDeleteRequest{{ProductID: "coins_100", PurchaseOptionID: "buy"}},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchDeletePurchaseOptions() error = %v", err)
+	}
+}
+
 func TestGooglePublisherBatchDeletePurchaseOptionsRejectsDryRunBeforeRequest(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -3268,7 +3298,7 @@ func TestGooglePublisherBatchDeletePurchaseOptionsRejectsDryRunBeforeRequest(t *
 
 	err := publisher.BatchDeletePurchaseOptions(context.Background(), PurchaseOptionBatchDeleteOptions{
 		PackageName:      "com.example.app",
-		ParentProductID:  OneTimeProductBatchParentProductID(OneTimeProductWildcardID),
+		ParentProductID:  "coins_100",
 		Requests:         []PurchaseOptionBatchDeleteRequest{{ProductID: "coins_100", PurchaseOptionID: "buy"}},
 		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
 		DryRun:           true,
