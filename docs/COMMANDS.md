@@ -35,6 +35,7 @@ gpc [flags]
 - `gpc internal-sharing`: Upload artifacts to Google Play internal app sharing
 - `gpc listings`: Manage localized Google Play store listings
 - `gpc migrate`: Inspect local metadata for migration
+- `gpc notifications`: Inspect Google Play notification payloads
 - `gpc notify`: Send release workflow notifications
 - `gpc one-time-product-offers`: Inspect Google Play one-time product offers
 - `gpc one-time-products`: Inspect Google Play one-time products
@@ -784,6 +785,43 @@ gpc migrate supply inspect [flags]
 ###### Flags
 
 - `--directory`: fastlane supply metadata directory (default `fastlane/metadata/android`)
+
+### gpc notifications
+
+Inspect Google Play notification payloads
+
+```sh
+gpc notifications
+```
+
+#### Commands
+
+- `gpc notifications rtdn`: Inspect real-time developer notifications
+
+#### gpc notifications rtdn
+
+Inspect real-time developer notifications
+
+```sh
+gpc notifications rtdn
+```
+
+##### Commands
+
+- `gpc notifications rtdn decode`: Decode a Pub/Sub RTDN push payload
+
+##### gpc notifications rtdn decode
+
+Decode a Pub/Sub RTDN push payload
+
+```sh
+gpc notifications rtdn decode [flags]
+```
+
+###### Flags
+
+- `--data`: Inline Pub/Sub push JSON payload
+- `--file`: Pub/Sub push JSON payload file
 
 ### gpc notify
 

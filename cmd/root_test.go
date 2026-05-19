@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -674,7 +676,44 @@ func TestSnitchReportOutputsIssueURLWithoutAuth(t *testing.T) {
 	}
 }
 
-func writeRootTestPathContent(t *testing.T, path string, content string) {
+func TestNotificationsRTDNDecodeOutputsKindWithoutAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	notification := `{"version":"1.0","packageName":"com.example.app","eventTimeMillis":1700000000000,"testNotification":{"version":"1.0"}}`
+	payload := fmt.Sprintf(`{"message":{"data":%q,"messageId":"136969346945"},"subscription":"projects/example/subscriptions/play-rtdn"}`, base64.StdEncoding.EncodeToString([]byte(notification)))
+	path := writeRootTestPathContent(t, filepath.Join(t.TempDir(), "pubsub.json"), payload)
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"notifications",
+		"rtdn",
+		"decode",
+		"--file",
+		path,
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"kind":"test"`,
+		`"messageId":"136969346945"`,
+		`"packageName":"com.example.app"`,
+		`"testNotification":{"version":"1.0"}`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func writeRootTestPathContent(t *testing.T, path string, content string) string {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
@@ -682,6 +721,7 @@ func writeRootTestPathContent(t *testing.T, path string, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
+	return path
 }
 
 func TestDiffJSONOutputsChangesWithoutAuth(t *testing.T) {

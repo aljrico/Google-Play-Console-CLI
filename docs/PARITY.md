@@ -132,7 +132,7 @@ Sources:
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `workflow` | `workflow` | N/A | tested | `gpc workflow list` reads `.gpc/workflow.json`; `gpc workflow run NAME` executes steps sequentially or prints the plan with `--dry-run`. |
-| `webhooks` | `notifications` | Pub/Sub and Real-time developer notifications | planned | Likely separate setup from Android Publisher REST. |
+| `webhooks` | `notifications` | Pub/Sub and Real-time developer notifications | tested | `gpc notifications rtdn decode` decodes Google Play real-time developer notifications from Pub/Sub push payloads. Pub/Sub setup automation remains planned. |
 | `notify` | `notify` | N/A | tested | `gpc notify send` posts generic JSON webhook notifications with dry-run/confirm gating and redacted endpoint output. Service-specific adapters remain planned. |
 | `migrate` | `migrate` | N/A | tested | `gpc migrate supply inspect` inventories fastlane supply metadata directories by locale, listing files, changelogs, image sets, and unknown files as stable JSON. Conversion/import remains planned. |
 | `diff` | `diff` | N/A | tested | `gpc diff json FROM TO` compares local JSON payloads with deterministic JSON Pointer paths and optional `--fail-on-change` CI behavior. |
