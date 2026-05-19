@@ -40,6 +40,7 @@ gpc auth login \
 
 gpc auth status
 gpc auth doctor
+gpc account status
 gpc init --dry-run
 ```
 
@@ -54,6 +55,7 @@ gpc docs parity --output markdown
 gpc docs commands --output markdown
 gpc install-skills list
 gpc install-skills --skill gpc-cli-usage --dry-run
+gpc account status
 gpc schema --resource edits.tracks --method list --pretty
 gpc diff json ./metadata.old.json ./metadata.new.json --fail-on-change
 gpc workflow list

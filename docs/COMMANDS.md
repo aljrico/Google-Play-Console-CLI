@@ -15,6 +15,7 @@ gpc [flags]
 
 ### Commands
 
+- `gpc account`: Inspect local Google Play account configuration
 - `gpc app-recovery`: Inspect and manage Google Play app recovery actions
 - `gpc apps`: Inspect Google Play apps
 - `gpc auth`: Manage Google Play API authentication
@@ -53,6 +54,18 @@ gpc [flags]
 - `gpc version`: Print version information
 - `gpc vitals`: Inspect Google Play Developer Reporting vitals
 - `gpc workflow`: Run repo-local gpc workflows
+
+### gpc account
+
+Inspect local Google Play account configuration
+
+```sh
+gpc account
+```
+
+#### Commands
+
+- `gpc account status`: Summarize local account and service account health
 
 ### gpc app-recovery
 
