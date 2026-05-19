@@ -2189,6 +2189,56 @@ func TestSubscriptionsListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestOneTimeProductsListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-products",
+		"list",
+		"--package",
+		"com.example.app",
+		"--page-size",
+		"1001",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected page size validation error")
+	}
+	if !strings.Contains(err.Error(), "page size") {
+		t.Fatalf("error = %v, want page size validation", err)
+	}
+}
+
+func TestOneTimeProductsGetRejectsInvalidProductIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-products",
+		"get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"Coins",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected product ID validation error")
+	}
+	if !strings.Contains(err.Error(), "one-time product ID") {
+		t.Fatalf("error = %v, want product ID validation", err)
+	}
+}
+
 func TestSubscriptionsGetRejectsInvalidProductIDBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

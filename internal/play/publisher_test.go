@@ -2247,6 +2247,123 @@ func TestVoidedPurchaseJSONPreservesZeroReasonSourceAndQuantity(t *testing.T) {
 	}
 }
 
+func TestListOneTimeProductsUsesMonetizationEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts" {
+			t.Fatalf("path = %q, want one-time products list endpoint", r.URL.Path)
+		}
+		assertQueryValue(t, r.URL.Query(), "pageSize", "50")
+		assertQueryValue(t, r.URL.Query(), "pageToken", "next")
+		_, _ = w.Write([]byte(`{
+			"nextPageToken": "later",
+			"oneTimeProducts": [
+				{
+					"packageName": "com.example.app",
+					"productId": "coins_100",
+					"listings": [{"languageCode": "en-US", "title": "Coins", "description": "A pile of coins"}],
+					"offerTags": [{"tag": "coins"}],
+					"purchaseOptions": [
+						{
+							"purchaseOptionId": "buy",
+							"state": "ACTIVE",
+							"buyOption": {"legacyCompatible": true, "multiQuantityEnabled": true},
+							"regionalPricingAndAvailabilityConfigs": [
+								{
+									"regionCode": "US",
+									"availability": "AVAILABLE",
+									"price": {"currencyCode": "USD", "units": "4", "nanos": 990000000}
+								}
+							],
+							"newRegionsConfig": {
+								"availability": "AVAILABLE",
+								"usdPrice": {"currencyCode": "USD", "units": "4"},
+								"eurPrice": {"currencyCode": "EUR", "units": "4"}
+							},
+							"taxAndComplianceSettings": {"withdrawalRightType": "WITHDRAWAL_RIGHT_DIGITAL_CONTENT"}
+						}
+					],
+					"restrictedPaymentCountries": {"regionCodes": ["US"]},
+					"taxAndComplianceSettings": {
+						"isTokenizedDigitalAsset": true,
+						"productTaxCategoryCode": "P2",
+						"regionalTaxConfigs": [
+							{"regionCode": "US", "eligibleForStreamingServiceTaxRate": true, "streamingTaxType": "STREAMING_TAX_TYPE_TELCO_VIDEO_SALES", "taxTier": "TAX_TIER_NEWS_1"}
+						]
+					}
+				}
+			]
+		}`))
+	}))
+
+	result, err := publisher.ListOneTimeProducts(context.Background(), OneTimeProductListOptions{
+		PackageName: "com.example.app",
+		PageSize:    50,
+		PageToken:   "next",
+	})
+	if err != nil {
+		t.Fatalf("ListOneTimeProducts() error = %v", err)
+	}
+	if result.NextPageToken != "later" {
+		t.Fatalf("NextPageToken = %q, want later", result.NextPageToken)
+	}
+	if len(result.Products) != 1 {
+		t.Fatalf("len(Products) = %d, want 1", len(result.Products))
+	}
+	product := result.Products[0]
+	if product.ProductID != "coins_100" {
+		t.Fatalf("ProductID = %q, want coins_100", product.ProductID)
+	}
+	if len(product.PurchaseOptions) != 1 {
+		t.Fatalf("len(PurchaseOptions) = %d, want 1", len(product.PurchaseOptions))
+	}
+	option := product.PurchaseOptions[0]
+	if option.Type != OneTimeProductPurchaseOptionTypeBuy || !option.LegacyCompatible || !option.MultiQuantityEnabled {
+		t.Fatalf("purchase option = %#v, want buy option flags", option)
+	}
+	if option.RegionalConfigs[0].Price == nil || option.RegionalConfigs[0].Price.Units != 4 {
+		t.Fatalf("regional price = %#v, want four units", option.RegionalConfigs[0].Price)
+	}
+	if product.TaxAndComplianceSettings == nil || !product.TaxAndComplianceSettings.IsTokenizedDigitalAsset {
+		t.Fatalf("TaxAndComplianceSettings = %#v, want tokenized asset", product.TaxAndComplianceSettings)
+	}
+}
+
+func TestGetOneTimeProductUsesMonetizationEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/rental_1" {
+			t.Fatalf("path = %q, want one-time product get endpoint", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{
+			"packageName": "com.example.app",
+			"productId": "rental_1",
+			"purchaseOptions": [
+				{
+					"purchaseOptionId": "rent",
+					"state": "DRAFT",
+					"rentOption": {"rentalPeriod": "P30D", "expirationPeriod": "P2D"}
+				}
+			]
+		}`))
+	}))
+
+	product, err := publisher.GetOneTimeProduct(context.Background(), "com.example.app", "rental_1")
+	if err != nil {
+		t.Fatalf("GetOneTimeProduct() error = %v", err)
+	}
+	if product.ProductID != "rental_1" {
+		t.Fatalf("ProductID = %q, want rental_1", product.ProductID)
+	}
+	if len(product.PurchaseOptions) != 1 {
+		t.Fatalf("len(PurchaseOptions) = %d, want 1", len(product.PurchaseOptions))
+	}
+	if product.PurchaseOptions[0].Type != OneTimeProductPurchaseOptionTypeRent {
+		t.Fatalf("Type = %q, want rent", product.PurchaseOptions[0].Type)
+	}
+	if product.PurchaseOptions[0].RentalPeriod != "P30D" {
+		t.Fatalf("RentalPeriod = %q, want P30D", product.PurchaseOptions[0].RentalPeriod)
+	}
+}
+
 func newTestPublisher(t *testing.T, handler http.Handler) GooglePublisher {
 	t.Helper()
 	server := httptest.NewServer(handler)

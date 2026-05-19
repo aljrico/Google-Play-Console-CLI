@@ -359,6 +359,29 @@ func (p GooglePublisher) GetInAppProduct(ctx context.Context, packageName Packag
 	return inAppProductFromAPI(product), nil
 }
 
+func (p GooglePublisher) ListOneTimeProducts(ctx context.Context, options OneTimeProductListOptions) (OneTimeProductListResult, error) {
+	call := p.service.Monetization.Onetimeproducts.List(options.PackageName.String()).Context(ctx)
+	if options.PageSize > 0 {
+		call.PageSize(options.PageSize)
+	}
+	if options.PageToken != "" {
+		call.PageToken(options.PageToken)
+	}
+	response, err := call.Do()
+	if err != nil {
+		return OneTimeProductListResult{}, fmt.Errorf("list one-time products for %s: %w", options.PackageName, err)
+	}
+	return oneTimeProductListResultFromAPI(options, response), nil
+}
+
+func (p GooglePublisher) GetOneTimeProduct(ctx context.Context, packageName PackageName, productID OneTimeProductID) (OneTimeProduct, error) {
+	product, err := p.service.Monetization.Onetimeproducts.Get(packageName.String(), productID.String()).Context(ctx).Do()
+	if err != nil {
+		return OneTimeProduct{}, fmt.Errorf("get one-time product %s for %s: %w", productID, packageName, err)
+	}
+	return oneTimeProductFromAPI(product), nil
+}
+
 func (p GooglePublisher) ListSubscriptions(ctx context.Context, options SubscriptionListOptions) (SubscriptionListResult, error) {
 	call := p.service.Monetization.Subscriptions.List(options.PackageName.String()).Context(ctx)
 	if options.PageSize > 0 {
@@ -1299,6 +1322,152 @@ func inAppProductListingsFromAPI(apiListings map[string]androidpublisher.InAppPr
 		}
 	}
 	return listings
+}
+
+func oneTimeProductListResultFromAPI(options OneTimeProductListOptions, response *androidpublisher.ListOneTimeProductsResponse) OneTimeProductListResult {
+	result := OneTimeProductListResult{
+		PackageName: options.PackageName,
+		Products:    []OneTimeProduct{},
+		Options:     options,
+	}
+	if response == nil {
+		return result
+	}
+	result.NextPageToken = response.NextPageToken
+	for _, apiProduct := range response.OneTimeProducts {
+		result.Products = append(result.Products, oneTimeProductFromAPI(apiProduct))
+	}
+	return result
+}
+
+func oneTimeProductFromAPI(apiProduct *androidpublisher.OneTimeProduct) OneTimeProduct {
+	if apiProduct == nil {
+		return OneTimeProduct{Listings: []OneTimeProductListing{}, PurchaseOptions: []OneTimeProductPurchaseOption{}}
+	}
+	return OneTimeProduct{
+		PackageName:              PackageName(apiProduct.PackageName),
+		ProductID:                OneTimeProductID(apiProduct.ProductId),
+		Listings:                 oneTimeProductListingsFromAPI(apiProduct.Listings),
+		OfferTags:                offerTagsFromAPI(apiProduct.OfferTags),
+		PurchaseOptions:          oneTimeProductPurchaseOptionsFromAPI(apiProduct.PurchaseOptions),
+		RestrictedCountries:      restrictedCountriesFromAPI(apiProduct.RestrictedPaymentCountries),
+		TaxAndComplianceSettings: oneTimeProductTaxComplianceSettingsFromAPI(apiProduct.TaxAndComplianceSettings),
+	}
+}
+
+func oneTimeProductListingsFromAPI(apiListings []*androidpublisher.OneTimeProductListing) []OneTimeProductListing {
+	listings := make([]OneTimeProductListing, 0, len(apiListings))
+	for _, apiListing := range apiListings {
+		if apiListing == nil {
+			continue
+		}
+		listings = append(listings, OneTimeProductListing{
+			LanguageCode: apiListing.LanguageCode,
+			Title:        apiListing.Title,
+			Description:  apiListing.Description,
+		})
+	}
+	return listings
+}
+
+func oneTimeProductPurchaseOptionsFromAPI(apiOptions []*androidpublisher.OneTimeProductPurchaseOption) []OneTimeProductPurchaseOption {
+	options := make([]OneTimeProductPurchaseOption, 0, len(apiOptions))
+	for _, apiOption := range apiOptions {
+		if apiOption == nil {
+			continue
+		}
+		options = append(options, oneTimeProductPurchaseOptionFromAPI(apiOption))
+	}
+	return options
+}
+
+func oneTimeProductPurchaseOptionFromAPI(apiOption *androidpublisher.OneTimeProductPurchaseOption) OneTimeProductPurchaseOption {
+	option := OneTimeProductPurchaseOption{
+		PurchaseOptionID:         apiOption.PurchaseOptionId,
+		State:                    apiOption.State,
+		OfferTags:                offerTagsFromAPI(apiOption.OfferTags),
+		RegionalConfigs:          oneTimeProductRegionalConfigsFromAPI(apiOption.RegionalPricingAndAvailabilityConfigs),
+		NewRegionsConfig:         oneTimeProductNewRegionsConfigFromAPI(apiOption.NewRegionsConfig),
+		TaxAndComplianceSettings: oneTimeProductPurchaseOptionTaxComplianceSettingsFromAPI(apiOption.TaxAndComplianceSettings),
+	}
+	switch {
+	case apiOption.BuyOption != nil:
+		option.Type = OneTimeProductPurchaseOptionTypeBuy
+		option.LegacyCompatible = apiOption.BuyOption.LegacyCompatible
+		option.MultiQuantityEnabled = apiOption.BuyOption.MultiQuantityEnabled
+	case apiOption.RentOption != nil:
+		option.Type = OneTimeProductPurchaseOptionTypeRent
+		option.RentalPeriod = apiOption.RentOption.RentalPeriod
+		option.ExpirationPeriod = apiOption.RentOption.ExpirationPeriod
+	}
+	return option
+}
+
+func oneTimeProductRegionalConfigsFromAPI(apiConfigs []*androidpublisher.OneTimeProductPurchaseOptionRegionalPricingAndAvailabilityConfig) []OneTimeProductRegionalConfig {
+	if len(apiConfigs) == 0 {
+		return nil
+	}
+	configs := make([]OneTimeProductRegionalConfig, 0, len(apiConfigs))
+	for _, apiConfig := range apiConfigs {
+		if apiConfig == nil {
+			continue
+		}
+		configs = append(configs, OneTimeProductRegionalConfig{
+			RegionCode:   apiConfig.RegionCode,
+			Availability: apiConfig.Availability,
+			Price:        moneyFromAPI(apiConfig.Price),
+		})
+	}
+	return configs
+}
+
+func oneTimeProductNewRegionsConfigFromAPI(apiConfig *androidpublisher.OneTimeProductPurchaseOptionNewRegionsConfig) *OneTimeProductNewRegionsPricingAndAvailability {
+	if apiConfig == nil {
+		return nil
+	}
+	return &OneTimeProductNewRegionsPricingAndAvailability{
+		Availability: apiConfig.Availability,
+		USDPrice:     moneyFromAPI(apiConfig.UsdPrice),
+		EURPrice:     moneyFromAPI(apiConfig.EurPrice),
+	}
+}
+
+func oneTimeProductTaxComplianceSettingsFromAPI(apiSettings *androidpublisher.OneTimeProductTaxAndComplianceSettings) *OneTimeProductTaxComplianceSetting {
+	if apiSettings == nil {
+		return nil
+	}
+	return &OneTimeProductTaxComplianceSetting{
+		IsTokenizedDigitalAsset: apiSettings.IsTokenizedDigitalAsset,
+		RegionalTaxConfigs:      regionalTaxConfigsFromAPI(apiSettings.RegionalTaxConfigs),
+	}
+}
+
+func regionalTaxConfigsFromAPI(apiConfigs []*androidpublisher.RegionalTaxConfig) []RegionalTaxConfig {
+	if len(apiConfigs) == 0 {
+		return nil
+	}
+	configs := make([]RegionalTaxConfig, 0, len(apiConfigs))
+	for _, apiConfig := range apiConfigs {
+		if apiConfig == nil {
+			continue
+		}
+		configs = append(configs, RegionalTaxConfig{
+			RegionCode:                         apiConfig.RegionCode,
+			EligibleForStreamingServiceTaxRate: apiConfig.EligibleForStreamingServiceTaxRate,
+			StreamingTaxType:                   apiConfig.StreamingTaxType,
+			TaxTier:                            apiConfig.TaxTier,
+		})
+	}
+	return configs
+}
+
+func oneTimeProductPurchaseOptionTaxComplianceSettingsFromAPI(apiSettings *androidpublisher.PurchaseOptionTaxAndComplianceSettings) *OneTimeProductPurchaseOptionTaxComplianceSettings {
+	if apiSettings == nil {
+		return nil
+	}
+	return &OneTimeProductPurchaseOptionTaxComplianceSettings{
+		WithdrawalRightType: apiSettings.WithdrawalRightType,
+	}
 }
 
 func managedProductTaxComplianceSettingsFromAPI(apiSettings *androidpublisher.ManagedProductTaxAndComplianceSettings) *ProductTaxComplianceSettings {
