@@ -1337,6 +1337,7 @@ gpc one-time-product-offers
 - `gpc one-time-product-offers batch-delete`: Delete multiple one-time product offers
 - `gpc one-time-product-offers batch-get`: Get multiple one-time product offers
 - `gpc one-time-product-offers batch-patch-availability`: Batch patch one-time product offer regional availability
+- `gpc one-time-product-offers batch-patch-relative-discounts`: Batch patch one-time product offer relative discounts
 - `gpc one-time-product-offers cancel`: cancel a one-time product offer
 - `gpc one-time-product-offers deactivate`: deactivate a one-time product offer
 - `gpc one-time-product-offers get`: Get a one-time product offer
@@ -1458,6 +1459,24 @@ gpc one-time-product-offers batch-patch-availability [flags]
 - `--product-id`: Parent one-time product ID, or - for offers across products; inferred when omitted
 - `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
 - `--regions-version`: Google Play regions version required by oneTimeProductOffers.batchUpdate
+
+#### gpc one-time-product-offers batch-patch-relative-discounts
+
+Batch patch one-time product offer relative discounts
+
+```sh
+gpc one-time-product-offers batch-patch-relative-discounts [flags]
+```
+
+##### Flags
+
+- `--confirm`: Apply the one-time product offer relative discount batch patch (default `false`)
+- `--dry-run`: Print the planned one-time product offer relative discount batch patch without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: Parent one-time product ID, or - for offers across products; inferred when omitted
+- `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
+- `--regions-version`: Google Play regions version required by oneTimeProductOffers.batchUpdate
+- `--relative-discount`: Relative discount patch as productId/purchaseOptionId/offerId/REGION:0.75, where 0.75 means the user pays 75% of the purchase option price; repeatable (default `[]`)
 
 #### gpc one-time-product-offers cancel
 

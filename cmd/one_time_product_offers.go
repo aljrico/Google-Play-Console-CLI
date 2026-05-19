@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
@@ -24,6 +25,7 @@ func newOneTimeProductOffersCommand(out io.Writer, options *globalOptions) *cobr
 		newOneTimeProductOffersBatchGetCommand(out, options, &packageName),
 		newOneTimeProductOffersBatchDeleteCommand(out, options, &packageName),
 		newOneTimeProductOffersBatchPatchAvailabilityCommand(out, options, &packageName),
+		newOneTimeProductOffersBatchPatchRelativeDiscountsCommand(out, options, &packageName),
 		newOneTimeProductOffersBatchStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionActivate),
 		newOneTimeProductOffersBatchStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionDeactivate),
 		newOneTimeProductOffersBatchStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionCancel),
@@ -120,6 +122,95 @@ func newOneTimeProductOffersBatchPatchAvailabilityCommand(out io.Writer, options
 	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the one-time product offer availability batch patch")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product offer availability batch patch without calling Google Play")
+	return cmd
+}
+
+func newOneTimeProductOffersBatchPatchRelativeDiscountsCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID        string
+		purchaseOptionID string
+		relativeDiscount []string
+		regionsVersion   string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-patch-relative-discounts",
+		Short: "Batch patch one-time product offer relative discounts",
+		Long: "Batch patch one-time product offer relative discounts. Omit parent IDs to infer the narrowest valid parent path from --relative-discount values. " +
+			"Use --product-id - when the batch spans products, and --purchase-option-id - when it spans purchase options.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			requests, err := parseOneTimeProductOfferRelativeDiscountPatches(relativeDiscount)
+			if err != nil {
+				return err
+			}
+			if len(requests) == 0 {
+				return play.OneTimeProductOfferBatchPatchRelativeDiscountsOptions{PackageName: typedPackageName}.Validate()
+			}
+			mutationRequests := oneTimeProductOfferRelativeDiscountPatchesToMutationRequests(requests)
+			resolvedProductID, resolvedPurchaseOptionID := inferOneTimeProductOfferBatchParent(productID, purchaseOptionID, mutationRequests)
+			typedProductID, err := play.NewOneTimeProductOfferListProductID(resolvedProductID)
+			if err != nil {
+				return err
+			}
+			typedPurchaseOptionID, err := play.NewOneTimeProductOfferListPurchaseOptionID(resolvedPurchaseOptionID)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			patchOptions := play.OneTimeProductOfferBatchPatchRelativeDiscountsOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				PurchaseOptionID: typedPurchaseOptionID,
+				Requests:         requests,
+				RegionsVersion:   regionsVersion,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.BatchPatchOneTimeProductOfferRelativeDiscounts(cmd.Context(), nil, patchOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewOneTimeProductOfferBatchPatchRelativeDiscountsPlan(patchOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchPatchOneTimeProductOfferRelativeDiscounts(cmd.Context(), publisher, patchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	addOneTimeProductOfferParentFlags(
+		cmd,
+		&productID,
+		&purchaseOptionID,
+		"Parent one-time product ID, or - for offers across products; inferred when omitted",
+		"Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted",
+	)
+	cmd.Flags().StringArrayVar(&relativeDiscount, "relative-discount", nil, "Relative discount patch as productId/purchaseOptionId/offerId/REGION:0.75, where 0.75 means the user pays 75% of the purchase option price; repeatable")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by oneTimeProductOffers.batchUpdate")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the one-time product offer relative discount batch patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product offer relative discount batch patch without calling Google Play")
 	return cmd
 }
 
@@ -653,11 +744,73 @@ func parseOneTimeProductOfferAvailabilityValue(value string) (play.OneTimeProduc
 	}
 }
 
+func parseOneTimeProductOfferRelativeDiscountPatches(values []string) ([]play.OneTimeProductOfferRelativeDiscountPatchRequest, error) {
+	requests := make([]play.OneTimeProductOfferRelativeDiscountPatchRequest, 0, len(values))
+	for _, value := range values {
+		request, err := parseOneTimeProductOfferRelativeDiscountPatch(value)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, nil
+}
+
+func parseOneTimeProductOfferRelativeDiscountPatch(value string) (play.OneTimeProductOfferRelativeDiscountPatchRequest, error) {
+	path, rawRelativeDiscount, ok := strings.Cut(strings.TrimSpace(value), ":")
+	if !ok {
+		return play.OneTimeProductOfferRelativeDiscountPatchRequest{}, errOneTimeProductOfferRelativeDiscountFormat()
+	}
+	parts := strings.Split(path, "/")
+	if len(parts) != 4 {
+		return play.OneTimeProductOfferRelativeDiscountPatchRequest{}, errOneTimeProductOfferRelativeDiscountFormat()
+	}
+	productID, err := play.NewOneTimeProductID(parts[0])
+	if err != nil {
+		return play.OneTimeProductOfferRelativeDiscountPatchRequest{}, err
+	}
+	purchaseOptionID, err := play.NewOneTimeProductPurchaseOptionID(parts[1])
+	if err != nil {
+		return play.OneTimeProductOfferRelativeDiscountPatchRequest{}, err
+	}
+	offerID, err := play.NewOneTimeProductOfferID(parts[2])
+	if err != nil {
+		return play.OneTimeProductOfferRelativeDiscountPatchRequest{}, err
+	}
+	relativeDiscount, err := strconv.ParseFloat(strings.TrimSpace(rawRelativeDiscount), 64)
+	if err != nil {
+		return play.OneTimeProductOfferRelativeDiscountPatchRequest{}, errOneTimeProductOfferRelativeDiscountFormat()
+	}
+	return play.OneTimeProductOfferRelativeDiscountPatchRequest{
+		ProductID:        productID,
+		PurchaseOptionID: purchaseOptionID,
+		OfferID:          offerID,
+		RegionCode:       strings.ToUpper(strings.TrimSpace(parts[3])),
+		RelativeDiscount: relativeDiscount,
+	}, nil
+}
+
 func errOneTimeProductOfferAvailabilityFormat() error {
 	return fmt.Errorf("one-time product offer availability must use productId/purchaseOptionId/offerId/REGION:available|noLongerAvailable")
 }
 
+func errOneTimeProductOfferRelativeDiscountFormat() error {
+	return fmt.Errorf("one-time product offer relative discount must use productId/purchaseOptionId/offerId/REGION:0.5")
+}
+
 func oneTimeProductOfferAvailabilityPatchesToMutationRequests(requests []play.OneTimeProductOfferAvailabilityPatchRequest) []play.OneTimeProductOfferBatchMutationRequest {
+	mutations := make([]play.OneTimeProductOfferBatchMutationRequest, 0, len(requests))
+	for _, request := range requests {
+		mutations = append(mutations, play.OneTimeProductOfferBatchMutationRequest{
+			ProductID:        request.ProductID,
+			PurchaseOptionID: request.PurchaseOptionID,
+			OfferID:          request.OfferID,
+		})
+	}
+	return mutations
+}
+
+func oneTimeProductOfferRelativeDiscountPatchesToMutationRequests(requests []play.OneTimeProductOfferRelativeDiscountPatchRequest) []play.OneTimeProductOfferBatchMutationRequest {
 	mutations := make([]play.OneTimeProductOfferBatchMutationRequest, 0, len(requests))
 	for _, request := range requests {
 		mutations = append(mutations, play.OneTimeProductOfferBatchMutationRequest{

@@ -3,6 +3,7 @@ package play
 import (
 	"context"
 	"fmt"
+	"math"
 	"reflect"
 	"testing"
 )
@@ -515,6 +516,117 @@ func TestBatchPatchOneTimeProductOfferAvailabilityPassesOptionsToPatcher(t *test
 	}
 }
 
+func TestBatchPatchOneTimeProductOfferRelativeDiscountsDryRunBuildsPlanWithoutPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchPatchOneTimeProductOfferRelativeDiscounts(context.Background(), nil, OneTimeProductOfferBatchPatchRelativeDiscountsOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferRelativeDiscountPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "US", RelativeDiscount: 0.5},
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "FR", RelativeDiscount: 0.25},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchOneTimeProductOfferRelativeDiscounts() error = %v", err)
+	}
+	if !result.DryRun || result.Applied {
+		t.Fatalf("result = %#v, want dry-run relative discount patch", result)
+	}
+	if result.Plan.UpdateMask != oneTimeProductOfferRegionalConfigsUpdateMask {
+		t.Fatalf("UpdateMask = %q, want %q", result.Plan.UpdateMask, oneTimeProductOfferRegionalConfigsUpdateMask)
+	}
+	if len(result.Desired) != 1 || len(result.Desired[0].RegionalConfigs) != 2 {
+		t.Fatalf("Desired = %#v, want one offer with two regional configs", result.Desired)
+	}
+}
+
+func TestBatchPatchOneTimeProductOfferRelativeDiscountsRejectsInvalidDiscount(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewOneTimeProductOfferBatchPatchRelativeDiscountsPlan(OneTimeProductOfferBatchPatchRelativeDiscountsOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferRelativeDiscountPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "US", RelativeDiscount: math.NaN()},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected relative discount validation error")
+	}
+}
+
+func TestBatchPatchOneTimeProductOfferRelativeDiscountsRejectsDuplicateOfferRegion(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewOneTimeProductOfferBatchPatchRelativeDiscountsPlan(OneTimeProductOfferBatchPatchRelativeDiscountsOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferRelativeDiscountPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "US", RelativeDiscount: 0.5},
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "US", RelativeDiscount: 0.25},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate offer region validation error")
+	}
+}
+
+func TestBatchPatchOneTimeProductOfferRelativeDiscountsPassesOptionsToPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	patcher := &fakeOneTimeProductOfferClient{
+		batchRelativeDiscountResult: OneTimeProductOfferBatchPatchRelativeDiscountsResult{
+			Offers: []OneTimeProductOffer{{OfferID: "intro"}},
+		},
+	}
+	options := OneTimeProductOfferBatchPatchRelativeDiscountsOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferRelativeDiscountPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "US", RelativeDiscount: 0.5},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := BatchPatchOneTimeProductOfferRelativeDiscounts(context.Background(), patcher, options)
+	if err != nil {
+		t.Fatalf("BatchPatchOneTimeProductOfferRelativeDiscounts() error = %v", err)
+	}
+	if !result.Applied || len(result.Offers) != 1 {
+		t.Fatalf("result = %#v, want applied offer", result)
+	}
+	if !reflect.DeepEqual(patcher.batchRelativeDiscountOptions, options) {
+		t.Fatalf("batchRelativeDiscountOptions = %#v, want %#v", patcher.batchRelativeDiscountOptions, options)
+	}
+}
+
 func TestUpdateOneTimeProductOfferStateDryRunBuildsPlanWithoutUpdater(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -593,18 +705,20 @@ func TestUpdateOneTimeProductOfferStatePassesOptionsToUpdater(t *testing.T) {
 }
 
 type fakeOneTimeProductOfferClient struct {
-	listOptions              OneTimeProductOfferListOptions
-	listResult               OneTimeProductOfferListResult
-	batchOptions             OneTimeProductOfferBatchGetOptions
-	batchResult              OneTimeProductOfferBatchGetResult
-	batchDeleteOptions       OneTimeProductOfferBatchDeleteOptions
-	batchStateOptions        OneTimeProductOfferBatchStateUpdateOptions
-	batchStateResult         OneTimeProductOfferBatchStateUpdateResult
-	batchAvailabilityOptions OneTimeProductOfferBatchPatchAvailabilityOptions
-	batchAvailabilityResult  OneTimeProductOfferBatchPatchAvailabilityResult
-	getOptions               OneTimeProductOfferGetOptions
-	stateOptions             OneTimeProductOfferStateUpdateOptions
-	offer                    OneTimeProductOffer
+	listOptions                  OneTimeProductOfferListOptions
+	listResult                   OneTimeProductOfferListResult
+	batchOptions                 OneTimeProductOfferBatchGetOptions
+	batchResult                  OneTimeProductOfferBatchGetResult
+	batchDeleteOptions           OneTimeProductOfferBatchDeleteOptions
+	batchStateOptions            OneTimeProductOfferBatchStateUpdateOptions
+	batchStateResult             OneTimeProductOfferBatchStateUpdateResult
+	batchAvailabilityOptions     OneTimeProductOfferBatchPatchAvailabilityOptions
+	batchAvailabilityResult      OneTimeProductOfferBatchPatchAvailabilityResult
+	batchRelativeDiscountOptions OneTimeProductOfferBatchPatchRelativeDiscountsOptions
+	batchRelativeDiscountResult  OneTimeProductOfferBatchPatchRelativeDiscountsResult
+	getOptions                   OneTimeProductOfferGetOptions
+	stateOptions                 OneTimeProductOfferStateUpdateOptions
+	offer                        OneTimeProductOffer
 }
 
 func (c *fakeOneTimeProductOfferClient) ListOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferListOptions) (OneTimeProductOfferListResult, error) {
@@ -635,6 +749,11 @@ func (c *fakeOneTimeProductOfferClient) BatchUpdateOneTimeProductOfferStates(ctx
 func (c *fakeOneTimeProductOfferClient) BatchPatchOneTimeProductOfferAvailability(ctx context.Context, options OneTimeProductOfferBatchPatchAvailabilityOptions) (OneTimeProductOfferBatchPatchAvailabilityResult, error) {
 	c.batchAvailabilityOptions = options
 	return c.batchAvailabilityResult, nil
+}
+
+func (c *fakeOneTimeProductOfferClient) BatchPatchOneTimeProductOfferRelativeDiscounts(ctx context.Context, options OneTimeProductOfferBatchPatchRelativeDiscountsOptions) (OneTimeProductOfferBatchPatchRelativeDiscountsResult, error) {
+	c.batchRelativeDiscountOptions = options
+	return c.batchRelativeDiscountResult, nil
 }
 
 func (c *fakeOneTimeProductOfferClient) UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error) {

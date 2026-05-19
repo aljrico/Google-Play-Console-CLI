@@ -5802,6 +5802,115 @@ func TestOneTimeProductOffersBatchPatchAvailabilityRejectsMalformedPatchBeforeAu
 	}
 }
 
+func TestOneTimeProductOffersBatchPatchRelativeDiscountsDryRunInfersParentsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"batch-patch-relative-discounts",
+		"--package",
+		"com.example.app",
+		"--relative-discount",
+		"coins_100/buy/intro/us:0.5",
+		"--relative-discount",
+		"coins_100/rent/winback/FR:0.25",
+		"--regions-version",
+		"2026/05",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"productId":"coins_100"`,
+		`"purchaseOptionId":"-"`,
+		`"offerId":"intro"`,
+		`"regionCode":"US"`,
+		`"relativeDiscount":0.5`,
+		`"updateMask":"regionalPricingAndAvailabilityConfigs"`,
+		`"regionsVersion":"2026/05"`,
+		`"latencyTolerance":"latencyTolerant"`,
+		`"dryRun":true`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestOneTimeProductOffersBatchPatchRelativeDiscountsRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"batch-patch-relative-discounts",
+		"--package",
+		"com.example.app",
+		"--relative-discount",
+		"coins_100/buy/intro/US:0.5",
+		"--regions-version",
+		"2026/05",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirmation gate")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestOneTimeProductOffersBatchPatchRelativeDiscountsRejectsMalformedPatchBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"batch-patch-relative-discounts",
+		"--package",
+		"com.example.app",
+		"--relative-discount",
+		"coins_100/buy/intro:0.5",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected relative discount format validation error")
+	}
+	if !strings.Contains(err.Error(), "productId/purchaseOptionId/offerId/REGION:0.5") {
+		t.Fatalf("error = %v, want relative discount format validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestPurchaseOptionBatchPatchAvailabilityDryRunBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
