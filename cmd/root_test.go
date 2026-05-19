@@ -3943,6 +3943,47 @@ func TestInAppProductsPatchPriceAndListingDryRunDoesNotRequireAuth(t *testing.T)
 	}
 }
 
+func TestInAppProductsPatchRegionalPricesDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"patch",
+		"--package",
+		"com.example.app",
+		"--sku",
+		"coins_100",
+		"--regional-price",
+		"US:USD:2990000",
+		"--regional-price",
+		"BR:BRL:9990000",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"regionCode":"US"`,
+		`"currency":"BRL"`,
+		`"priceMicros":"9990000"`,
+		`"autoConvertMissingPrices":true`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestInAppProductsPatchRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

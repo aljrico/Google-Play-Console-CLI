@@ -410,6 +410,23 @@ func TestNewProductPriceRejectsInvalidMicros(t *testing.T) {
 	}
 }
 
+func TestNewRegionalProductPriceParsesRegionCurrencyAndMicros(t *testing.T) {
+	price, err := NewRegionalProductPrice("us:usd:2990000")
+	if err != nil {
+		t.Fatalf("NewRegionalProductPrice() error = %v", err)
+	}
+	if price.RegionCode != "US" || price.Price.Currency != "USD" || price.Price.PriceMicros != "2990000" {
+		t.Fatalf("price = %#v, want US USD 2990000", price)
+	}
+}
+
+func TestNewRegionalProductPriceRejectsInvalidRegion(t *testing.T) {
+	_, err := NewRegionalProductPrice("USA:USD:2990000")
+	if err == nil {
+		t.Fatal("expected region validation error")
+	}
+}
+
 func TestCreateInAppProductDryRunBuildsManagedProductPlan(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -647,6 +664,33 @@ func TestPatchInAppProductDryRunBuildsPriceAndListingPlan(t *testing.T) {
 	}
 }
 
+func TestPatchInAppProductDryRunBuildsRegionalPricePlan(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	regionalPrice, err := NewRegionalProductPrice("US:USD:2990000")
+	if err != nil {
+		t.Fatalf("NewRegionalProductPrice() error = %v", err)
+	}
+
+	result, err := PatchInAppProduct(context.Background(), nil, InAppProductPatchOptions{
+		PackageName:    packageName,
+		SKU:            "coins_100",
+		RegionalPrices: []RegionalProductPrice{regionalPrice},
+		DryRun:         true,
+	})
+	if err != nil {
+		t.Fatalf("PatchInAppProduct() error = %v", err)
+	}
+	if result.Desired.Prices["US"].PriceMicros != "2990000" {
+		t.Fatalf("Prices = %#v, want US 2990000 micros", result.Desired.Prices)
+	}
+	if len(result.Plan.RegionalPrices) != 1 || !result.Plan.AutoConvertMissingPrices {
+		t.Fatalf("Plan = %#v, want one regional price with auto-conversion", result.Plan)
+	}
+}
+
 func TestPatchInAppProductRequiresConfirmOrDryRun(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -729,6 +773,27 @@ func TestPatchInAppProductRejectsConfirmAndDryRun(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected mutually exclusive flag validation error")
+	}
+}
+
+func TestPatchInAppProductRejectsDuplicateRegionalPrice(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	usPrice, err := NewRegionalProductPrice("US:USD:2990000")
+	if err != nil {
+		t.Fatalf("NewRegionalProductPrice() error = %v", err)
+	}
+
+	_, err = PatchInAppProduct(context.Background(), nil, InAppProductPatchOptions{
+		PackageName:    packageName,
+		SKU:            "coins_100",
+		RegionalPrices: []RegionalProductPrice{usPrice, usPrice},
+		DryRun:         true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate regional price validation error")
 	}
 }
 

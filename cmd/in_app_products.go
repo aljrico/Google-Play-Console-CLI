@@ -359,6 +359,7 @@ func newInAppProductsPatchCommand(out io.Writer, options *globalOptions, package
 		defaultLanguage string
 		listingLanguage string
 		defaultPrice    string
+		regionalPrices  []string
 		title           string
 		description     string
 		confirm         bool
@@ -412,6 +413,13 @@ func newInAppProductsPatchCommand(out io.Writer, options *globalOptions, package
 				}
 				patchOptions.DefaultPrice = &typedDefaultPrice
 			}
+			for _, regionalPrice := range regionalPrices {
+				typedRegionalPrice, err := play.NewRegionalProductPrice(regionalPrice)
+				if err != nil {
+					return err
+				}
+				patchOptions.RegionalPrices = append(patchOptions.RegionalPrices, typedRegionalPrice)
+			}
 			if title != "" || description != "" {
 				patchOptions.Listing = &play.InAppProductListing{
 					Title:       title,
@@ -426,6 +434,7 @@ func newInAppProductsPatchCommand(out io.Writer, options *globalOptions, package
 	cmd.Flags().StringVar(&defaultLanguage, "default-language", "", "Default BCP-47 listing language to set on the product")
 	cmd.Flags().StringVar(&listingLanguage, "listing-language", "", "BCP-47 listing language to update when --title and --description are set")
 	cmd.Flags().StringVar(&defaultPrice, "default-price", "", "Default checkout price as CURRENCY:MICROS, for example USD:1990000")
+	cmd.Flags().StringArrayVar(&regionalPrices, "regional-price", nil, "Regional checkout price as REGION:CURRENCY:MICROS, for example US:USD:2990000; repeatable")
 	cmd.Flags().StringVar(&title, "title", "", "Default listing title")
 	cmd.Flags().StringVar(&description, "description", "", "Default listing description")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the managed in-app product patch")

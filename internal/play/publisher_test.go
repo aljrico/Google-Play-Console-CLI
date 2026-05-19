@@ -789,6 +789,53 @@ func TestGooglePublisherPatchInAppProductSendsPriceAndListingPatch(t *testing.T)
 	}
 }
 
+func TestGooglePublisherPatchInAppProductSendsRegionalPricesPatch(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Fatalf("method = %s, want PATCH", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/inappproducts/coins_100" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("autoConvertMissingPrices"); got != "true" {
+			t.Fatalf("autoConvertMissingPrices = %q, want true", got)
+		}
+		var request androidpublisher.InAppProduct
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.Prices["US"].PriceMicros != "2990000" || request.Prices["BR"].Currency != "BRL" {
+			t.Fatalf("Prices = %#v, want US and BR regional prices", request.Prices)
+		}
+		if request.DefaultPrice != nil {
+			t.Fatalf("DefaultPrice = %#v, want omitted", request.DefaultPrice)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","sku":"coins_100","prices":{"US":{"currency":"USD","priceMicros":"2990000"},"BR":{"currency":"BRL","priceMicros":"9990000"}}}`)
+	}))
+	usPrice, err := NewRegionalProductPrice("US:USD:2990000")
+	if err != nil {
+		t.Fatalf("NewRegionalProductPrice() error = %v", err)
+	}
+	brPrice, err := NewRegionalProductPrice("BR:BRL:9990000")
+	if err != nil {
+		t.Fatalf("NewRegionalProductPrice() error = %v", err)
+	}
+
+	product, err := publisher.PatchInAppProduct(context.Background(), InAppProductPatchOptions{
+		PackageName:    "com.example.app",
+		SKU:            "coins_100",
+		RegionalPrices: []RegionalProductPrice{usPrice, brPrice},
+		Confirm:        true,
+	})
+	if err != nil {
+		t.Fatalf("PatchInAppProduct() error = %v", err)
+	}
+	if product.Prices["BR"].PriceMicros != "9990000" {
+		t.Fatalf("product = %#v, want patched regional prices", product)
+	}
+}
+
 func TestGooglePublisherCreateInAppProductSendsManagedProduct(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

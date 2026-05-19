@@ -844,6 +844,7 @@ gpc in-app-products patch [flags]
 - `--description`: Default listing description
 - `--dry-run`: Print the planned managed in-app product patch without calling Google Play (default `false`)
 - `--listing-language`: BCP-47 listing language to update when --title and --description are set
+- `--regional-price`: Regional checkout price as REGION:CURRENCY:MICROS, for example US:USD:2990000; repeatable (default `[]`)
 - `--sku`: In-app product SKU
 - `--status`: Product status: active or inactive
 - `--title`: Default listing title

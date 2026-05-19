@@ -460,7 +460,7 @@ func (p GooglePublisher) PatchInAppProduct(ctx context.Context, options InAppPro
 		return InAppProduct{}, err
 	}
 	call := p.service.Inappproducts.Patch(options.PackageName.String(), options.SKU.String(), inAppProductPatchToAPI(options))
-	if options.DefaultPrice != nil {
+	if shouldAutoConvertInAppProductPatchPrices(options) {
 		call.AutoConvertMissingPrices(true)
 	}
 	product, err := call.Context(ctx).Do()
@@ -2470,6 +2470,9 @@ func inAppProductPatchToAPI(options InAppProductPatchOptions) *androidpublisher.
 	if options.DefaultPrice != nil {
 		product.DefaultPrice = productPriceToAPI(*options.DefaultPrice)
 	}
+	if len(options.RegionalPrices) > 0 {
+		product.Prices = productPricesToAPI(regionalProductPricesToMap(options.RegionalPrices))
+	}
 	if options.Listing != nil {
 		product.Listings = map[string]androidpublisher.InAppProductListing{
 			options.ListingLanguage.String(): {
@@ -2491,6 +2494,17 @@ func productPriceFromAPI(apiPrice *androidpublisher.Price) *ProductPrice {
 
 func productPriceToAPI(price ProductPrice) *androidpublisher.Price {
 	return &androidpublisher.Price{Currency: price.Currency, PriceMicros: price.PriceMicros}
+}
+
+func productPricesToAPI(prices map[string]ProductPrice) map[string]androidpublisher.Price {
+	if len(prices) == 0 {
+		return nil
+	}
+	apiPrices := make(map[string]androidpublisher.Price, len(prices))
+	for region, price := range prices {
+		apiPrices[region] = androidpublisher.Price{Currency: price.Currency, PriceMicros: price.PriceMicros}
+	}
+	return apiPrices
 }
 
 func productPricesFromAPI(apiPrices map[string]androidpublisher.Price) map[string]ProductPrice {

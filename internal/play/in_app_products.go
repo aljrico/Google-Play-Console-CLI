@@ -68,6 +68,11 @@ type ProductPrice struct {
 	PriceMicros string `json:"priceMicros,omitempty"`
 }
 
+type RegionalProductPrice struct {
+	RegionCode string       `json:"regionCode"`
+	Price      ProductPrice `json:"price"`
+}
+
 func NewProductPrice(value string) (ProductPrice, error) {
 	currency, priceMicros, ok := strings.Cut(strings.TrimSpace(value), ":")
 	if !ok {
@@ -100,6 +105,22 @@ func (p ProductPrice) Validate() error {
 		return fmt.Errorf("price micros must be a positive integer")
 	}
 	return nil
+}
+
+func NewRegionalProductPrice(value string) (RegionalProductPrice, error) {
+	region, rawPrice, ok := strings.Cut(strings.TrimSpace(value), ":")
+	if !ok {
+		return RegionalProductPrice{}, fmt.Errorf("regional price must be formatted as REGION:CURRENCY:MICROS")
+	}
+	regionCode := strings.ToUpper(strings.TrimSpace(region))
+	if !isValidRegionCode(regionCode) {
+		return RegionalProductPrice{}, fmt.Errorf("regional price region must be a two-letter ISO 3166 code")
+	}
+	price, err := NewProductPrice(rawPrice)
+	if err != nil {
+		return RegionalProductPrice{}, err
+	}
+	return RegionalProductPrice{RegionCode: regionCode, Price: price}, nil
 }
 
 type InAppProductListing struct {
@@ -651,16 +672,17 @@ func validateInAppProductsBatchDeletePreflight(requestedSKUs []InAppProductSKU, 
 }
 
 type InAppProductPatchOptions struct {
-	PackageName              PackageName          `json:"packageName"`
-	SKU                      InAppProductSKU      `json:"sku"`
-	Status                   ProductStatus        `json:"status,omitempty"`
-	DefaultLanguage          ListingLanguage      `json:"defaultLanguage,omitempty"`
-	DefaultPrice             *ProductPrice        `json:"defaultPrice,omitempty"`
-	ListingLanguage          ListingLanguage      `json:"listingLanguage,omitempty"`
-	Listing                  *InAppProductListing `json:"listing,omitempty"`
-	AutoConvertMissingPrices bool                 `json:"autoConvertMissingPrices"`
-	Confirm                  bool                 `json:"confirm"`
-	DryRun                   bool                 `json:"dryRun"`
+	PackageName              PackageName            `json:"packageName"`
+	SKU                      InAppProductSKU        `json:"sku"`
+	Status                   ProductStatus          `json:"status,omitempty"`
+	DefaultLanguage          ListingLanguage        `json:"defaultLanguage,omitempty"`
+	DefaultPrice             *ProductPrice          `json:"defaultPrice,omitempty"`
+	RegionalPrices           []RegionalProductPrice `json:"regionalPrices,omitempty"`
+	ListingLanguage          ListingLanguage        `json:"listingLanguage,omitempty"`
+	Listing                  *InAppProductListing   `json:"listing,omitempty"`
+	AutoConvertMissingPrices bool                   `json:"autoConvertMissingPrices"`
+	Confirm                  bool                   `json:"confirm"`
+	DryRun                   bool                   `json:"dryRun"`
 }
 
 func (o InAppProductPatchOptions) Validate() error {
@@ -685,6 +707,9 @@ func (o InAppProductPatchOptions) Validate() error {
 			return err
 		}
 	}
+	if err := validateRegionalProductPrices(o.RegionalPrices); err != nil {
+		return err
+	}
 	if o.ListingLanguage != "" {
 		if _, err := NewListingLanguage(o.ListingLanguage.String()); err != nil {
 			return err
@@ -701,7 +726,7 @@ func (o InAppProductPatchOptions) Validate() error {
 		return fmt.Errorf("--listing-language requires --title and --description")
 	}
 	if !o.HasMutation() {
-		return fmt.Errorf("in-app product patch requires at least one of --status, --default-price, --default-language, --listing-language, --title, or --description")
+		return fmt.Errorf("in-app product patch requires at least one of --status, --default-price, --regional-price, --default-language, --listing-language, --title, or --description")
 	}
 	if o.DryRun && o.Confirm {
 		return fmt.Errorf("--confirm and --dry-run cannot be used together")
@@ -713,7 +738,7 @@ func (o InAppProductPatchOptions) Validate() error {
 }
 
 func (o InAppProductPatchOptions) HasMutation() bool {
-	return o.Status != "" || o.DefaultPrice != nil || o.DefaultLanguage != "" || o.ListingLanguage != "" || o.Listing != nil
+	return o.Status != "" || o.DefaultPrice != nil || len(o.RegionalPrices) > 0 || o.DefaultLanguage != "" || o.ListingLanguage != "" || o.Listing != nil
 }
 
 func (o InAppProductPatchOptions) ValidateLive() error {
@@ -730,17 +755,18 @@ func (o InAppProductPatchOptions) ValidateLive() error {
 }
 
 type InAppProductPatchPlan struct {
-	Action                   string               `json:"action"`
-	PackageName              PackageName          `json:"packageName"`
-	SKU                      InAppProductSKU      `json:"sku"`
-	Status                   ProductStatus        `json:"status,omitempty"`
-	DefaultLanguage          ListingLanguage      `json:"defaultLanguage,omitempty"`
-	DefaultPrice             *ProductPrice        `json:"defaultPrice,omitempty"`
-	ListingLanguage          ListingLanguage      `json:"listingLanguage,omitempty"`
-	Listing                  *InAppProductListing `json:"listing,omitempty"`
-	AutoConvertMissingPrices bool                 `json:"autoConvertMissingPrices"`
-	Confirm                  bool                 `json:"confirm"`
-	Steps                    []string             `json:"steps"`
+	Action                   string                 `json:"action"`
+	PackageName              PackageName            `json:"packageName"`
+	SKU                      InAppProductSKU        `json:"sku"`
+	Status                   ProductStatus          `json:"status,omitempty"`
+	DefaultLanguage          ListingLanguage        `json:"defaultLanguage,omitempty"`
+	DefaultPrice             *ProductPrice          `json:"defaultPrice,omitempty"`
+	RegionalPrices           []RegionalProductPrice `json:"regionalPrices,omitempty"`
+	ListingLanguage          ListingLanguage        `json:"listingLanguage,omitempty"`
+	Listing                  *InAppProductListing   `json:"listing,omitempty"`
+	AutoConvertMissingPrices bool                   `json:"autoConvertMissingPrices"`
+	Confirm                  bool                   `json:"confirm"`
+	Steps                    []string               `json:"steps"`
 }
 
 type InAppProductPatchResult struct {
@@ -772,9 +798,10 @@ func PatchInAppProduct(ctx context.Context, patcher InAppProductPatcher, options
 			Status:                   options.Status,
 			DefaultLanguage:          options.DefaultLanguage,
 			DefaultPrice:             options.DefaultPrice,
+			RegionalPrices:           append([]RegionalProductPrice(nil), options.RegionalPrices...),
 			ListingLanguage:          options.ListingLanguage,
 			Listing:                  options.Listing,
-			AutoConvertMissingPrices: options.DefaultPrice != nil,
+			AutoConvertMissingPrices: shouldAutoConvertInAppProductPatchPrices(options),
 			Confirm:                  options.Confirm,
 			Steps:                    inAppProductPatchSteps(options.DryRun),
 		},
@@ -824,12 +851,48 @@ func inAppProductPatchDesiredProduct(options InAppProductPatchOptions) InAppProd
 	if options.DefaultPrice != nil {
 		product.DefaultPrice = options.DefaultPrice
 	}
+	if len(options.RegionalPrices) > 0 {
+		product.Prices = regionalProductPricesToMap(options.RegionalPrices)
+	}
 	if options.Listing != nil {
 		product.Listings = map[string]InAppProductListing{
 			options.ListingLanguage.String(): *options.Listing,
 		}
 	}
 	return product
+}
+
+func shouldAutoConvertInAppProductPatchPrices(options InAppProductPatchOptions) bool {
+	return options.DefaultPrice != nil || len(options.RegionalPrices) > 0
+}
+
+func validateRegionalProductPrices(prices []RegionalProductPrice) error {
+	seen := make(map[string]struct{}, len(prices))
+	for _, regionalPrice := range prices {
+		regionCode := strings.ToUpper(strings.TrimSpace(regionalPrice.RegionCode))
+		if !isValidRegionCode(regionCode) || regionCode != regionalPrice.RegionCode {
+			return fmt.Errorf("regional price region must be a two-letter uppercase ISO 3166 code")
+		}
+		if _, ok := seen[regionCode]; ok {
+			return fmt.Errorf("regional price for region %q is duplicated", regionCode)
+		}
+		seen[regionCode] = struct{}{}
+		if err := regionalPrice.Price.Validate(); err != nil {
+			return fmt.Errorf("regional price for region %q: %w", regionCode, err)
+		}
+	}
+	return nil
+}
+
+func regionalProductPricesToMap(prices []RegionalProductPrice) map[string]ProductPrice {
+	if len(prices) == 0 {
+		return nil
+	}
+	mappedPrices := make(map[string]ProductPrice, len(prices))
+	for _, regionalPrice := range prices {
+		mappedPrices[regionalPrice.RegionCode] = regionalPrice.Price
+	}
+	return mappedPrices
 }
 
 func validateRequiredInAppProductListing(listing InAppProductListing) error {
