@@ -65,7 +65,7 @@ gpc account
 
 #### Commands
 
-- `gpc account status`: Summarize local account and service account health
+- `gpc account status`: Summarize local account and service account metadata
 
 ### gpc app-recovery
 

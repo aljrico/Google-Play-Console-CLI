@@ -50,7 +50,7 @@ func TestAccountStatusReportsMissingProfileWithoutAuth(t *testing.T) {
 	output := buf.String()
 	for _, want := range []string{
 		`"configured":false`,
-		`"serviceAccountValid":false`,
+		`"serviceAccountMetadataOk":false`,
 		`no active auth profile`,
 	} {
 		if !strings.Contains(output, want) {
@@ -96,9 +96,11 @@ func TestAccountStatusReportsServiceAccountMetadata(t *testing.T) {
 		`"configured":true`,
 		`"activeProfile":"default"`,
 		`"serviceAccountFileExists":true`,
+		`"serviceAccountReadable":true`,
+		`"serviceAccountJsonParsed":true`,
 		`"serviceAccountEmail":"gpc@example.iam.gserviceaccount.com"`,
 		`"projectId":"play-project"`,
-		`"serviceAccountValid":true`,
+		`"serviceAccountMetadataOk":true`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -106,6 +108,79 @@ func TestAccountStatusReportsServiceAccountMetadata(t *testing.T) {
 	}
 	if strings.Contains(output, "BEGIN PRIVATE KEY") {
 		t.Fatalf("output leaked private key: %s", output)
+	}
+}
+
+func TestAccountStatusReportsMalformedServiceAccountFileAsExisting(t *testing.T) {
+	root := t.TempDir()
+	configPath := root + "/config.json"
+	serviceAccountPath := root + "/service-account.json"
+	t.Setenv("GPC_CONFIG", configPath)
+	if err := os.WriteFile(serviceAccountPath, []byte("{"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := config.Save(config.Store{
+		ActiveProfile: "default",
+		Profiles: map[string]config.Profile{
+			"default": {
+				Name:               "default",
+				ServiceAccountFile: serviceAccountPath,
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{"account", "status", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"serviceAccountFileExists":true`,
+		`"serviceAccountReadable":true`,
+		`"serviceAccountJsonParsed":false`,
+		`parse service account file`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+}
+
+func TestAccountStatusReportsStaleActiveProfileAsUnconfigured(t *testing.T) {
+	configPath := t.TempDir() + "/config.json"
+	t.Setenv("GPC_CONFIG", configPath)
+	if err := config.Save(config.Store{
+		ActiveProfile: "missing",
+		Profiles: map[string]config.Profile{
+			"other": {
+				Name:               "other",
+				ServiceAccountFile: "/tmp/service-account.json",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{"account", "status", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"configured":false`,
+		`active profile \"missing\" is missing`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
 	}
 }
 
