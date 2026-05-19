@@ -159,6 +159,7 @@ gpc subscriptions list --package com.example.app --page-size 50
 gpc subscriptions get --package com.example.app --product-id premium_monthly
 gpc subscriptions batch-get --package com.example.app --product-id premium_monthly --product-id premium_yearly
 gpc subscriptions create --package com.example.app --product-id premium_monthly --from-json subscription.json --regions-version 2026/05 --dry-run
+gpc subscriptions create --package com.example.app --product-id premium_monthly --listing 'en-US,Premium,Full access' --base-plan-id monthly --billing-period P1M --price US:USD:4:990000000 --regions-version 2026/05 --dry-run
 gpc subscriptions patch --package com.example.app --product-id premium_monthly --listing-language en-US --title "Premium" --description "Full access" --regions-version 2022/02 --dry-run
 gpc subscriptions batch-patch-listings --package com.example.app --listing 'premium_monthly,en-US,Premium,Full access' --listing 'premium_yearly,en-US,Premium Yearly,Full access for a year' --regions-version 2026/05 --dry-run
 gpc subscriptions delete --package com.example.app --product-id premium_draft --dry-run
@@ -292,7 +293,7 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 }
 ```
 
-`subscriptions create --from-json` accepts either Google Play API `Subscription` JSON or `gpc subscriptions get --output json` shape. The `--package` and `--product-id` flags override immutable IDs in the file, and output-only archived/base-plan state is ignored because Play creates draft base plans. The JSON body must include at least one listing and at least one base plan with regional configs. Example:
+`subscriptions create` accepts either Google Play API `Subscription` JSON, `gpc subscriptions get --output json` shape, or basic flags for one auto-renewing base plan. The `--package` and `--product-id` flags override immutable IDs in JSON files, and output-only archived/base-plan state is ignored because Play creates draft base plans. Basic flags require at least one `--listing language,title,description`, `--base-plan-id`, `--billing-period`, and at least one `--price REGION:CURRENCY:UNITS[:NANOS]`; use JSON for prepaid plans, installments, restricted countries, compliance settings, and other advanced fields. The JSON body must include at least one listing and at least one base plan with regional configs. Example:
 
 ```json
 {

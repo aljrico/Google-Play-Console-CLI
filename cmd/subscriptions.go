@@ -34,18 +34,25 @@ func newSubscriptionsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 
 func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	var (
-		productID      string
-		fromJSON       string
-		regionsVersion string
-		confirm        bool
-		dryRun         bool
+		productID        string
+		fromJSON         string
+		listings         []string
+		basePlanID       string
+		billingPeriod    string
+		prices           []string
+		offerTags        []string
+		legacyCompatible bool
+		regionsVersion   string
+		confirm          bool
+		dryRun           bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a draft subscription",
 		Long: "Create a draft subscription from a Google Play API Subscription JSON body or gpc subscription JSON output. " +
-			"Immutable package and product IDs come from flags and override the JSON body; output-only subscription and base-plan state is ignored.",
+			"Basic flags build one auto-renewing base plan; use JSON for prepaid, installments, compliance, restricted countries, or other advanced fields. " +
+			"Immutable package and product IDs come from flags and override JSON bodies; output-only subscription and base-plan state is ignored.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, err := play.NewPackageName(*packageName)
@@ -56,7 +63,21 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 			if err != nil {
 				return err
 			}
-			subscription, err := readSubscriptionJSON(fromJSON)
+			subscription, err := subscriptionCreateBody(subscriptionCreateBodyOptions{
+				FromJSON:         fromJSON,
+				Listings:         listings,
+				BasePlanID:       basePlanID,
+				BillingPeriod:    billingPeriod,
+				Prices:           prices,
+				OfferTags:        offerTags,
+				LegacyCompatible: legacyCompatible,
+				BasicFlagsSet: cmd.Flags().Changed("listing") ||
+					cmd.Flags().Changed("base-plan-id") ||
+					cmd.Flags().Changed("billing-period") ||
+					cmd.Flags().Changed("price") ||
+					cmd.Flags().Changed("offer-tag") ||
+					cmd.Flags().Changed("legacy-compatible"),
+			})
 			if err != nil {
 				return err
 			}
@@ -91,10 +112,66 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 	}
 	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID")
 	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or gpc JSON subscription body")
+	cmd.Flags().StringArrayVar(&listings, "listing", nil, "Basic create listing as CSV language,title,description; repeatable")
+	cmd.Flags().StringVar(&basePlanID, "base-plan-id", "", "Basic create auto-renewing base plan ID")
+	cmd.Flags().StringVar(&billingPeriod, "billing-period", "", "Basic create auto-renewing billing period: P1W, P4W, P1M, P3M, P6M, or P1Y")
+	cmd.Flags().StringArrayVar(&prices, "price", nil, "Basic create regional price as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
+	cmd.Flags().StringArrayVar(&offerTags, "offer-tag", nil, "Basic create base plan offer tag; repeatable")
+	cmd.Flags().BoolVar(&legacyCompatible, "legacy-compatible", true, "Mark the basic auto-renewing base plan as legacy compatible")
 	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by subscriptions.create")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Create the draft subscription")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription creation without calling Google Play")
 	return cmd
+}
+
+type subscriptionCreateBodyOptions struct {
+	FromJSON         string
+	Listings         []string
+	BasePlanID       string
+	BillingPeriod    string
+	Prices           []string
+	OfferTags        []string
+	LegacyCompatible bool
+	BasicFlagsSet    bool
+}
+
+func subscriptionCreateBody(options subscriptionCreateBodyOptions) (play.Subscription, error) {
+	if strings.TrimSpace(options.FromJSON) != "" {
+		if options.UsesBasicFlags() {
+			return play.Subscription{}, fmt.Errorf("--from-json cannot be combined with basic create flags")
+		}
+		return readSubscriptionJSON(options.FromJSON)
+	}
+	if !options.UsesBasicFlags() {
+		return play.Subscription{}, fmt.Errorf("subscription create requires --from-json or basic create flags")
+	}
+	listings, err := parseSubscriptionCreateListings(options.Listings)
+	if err != nil {
+		return play.Subscription{}, err
+	}
+	regionalConfigs, err := parseSubscriptionCreateRegionalPrices(options.Prices)
+	if err != nil {
+		return play.Subscription{}, err
+	}
+	basePlanID, err := play.NewSubscriptionBasePlanID(options.BasePlanID)
+	if err != nil {
+		return play.Subscription{}, err
+	}
+	return play.Subscription{
+		Listings: listings,
+		BasePlans: []play.SubscriptionBasePlan{{
+			BasePlanID:            basePlanID.String(),
+			Type:                  play.SubscriptionBasePlanTypeAutoRenewing,
+			BillingPeriodDuration: options.BillingPeriod,
+			LegacyCompatible:      options.LegacyCompatible,
+			OfferTags:             append([]string(nil), options.OfferTags...),
+			RegionalConfigs:       regionalConfigs,
+		}},
+	}, nil
+}
+
+func (o subscriptionCreateBodyOptions) UsesBasicFlags() bool {
+	return o.BasicFlagsSet
 }
 
 func readSubscriptionJSON(path string) (play.Subscription, error) {
@@ -110,6 +187,81 @@ func readSubscriptionJSON(path string) (play.Subscription, error) {
 		return play.Subscription{}, fmt.Errorf("parse subscription JSON %s: %w", path, err)
 	}
 	return subscription, nil
+}
+
+func parseSubscriptionCreateListings(values []string) ([]play.SubscriptionListing, error) {
+	if len(values) == 0 {
+		return nil, fmt.Errorf("basic subscription create requires at least one --listing")
+	}
+	listings := make([]play.SubscriptionListing, 0, len(values))
+	for _, value := range values {
+		listing, err := parseSubscriptionCreateListing(value)
+		if err != nil {
+			return nil, err
+		}
+		listings = append(listings, listing)
+	}
+	return listings, nil
+}
+
+func parseSubscriptionCreateListing(value string) (play.SubscriptionListing, error) {
+	reader := csv.NewReader(strings.NewReader(value))
+	reader.TrimLeadingSpace = true
+	records, err := reader.ReadAll()
+	if err != nil {
+		return play.SubscriptionListing{}, fmt.Errorf("parse subscription create listing CSV: %w", err)
+	}
+	if len(records) != 1 {
+		return play.SubscriptionListing{}, fmt.Errorf("subscription create listing must contain exactly one CSV record")
+	}
+	fields := records[0]
+	if len(fields) != 3 {
+		return play.SubscriptionListing{}, fmt.Errorf("subscription create listing must be CSV language,title,description")
+	}
+	language, err := play.NewListingLanguage(fields[0])
+	if err != nil {
+		return play.SubscriptionListing{}, err
+	}
+	return play.SubscriptionListing{
+		LanguageCode: language.String(),
+		Title:        fields[1],
+		Description:  fields[2],
+	}, nil
+}
+
+func parseSubscriptionCreateRegionalPrices(values []string) ([]play.SubscriptionRegionalConfig, error) {
+	if len(values) == 0 {
+		return nil, fmt.Errorf("basic subscription create requires at least one --price")
+	}
+	configs := make([]play.SubscriptionRegionalConfig, 0, len(values))
+	for _, value := range values {
+		config, err := parseSubscriptionCreateRegionalPrice(value)
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, config)
+	}
+	return configs, nil
+}
+
+func parseSubscriptionCreateRegionalPrice(value string) (play.SubscriptionRegionalConfig, error) {
+	regionCode, priceValue, ok := strings.Cut(strings.TrimSpace(value), ":")
+	if !ok {
+		return play.SubscriptionRegionalConfig{}, errSubscriptionCreateRegionalPriceFormat()
+	}
+	price, err := parseRegionalPricePatchMoney(priceValue, errSubscriptionCreateRegionalPriceFormat)
+	if err != nil {
+		return play.SubscriptionRegionalConfig{}, err
+	}
+	return play.SubscriptionRegionalConfig{
+		RegionCode:                strings.ToUpper(strings.TrimSpace(regionCode)),
+		NewSubscriberAvailability: true,
+		Price:                     &price,
+	}, nil
+}
+
+func errSubscriptionCreateRegionalPriceFormat() error {
+	return fmt.Errorf("subscription create price must use REGION:CURRENCY:UNITS[:NANOS]")
 }
 
 func newSubscriptionsBatchPatchListingsCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {

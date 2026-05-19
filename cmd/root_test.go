@@ -4647,6 +4647,146 @@ func TestSubscriptionsCreateDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestSubscriptionsCreateBasicFlagsDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--listing",
+		"en-US,Premium,Full access",
+		"--base-plan-id",
+		"monthly",
+		"--billing-period",
+		"P1M",
+		"--price",
+		"us:USD:4:990000000",
+		"--offer-tag",
+		"public",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"productId":"premium"`,
+		`"languageCode":"en-US"`,
+		`"title":"Premium"`,
+		`"basePlanId":"monthly"`,
+		`"type":"autoRenewing"`,
+		`"billingPeriodDuration":"P1M"`,
+		`"legacyCompatible":true`,
+		`"offerTags":["public"]`,
+		`"regionCode":"US"`,
+		`"newSubscriberAvailability":true`,
+		`"currencyCode":"USD"`,
+		`"nanos":990000000`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionsCreateBasicFlagsCanDisableLegacyCompatibility(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--listing",
+		"en-US,Premium,Full access",
+		"--base-plan-id",
+		"monthly",
+		"--billing-period",
+		"P1M",
+		"--price",
+		"US:USD:4",
+		"--legacy-compatible=false",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	if strings.Contains(output, `"legacyCompatible":true`) {
+		t.Fatalf("output = %s, did not expect legacy-compatible base plan", output)
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionsCreateRejectsJSONWithBasicFlagsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "subscription.json")
+	if err := os.WriteFile(bodyPath, []byte(`{
+		"listings":[{"languageCode":"en-US","title":"Premium","description":"Full access"}],
+		"basePlans":[{"basePlanId":"monthly","autoRenewingBasePlanType":{"billingPeriodDuration":"P1M"},"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"4"}}]}]
+	}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--from-json",
+		bodyPath,
+		"--listing",
+		"en-US,Premium,Full access",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected from-json and basic flags validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("error = %v, want combination validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestSubscriptionsCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "subscription.json")
