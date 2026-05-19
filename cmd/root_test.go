@@ -1065,6 +1065,36 @@ func TestAppsListReportsBlockedSurfaceWithoutAuth(t *testing.T) {
 	}
 }
 
+func TestWebStatusDocumentsBlockedSurfaceWithoutAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"web",
+		"status",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"surface":"Play Console browser workflows"`,
+		`"status":"blocked"`,
+		`"alternatives"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestTestersUpdateDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

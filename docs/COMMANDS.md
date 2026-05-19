@@ -61,6 +61,7 @@ gpc [flags]
 - `gpc validate`: Validate a temporary Google Play edit
 - `gpc version`: Print version information
 - `gpc vitals`: Inspect Google Play Developer Reporting vitals
+- `gpc web`: Inspect Play Console browser automation support
 - `gpc workflow`: Run repo-local gpc workflows
 
 ### gpc account
@@ -1974,6 +1975,18 @@ gpc vitals metric-set query [flags]
 - `--start-date`: Start date, inclusive, in YYYY-MM-DD format
 - `--time-zone`: IANA time zone for daily aggregation, for example America/Los_Angeles
 - `--user-cohort`: User cohort where supported: OS_PUBLIC, OS_BETA, or APP_TESTERS
+
+### gpc web
+
+Inspect Play Console browser automation support
+
+```sh
+gpc web
+```
+
+#### Commands
+
+- `gpc web status`: Explain the Play Console browser automation boundary
 
 ### gpc workflow
 

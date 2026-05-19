@@ -80,6 +80,7 @@ func newRootCommand(out io.Writer) *cobra.Command {
 		newOrdersCommand(out, options),
 		newPricingCommand(out, options),
 		newUsersCommand(out, options),
+		newWebCommand(out, options),
 		newWorkflowCommand(out, options),
 	)
 
