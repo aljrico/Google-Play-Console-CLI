@@ -105,6 +105,7 @@ gpc vitals errors reports search --package com.example.app --filter "errorIssueI
 gpc vitals anomalies list --package com.example.app --filter 'activeBetween("2026-05-01T00:00:00Z", "2026-05-19T00:00:00Z")'
 gpc in-app-products list --package com.example.app
 gpc in-app-products get --package com.example.app --sku coins_100
+gpc in-app-products patch --package com.example.app --sku coins_100 --status inactive --dry-run
 gpc one-time-products list --package com.example.app --page-size 50
 gpc one-time-products get --package com.example.app --product-id coins_100
 gpc one-time-product-offers list --package com.example.app --product-id coins_100 --purchase-option-id buy

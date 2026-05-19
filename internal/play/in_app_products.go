@@ -3,6 +3,7 @@ package play
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 type InAppProductSKU string
@@ -33,6 +34,25 @@ const (
 	ProductStatusInactive    ProductStatus = "inactive"
 	ProductStatusUnspecified ProductStatus = "statusUnspecified"
 )
+
+func NewProductStatus(value string) (ProductStatus, error) {
+	status := ProductStatus(strings.TrimSpace(value))
+	switch status {
+	case ProductStatusActive, ProductStatusInactive:
+		return status, nil
+	default:
+		return "", fmt.Errorf("unsupported in-app product status %q; supported values: active, inactive", value)
+	}
+}
+
+func (s ProductStatus) String() string {
+	return string(s)
+}
+
+func (s ProductStatus) Validate() error {
+	_, err := NewProductStatus(s.String())
+	return err
+}
 
 type ProductPrice struct {
 	Currency    string `json:"currency,omitempty"`
@@ -135,4 +155,94 @@ func GetInAppProduct(ctx context.Context, getter InAppProductGetter, options InA
 		return InAppProduct{}, fmt.Errorf("in-app product getter is required")
 	}
 	return getter.GetInAppProduct(ctx, options.PackageName, options.SKU)
+}
+
+type InAppProductPatchOptions struct {
+	PackageName PackageName     `json:"packageName"`
+	SKU         InAppProductSKU `json:"sku"`
+	Status      ProductStatus   `json:"status"`
+	Confirm     bool            `json:"confirm"`
+	DryRun      bool            `json:"dryRun"`
+}
+
+func (o InAppProductPatchOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewInAppProductSKU(o.SKU.String()); err != nil {
+		return err
+	}
+	if err := o.Status.Validate(); err != nil {
+		return err
+	}
+	if !o.DryRun && !o.Confirm {
+		return fmt.Errorf("in-app product patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+type InAppProductPatchPlan struct {
+	Action      string          `json:"action"`
+	PackageName PackageName     `json:"packageName"`
+	SKU         InAppProductSKU `json:"sku"`
+	Status      ProductStatus   `json:"status"`
+	Confirm     bool            `json:"confirm"`
+	Steps       []string        `json:"steps"`
+}
+
+type InAppProductPatchResult struct {
+	Action  string                `json:"action"`
+	DryRun  bool                  `json:"dryRun"`
+	Applied bool                  `json:"applied"`
+	Product *InAppProduct         `json:"product,omitempty"`
+	Desired InAppProduct          `json:"desiredProduct"`
+	Plan    InAppProductPatchPlan `json:"plan"`
+}
+
+type InAppProductPatcher interface {
+	PatchInAppProduct(ctx context.Context, options InAppProductPatchOptions) (InAppProduct, error)
+}
+
+func PatchInAppProduct(ctx context.Context, patcher InAppProductPatcher, options InAppProductPatchOptions) (InAppProductPatchResult, error) {
+	if err := options.Validate(); err != nil {
+		return InAppProductPatchResult{}, err
+	}
+	desired := InAppProduct{
+		PackageName: options.PackageName,
+		SKU:         options.SKU,
+		Status:      options.Status,
+	}
+	result := InAppProductPatchResult{
+		Action:  "patch",
+		DryRun:  options.DryRun,
+		Desired: desired,
+		Plan: InAppProductPatchPlan{
+			Action:      "patch",
+			PackageName: options.PackageName,
+			SKU:         options.SKU,
+			Status:      options.Status,
+			Confirm:     options.Confirm,
+			Steps:       inAppProductPatchSteps(options.DryRun),
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if patcher == nil {
+		return InAppProductPatchResult{}, fmt.Errorf("in-app product patcher is required")
+	}
+	product, err := patcher.PatchInAppProduct(ctx, options)
+	if err != nil {
+		return InAppProductPatchResult{}, err
+	}
+	result.Applied = true
+	result.Product = &product
+	return result, nil
+}
+
+func inAppProductPatchSteps(dryRun bool) []string {
+	if dryRun {
+		return []string{"plan in-app product patch"}
+	}
+	return []string{"patch in-app product"}
 }

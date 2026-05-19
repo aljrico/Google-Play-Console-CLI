@@ -546,6 +546,39 @@ func TestInAppProductListResultFromAPIMapsPagination(t *testing.T) {
 	}
 }
 
+func TestGooglePublisherPatchInAppProductSendsStatusPatch(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Fatalf("method = %s, want PATCH", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/inappproducts/coins_100" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		var request androidpublisher.InAppProduct
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.Status != "inactive" || request.Sku != "coins_100" || request.PackageName != "com.example.app" {
+			t.Fatalf("request = %#v, want status patch", request)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","sku":"coins_100","status":"inactive"}`)
+	}))
+
+	product, err := publisher.PatchInAppProduct(context.Background(), InAppProductPatchOptions{
+		PackageName: "com.example.app",
+		SKU:         "coins_100",
+		Status:      ProductStatusInactive,
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("PatchInAppProduct() error = %v", err)
+	}
+	if product.Status != ProductStatusInactive {
+		t.Fatalf("Status = %q, want inactive", product.Status)
+	}
+}
+
 func TestSubscriptionFromAPIMapsListingsAndBasePlans(t *testing.T) {
 	subscription := subscriptionFromAPI(&androidpublisher.Subscription{
 		PackageName: "com.example.app",

@@ -373,6 +373,19 @@ func (p GooglePublisher) GetInAppProduct(ctx context.Context, packageName Packag
 	return inAppProductFromAPI(product), nil
 }
 
+func (p GooglePublisher) PatchInAppProduct(ctx context.Context, options InAppProductPatchOptions) (InAppProduct, error) {
+	request := &androidpublisher.InAppProduct{
+		PackageName: options.PackageName.String(),
+		Sku:         options.SKU.String(),
+		Status:      options.Status.String(),
+	}
+	product, err := p.service.Inappproducts.Patch(options.PackageName.String(), options.SKU.String(), request).Context(ctx).Do()
+	if err != nil {
+		return InAppProduct{}, fmt.Errorf("patch in-app product %s for %s: %w", options.SKU, options.PackageName, err)
+	}
+	return inAppProductFromAPI(product), nil
+}
+
 func (p GooglePublisher) ListOneTimeProducts(ctx context.Context, options OneTimeProductListOptions) (OneTimeProductListResult, error) {
 	requestURL := googleapi.ResolveRelative(p.basePath, "androidpublisher/v3/applications/{packageName}/oneTimeProducts")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)

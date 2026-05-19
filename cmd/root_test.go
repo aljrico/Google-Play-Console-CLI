@@ -2832,6 +2832,71 @@ func TestInAppProductsGetRejectsMissingSKUBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestInAppProductsPatchDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"patch",
+		"--package",
+		"com.example.app",
+		"--sku",
+		"coins_100",
+		"--status",
+		"inactive",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"action":"patch"`,
+		`"dryRun":true`,
+		`"status":"inactive"`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestInAppProductsPatchRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"patch",
+		"--package",
+		"com.example.app",
+		"--sku",
+		"coins_100",
+		"--status",
+		"active",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirmation validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation validation", err)
+	}
+}
+
 func TestSubscriptionsListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

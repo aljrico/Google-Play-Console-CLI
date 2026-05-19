@@ -664,6 +664,7 @@ gpc in-app-products
 
 - `gpc in-app-products get`: Get one legacy in-app product
 - `gpc in-app-products list`: List legacy in-app products
+- `gpc in-app-products patch`: Patch a legacy in-app product
 
 #### gpc in-app-products get
 
@@ -688,6 +689,21 @@ gpc in-app-products list [flags]
 ##### Flags
 
 - `--token`: Pagination token from a previous response
+
+#### gpc in-app-products patch
+
+Patch a legacy in-app product
+
+```sh
+gpc in-app-products patch [flags]
+```
+
+##### Flags
+
+- `--confirm`: Apply the in-app product patch (default `false`)
+- `--dry-run`: Print the planned in-app product patch without calling Google Play (default `false`)
+- `--sku`: In-app product SKU
+- `--status`: Product status: active or inactive
 
 ### gpc init
 
