@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 
+	oauth2google "golang.org/x/oauth2/google"
 	"google.golang.org/api/androidpublisher/v3"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -26,19 +28,46 @@ func NewPublisherFromActiveProfile(ctx context.Context) (*GooglePublisher, error
 		return nil, fmt.Errorf("no active auth profile; run gpc auth login")
 	}
 
-	service, err := androidpublisher.NewService(
-		ctx,
-		option.WithCredentialsFile(profile.ServiceAccountFile),
-		option.WithScopes(androidpublisher.AndroidpublisherScope),
-	)
+	credentialsJSON, err := os.ReadFile(profile.ServiceAccountFile)
+	if err != nil {
+		return nil, fmt.Errorf("read service account file %s: %w", profile.ServiceAccountFile, err)
+	}
+	jwtConfig, err := oauth2google.JWTConfigFromJSON(credentialsJSON, androidpublisher.AndroidpublisherScope)
+	if err != nil {
+		return nil, fmt.Errorf("parse service account file %s: %w", profile.ServiceAccountFile, err)
+	}
+	httpClient := jwtConfig.Client(ctx)
+	service, err := androidpublisher.NewService(ctx, option.WithHTTPClient(httpClient))
 	if err != nil {
 		return nil, fmt.Errorf("create Google Play API service: %w", err)
 	}
-	return &GooglePublisher{service: service}, nil
+	return &GooglePublisher{service: service, httpClient: httpClient, basePath: service.BasePath}, nil
 }
 
 type GooglePublisher struct {
-	service *androidpublisher.Service
+	service    *androidpublisher.Service
+	httpClient *http.Client
+	basePath   string
+}
+
+func (p GooglePublisher) doJSON(req *http.Request, target any) error {
+	httpClient := p.httpClient
+	if httpClient == nil {
+		return fmt.Errorf("Google Play HTTP client is required")
+	}
+	response, err := httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if err := googleapi.CheckResponse(response); err != nil {
+		return err
+	}
+	decoder := json.NewDecoder(response.Body)
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p GooglePublisher) InsertEdit(ctx context.Context, packageName PackageName) (Edit, error) {
@@ -360,14 +389,24 @@ func (p GooglePublisher) GetInAppProduct(ctx context.Context, packageName Packag
 }
 
 func (p GooglePublisher) ListOneTimeProducts(ctx context.Context, options OneTimeProductListOptions) (OneTimeProductListResult, error) {
-	call := p.service.Monetization.Onetimeproducts.List(options.PackageName.String()).Context(ctx)
+	requestURL := googleapi.ResolveRelative(p.basePath, "androidpublisher/v3/applications/{packageName}/oneTimeProducts")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return OneTimeProductListResult{}, fmt.Errorf("create one-time products list request: %w", err)
+	}
+	googleapi.Expand(req.URL, map[string]string{"packageName": options.PackageName.String()})
+	query := req.URL.Query()
+	query.Set("alt", "json")
+	query.Set("prettyPrint", "false")
 	if options.PageSize > 0 {
-		call.PageSize(options.PageSize)
+		query.Set("pageSize", strconv.FormatInt(options.PageSize, 10))
 	}
 	if options.PageToken != "" {
-		call.PageToken(options.PageToken)
+		query.Set("pageToken", options.PageToken)
 	}
-	response, err := call.Do()
+	req.URL.RawQuery = query.Encode()
+	var response rawOneTimeProductListResponse
+	err = p.doJSON(req, &response)
 	if err != nil {
 		return OneTimeProductListResult{}, fmt.Errorf("list one-time products for %s: %w", options.PackageName, err)
 	}
@@ -375,7 +414,21 @@ func (p GooglePublisher) ListOneTimeProducts(ctx context.Context, options OneTim
 }
 
 func (p GooglePublisher) GetOneTimeProduct(ctx context.Context, packageName PackageName, productID OneTimeProductID) (OneTimeProduct, error) {
-	product, err := p.service.Monetization.Onetimeproducts.Get(packageName.String(), productID.String()).Context(ctx).Do()
+	requestURL := googleapi.ResolveRelative(p.basePath, "androidpublisher/v3/applications/{packageName}/oneTimeProducts/{productId}")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return OneTimeProduct{}, fmt.Errorf("create one-time product get request: %w", err)
+	}
+	googleapi.Expand(req.URL, map[string]string{
+		"packageName": packageName.String(),
+		"productId":   productID.String(),
+	})
+	query := req.URL.Query()
+	query.Set("alt", "json")
+	query.Set("prettyPrint", "false")
+	req.URL.RawQuery = query.Encode()
+	var product rawOneTimeProduct
+	err = p.doJSON(req, &product)
 	if err != nil {
 		return OneTimeProduct{}, fmt.Errorf("get one-time product %s for %s: %w", productID, packageName, err)
 	}
@@ -1324,14 +1377,127 @@ func inAppProductListingsFromAPI(apiListings map[string]androidpublisher.InAppPr
 	return listings
 }
 
-func oneTimeProductListResultFromAPI(options OneTimeProductListOptions, response *androidpublisher.ListOneTimeProductsResponse) OneTimeProductListResult {
+type rawOneTimeProductListResponse struct {
+	NextPageToken   string              `json:"nextPageToken,omitempty"`
+	OneTimeProducts []rawOneTimeProduct `json:"oneTimeProducts,omitempty"`
+}
+
+type rawOneTimeProduct struct {
+	PackageName                string                                  `json:"packageName,omitempty"`
+	ProductID                  string                                  `json:"productId,omitempty"`
+	Listings                   []rawOneTimeProductListing              `json:"listings,omitempty"`
+	OfferTags                  []rawOfferTag                           `json:"offerTags,omitempty"`
+	PurchaseOptions            []rawOneTimeProductPurchaseOption       `json:"purchaseOptions,omitempty"`
+	RegionsVersion             *rawRegionsVersion                      `json:"regionsVersion,omitempty"`
+	RestrictedPaymentCountries *rawRestrictedPaymentCountries          `json:"restrictedPaymentCountries,omitempty"`
+	TaxAndComplianceSettings   *rawOneTimeProductTaxComplianceSettings `json:"taxAndComplianceSettings,omitempty"`
+}
+
+type rawOneTimeProductListing struct {
+	LanguageCode string `json:"languageCode,omitempty"`
+	Title        string `json:"title,omitempty"`
+	Description  string `json:"description,omitempty"`
+}
+
+type rawOfferTag struct {
+	Tag string `json:"tag,omitempty"`
+}
+
+type rawOneTimeProductPurchaseOption struct {
+	PurchaseOptionID                      string                                  `json:"purchaseOptionId,omitempty"`
+	State                                 string                                  `json:"state,omitempty"`
+	BuyOption                             *rawOneTimeProductBuyOption             `json:"buyOption,omitempty"`
+	RentOption                            *rawOneTimeProductRentOption            `json:"rentOption,omitempty"`
+	OfferTags                             []rawOfferTag                           `json:"offerTags,omitempty"`
+	RegionalPricingAndAvailabilityConfigs []rawOneTimeProductRegionalConfig       `json:"regionalPricingAndAvailabilityConfigs,omitempty"`
+	NewRegionsConfig                      *rawOneTimeProductNewRegionsConfig      `json:"newRegionsConfig,omitempty"`
+	TaxAndComplianceSettings              *rawPurchaseOptionTaxComplianceSettings `json:"taxAndComplianceSettings,omitempty"`
+}
+
+type rawOneTimeProductBuyOption struct {
+	LegacyCompatible     bool `json:"legacyCompatible,omitempty"`
+	MultiQuantityEnabled bool `json:"multiQuantityEnabled,omitempty"`
+}
+
+type rawOneTimeProductRentOption struct {
+	RentalPeriod     string `json:"rentalPeriod,omitempty"`
+	ExpirationPeriod string `json:"expirationPeriod,omitempty"`
+}
+
+type rawOneTimeProductRegionalConfig struct {
+	RegionCode   string    `json:"regionCode,omitempty"`
+	Availability string    `json:"availability,omitempty"`
+	Price        *rawMoney `json:"price,omitempty"`
+}
+
+type rawOneTimeProductNewRegionsConfig struct {
+	Availability string    `json:"availability,omitempty"`
+	USDPrice     *rawMoney `json:"usdPrice,omitempty"`
+	EURPrice     *rawMoney `json:"eurPrice,omitempty"`
+}
+
+type rawPurchaseOptionTaxComplianceSettings struct {
+	WithdrawalRightType string `json:"withdrawalRightType,omitempty"`
+}
+
+type rawOneTimeProductTaxComplianceSettings struct {
+	IsTokenizedDigitalAsset       bool                          `json:"isTokenizedDigitalAsset,omitempty"`
+	ProductTaxCategoryCode        string                        `json:"productTaxCategoryCode,omitempty"`
+	RegionalProductAgeRatingInfos []rawRegionalProductAgeRating `json:"regionalProductAgeRatingInfos,omitempty"`
+	RegionalTaxConfigs            []rawRegionalTaxConfig        `json:"regionalTaxConfigs,omitempty"`
+}
+
+type rawRegionalProductAgeRating struct {
+	RegionCode           string `json:"regionCode,omitempty"`
+	ProductAgeRatingTier string `json:"productAgeRatingTier,omitempty"`
+}
+
+type rawRegionalTaxConfig struct {
+	RegionCode                         string `json:"regionCode,omitempty"`
+	EligibleForStreamingServiceTaxRate bool   `json:"eligibleForStreamingServiceTaxRate,omitempty"`
+	StreamingTaxType                   string `json:"streamingTaxType,omitempty"`
+	TaxTier                            string `json:"taxTier,omitempty"`
+}
+
+type rawRestrictedPaymentCountries struct {
+	RegionCodes []string `json:"regionCodes,omitempty"`
+}
+
+type rawRegionsVersion struct {
+	Version string `json:"version,omitempty"`
+}
+
+type rawMoney struct {
+	CurrencyCode string        `json:"currencyCode,omitempty"`
+	Units        flexibleInt64 `json:"units,omitempty"`
+	Nanos        int64         `json:"nanos,omitempty"`
+}
+
+type flexibleInt64 int64
+
+func (i *flexibleInt64) UnmarshalJSON(data []byte) error {
+	var stringValue string
+	if err := json.Unmarshal(data, &stringValue); err == nil {
+		parsed, err := strconv.ParseInt(stringValue, 10, 64)
+		if err != nil {
+			return err
+		}
+		*i = flexibleInt64(parsed)
+		return nil
+	}
+	var numberValue int64
+	if err := json.Unmarshal(data, &numberValue); err != nil {
+		return err
+	}
+	*i = flexibleInt64(numberValue)
+	return nil
+}
+
+func oneTimeProductListResultFromAPI(options OneTimeProductListOptions, response rawOneTimeProductListResponse) OneTimeProductListResult {
 	result := OneTimeProductListResult{
 		PackageName: options.PackageName,
 		Products:    []OneTimeProduct{},
 		Options:     options,
-	}
-	if response == nil {
-		return result
 	}
 	result.NextPageToken = response.NextPageToken
 	for _, apiProduct := range response.OneTimeProducts {
@@ -1340,27 +1506,25 @@ func oneTimeProductListResultFromAPI(options OneTimeProductListOptions, response
 	return result
 }
 
-func oneTimeProductFromAPI(apiProduct *androidpublisher.OneTimeProduct) OneTimeProduct {
-	if apiProduct == nil {
+func oneTimeProductFromAPI(apiProduct rawOneTimeProduct) OneTimeProduct {
+	if apiProduct.PackageName == "" && apiProduct.ProductID == "" {
 		return OneTimeProduct{Listings: []OneTimeProductListing{}, PurchaseOptions: []OneTimeProductPurchaseOption{}}
 	}
 	return OneTimeProduct{
 		PackageName:              PackageName(apiProduct.PackageName),
-		ProductID:                OneTimeProductID(apiProduct.ProductId),
+		ProductID:                OneTimeProductID(apiProduct.ProductID),
 		Listings:                 oneTimeProductListingsFromAPI(apiProduct.Listings),
-		OfferTags:                offerTagsFromAPI(apiProduct.OfferTags),
+		OfferTags:                rawOfferTagsFromAPI(apiProduct.OfferTags),
 		PurchaseOptions:          oneTimeProductPurchaseOptionsFromAPI(apiProduct.PurchaseOptions),
-		RestrictedCountries:      restrictedCountriesFromAPI(apiProduct.RestrictedPaymentCountries),
+		RegionsVersion:           regionsVersionFromAPI(apiProduct.RegionsVersion),
+		RestrictedCountries:      rawRestrictedCountriesFromAPI(apiProduct.RestrictedPaymentCountries),
 		TaxAndComplianceSettings: oneTimeProductTaxComplianceSettingsFromAPI(apiProduct.TaxAndComplianceSettings),
 	}
 }
 
-func oneTimeProductListingsFromAPI(apiListings []*androidpublisher.OneTimeProductListing) []OneTimeProductListing {
+func oneTimeProductListingsFromAPI(apiListings []rawOneTimeProductListing) []OneTimeProductListing {
 	listings := make([]OneTimeProductListing, 0, len(apiListings))
 	for _, apiListing := range apiListings {
-		if apiListing == nil {
-			continue
-		}
 		listings = append(listings, OneTimeProductListing{
 			LanguageCode: apiListing.LanguageCode,
 			Title:        apiListing.Title,
@@ -1370,22 +1534,19 @@ func oneTimeProductListingsFromAPI(apiListings []*androidpublisher.OneTimeProduc
 	return listings
 }
 
-func oneTimeProductPurchaseOptionsFromAPI(apiOptions []*androidpublisher.OneTimeProductPurchaseOption) []OneTimeProductPurchaseOption {
+func oneTimeProductPurchaseOptionsFromAPI(apiOptions []rawOneTimeProductPurchaseOption) []OneTimeProductPurchaseOption {
 	options := make([]OneTimeProductPurchaseOption, 0, len(apiOptions))
 	for _, apiOption := range apiOptions {
-		if apiOption == nil {
-			continue
-		}
 		options = append(options, oneTimeProductPurchaseOptionFromAPI(apiOption))
 	}
 	return options
 }
 
-func oneTimeProductPurchaseOptionFromAPI(apiOption *androidpublisher.OneTimeProductPurchaseOption) OneTimeProductPurchaseOption {
+func oneTimeProductPurchaseOptionFromAPI(apiOption rawOneTimeProductPurchaseOption) OneTimeProductPurchaseOption {
 	option := OneTimeProductPurchaseOption{
-		PurchaseOptionID:         apiOption.PurchaseOptionId,
+		PurchaseOptionID:         apiOption.PurchaseOptionID,
 		State:                    apiOption.State,
-		OfferTags:                offerTagsFromAPI(apiOption.OfferTags),
+		OfferTags:                rawOfferTagsFromAPI(apiOption.OfferTags),
 		RegionalConfigs:          oneTimeProductRegionalConfigsFromAPI(apiOption.RegionalPricingAndAvailabilityConfigs),
 		NewRegionsConfig:         oneTimeProductNewRegionsConfigFromAPI(apiOption.NewRegionsConfig),
 		TaxAndComplianceSettings: oneTimeProductPurchaseOptionTaxComplianceSettingsFromAPI(apiOption.TaxAndComplianceSettings),
@@ -1403,54 +1564,64 @@ func oneTimeProductPurchaseOptionFromAPI(apiOption *androidpublisher.OneTimeProd
 	return option
 }
 
-func oneTimeProductRegionalConfigsFromAPI(apiConfigs []*androidpublisher.OneTimeProductPurchaseOptionRegionalPricingAndAvailabilityConfig) []OneTimeProductRegionalConfig {
+func oneTimeProductRegionalConfigsFromAPI(apiConfigs []rawOneTimeProductRegionalConfig) []OneTimeProductRegionalConfig {
 	if len(apiConfigs) == 0 {
 		return nil
 	}
 	configs := make([]OneTimeProductRegionalConfig, 0, len(apiConfigs))
 	for _, apiConfig := range apiConfigs {
-		if apiConfig == nil {
-			continue
-		}
 		configs = append(configs, OneTimeProductRegionalConfig{
 			RegionCode:   apiConfig.RegionCode,
 			Availability: apiConfig.Availability,
-			Price:        moneyFromAPI(apiConfig.Price),
+			Price:        rawMoneyFromAPI(apiConfig.Price),
 		})
 	}
 	return configs
 }
 
-func oneTimeProductNewRegionsConfigFromAPI(apiConfig *androidpublisher.OneTimeProductPurchaseOptionNewRegionsConfig) *OneTimeProductNewRegionsPricingAndAvailability {
+func oneTimeProductNewRegionsConfigFromAPI(apiConfig *rawOneTimeProductNewRegionsConfig) *OneTimeProductNewRegionsPricingAndAvailability {
 	if apiConfig == nil {
 		return nil
 	}
 	return &OneTimeProductNewRegionsPricingAndAvailability{
 		Availability: apiConfig.Availability,
-		USDPrice:     moneyFromAPI(apiConfig.UsdPrice),
-		EURPrice:     moneyFromAPI(apiConfig.EurPrice),
+		USDPrice:     rawMoneyFromAPI(apiConfig.USDPrice),
+		EURPrice:     rawMoneyFromAPI(apiConfig.EURPrice),
 	}
 }
 
-func oneTimeProductTaxComplianceSettingsFromAPI(apiSettings *androidpublisher.OneTimeProductTaxAndComplianceSettings) *OneTimeProductTaxComplianceSetting {
+func oneTimeProductTaxComplianceSettingsFromAPI(apiSettings *rawOneTimeProductTaxComplianceSettings) *OneTimeProductTaxComplianceSetting {
 	if apiSettings == nil {
 		return nil
 	}
 	return &OneTimeProductTaxComplianceSetting{
 		IsTokenizedDigitalAsset: apiSettings.IsTokenizedDigitalAsset,
+		ProductTaxCategoryCode:  apiSettings.ProductTaxCategoryCode,
+		RegionalAgeRatings:      regionalAgeRatingsFromAPI(apiSettings.RegionalProductAgeRatingInfos),
 		RegionalTaxConfigs:      regionalTaxConfigsFromAPI(apiSettings.RegionalTaxConfigs),
 	}
 }
 
-func regionalTaxConfigsFromAPI(apiConfigs []*androidpublisher.RegionalTaxConfig) []RegionalTaxConfig {
+func regionalAgeRatingsFromAPI(apiRatings []rawRegionalProductAgeRating) []RegionalAgeRating {
+	if len(apiRatings) == 0 {
+		return nil
+	}
+	ratings := make([]RegionalAgeRating, 0, len(apiRatings))
+	for _, apiRating := range apiRatings {
+		ratings = append(ratings, RegionalAgeRating{
+			RegionCode:           apiRating.RegionCode,
+			ProductAgeRatingTier: apiRating.ProductAgeRatingTier,
+		})
+	}
+	return ratings
+}
+
+func regionalTaxConfigsFromAPI(apiConfigs []rawRegionalTaxConfig) []RegionalTaxConfig {
 	if len(apiConfigs) == 0 {
 		return nil
 	}
 	configs := make([]RegionalTaxConfig, 0, len(apiConfigs))
 	for _, apiConfig := range apiConfigs {
-		if apiConfig == nil {
-			continue
-		}
 		configs = append(configs, RegionalTaxConfig{
 			RegionCode:                         apiConfig.RegionCode,
 			EligibleForStreamingServiceTaxRate: apiConfig.EligibleForStreamingServiceTaxRate,
@@ -1461,13 +1632,20 @@ func regionalTaxConfigsFromAPI(apiConfigs []*androidpublisher.RegionalTaxConfig)
 	return configs
 }
 
-func oneTimeProductPurchaseOptionTaxComplianceSettingsFromAPI(apiSettings *androidpublisher.PurchaseOptionTaxAndComplianceSettings) *OneTimeProductPurchaseOptionTaxComplianceSettings {
+func oneTimeProductPurchaseOptionTaxComplianceSettingsFromAPI(apiSettings *rawPurchaseOptionTaxComplianceSettings) *OneTimeProductPurchaseOptionTaxComplianceSettings {
 	if apiSettings == nil {
 		return nil
 	}
 	return &OneTimeProductPurchaseOptionTaxComplianceSettings{
 		WithdrawalRightType: apiSettings.WithdrawalRightType,
 	}
+}
+
+func regionsVersionFromAPI(apiVersion *rawRegionsVersion) *RegionsVersion {
+	if apiVersion == nil {
+		return nil
+	}
+	return &RegionsVersion{Version: apiVersion.Version}
 }
 
 func managedProductTaxComplianceSettingsFromAPI(apiSettings *androidpublisher.ManagedProductTaxAndComplianceSettings) *ProductTaxComplianceSettings {
@@ -1640,6 +1818,17 @@ func moneyFromAPI(apiMoney *androidpublisher.Money) *Money {
 	}
 }
 
+func rawMoneyFromAPI(apiMoney *rawMoney) *Money {
+	if apiMoney == nil {
+		return nil
+	}
+	return &Money{
+		CurrencyCode: apiMoney.CurrencyCode,
+		Units:        int64(apiMoney.Units),
+		Nanos:        apiMoney.Nanos,
+	}
+}
+
 func offerTagsFromAPI(apiOfferTags []*androidpublisher.OfferTag) []string {
 	if len(apiOfferTags) == 0 {
 		return nil
@@ -1654,7 +1843,25 @@ func offerTagsFromAPI(apiOfferTags []*androidpublisher.OfferTag) []string {
 	return tags
 }
 
+func rawOfferTagsFromAPI(apiOfferTags []rawOfferTag) []string {
+	if len(apiOfferTags) == 0 {
+		return nil
+	}
+	tags := make([]string, 0, len(apiOfferTags))
+	for _, apiOfferTag := range apiOfferTags {
+		tags = append(tags, apiOfferTag.Tag)
+	}
+	return tags
+}
+
 func restrictedCountriesFromAPI(apiCountries *androidpublisher.RestrictedPaymentCountries) []string {
+	if apiCountries == nil {
+		return nil
+	}
+	return apiCountries.RegionCodes
+}
+
+func rawRestrictedCountriesFromAPI(apiCountries *rawRestrictedPaymentCountries) []string {
 	if apiCountries == nil {
 		return nil
 	}

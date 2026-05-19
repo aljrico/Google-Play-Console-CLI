@@ -54,6 +54,7 @@ type OneTimeProduct struct {
 	Listings                 []OneTimeProductListing             `json:"listings"`
 	OfferTags                []string                            `json:"offerTags,omitempty"`
 	PurchaseOptions          []OneTimeProductPurchaseOption      `json:"purchaseOptions"`
+	RegionsVersion           *RegionsVersion                     `json:"regionsVersion,omitempty"`
 	RestrictedCountries      []string                            `json:"restrictedCountries,omitempty"`
 	TaxAndComplianceSettings *OneTimeProductTaxComplianceSetting `json:"taxAndComplianceSettings,omitempty"`
 }
@@ -86,6 +87,8 @@ type OneTimeProductNewRegionsPricingAndAvailability struct {
 
 type OneTimeProductTaxComplianceSetting struct {
 	IsTokenizedDigitalAsset bool                `json:"isTokenizedDigitalAsset,omitempty"`
+	ProductTaxCategoryCode  string              `json:"productTaxCategoryCode,omitempty"`
+	RegionalAgeRatings      []RegionalAgeRating `json:"regionalAgeRatings,omitempty"`
 	RegionalTaxConfigs      []RegionalTaxConfig `json:"regionalTaxConfigs,omitempty"`
 }
 
@@ -98,6 +101,15 @@ type RegionalTaxConfig struct {
 	EligibleForStreamingServiceTaxRate bool   `json:"eligibleForStreamingServiceTaxRate,omitempty"`
 	StreamingTaxType                   string `json:"streamingTaxType,omitempty"`
 	TaxTier                            string `json:"taxTier,omitempty"`
+}
+
+type RegionalAgeRating struct {
+	RegionCode           string `json:"regionCode"`
+	ProductAgeRatingTier string `json:"productAgeRatingTier,omitempty"`
+}
+
+type RegionsVersion struct {
+	Version string `json:"version,omitempty"`
 }
 
 type OneTimeProductListOptions struct {

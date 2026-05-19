@@ -2262,6 +2262,7 @@ func TestListOneTimeProductsUsesMonetizationEndpoint(t *testing.T) {
 					"productId": "coins_100",
 					"listings": [{"languageCode": "en-US", "title": "Coins", "description": "A pile of coins"}],
 					"offerTags": [{"tag": "coins"}],
+					"regionsVersion": {"version": "2026/05"},
 					"purchaseOptions": [
 						{
 							"purchaseOptionId": "buy",
@@ -2286,6 +2287,9 @@ func TestListOneTimeProductsUsesMonetizationEndpoint(t *testing.T) {
 					"taxAndComplianceSettings": {
 						"isTokenizedDigitalAsset": true,
 						"productTaxCategoryCode": "P2",
+						"regionalProductAgeRatingInfos": [
+							{"regionCode": "US", "productAgeRatingTier": "PRODUCT_AGE_RATING_TIER_THIRTEEN_AND_ABOVE"}
+						],
 						"regionalTaxConfigs": [
 							{"regionCode": "US", "eligibleForStreamingServiceTaxRate": true, "streamingTaxType": "STREAMING_TAX_TYPE_TELCO_VIDEO_SALES", "taxTier": "TAX_TIER_NEWS_1"}
 						]
@@ -2323,8 +2327,20 @@ func TestListOneTimeProductsUsesMonetizationEndpoint(t *testing.T) {
 	if option.RegionalConfigs[0].Price == nil || option.RegionalConfigs[0].Price.Units != 4 {
 		t.Fatalf("regional price = %#v, want four units", option.RegionalConfigs[0].Price)
 	}
+	if product.RegionsVersion == nil || product.RegionsVersion.Version != "2026/05" {
+		t.Fatalf("RegionsVersion = %#v, want 2026/05", product.RegionsVersion)
+	}
 	if product.TaxAndComplianceSettings == nil || !product.TaxAndComplianceSettings.IsTokenizedDigitalAsset {
 		t.Fatalf("TaxAndComplianceSettings = %#v, want tokenized asset", product.TaxAndComplianceSettings)
+	}
+	if product.TaxAndComplianceSettings.ProductTaxCategoryCode != "P2" {
+		t.Fatalf("ProductTaxCategoryCode = %q, want P2", product.TaxAndComplianceSettings.ProductTaxCategoryCode)
+	}
+	if len(product.TaxAndComplianceSettings.RegionalAgeRatings) != 1 {
+		t.Fatalf("len(RegionalAgeRatings) = %d, want 1", len(product.TaxAndComplianceSettings.RegionalAgeRatings))
+	}
+	if product.TaxAndComplianceSettings.RegionalAgeRatings[0].ProductAgeRatingTier != "PRODUCT_AGE_RATING_TIER_THIRTEEN_AND_ABOVE" {
+		t.Fatalf("RegionalAgeRatings = %#v, want 13+ tier", product.TaxAndComplianceSettings.RegionalAgeRatings)
 	}
 }
 
@@ -2377,7 +2393,7 @@ func newTestPublisher(t *testing.T, handler http.Handler) GooglePublisher {
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
-	return GooglePublisher{service: service}
+	return GooglePublisher{service: service, httpClient: server.Client(), basePath: server.URL + "/"}
 }
 
 func assertQueryValue(t *testing.T, query map[string][]string, key string, want string) {
