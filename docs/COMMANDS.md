@@ -2635,8 +2635,9 @@ gpc subscription-offers create [flags]
 - `--from-json`: Path to a Google Play API or gpc JSON subscription offer body
 - `--offer-id`: Subscription offer ID
 - `--offer-tag`: Basic create offer tag; repeatable (default `[]`)
-- `--phase-duration`: Basic create free phase duration as an ISO 8601 period, for example P7D or P1M
-- `--phase-recurrence`: Basic create free phase recurrence count (default `1`)
+- `--phase-duration`: Basic create phase duration as an ISO 8601 period, for example P7D or P1M
+- `--phase-recurrence`: Basic create phase recurrence count (default `1`)
+- `--price`: Basic create regional phase price as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
 - `--product-id`: Parent subscription product ID
 - `--regions-version`: Google Play regions version required by subscriptionOffers.create
 
