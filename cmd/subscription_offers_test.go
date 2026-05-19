@@ -842,6 +842,180 @@ func TestSubscriptionOffersCreateBasicTwoPhaseDryRunDoesNotRequireAuth(t *testin
 	}
 }
 
+func TestSubscriptionOffersCreateBasicTwoPhasePaidOtherRegionsDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro-paid",
+		"--free-region",
+		"US",
+		"--phase-duration",
+		"P7D",
+		"--other-regions-usd-price",
+		"USD:1",
+		"--other-regions-eur-price",
+		"EUR:1",
+		"--phase-2-price",
+		"US:USD:1:990000000",
+		"--phase-2-duration",
+		"P1M",
+		"--phase-2-other-regions-usd-price",
+		"USD:1:990000000",
+		"--phase-2-other-regions-eur-price",
+		"EUR:1:990000000",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"otherRegionsConfig":{"newSubscriberAvailability":true}`,
+		`"otherRegionsPrices":{"usdPrice":{"currencyCode":"USD","units":1},"eurPrice":{"currencyCode":"EUR","units":1}}`,
+		`"otherRegionsPrices":{"usdPrice":{"currencyCode":"USD","units":1,"nanos":990000000},"eurPrice":{"currencyCode":"EUR","units":1,"nanos":990000000}}`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersCreateRejectsIncompletePaidOtherRegions(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--free-region",
+		"US",
+		"--phase-duration",
+		"P7D",
+		"--other-regions-usd-price",
+		"USD:1",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected paid other-regions validation error")
+	}
+	if !strings.Contains(err.Error(), "other-regions prices require USD and EUR prices") {
+		t.Fatalf("error = %v, want paid other-regions validation", err)
+	}
+}
+
+func TestSubscriptionOffersCreateRejectsMissingSecondPhasePaidOtherRegions(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--free-region",
+		"US",
+		"--phase-duration",
+		"P7D",
+		"--other-regions-usd-price",
+		"USD:1",
+		"--other-regions-eur-price",
+		"EUR:1",
+		"--phase-2-price",
+		"US:USD:1:990000000",
+		"--phase-2-duration",
+		"P1M",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected second phase paid other-regions validation error")
+	}
+	if !strings.Contains(err.Error(), "second phase other-regions prices are required") {
+		t.Fatalf("error = %v, want second phase paid other-regions validation", err)
+	}
+}
+
+func TestSubscriptionOffersCreateRejectsFreeAndPaidOtherRegions(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--free-region",
+		"US",
+		"--phase-duration",
+		"P7D",
+		"--other-regions-free",
+		"--other-regions-usd-price",
+		"USD:1",
+		"--other-regions-eur-price",
+		"EUR:1",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected free and paid other-regions validation error")
+	}
+	if !strings.Contains(err.Error(), "--other-regions-free cannot be combined with paid other-regions price flags") {
+		t.Fatalf("error = %v, want free and paid other-regions validation", err)
+	}
+}
+
 func TestSubscriptionOffersCreateRejectsTwoPhaseRegionMismatch(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

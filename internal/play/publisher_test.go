@@ -6418,6 +6418,61 @@ func TestCreateSubscriptionOfferSendsFreeOtherRegionsBody(t *testing.T) {
 	}
 }
 
+func TestCreateSubscriptionOfferSendsPaidOtherRegionsBody(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		var request androidpublisher.SubscriptionOffer
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if request.OtherRegionsConfig == nil || !request.OtherRegionsConfig.OtherRegionsNewSubscriberAvailability {
+			t.Fatalf("OtherRegionsConfig = %#v, want other-regions subscriber availability", request.OtherRegionsConfig)
+		}
+		if len(request.Phases) != 1 || request.Phases[0].OtherRegionsConfig == nil || request.Phases[0].OtherRegionsConfig.OtherRegionsPrices == nil {
+			t.Fatalf("Phases = %#v, want paid other-regions phase price mode", request.Phases)
+		}
+		prices := request.Phases[0].OtherRegionsConfig.OtherRegionsPrices
+		if prices.UsdPrice == nil || prices.UsdPrice.CurrencyCode != "USD" || prices.EurPrice == nil || prices.EurPrice.CurrencyCode != "EUR" {
+			t.Fatalf("OtherRegionsPrices = %#v, want USD and EUR prices", prices)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","basePlanId":"monthly","offerId":"intro","state":"DRAFT","regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}],"otherRegionsConfig":{"otherRegionsNewSubscriberAvailability":true},"phases":[{"duration":"P1M","recurrenceCount":1,"regionalConfigs":[{"regionCode":"US","price":{"currencyCode":"USD","units":"1","nanos":990000000}}],"otherRegionsConfig":{"otherRegionsPrices":{"usdPrice":{"currencyCode":"USD","units":"1","nanos":990000000},"eurPrice":{"currencyCode":"EUR","units":"1","nanos":990000000}}}}]}`)
+	}))
+
+	result, err := publisher.CreateSubscriptionOffer(context.Background(), SubscriptionOfferCreateOptions{
+		PackageName: "com.example.app",
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		OfferID:     "intro",
+		Offer: SubscriptionOffer{
+			RegionalConfigs:    []SubscriptionOfferRegionalConfig{{RegionCode: "US", NewSubscriberAvailability: true}},
+			OtherRegionsConfig: &SubscriptionOfferOtherRegionsConfig{NewSubscriberAvailability: true},
+			Phases: []SubscriptionOfferPhase{{
+				Duration:        "P1M",
+				RecurrenceCount: 1,
+				RegionalConfigs: []SubscriptionOfferPhaseRegionalConfig{{RegionCode: "US", Price: &Money{CurrencyCode: "USD", Units: 1, Nanos: 990000000}}},
+				OtherRegionsConfig: &SubscriptionOfferPhaseOtherRegionsConfig{
+					OtherRegionsPrices: &SubscriptionOfferOtherRegionsPrices{
+						USDPrice: &Money{CurrencyCode: "USD", Units: 1, Nanos: 990000000},
+						EURPrice: &Money{CurrencyCode: "EUR", Units: 1, Nanos: 990000000},
+					},
+				},
+			}},
+		},
+		RegionsVersion: "2026/05",
+		Confirm:        true,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubscriptionOffer() error = %v", err)
+	}
+	if result.Phases[0].OtherRegionsConfig == nil || result.Phases[0].OtherRegionsConfig.OtherRegionsPrices == nil {
+		t.Fatalf("result = %#v, want created draft offer with paid other-regions config", result)
+	}
+}
+
 func TestCreateSubscriptionOfferSendsAcquisitionTargetingBody(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)

@@ -143,6 +143,10 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 		phase2RelDiscount []string
 		phase2AbsDiscount []string
 		otherRegionsFree  bool
+		otherRegionsUSD   string
+		otherRegionsEUR   string
+		phase2OtherUSD    string
+		phase2OtherEUR    string
 		acquisitionScope  string
 		upgradeScope      string
 		upgradeProductID  string
@@ -161,7 +165,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 		Use:   "create",
 		Short: "Create a draft subscription offer",
 		Long: "Create a draft subscription offer from a Google Play API SubscriptionOffer JSON body or gpc subscription offer JSON output. " +
-			"Basic flags build one or two free, paid-price, relative-discount, or absolute-discount phases across explicit regions, with optional free other-regions config and acquisition or upgrade targeting; use JSON for paid other-regions config. " +
+			"Basic flags build one or two free, paid-price, relative-discount, or absolute-discount phases across explicit regions, with optional free or paid-price other-regions config and acquisition or upgrade targeting; use JSON for other-regions relative or absolute discounts. " +
 			"Immutable parent IDs come from flags and override the JSON body; output-only state is ignored because Google creates draft offers.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -193,6 +197,10 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 				Phase2RelDiscount: phase2RelDiscount,
 				Phase2AbsDiscount: phase2AbsDiscount,
 				OtherRegionsFree:  otherRegionsFree,
+				OtherRegionsUSD:   otherRegionsUSD,
+				OtherRegionsEUR:   otherRegionsEUR,
+				Phase2OtherUSD:    phase2OtherUSD,
+				Phase2OtherEUR:    phase2OtherEUR,
 				AcquisitionScope:  acquisitionScope,
 				UpgradeScope:      upgradeScope,
 				UpgradeProductID:  upgradeProductID,
@@ -218,6 +226,10 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 					cmd.Flags().Changed("phase-2-relative-discount") ||
 					cmd.Flags().Changed("phase-2-absolute-discount") ||
 					cmd.Flags().Changed("other-regions-free") ||
+					cmd.Flags().Changed("other-regions-usd-price") ||
+					cmd.Flags().Changed("other-regions-eur-price") ||
+					cmd.Flags().Changed("phase-2-other-regions-usd-price") ||
+					cmd.Flags().Changed("phase-2-other-regions-eur-price") ||
 					cmd.Flags().Changed("targeting-acquisition-scope") ||
 					cmd.Flags().Changed("targeting-upgrade-scope") ||
 					cmd.Flags().Changed("targeting-upgrade-product-id") ||
@@ -281,6 +293,10 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 	cmd.Flags().StringArrayVar(&phase2RelDiscount, "phase-2-relative-discount", nil, "Basic create second phase regional relative discount as REGION:0.5; repeatable")
 	cmd.Flags().StringArrayVar(&phase2AbsDiscount, "phase-2-absolute-discount", nil, "Basic create second phase regional absolute discount as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
 	cmd.Flags().BoolVar(&otherRegionsFree, "other-regions-free", false, "Basic create free phase mode for other regions")
+	cmd.Flags().StringVar(&otherRegionsUSD, "other-regions-usd-price", "", "Basic create first phase other-regions USD price as USD:UNITS[:NANOS]")
+	cmd.Flags().StringVar(&otherRegionsEUR, "other-regions-eur-price", "", "Basic create first phase other-regions EUR price as EUR:UNITS[:NANOS]")
+	cmd.Flags().StringVar(&phase2OtherUSD, "phase-2-other-regions-usd-price", "", "Basic create second phase other-regions USD price as USD:UNITS[:NANOS]")
+	cmd.Flags().StringVar(&phase2OtherEUR, "phase-2-other-regions-eur-price", "", "Basic create second phase other-regions EUR price as EUR:UNITS[:NANOS]")
 	cmd.Flags().StringVar(&acquisitionScope, "targeting-acquisition-scope", "", "Basic create acquisition targeting scope: any-subscription-in-app or this-subscription")
 	cmd.Flags().StringVar(&upgradeScope, "targeting-upgrade-scope", "", "Basic create upgrade targeting scope: this-subscription or specific-subscription-in-app")
 	cmd.Flags().StringVar(&upgradeProductID, "targeting-upgrade-product-id", "", "Basic create upgrade targeting subscription product ID when scope is specific-subscription-in-app")
@@ -308,6 +324,10 @@ type subscriptionOfferCreateBodyOptions struct {
 	Phase2RelDiscount   []string
 	Phase2AbsDiscount   []string
 	OtherRegionsFree    bool
+	OtherRegionsUSD     string
+	OtherRegionsEUR     string
+	Phase2OtherUSD      string
+	Phase2OtherEUR      string
 	AcquisitionScope    string
 	UpgradeScope        string
 	UpgradeProductID    string
@@ -336,10 +356,19 @@ func subscriptionOfferCreateBody(options subscriptionOfferCreateBodyOptions) (pl
 		return play.SubscriptionOffer{}, err
 	}
 	var offerOtherRegionsConfig *play.SubscriptionOfferOtherRegionsConfig
+	if options.UsesPaidOtherRegionsFlags() && options.OtherRegionsFree {
+		return play.SubscriptionOffer{}, fmt.Errorf("--other-regions-free cannot be combined with paid other-regions price flags")
+	}
 	if options.OtherRegionsFree {
 		offerOtherRegionsConfig = &play.SubscriptionOfferOtherRegionsConfig{NewSubscriberAvailability: true}
 		for index := range phases {
 			phases[index].OtherRegionsConfig = &play.SubscriptionOfferPhaseOtherRegionsConfig{Free: true}
+		}
+	}
+	if options.UsesPaidOtherRegionsFlags() {
+		offerOtherRegionsConfig = &play.SubscriptionOfferOtherRegionsConfig{NewSubscriberAvailability: true}
+		if err := setSubscriptionOfferCreatePaidOtherRegions(&phases, options); err != nil {
+			return play.SubscriptionOffer{}, err
 		}
 	}
 	targeting, err := subscriptionOfferCreateTargeting(subscriptionOfferCreateTargetingOptions{
@@ -395,6 +424,60 @@ func subscriptionOfferCreateBasicPhases(options subscriptionOfferCreateBodyOptio
 
 func (o subscriptionOfferCreateBodyOptions) UsesSecondPhaseFlags() bool {
 	return o.SecondPhaseFlagsSet
+}
+
+func (o subscriptionOfferCreateBodyOptions) UsesPaidOtherRegionsFlags() bool {
+	return strings.TrimSpace(o.OtherRegionsUSD) != "" ||
+		strings.TrimSpace(o.OtherRegionsEUR) != "" ||
+		strings.TrimSpace(o.Phase2OtherUSD) != "" ||
+		strings.TrimSpace(o.Phase2OtherEUR) != ""
+}
+
+func setSubscriptionOfferCreatePaidOtherRegions(phases *[]play.SubscriptionOfferPhase, options subscriptionOfferCreateBodyOptions) error {
+	firstConfig, err := subscriptionOfferCreateOtherRegionsPrices(options.OtherRegionsUSD, options.OtherRegionsEUR, "first phase")
+	if err != nil {
+		return err
+	}
+	(*phases)[0].OtherRegionsConfig = &play.SubscriptionOfferPhaseOtherRegionsConfig{OtherRegionsPrices: firstConfig}
+	if strings.TrimSpace(options.Phase2OtherUSD) == "" && strings.TrimSpace(options.Phase2OtherEUR) == "" {
+		if len(*phases) > 1 {
+			return fmt.Errorf("second phase other-regions prices are required when paid other-regions prices are used with two phases")
+		}
+		return nil
+	}
+	if len(*phases) < 2 {
+		return fmt.Errorf("second phase other-regions prices require second phase flags")
+	}
+	secondConfig, err := subscriptionOfferCreateOtherRegionsPrices(options.Phase2OtherUSD, options.Phase2OtherEUR, "second phase")
+	if err != nil {
+		return err
+	}
+	(*phases)[1].OtherRegionsConfig = &play.SubscriptionOfferPhaseOtherRegionsConfig{OtherRegionsPrices: secondConfig}
+	return nil
+}
+
+func subscriptionOfferCreateOtherRegionsPrices(rawUSDPrice string, rawEURPrice string, phaseLabel string) (*play.SubscriptionOfferOtherRegionsPrices, error) {
+	if strings.TrimSpace(rawUSDPrice) == "" || strings.TrimSpace(rawEURPrice) == "" {
+		return nil, fmt.Errorf("subscription offer create %s other-regions prices require USD and EUR prices", phaseLabel)
+	}
+	usdPrice, err := parsePurchaseOptionPatchMoney(rawUSDPrice)
+	if err != nil {
+		return nil, fmt.Errorf("subscription offer create %s other-regions USD price must use USD:UNITS[:NANOS]", phaseLabel)
+	}
+	if usdPrice.CurrencyCode != "USD" {
+		return nil, fmt.Errorf("subscription offer create %s other-regions USD price currencyCode must be USD", phaseLabel)
+	}
+	eurPrice, err := parsePurchaseOptionPatchMoney(rawEURPrice)
+	if err != nil {
+		return nil, fmt.Errorf("subscription offer create %s other-regions EUR price must use EUR:UNITS[:NANOS]", phaseLabel)
+	}
+	if eurPrice.CurrencyCode != "EUR" {
+		return nil, fmt.Errorf("subscription offer create %s other-regions EUR price currencyCode must be EUR", phaseLabel)
+	}
+	return &play.SubscriptionOfferOtherRegionsPrices{
+		USDPrice: &usdPrice,
+		EURPrice: &eurPrice,
+	}, nil
 }
 
 func parseSubscriptionOfferCreatePhaseRegions(freeRegions []string, priceValues []string, relativeDiscountValues []string, absoluteDiscountValues []string) ([]play.SubscriptionOfferRegionalConfig, []play.SubscriptionOfferPhaseRegionalConfig, error) {
