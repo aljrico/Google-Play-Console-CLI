@@ -790,6 +790,42 @@ func TestFinanceReportsSummarizeOutputsTotalsWithoutAuth(t *testing.T) {
 	}
 }
 
+func TestAnalyticsStatsSummarizeOutputsTotalsWithoutAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	file := writeRootTestPathContent(t, filepath.Join(t.TempDir(), "store_performance.csv"), "Date,Package name,Country/region,Store listing visitors,Store listing acquisitions\n2026-05-01,com.example.app,US,10,2\n2026-05-02,com.example.app,US,15,3\n")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"analytics",
+		"stats",
+		"summarize",
+		"--file",
+		file,
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"rows":2`,
+		`"packageName":"com.example.app"`,
+		`"startDate":"2026-05-01"`,
+		`"endDate":"2026-05-02"`,
+		`"name":"Store listing visitors","total":"25"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func writeRootTestPathContent(t *testing.T, path string, content string) string {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

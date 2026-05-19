@@ -37,6 +37,7 @@ func newRootCommand(out io.Writer) *cobra.Command {
 	cmd.AddCommand(
 		newVersionCommand(out, options),
 		newAccountCommand(out, options),
+		newAnalyticsCommand(out, options),
 		newAuthCommand(out, options),
 		newAppsCommand(out),
 		newAppRecoveryCommand(out, options),

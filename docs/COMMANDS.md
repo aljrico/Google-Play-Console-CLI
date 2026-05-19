@@ -16,6 +16,7 @@ gpc [flags]
 ### Commands
 
 - `gpc account`: Inspect local Google Play account configuration
+- `gpc analytics`: Summarize Google Play statistics reports
 - `gpc app-recovery`: Inspect and manage Google Play app recovery actions
 - `gpc apps`: Inspect Google Play apps
 - `gpc auth`: Manage Google Play API authentication
@@ -73,6 +74,42 @@ gpc account
 #### Commands
 
 - `gpc account status`: Summarize local account and service account metadata
+
+### gpc analytics
+
+Summarize Google Play statistics reports
+
+```sh
+gpc analytics
+```
+
+#### Commands
+
+- `gpc analytics stats`: Summarize downloaded Play statistics CSVs
+
+#### gpc analytics stats
+
+Summarize downloaded Play statistics CSVs
+
+```sh
+gpc analytics stats
+```
+
+##### Commands
+
+- `gpc analytics stats summarize`: Summarize a Play statistics report CSV
+
+##### gpc analytics stats summarize
+
+Summarize a Play statistics report CSV
+
+```sh
+gpc analytics stats summarize [flags]
+```
+
+###### Flags
+
+- `--file`: Downloaded Google Play statistics report CSV
 
 ### gpc app-recovery
 
