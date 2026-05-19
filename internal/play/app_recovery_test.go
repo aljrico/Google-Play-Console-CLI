@@ -84,6 +84,7 @@ func TestCreateAppRecoveryDryRunDoesNotCallCreator(t *testing.T) {
 	result, err := CreateAppRecovery(context.Background(), nil, AppRecoveryCreateOptions{
 		PackageName:  "com.example.app",
 		VersionCodes: []int64{42, 43},
+		RegionCodes:  []string{"US", "BR"},
 		DryRun:       true,
 	})
 	if err != nil {
@@ -94,6 +95,9 @@ func TestCreateAppRecoveryDryRunDoesNotCallCreator(t *testing.T) {
 	}
 	if !reflect.DeepEqual(result.Plan.VersionCodes, []int64{42, 43}) {
 		t.Fatalf("VersionCodes = %#v, want 42 and 43", result.Plan.VersionCodes)
+	}
+	if !reflect.DeepEqual(result.Plan.RegionCodes, []string{"US", "BR"}) {
+		t.Fatalf("RegionCodes = %#v, want US and BR", result.Plan.RegionCodes)
 	}
 }
 
@@ -129,6 +133,11 @@ func TestCreateAppRecoveryRejectsInvalidOptions(t *testing.T) {
 		{PackageName: "com.example.app", DryRun: true},
 		{PackageName: "com.example.app", VersionCodes: []int64{0}, DryRun: true},
 		{PackageName: "com.example.app", VersionCodes: []int64{42, 42}, DryRun: true},
+		{PackageName: "com.example.app", VersionCodes: []int64{42}, VersionCodeStart: 40, VersionCodeEnd: 45, DryRun: true},
+		{PackageName: "com.example.app", VersionCodeStart: 45, VersionCodeEnd: 40, DryRun: true},
+		{PackageName: "com.example.app", AllUsers: true, RegionCodes: []string{"US"}, DryRun: true},
+		{PackageName: "com.example.app", RegionCodes: []string{"us"}, DryRun: true},
+		{PackageName: "com.example.app", SDKLevels: []int64{0}, DryRun: true},
 		{PackageName: "com.example.app", VersionCodes: []int64{42}},
 		{PackageName: "com.example.app", VersionCodes: []int64{42}, Confirm: true, DryRun: true},
 	}

@@ -369,18 +369,44 @@ func isValidAppRecoveryRegionCode(value string) bool {
 }
 
 type AppRecoveryCreateOptions struct {
-	PackageName  PackageName `json:"packageName"`
-	VersionCodes []int64     `json:"versionCodes"`
-	Confirm      bool        `json:"confirm"`
-	DryRun       bool        `json:"dryRun"`
+	PackageName      PackageName `json:"packageName"`
+	VersionCodes     []int64     `json:"versionCodes,omitempty"`
+	VersionCodeStart int64       `json:"versionCodeStart,omitempty"`
+	VersionCodeEnd   int64       `json:"versionCodeEnd,omitempty"`
+	AllUsers         bool        `json:"allUsers,omitempty"`
+	SDKLevels        []int64     `json:"sdkLevels,omitempty"`
+	RegionCodes      []string    `json:"regionCodes,omitempty"`
+	Confirm          bool        `json:"confirm"`
+	DryRun           bool        `json:"dryRun"`
 }
 
 func (o AppRecoveryCreateOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
 	}
-	if len(o.VersionCodes) == 0 {
-		return fmt.Errorf("app recovery create requires at least one version code")
+	if !o.hasVersionTargeting() && !o.hasAudienceTargeting() {
+		return fmt.Errorf("app recovery create requires at least one targeting criterion")
+	}
+	if len(o.VersionCodes) > 0 && (o.VersionCodeStart != 0 || o.VersionCodeEnd != 0) {
+		return fmt.Errorf("--version-code cannot be used with --version-code-start or --version-code-end")
+	}
+	if (o.VersionCodeStart == 0) != (o.VersionCodeEnd == 0) {
+		return fmt.Errorf("version range requires both --version-code-start and --version-code-end")
+	}
+	if o.VersionCodeStart != 0 && o.VersionCodeStart > o.VersionCodeEnd {
+		return fmt.Errorf("version code start cannot exceed version code end")
+	}
+	if o.AllUsers && (len(o.SDKLevels) > 0 || len(o.RegionCodes) > 0) {
+		return fmt.Errorf("--all-users cannot be combined with --sdk-level or --region")
+	}
+	if o.VersionCodeStart < 0 || o.VersionCodeEnd < 0 {
+		return fmt.Errorf("version code range values must be greater than 0")
+	}
+	if o.VersionCodeStart == 0 && o.VersionCodeEnd != 0 {
+		return fmt.Errorf("version code start must be greater than 0")
+	}
+	if o.VersionCodeEnd == 0 && o.VersionCodeStart != 0 {
+		return fmt.Errorf("version code end must be greater than 0")
 	}
 	seenVersionCodes := make(map[int64]struct{}, len(o.VersionCodes))
 	for _, versionCode := range o.VersionCodes {
@@ -392,6 +418,16 @@ func (o AppRecoveryCreateOptions) Validate() error {
 		}
 		seenVersionCodes[versionCode] = struct{}{}
 	}
+	for _, sdkLevel := range o.SDKLevels {
+		if sdkLevel <= 0 {
+			return fmt.Errorf("SDK level must be greater than 0")
+		}
+	}
+	for _, regionCode := range o.RegionCodes {
+		if !isValidAppRecoveryRegionCode(regionCode) {
+			return fmt.Errorf("invalid region code %q", regionCode)
+		}
+	}
 	if o.Confirm && o.DryRun {
 		return fmt.Errorf("--confirm and --dry-run cannot be used together")
 	}
@@ -399,6 +435,14 @@ func (o AppRecoveryCreateOptions) Validate() error {
 		return fmt.Errorf("app recovery create requires --confirm or --dry-run")
 	}
 	return nil
+}
+
+func (o AppRecoveryCreateOptions) hasVersionTargeting() bool {
+	return len(o.VersionCodes) > 0 || o.VersionCodeStart > 0 || o.VersionCodeEnd > 0
+}
+
+func (o AppRecoveryCreateOptions) hasAudienceTargeting() bool {
+	return o.AllUsers || len(o.SDKLevels) > 0 || len(o.RegionCodes) > 0
 }
 
 func (o AppRecoveryCreateOptions) ValidateLive() error {
@@ -415,10 +459,15 @@ func (o AppRecoveryCreateOptions) ValidateLive() error {
 }
 
 type AppRecoveryCreatePlan struct {
-	PackageName  PackageName `json:"packageName"`
-	VersionCodes []int64     `json:"versionCodes"`
-	Confirm      bool        `json:"confirm"`
-	Steps        []string    `json:"steps"`
+	PackageName      PackageName `json:"packageName"`
+	VersionCodes     []int64     `json:"versionCodes,omitempty"`
+	VersionCodeStart int64       `json:"versionCodeStart,omitempty"`
+	VersionCodeEnd   int64       `json:"versionCodeEnd,omitempty"`
+	AllUsers         bool        `json:"allUsers,omitempty"`
+	SDKLevels        []int64     `json:"sdkLevels,omitempty"`
+	RegionCodes      []string    `json:"regionCodes,omitempty"`
+	Confirm          bool        `json:"confirm"`
+	Steps            []string    `json:"steps"`
 }
 
 type AppRecoveryCreateResult struct {
@@ -437,10 +486,15 @@ func CreateAppRecovery(ctx context.Context, creator AppRecoveryCreator, options 
 		PackageName: options.PackageName,
 		DryRun:      options.DryRun,
 		Plan: AppRecoveryCreatePlan{
-			PackageName:  options.PackageName,
-			VersionCodes: append([]int64(nil), options.VersionCodes...),
-			Confirm:      options.Confirm,
-			Steps:        []string{"create draft remote in-app update recovery", "target version codes"},
+			PackageName:      options.PackageName,
+			VersionCodes:     append([]int64(nil), options.VersionCodes...),
+			VersionCodeStart: options.VersionCodeStart,
+			VersionCodeEnd:   options.VersionCodeEnd,
+			AllUsers:         options.AllUsers,
+			SDKLevels:        append([]int64(nil), options.SDKLevels...),
+			RegionCodes:      append([]string(nil), options.RegionCodes...),
+			Confirm:          options.Confirm,
+			Steps:            appRecoveryCreateSteps(options),
 		},
 	}
 	if options.DryRun {
@@ -456,4 +510,24 @@ func CreateAppRecovery(ctx context.Context, creator AppRecoveryCreator, options 
 	result.Created = true
 	result.Action = &action
 	return result, nil
+}
+
+func appRecoveryCreateSteps(options AppRecoveryCreateOptions) []string {
+	steps := []string{"create draft remote in-app update recovery"}
+	if len(options.VersionCodes) > 0 {
+		steps = append(steps, "target version codes")
+	}
+	if options.VersionCodeStart > 0 {
+		steps = append(steps, "target version code range")
+	}
+	if options.AllUsers {
+		steps = append(steps, "target all users")
+	}
+	if len(options.SDKLevels) > 0 {
+		steps = append(steps, "target android sdk levels")
+	}
+	if len(options.RegionCodes) > 0 {
+		steps = append(steps, "target regions")
+	}
+	return steps
 }

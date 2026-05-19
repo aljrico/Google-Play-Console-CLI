@@ -29,9 +29,14 @@ func newAppRecoveryCommand(out io.Writer, options *globalOptions) *cobra.Command
 
 func newAppRecoveryCreateCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	var (
-		versionCodes []int64
-		confirm      bool
-		dryRun       bool
+		versionCodes     []int64
+		versionCodeStart int64
+		versionCodeEnd   int64
+		allUsers         bool
+		sdkLevels        []int64
+		regionCodes      []string
+		confirm          bool
+		dryRun           bool
 	)
 
 	cmd := &cobra.Command{
@@ -44,10 +49,15 @@ func newAppRecoveryCreateCommand(out io.Writer, options *globalOptions, packageN
 				return err
 			}
 			createOptions := play.AppRecoveryCreateOptions{
-				PackageName:  typedPackageName,
-				VersionCodes: versionCodes,
-				Confirm:      confirm,
-				DryRun:       dryRun,
+				PackageName:      typedPackageName,
+				VersionCodes:     versionCodes,
+				VersionCodeStart: versionCodeStart,
+				VersionCodeEnd:   versionCodeEnd,
+				AllUsers:         allUsers,
+				SDKLevels:        sdkLevels,
+				RegionCodes:      regionCodes,
+				Confirm:          confirm,
+				DryRun:           dryRun,
 			}
 			if err := createOptions.Validate(); err != nil {
 				return err
@@ -71,6 +81,11 @@ func newAppRecoveryCreateCommand(out io.Writer, options *globalOptions, packageN
 		},
 	}
 	cmd.Flags().Int64SliceVar(&versionCodes, "version-code", nil, "App version code to target, repeatable")
+	cmd.Flags().Int64Var(&versionCodeStart, "version-code-start", 0, "Lowest app version code to target, inclusive")
+	cmd.Flags().Int64Var(&versionCodeEnd, "version-code-end", 0, "Highest app version code to target, inclusive")
+	cmd.Flags().BoolVar(&allUsers, "all-users", false, "Target all users")
+	cmd.Flags().Int64SliceVar(&sdkLevels, "sdk-level", nil, "Android SDK level to target, repeatable")
+	cmd.Flags().StringSliceVar(&regionCodes, "region", nil, "ISO 3166-1 alpha-2 region code to target, repeatable")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Create the draft app recovery action")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned app recovery creation without calling Google Play")
 	return cmd

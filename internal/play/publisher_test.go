@@ -2109,13 +2109,17 @@ func TestCreateAppRecoveryUsesCreateEndpoint(t *testing.T) {
 		if request.Targeting == nil || request.Targeting.VersionList == nil || !reflect.DeepEqual([]int64(request.Targeting.VersionList.VersionCodes), []int64{42, 43}) {
 			t.Fatalf("Targeting = %#v, want version list", request.Targeting)
 		}
+		if request.Targeting.Regions == nil || !reflect.DeepEqual(request.Targeting.Regions.RegionCode, []string{"US", "BR"}) {
+			t.Fatalf("Regions = %#v, want US and BR", request.Targeting.Regions)
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"appRecoveryId":"7","status":"RECOVERY_STATUS_DRAFT","targeting":{"versionList":{"versionCodes":["42","43"]}}}`))
+		_, _ = w.Write([]byte(`{"appRecoveryId":"7","status":"RECOVERY_STATUS_DRAFT","targeting":{"versionList":{"versionCodes":["42","43"]},"regions":{"regionCode":["US","BR"]}}}`))
 	}))
 
 	action, err := publisher.CreateAppRecovery(context.Background(), AppRecoveryCreateOptions{
 		PackageName:  "com.example.app",
 		VersionCodes: []int64{42, 43},
+		RegionCodes:  []string{"US", "BR"},
 		Confirm:      true,
 	})
 	if err != nil {

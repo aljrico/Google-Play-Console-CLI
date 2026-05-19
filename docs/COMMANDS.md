@@ -174,9 +174,14 @@ gpc app-recovery create [flags]
 
 ##### Flags
 
+- `--all-users`: Target all users (default `false`)
 - `--confirm`: Create the draft app recovery action (default `false`)
 - `--dry-run`: Print the planned app recovery creation without calling Google Play (default `false`)
+- `--region`: ISO 3166-1 alpha-2 region code to target, repeatable (default `[]`)
+- `--sdk-level`: Android SDK level to target, repeatable (default `[]`)
 - `--version-code`: App version code to target, repeatable (default `[]`)
+- `--version-code-end`: Highest app version code to target, inclusive (default `0`)
+- `--version-code-start`: Lowest app version code to target, inclusive (default `0`)
 
 #### gpc app-recovery deploy
 

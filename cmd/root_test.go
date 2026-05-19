@@ -1703,6 +1703,8 @@ func TestAppRecoveryCreateDryRunDoesNotRequireAuth(t *testing.T) {
 		"com.example.app",
 		"--version-code",
 		"42",
+		"--region",
+		"US",
 		"--dry-run",
 		"--output",
 		"json",
@@ -1712,7 +1714,7 @@ func TestAppRecoveryCreateDryRunDoesNotRequireAuth(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	output := buf.String()
-	for _, want := range []string{`"dryRun":true`, `"created":false`, `"versionCodes":[42]`} {
+	for _, want := range []string{`"dryRun":true`, `"created":false`, `"versionCodes":[42]`, `"regionCodes":["US"]`} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
 		}
@@ -1722,7 +1724,7 @@ func TestAppRecoveryCreateDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
-func TestAppRecoveryCreateRejectsMissingVersionCodeBeforeAuth(t *testing.T) {
+func TestAppRecoveryCreateRejectsMissingTargetingBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
@@ -1739,10 +1741,10 @@ func TestAppRecoveryCreateRejectsMissingVersionCodeBeforeAuth(t *testing.T) {
 
 	err := cmd.Execute()
 	if err == nil {
-		t.Fatal("expected version code validation error")
+		t.Fatal("expected targeting validation error")
 	}
-	if !strings.Contains(err.Error(), "version code") {
-		t.Fatalf("error = %v, want version code validation", err)
+	if !strings.Contains(err.Error(), "targeting") {
+		t.Fatalf("error = %v, want targeting validation", err)
 	}
 	if strings.Contains(err.Error(), "no active auth profile") {
 		t.Fatalf("error = %v, did not expect auth error", err)

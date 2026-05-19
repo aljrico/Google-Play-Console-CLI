@@ -2665,11 +2665,28 @@ func appRecoveryActionFromAPI(apiAction *androidpublisher.AppRecoveryAction) App
 }
 
 func appRecoveryCreateToAPI(options AppRecoveryCreateOptions) *androidpublisher.CreateDraftAppRecoveryRequest {
+	targeting := &androidpublisher.Targeting{}
+	if len(options.VersionCodes) > 0 {
+		targeting.VersionList = &androidpublisher.AppVersionList{VersionCodes: googleapi.Int64s(append([]int64(nil), options.VersionCodes...))}
+	}
+	if options.VersionCodeStart > 0 {
+		targeting.VersionRange = &androidpublisher.AppVersionRange{
+			VersionCodeStart: options.VersionCodeStart,
+			VersionCodeEnd:   options.VersionCodeEnd,
+		}
+	}
+	if options.AllUsers {
+		targeting.AllUsers = &androidpublisher.AllUsers{IsAllUsersRequested: true}
+	}
+	if len(options.SDKLevels) > 0 {
+		targeting.AndroidSdks = &androidpublisher.AndroidSdks{SdkLevels: googleapi.Int64s(append([]int64(nil), options.SDKLevels...))}
+	}
+	if len(options.RegionCodes) > 0 {
+		targeting.Regions = &androidpublisher.Regions{RegionCode: append([]string(nil), options.RegionCodes...)}
+	}
 	return &androidpublisher.CreateDraftAppRecoveryRequest{
 		RemoteInAppUpdate: &androidpublisher.RemoteInAppUpdate{IsRemoteInAppUpdateRequested: true},
-		Targeting: &androidpublisher.Targeting{
-			VersionList: &androidpublisher.AppVersionList{VersionCodes: googleapi.Int64s(append([]int64(nil), options.VersionCodes...))},
-		},
+		Targeting:         targeting,
 	}
 }
 
