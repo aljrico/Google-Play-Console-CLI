@@ -156,6 +156,40 @@ func TestPricingBuildPricePatchesRejectsMismatchedPackageFlag(t *testing.T) {
 	}
 }
 
+func TestPricingBuildPricePatchesRejectsDuplicateRegionKeyInJSON(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	jsonPath := writeTempPricingConversion(t, `{
+		"packageName": "com.example.app",
+		"sourcePrice": {"currencyCode": "USD", "units": 9, "nanos": 990000000},
+		"regionVersion": "2026/05",
+		"convertedRegionPrices": {
+			"US": {"price": {"currencyCode": "USD", "units": 9, "nanos": 990000000}},
+			"US": {"price": {"currencyCode": "USD", "units": 19, "nanos": 990000000}}
+		}
+	}`)
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"pricing",
+		"build-price-patches",
+		"--from-json",
+		jsonPath,
+		"--target",
+		"in-app-product",
+		"--sku",
+		"coins_100",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil, want duplicate region key error")
+	}
+	if !strings.Contains(err.Error(), `"US" is duplicated`) {
+		t.Fatalf("error = %v, want duplicate region key", err)
+	}
+}
+
 func writeTempPricingConversion(t *testing.T, content string) string {
 	t.Helper()
 	path := t.TempDir() + "/conversion.json"

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -138,5 +139,48 @@ func readRegionPriceConversionResult(path string) (play.RegionPriceConversionRes
 	if err := json.Unmarshal(data, &result); err != nil {
 		return play.RegionPriceConversionResult{}, fmt.Errorf("decode price conversion JSON: %w", err)
 	}
+	if err := assertNoDuplicateConvertedRegionKeys(data); err != nil {
+		return play.RegionPriceConversionResult{}, fmt.Errorf("decode price conversion JSON: %w", err)
+	}
 	return result, nil
+}
+
+func assertNoDuplicateConvertedRegionKeys(data []byte) error {
+	var raw struct {
+		ConvertedRegionPrices json.RawMessage `json:"convertedRegionPrices"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if len(raw.ConvertedRegionPrices) == 0 {
+		return nil
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw.ConvertedRegionPrices))
+	tok, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	if delim, ok := tok.(json.Delim); !ok || delim != '{' {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	for decoder.More() {
+		keyTok, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		key, ok := keyTok.(string)
+		if !ok {
+			return fmt.Errorf("expected string key in convertedRegionPrices")
+		}
+		if _, dup := seen[key]; dup {
+			return fmt.Errorf("converted region price %q is duplicated", key)
+		}
+		seen[key] = struct{}{}
+		var skip json.RawMessage
+		if err := decoder.Decode(&skip); err != nil {
+			return err
+		}
+	}
+	return nil
 }
