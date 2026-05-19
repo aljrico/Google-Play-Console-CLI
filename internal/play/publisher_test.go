@@ -3689,6 +3689,73 @@ func TestBatchDeleteOneTimeProductOffersRejectsDryRunBeforeRequest(t *testing.T)
 	}
 }
 
+func TestBatchUpdateOneTimeProductOfferStatesUsesBatchUpdateEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/-/offers:batchUpdateStates" {
+			t.Fatalf("path = %q, want one-time product offers batchUpdateStates endpoint", r.URL.Path)
+		}
+		var request androidpublisher.BatchUpdateOneTimeProductOfferStatesRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if len(request.Requests) != 2 {
+			t.Fatalf("len(Requests) = %d, want 2", len(request.Requests))
+		}
+		deactivate := request.Requests[0].DeactivateOneTimeProductOfferRequest
+		if deactivate == nil || deactivate.ProductId != "coins_100" || deactivate.PurchaseOptionId != "buy" || deactivate.OfferId != "intro" {
+			t.Fatalf("first request = %#v, want deactivate intro", request.Requests[0])
+		}
+		if deactivate.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+			t.Fatalf("LatencyTolerance = %q, want tolerant", deactivate.LatencyTolerance)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro","state":"INACTIVE"}]}`)
+	}))
+
+	result, err := publisher.BatchUpdateOneTimeProductOfferStates(context.Background(), OneTimeProductOfferBatchStateUpdateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "-",
+		Requests: []OneTimeProductOfferBatchDeleteRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro"},
+			{ProductID: "coins_100", PurchaseOptionID: "rent", OfferID: "preorder"},
+		},
+		Action:           OneTimeProductOfferStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchUpdateOneTimeProductOfferStates() error = %v", err)
+	}
+	if len(result.Offers) != 1 || result.Offers[0].OfferID != "intro" {
+		t.Fatalf("Offers = %#v, want intro", result.Offers)
+	}
+}
+
+func TestBatchUpdateOneTimeProductOfferStatesRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	_, err := publisher.BatchUpdateOneTimeProductOfferStates(context.Background(), OneTimeProductOfferBatchStateUpdateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Requests: []OneTimeProductOfferBatchDeleteRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro"},
+		},
+		Action:           OneTimeProductOfferStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+}
+
 func TestUpdateOneTimeProductOfferStateUsesDeactivateEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

@@ -716,6 +716,43 @@ func (p GooglePublisher) BatchDeleteOneTimeProductOffers(ctx context.Context, op
 	return nil
 }
 
+func (p GooglePublisher) BatchUpdateOneTimeProductOfferStates(ctx context.Context, options OneTimeProductOfferBatchStateUpdateOptions) (OneTimeProductOfferBatchStateUpdateResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return OneTimeProductOfferBatchStateUpdateResult{}, err
+	}
+	request := &androidpublisher.BatchUpdateOneTimeProductOfferStatesRequest{
+		Requests: make([]*androidpublisher.UpdateOneTimeProductOfferStateRequest, 0, len(options.Requests)),
+	}
+	for _, item := range options.Requests {
+		request.Requests = append(request.Requests, oneTimeProductOfferStateRequestToAPI(options, item))
+	}
+	response, err := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.BatchUpdateStates(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.PurchaseOptionID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return OneTimeProductOfferBatchStateUpdateResult{}, fmt.Errorf("batch %s one-time product offers for %s/%s/%s: %w", options.Action, options.PackageName, options.ProductID, options.PurchaseOptionID, err)
+	}
+	offers := make([]OneTimeProductOffer, 0)
+	if response != nil {
+		offers = make([]OneTimeProductOffer, 0, len(response.OneTimeProductOffers))
+		for _, offer := range response.OneTimeProductOffers {
+			offers = append(offers, oneTimeProductOfferFromAPI(offer))
+		}
+	}
+	return OneTimeProductOfferBatchStateUpdateResult{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		Requests:         append([]OneTimeProductOfferBatchMutationRequest(nil), options.Requests...),
+		Action:           options.Action,
+		Applied:          true,
+		Offers:           offers,
+	}, nil
+}
+
 func (p GooglePublisher) UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProductOffer{}, err
@@ -775,6 +812,44 @@ func (p GooglePublisher) UpdateOneTimeProductOfferState(ctx context.Context, opt
 		return OneTimeProductOffer{}, fmt.Errorf("%s one-time product offer %s for %s/%s/%s: %w", options.Action, options.OfferID, options.PackageName, options.ProductID, options.PurchaseOptionID, err)
 	}
 	return oneTimeProductOfferFromAPI(offer), nil
+}
+
+func oneTimeProductOfferStateRequestToAPI(options OneTimeProductOfferBatchStateUpdateOptions, item OneTimeProductOfferBatchMutationRequest) *androidpublisher.UpdateOneTimeProductOfferStateRequest {
+	latencyTolerance := productUpdateLatencyToleranceToAPI(options.LatencyTolerance)
+	switch options.Action {
+	case OneTimeProductOfferStateActionActivate:
+		return &androidpublisher.UpdateOneTimeProductOfferStateRequest{
+			ActivateOneTimeProductOfferRequest: &androidpublisher.ActivateOneTimeProductOfferRequest{
+				PackageName:      options.PackageName.String(),
+				ProductId:        item.ProductID.String(),
+				PurchaseOptionId: item.PurchaseOptionID.String(),
+				OfferId:          item.OfferID.String(),
+				LatencyTolerance: latencyTolerance,
+			},
+		}
+	case OneTimeProductOfferStateActionDeactivate:
+		return &androidpublisher.UpdateOneTimeProductOfferStateRequest{
+			DeactivateOneTimeProductOfferRequest: &androidpublisher.DeactivateOneTimeProductOfferRequest{
+				PackageName:      options.PackageName.String(),
+				ProductId:        item.ProductID.String(),
+				PurchaseOptionId: item.PurchaseOptionID.String(),
+				OfferId:          item.OfferID.String(),
+				LatencyTolerance: latencyTolerance,
+			},
+		}
+	case OneTimeProductOfferStateActionCancel:
+		return &androidpublisher.UpdateOneTimeProductOfferStateRequest{
+			CancelOneTimeProductOfferRequest: &androidpublisher.CancelOneTimeProductOfferRequest{
+				PackageName:      options.PackageName.String(),
+				ProductId:        item.ProductID.String(),
+				PurchaseOptionId: item.PurchaseOptionID.String(),
+				OfferId:          item.OfferID.String(),
+				LatencyTolerance: latencyTolerance,
+			},
+		}
+	default:
+		return &androidpublisher.UpdateOneTimeProductOfferStateRequest{}
+	}
 }
 
 func (p GooglePublisher) ListSubscriptions(ctx context.Context, options SubscriptionListOptions) (SubscriptionListResult, error) {

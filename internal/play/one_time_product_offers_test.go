@@ -338,6 +338,94 @@ func TestBatchDeleteOneTimeProductOffersPassesOptionsToDeleter(t *testing.T) {
 	}
 }
 
+func TestBatchUpdateOneTimeProductOfferStatesDryRunBuildsPlanWithoutUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchUpdateOneTimeProductOfferStates(context.Background(), nil, OneTimeProductOfferBatchStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "-",
+		Requests: []OneTimeProductOfferBatchDeleteRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro"},
+			{ProductID: "coins_100", PurchaseOptionID: "rent", OfferID: "preorder"},
+		},
+		Action:           OneTimeProductOfferStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchUpdateOneTimeProductOfferStates() error = %v", err)
+	}
+	if !result.DryRun || result.Applied {
+		t.Fatalf("result = %#v, want dry-run batch state update", result)
+	}
+	if result.Action != OneTimeProductOfferStateActionDeactivate {
+		t.Fatalf("Action = %q, want deactivate", result.Action)
+	}
+}
+
+func TestBatchUpdateOneTimeProductOfferStatesRejectsOverbroadWildcardParent(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchUpdateOneTimeProductOfferStates(context.Background(), nil, OneTimeProductOfferBatchStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "-",
+		PurchaseOptionID: "-",
+		Requests: []OneTimeProductOfferBatchDeleteRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro"},
+		},
+		Action:           OneTimeProductOfferStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected overbroad wildcard parent validation error")
+	}
+}
+
+func TestBatchUpdateOneTimeProductOfferStatesPassesOptionsToUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	updater := &fakeOneTimeProductOfferClient{
+		batchStateResult: OneTimeProductOfferBatchStateUpdateResult{
+			PackageName:      packageName,
+			ProductID:        "coins_100",
+			PurchaseOptionID: "buy",
+			Offers:           []OneTimeProductOffer{{OfferID: "intro", State: "ACTIVE"}},
+		},
+	}
+	options := OneTimeProductOfferBatchStateUpdateOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Requests: []OneTimeProductOfferBatchDeleteRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro"},
+		},
+		Action:           OneTimeProductOfferStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := BatchUpdateOneTimeProductOfferStates(context.Background(), updater, options)
+	if err != nil {
+		t.Fatalf("BatchUpdateOneTimeProductOfferStates() error = %v", err)
+	}
+	if !result.Applied || len(result.Offers) != 1 {
+		t.Fatalf("result = %#v, want applied offer", result)
+	}
+	if !reflect.DeepEqual(updater.batchStateOptions, options) {
+		t.Fatalf("batchStateOptions = %#v, want %#v", updater.batchStateOptions, options)
+	}
+}
+
 func TestUpdateOneTimeProductOfferStateDryRunBuildsPlanWithoutUpdater(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -421,6 +509,8 @@ type fakeOneTimeProductOfferClient struct {
 	batchOptions       OneTimeProductOfferBatchGetOptions
 	batchResult        OneTimeProductOfferBatchGetResult
 	batchDeleteOptions OneTimeProductOfferBatchDeleteOptions
+	batchStateOptions  OneTimeProductOfferBatchStateUpdateOptions
+	batchStateResult   OneTimeProductOfferBatchStateUpdateResult
 	getOptions         OneTimeProductOfferGetOptions
 	stateOptions       OneTimeProductOfferStateUpdateOptions
 	offer              OneTimeProductOffer
@@ -444,6 +534,11 @@ func (c *fakeOneTimeProductOfferClient) BatchGetOneTimeProductOffers(ctx context
 func (c *fakeOneTimeProductOfferClient) BatchDeleteOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchDeleteOptions) error {
 	c.batchDeleteOptions = options
 	return nil
+}
+
+func (c *fakeOneTimeProductOfferClient) BatchUpdateOneTimeProductOfferStates(ctx context.Context, options OneTimeProductOfferBatchStateUpdateOptions) (OneTimeProductOfferBatchStateUpdateResult, error) {
+	c.batchStateOptions = options
+	return c.batchStateResult, nil
 }
 
 func (c *fakeOneTimeProductOfferClient) UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error) {

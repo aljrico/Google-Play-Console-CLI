@@ -200,7 +200,8 @@ type OneTimeProductOfferBatchGetRequest struct {
 	OfferID          OneTimeProductOfferID          `json:"offerId"`
 }
 
-type OneTimeProductOfferBatchDeleteRequest = OneTimeProductOfferBatchGetRequest
+type OneTimeProductOfferBatchMutationRequest = OneTimeProductOfferBatchGetRequest
+type OneTimeProductOfferBatchDeleteRequest = OneTimeProductOfferBatchMutationRequest
 
 func NewOneTimeProductOfferBatchGetRequest(value string) (OneTimeProductOfferBatchGetRequest, error) {
 	parts := strings.Split(strings.TrimSpace(value), "/")
@@ -226,6 +227,10 @@ func NewOneTimeProductOfferBatchDeleteRequest(value string) (OneTimeProductOffer
 	return NewOneTimeProductOfferBatchGetRequest(value)
 }
 
+func NewOneTimeProductOfferBatchMutationRequest(value string) (OneTimeProductOfferBatchMutationRequest, error) {
+	return NewOneTimeProductOfferBatchGetRequest(value)
+}
+
 type OneTimeProductOfferBatchGetOptions struct {
 	PackageName      PackageName                          `json:"packageName"`
 	ProductID        OneTimeProductID                     `json:"productId"`
@@ -234,13 +239,24 @@ type OneTimeProductOfferBatchGetOptions struct {
 }
 
 type OneTimeProductOfferBatchDeleteOptions struct {
-	PackageName      PackageName                             `json:"packageName"`
-	ProductID        OneTimeProductID                        `json:"productId"`
-	PurchaseOptionID OneTimeProductPurchaseOptionID          `json:"purchaseOptionId"`
-	Requests         []OneTimeProductOfferBatchDeleteRequest `json:"requests"`
-	LatencyTolerance ProductUpdateLatencyTolerance           `json:"latencyTolerance"`
-	Confirm          bool                                    `json:"confirm"`
-	DryRun           bool                                    `json:"dryRun"`
+	PackageName      PackageName                               `json:"packageName"`
+	ProductID        OneTimeProductID                          `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID            `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferBatchMutationRequest `json:"requests"`
+	LatencyTolerance ProductUpdateLatencyTolerance             `json:"latencyTolerance"`
+	Confirm          bool                                      `json:"confirm"`
+	DryRun           bool                                      `json:"dryRun"`
+}
+
+type OneTimeProductOfferBatchStateUpdateOptions struct {
+	PackageName      PackageName                               `json:"packageName"`
+	ProductID        OneTimeProductID                          `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID            `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferBatchMutationRequest `json:"requests"`
+	Action           OneTimeProductOfferStateAction            `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance             `json:"latencyTolerance"`
+	Confirm          bool                                      `json:"confirm"`
+	DryRun           bool                                      `json:"dryRun"`
 }
 
 func (o OneTimeProductOfferGetOptions) Validate() error {
@@ -308,59 +324,8 @@ func (o OneTimeProductOfferBatchDeleteOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
 	}
-	if _, err := NewOneTimeProductOfferListProductID(o.ProductID.String()); err != nil {
+	if err := validateOneTimeProductOfferBatchMutationParents(o.ProductID, o.PurchaseOptionID, o.Requests, "batch-delete"); err != nil {
 		return err
-	}
-	if _, err := NewOneTimeProductOfferListPurchaseOptionID(o.PurchaseOptionID.String()); err != nil {
-		return err
-	}
-	if o.ProductID.String() == OneTimeProductOfferWildcardID && o.PurchaseOptionID.String() != OneTimeProductOfferWildcardID {
-		return fmt.Errorf("one-time product purchase option ID must be %q when product ID is %q", OneTimeProductOfferWildcardID, OneTimeProductOfferWildcardID)
-	}
-	if len(o.Requests) == 0 {
-		return fmt.Errorf("at least one one-time product offer is required")
-	}
-	if len(o.Requests) > 100 {
-		return fmt.Errorf("one-time product offer batch-delete cannot exceed 100 offers")
-	}
-	seen := map[string]struct{}{}
-	seenProducts := map[OneTimeProductID]struct{}{}
-	seenPurchaseOptions := map[OneTimeProductPurchaseOptionID]struct{}{}
-	for _, request := range o.Requests {
-		if _, err := NewOneTimeProductID(request.ProductID.String()); err != nil {
-			return err
-		}
-		if _, err := NewOneTimeProductPurchaseOptionID(request.PurchaseOptionID.String()); err != nil {
-			return err
-		}
-		if _, err := NewOneTimeProductOfferID(request.OfferID.String()); err != nil {
-			return err
-		}
-		if o.ProductID.String() != OneTimeProductOfferWildcardID && request.ProductID != o.ProductID {
-			return fmt.Errorf("one-time product offer %s/%s/%s does not match parent product ID %s", request.ProductID, request.PurchaseOptionID, request.OfferID, o.ProductID)
-		}
-		if o.PurchaseOptionID.String() != OneTimeProductOfferWildcardID && request.PurchaseOptionID != o.PurchaseOptionID {
-			return fmt.Errorf("one-time product offer %s/%s/%s does not match parent purchase option ID %s", request.ProductID, request.PurchaseOptionID, request.OfferID, o.PurchaseOptionID)
-		}
-		key := oneTimeProductOfferKey(request.ProductID, request.PurchaseOptionID, request.OfferID)
-		if _, ok := seen[key]; ok {
-			return fmt.Errorf("one-time product offer %s is duplicated", key)
-		}
-		seen[key] = struct{}{}
-		seenProducts[request.ProductID] = struct{}{}
-		seenPurchaseOptions[request.PurchaseOptionID] = struct{}{}
-	}
-	if len(seenProducts) == 1 && o.ProductID.String() == OneTimeProductOfferWildcardID {
-		return fmt.Errorf("single-product offer batch-delete requires parent product ID, not %q", OneTimeProductOfferWildcardID)
-	}
-	if len(seenProducts) > 1 && o.ProductID.String() != OneTimeProductOfferWildcardID {
-		return fmt.Errorf("multi-product offer batch-delete requires parent product ID %q", OneTimeProductOfferWildcardID)
-	}
-	if len(seenProducts) == 1 && len(seenPurchaseOptions) == 1 && o.PurchaseOptionID.String() == OneTimeProductOfferWildcardID {
-		return fmt.Errorf("single-purchase-option offer batch-delete requires parent purchase option ID, not %q", OneTimeProductOfferWildcardID)
-	}
-	if len(seenProducts) == 1 && len(seenPurchaseOptions) > 1 && o.PurchaseOptionID.String() != OneTimeProductOfferWildcardID {
-		return fmt.Errorf("multi-purchase-option offer batch-delete requires parent purchase option ID %q", OneTimeProductOfferWildcardID)
 	}
 	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
 		return err
@@ -370,6 +335,28 @@ func (o OneTimeProductOfferBatchDeleteOptions) Validate() error {
 	}
 	if !o.Confirm && !o.DryRun {
 		return fmt.Errorf("one-time product offer batch deletion requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o OneTimeProductOfferBatchStateUpdateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if err := validateOneTimeProductOfferBatchMutationParents(o.ProductID, o.PurchaseOptionID, o.Requests, "batch state update"); err != nil {
+		return err
+	}
+	if err := o.Action.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("one-time product offer batch state update requires --confirm or --dry-run")
 	}
 	return nil
 }
@@ -387,6 +374,77 @@ func (o OneTimeProductOfferBatchDeleteOptions) ValidateLive() error {
 	return nil
 }
 
+func (o OneTimeProductOfferBatchStateUpdateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live one-time product offer batch state update cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live one-time product offer batch state update requires --confirm")
+	}
+	return nil
+}
+
+func validateOneTimeProductOfferBatchMutationParents(productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, requests []OneTimeProductOfferBatchMutationRequest, operation string) error {
+	if _, err := NewOneTimeProductOfferListProductID(productID.String()); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductOfferListPurchaseOptionID(purchaseOptionID.String()); err != nil {
+		return err
+	}
+	if productID.String() == OneTimeProductOfferWildcardID && purchaseOptionID.String() != OneTimeProductOfferWildcardID {
+		return fmt.Errorf("one-time product purchase option ID must be %q when product ID is %q", OneTimeProductOfferWildcardID, OneTimeProductOfferWildcardID)
+	}
+	if len(requests) == 0 {
+		return fmt.Errorf("at least one one-time product offer is required")
+	}
+	if len(requests) > 100 {
+		return fmt.Errorf("one-time product offer %s cannot exceed 100 offers", operation)
+	}
+	seen := map[string]struct{}{}
+	seenProducts := map[OneTimeProductID]struct{}{}
+	seenPurchaseOptions := map[OneTimeProductPurchaseOptionID]struct{}{}
+	for _, request := range requests {
+		if _, err := NewOneTimeProductID(request.ProductID.String()); err != nil {
+			return err
+		}
+		if _, err := NewOneTimeProductPurchaseOptionID(request.PurchaseOptionID.String()); err != nil {
+			return err
+		}
+		if _, err := NewOneTimeProductOfferID(request.OfferID.String()); err != nil {
+			return err
+		}
+		if productID.String() != OneTimeProductOfferWildcardID && request.ProductID != productID {
+			return fmt.Errorf("one-time product offer %s/%s/%s does not match parent product ID %s", request.ProductID, request.PurchaseOptionID, request.OfferID, productID)
+		}
+		if purchaseOptionID.String() != OneTimeProductOfferWildcardID && request.PurchaseOptionID != purchaseOptionID {
+			return fmt.Errorf("one-time product offer %s/%s/%s does not match parent purchase option ID %s", request.ProductID, request.PurchaseOptionID, request.OfferID, purchaseOptionID)
+		}
+		key := oneTimeProductOfferKey(request.ProductID, request.PurchaseOptionID, request.OfferID)
+		if _, ok := seen[key]; ok {
+			return fmt.Errorf("one-time product offer %s is duplicated", key)
+		}
+		seen[key] = struct{}{}
+		seenProducts[request.ProductID] = struct{}{}
+		seenPurchaseOptions[request.PurchaseOptionID] = struct{}{}
+	}
+	if len(seenProducts) == 1 && productID.String() == OneTimeProductOfferWildcardID {
+		return fmt.Errorf("single-product offer %s requires parent product ID, not %q", operation, OneTimeProductOfferWildcardID)
+	}
+	if len(seenProducts) > 1 && productID.String() != OneTimeProductOfferWildcardID {
+		return fmt.Errorf("multi-product offer %s requires parent product ID %q", operation, OneTimeProductOfferWildcardID)
+	}
+	if len(seenProducts) == 1 && len(seenPurchaseOptions) == 1 && purchaseOptionID.String() == OneTimeProductOfferWildcardID {
+		return fmt.Errorf("single-purchase-option offer %s requires parent purchase option ID, not %q", operation, OneTimeProductOfferWildcardID)
+	}
+	if len(seenProducts) == 1 && len(seenPurchaseOptions) > 1 && purchaseOptionID.String() != OneTimeProductOfferWildcardID {
+		return fmt.Errorf("multi-purchase-option offer %s requires parent purchase option ID %q", operation, OneTimeProductOfferWildcardID)
+	}
+	return nil
+}
+
 type OneTimeProductOfferGetter interface {
 	GetOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error)
 }
@@ -399,6 +457,10 @@ type OneTimeProductOfferBatchDeleter interface {
 	BatchDeleteOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchDeleteOptions) error
 }
 
+type OneTimeProductOfferBatchStateUpdater interface {
+	BatchUpdateOneTimeProductOfferStates(ctx context.Context, options OneTimeProductOfferBatchStateUpdateOptions) (OneTimeProductOfferBatchStateUpdateResult, error)
+}
+
 type OneTimeProductOfferBatchGetResult struct {
 	PackageName      PackageName                        `json:"packageName"`
 	ProductID        OneTimeProductID                   `json:"productId"`
@@ -408,23 +470,46 @@ type OneTimeProductOfferBatchGetResult struct {
 }
 
 type OneTimeProductOfferBatchDeletePlan struct {
-	PackageName      PackageName                             `json:"packageName"`
-	ProductID        OneTimeProductID                        `json:"productId"`
-	PurchaseOptionID OneTimeProductPurchaseOptionID          `json:"purchaseOptionId"`
-	Requests         []OneTimeProductOfferBatchDeleteRequest `json:"requests"`
-	LatencyTolerance ProductUpdateLatencyTolerance           `json:"latencyTolerance"`
-	Confirm          bool                                    `json:"confirm"`
-	Steps            []string                                `json:"steps"`
+	PackageName      PackageName                               `json:"packageName"`
+	ProductID        OneTimeProductID                          `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID            `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferBatchMutationRequest `json:"requests"`
+	LatencyTolerance ProductUpdateLatencyTolerance             `json:"latencyTolerance"`
+	Confirm          bool                                      `json:"confirm"`
+	Steps            []string                                  `json:"steps"`
 }
 
 type OneTimeProductOfferBatchDeleteResult struct {
-	PackageName      PackageName                             `json:"packageName"`
-	ProductID        OneTimeProductID                        `json:"productId"`
-	PurchaseOptionID OneTimeProductPurchaseOptionID          `json:"purchaseOptionId"`
-	Requests         []OneTimeProductOfferBatchDeleteRequest `json:"requests"`
-	DryRun           bool                                    `json:"dryRun"`
-	Deleted          bool                                    `json:"deleted"`
-	Plan             OneTimeProductOfferBatchDeletePlan      `json:"plan"`
+	PackageName      PackageName                               `json:"packageName"`
+	ProductID        OneTimeProductID                          `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID            `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferBatchMutationRequest `json:"requests"`
+	DryRun           bool                                      `json:"dryRun"`
+	Deleted          bool                                      `json:"deleted"`
+	Plan             OneTimeProductOfferBatchDeletePlan        `json:"plan"`
+}
+
+type OneTimeProductOfferBatchStateUpdatePlan struct {
+	PackageName      PackageName                               `json:"packageName"`
+	ProductID        OneTimeProductID                          `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID            `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferBatchMutationRequest `json:"requests"`
+	Action           OneTimeProductOfferStateAction            `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance             `json:"latencyTolerance"`
+	Confirm          bool                                      `json:"confirm"`
+	Steps            []string                                  `json:"steps"`
+}
+
+type OneTimeProductOfferBatchStateUpdateResult struct {
+	PackageName      PackageName                               `json:"packageName"`
+	ProductID        OneTimeProductID                          `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID            `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferBatchMutationRequest `json:"requests"`
+	Action           OneTimeProductOfferStateAction            `json:"action"`
+	DryRun           bool                                      `json:"dryRun"`
+	Applied          bool                                      `json:"applied"`
+	Offers           []OneTimeProductOffer                     `json:"offers,omitempty"`
+	Plan             OneTimeProductOfferBatchStateUpdatePlan   `json:"plan"`
 }
 
 func GetOneTimeProductOffer(ctx context.Context, getter OneTimeProductOfferGetter, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error) {
@@ -451,7 +536,7 @@ func BatchDeleteOneTimeProductOffers(ctx context.Context, deleter OneTimeProduct
 	if err := options.Validate(); err != nil {
 		return OneTimeProductOfferBatchDeleteResult{}, err
 	}
-	requests := append([]OneTimeProductOfferBatchDeleteRequest(nil), options.Requests...)
+	requests := append([]OneTimeProductOfferBatchMutationRequest(nil), options.Requests...)
 	result := OneTimeProductOfferBatchDeleteResult{
 		PackageName:      options.PackageName,
 		ProductID:        options.ProductID,
@@ -481,11 +566,62 @@ func BatchDeleteOneTimeProductOffers(ctx context.Context, deleter OneTimeProduct
 	return result, nil
 }
 
+func BatchUpdateOneTimeProductOfferStates(ctx context.Context, updater OneTimeProductOfferBatchStateUpdater, options OneTimeProductOfferBatchStateUpdateOptions) (OneTimeProductOfferBatchStateUpdateResult, error) {
+	if err := options.Validate(); err != nil {
+		return OneTimeProductOfferBatchStateUpdateResult{}, err
+	}
+	requests := append([]OneTimeProductOfferBatchMutationRequest(nil), options.Requests...)
+	result := OneTimeProductOfferBatchStateUpdateResult{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		Requests:         requests,
+		Action:           options.Action,
+		DryRun:           options.DryRun,
+		Plan: OneTimeProductOfferBatchStateUpdatePlan{
+			PackageName:      options.PackageName,
+			ProductID:        options.ProductID,
+			PurchaseOptionID: options.PurchaseOptionID,
+			Requests:         requests,
+			Action:           options.Action,
+			LatencyTolerance: options.LatencyTolerance,
+			Confirm:          options.Confirm,
+			Steps:            oneTimeProductOfferBatchStateUpdateSteps(options),
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if updater == nil {
+		return OneTimeProductOfferBatchStateUpdateResult{}, fmt.Errorf("one-time product offer batch state updater is required")
+	}
+	updated, err := updater.BatchUpdateOneTimeProductOfferStates(ctx, options)
+	if err != nil {
+		return OneTimeProductOfferBatchStateUpdateResult{}, err
+	}
+	updated.PackageName = options.PackageName
+	updated.ProductID = options.ProductID
+	updated.PurchaseOptionID = options.PurchaseOptionID
+	updated.Plan = result.Plan
+	updated.Requests = requests
+	updated.Action = options.Action
+	updated.DryRun = false
+	updated.Applied = true
+	return updated, nil
+}
+
 func oneTimeProductOfferBatchDeleteSteps(options OneTimeProductOfferBatchDeleteOptions) []string {
 	if options.DryRun {
 		return []string{"plan one-time product offer batch deletion"}
 	}
 	return []string{"batch delete one-time product offers"}
+}
+
+func oneTimeProductOfferBatchStateUpdateSteps(options OneTimeProductOfferBatchStateUpdateOptions) []string {
+	if options.DryRun {
+		return []string{fmt.Sprintf("plan batch %s one-time product offers", options.Action)}
+	}
+	return []string{fmt.Sprintf("batch %s one-time product offers", options.Action)}
 }
 
 type OneTimeProductOfferStateUpdateOptions struct {

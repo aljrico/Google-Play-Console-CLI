@@ -21,10 +21,96 @@ func newOneTimeProductOffersCommand(out io.Writer, options *globalOptions) *cobr
 		newOneTimeProductOffersGetCommand(out, options, &packageName),
 		newOneTimeProductOffersBatchGetCommand(out, options, &packageName),
 		newOneTimeProductOffersBatchDeleteCommand(out, options, &packageName),
+		newOneTimeProductOffersBatchStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionActivate),
+		newOneTimeProductOffersBatchStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionDeactivate),
+		newOneTimeProductOffersBatchStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionCancel),
 		newOneTimeProductOffersStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionActivate),
 		newOneTimeProductOffersStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionDeactivate),
 		newOneTimeProductOffersStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionCancel),
 	)
+	return cmd
+}
+
+func newOneTimeProductOffersBatchStateCommand(out io.Writer, options *globalOptions, packageName *string, action play.OneTimeProductOfferStateAction) *cobra.Command {
+	var (
+		productID        string
+		purchaseOptionID string
+		offers           []string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-" + action.String(),
+		Short: action.String() + " multiple one-time product offers",
+		Long: string(action) + " multiple one-time product offers. Omit parent IDs to infer the narrowest valid parent path from --offer values. " +
+			"Use --product-id - when the batch spans products, and --purchase-option-id - when it spans purchase options.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			requests, err := parseOneTimeProductOfferBatchMutationRequests(offers)
+			if err != nil {
+				return err
+			}
+			resolvedProductID, resolvedPurchaseOptionID := inferOneTimeProductOfferBatchParent(productID, purchaseOptionID, requests)
+			typedProductID, err := play.NewOneTimeProductOfferListProductID(resolvedProductID)
+			if err != nil {
+				return err
+			}
+			typedPurchaseOptionID, err := play.NewOneTimeProductOfferListPurchaseOptionID(resolvedPurchaseOptionID)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			updateOptions := play.OneTimeProductOfferBatchStateUpdateOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				PurchaseOptionID: typedPurchaseOptionID,
+				Requests:         requests,
+				Action:           action,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if err := updateOptions.Validate(); err != nil {
+				return err
+			}
+			if dryRun {
+				result, err := play.BatchUpdateOneTimeProductOfferStates(cmd.Context(), nil, updateOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchUpdateOneTimeProductOfferStates(cmd.Context(), publisher, updateOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	addOneTimeProductOfferParentFlags(
+		cmd,
+		&productID,
+		&purchaseOptionID,
+		"Parent one-time product ID, or - for offers across products; inferred when omitted",
+		"Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted",
+	)
+	cmd.Flags().StringArrayVar(&offers, "offer", nil, "Offer to update as productId/purchaseOptionId/offerId; repeatable, up to 100")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the one-time product offer batch state update")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product offer batch state update without calling Google Play")
 	return cmd
 }
 
@@ -49,7 +135,7 @@ func newOneTimeProductOffersBatchDeleteCommand(out io.Writer, options *globalOpt
 			if err != nil {
 				return err
 			}
-			requests, err := parseOneTimeProductOfferBatchDeleteRequests(offers)
+			requests, err := parseOneTimeProductOfferBatchMutationRequests(offers)
 			if err != nil {
 				return err
 			}
@@ -378,10 +464,10 @@ func parseOneTimeProductOfferBatchRequests(values []string) ([]play.OneTimeProdu
 	return requests, nil
 }
 
-func parseOneTimeProductOfferBatchDeleteRequests(values []string) ([]play.OneTimeProductOfferBatchDeleteRequest, error) {
-	requests := make([]play.OneTimeProductOfferBatchDeleteRequest, 0, len(values))
+func parseOneTimeProductOfferBatchMutationRequests(values []string) ([]play.OneTimeProductOfferBatchMutationRequest, error) {
+	requests := make([]play.OneTimeProductOfferBatchMutationRequest, 0, len(values))
 	for _, value := range values {
-		request, err := play.NewOneTimeProductOfferBatchDeleteRequest(value)
+		request, err := play.NewOneTimeProductOfferBatchMutationRequest(value)
 		if err != nil {
 			return nil, err
 		}
@@ -390,7 +476,7 @@ func parseOneTimeProductOfferBatchDeleteRequests(values []string) ([]play.OneTim
 	return requests, nil
 }
 
-func inferOneTimeProductOfferBatchParent(productID string, purchaseOptionID string, requests []play.OneTimeProductOfferBatchDeleteRequest) (string, string) {
+func inferOneTimeProductOfferBatchParent(productID string, purchaseOptionID string, requests []play.OneTimeProductOfferBatchMutationRequest) (string, string) {
 	if len(requests) == 0 {
 		return productID, purchaseOptionID
 	}
