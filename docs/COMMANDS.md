@@ -1415,7 +1415,40 @@ gpc purchases subscription [flags]
 
 ##### Commands
 
+- `gpc purchases subscription acknowledge`: Acknowledge a subscription purchase through the legacy subscriptions API
+- `gpc purchases subscription cancel`: Cancel a subscription purchase through the legacy subscriptions API
 - `gpc purchases subscription revoke`: Revoke a subscription purchase
+
+##### gpc purchases subscription acknowledge
+
+Acknowledge a subscription purchase through the legacy subscriptions API
+
+```sh
+gpc purchases subscription acknowledge [flags]
+```
+
+###### Flags
+
+- `--confirm`: Apply the subscription purchase mutation (default `false`)
+- `--developer-payload`: Optional developer payload to attach to the acknowledgement
+- `--dry-run`: Print the planned subscription purchase mutation without calling Google Play (default `false`)
+- `--subscription-id`: Legacy subscription product ID
+- `--token`: Purchase token
+
+##### gpc purchases subscription cancel
+
+Cancel a subscription purchase through the legacy subscriptions API
+
+```sh
+gpc purchases subscription cancel [flags]
+```
+
+###### Flags
+
+- `--confirm`: Apply the subscription purchase mutation (default `false`)
+- `--dry-run`: Print the planned subscription purchase mutation without calling Google Play (default `false`)
+- `--subscription-id`: Legacy subscription product ID
+- `--token`: Purchase token
 
 ##### gpc purchases subscription revoke
 

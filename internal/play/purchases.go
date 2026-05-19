@@ -250,6 +250,31 @@ type SubscriptionPurchaseRevoker interface {
 	RevokeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseRevokeOptions) error
 }
 
+type SubscriptionPurchaseMutationAction string
+
+const (
+	SubscriptionPurchaseMutationActionAcknowledge SubscriptionPurchaseMutationAction = "acknowledge"
+	SubscriptionPurchaseMutationActionCancel      SubscriptionPurchaseMutationAction = "cancel"
+)
+
+func (a SubscriptionPurchaseMutationAction) String() string {
+	return string(a)
+}
+
+func (a SubscriptionPurchaseMutationAction) Validate() error {
+	switch a {
+	case SubscriptionPurchaseMutationActionAcknowledge, SubscriptionPurchaseMutationActionCancel:
+		return nil
+	default:
+		return fmt.Errorf("unsupported subscription purchase mutation action %q", a)
+	}
+}
+
+type SubscriptionPurchaseMutator interface {
+	AcknowledgeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseMutationOptions) error
+	CancelSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseMutationOptions) error
+}
+
 func GetSubscriptionPurchase(ctx context.Context, getter SubscriptionPurchaseGetter, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error) {
 	if err := options.Validate(); err != nil {
 		return SubscriptionPurchase{}, err
@@ -258,6 +283,116 @@ func GetSubscriptionPurchase(ctx context.Context, getter SubscriptionPurchaseGet
 		return SubscriptionPurchase{}, fmt.Errorf("subscription purchase getter is required")
 	}
 	return getter.GetSubscriptionPurchase(ctx, options)
+}
+
+type SubscriptionPurchaseMutationOptions struct {
+	PackageName      PackageName                        `json:"packageName"`
+	SubscriptionID   SubscriptionProductID              `json:"subscriptionId"`
+	Token            PurchaseToken                      `json:"token"`
+	Action           SubscriptionPurchaseMutationAction `json:"action"`
+	DeveloperPayload string                             `json:"developerPayload,omitempty"`
+	Confirm          bool                               `json:"confirm"`
+	DryRun           bool                               `json:"dryRun"`
+}
+
+func (o SubscriptionPurchaseMutationOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionProductID(o.SubscriptionID.String()); err != nil {
+		return err
+	}
+	if _, err := NewPurchaseToken(o.Token.String()); err != nil {
+		return err
+	}
+	if err := o.Action.Validate(); err != nil {
+		return err
+	}
+	if o.DeveloperPayload != "" && o.Action != SubscriptionPurchaseMutationActionAcknowledge {
+		return fmt.Errorf("developer payload is only supported for subscription purchase acknowledge")
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("subscription purchase mutation requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o SubscriptionPurchaseMutationOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live subscription purchase mutation cannot run with --dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live subscription purchase mutation requires --confirm")
+	}
+	return nil
+}
+
+type SubscriptionPurchaseMutationPlan struct {
+	Action           SubscriptionPurchaseMutationAction `json:"action"`
+	PackageName      PackageName                        `json:"packageName"`
+	SubscriptionID   SubscriptionProductID              `json:"subscriptionId"`
+	Token            PurchaseToken                      `json:"token"`
+	DeveloperPayload string                             `json:"developerPayload,omitempty"`
+	Confirm          bool                               `json:"confirm"`
+	Steps            []string                           `json:"steps"`
+}
+
+type SubscriptionPurchaseMutationResult struct {
+	Action         SubscriptionPurchaseMutationAction `json:"action"`
+	PackageName    PackageName                        `json:"packageName"`
+	SubscriptionID SubscriptionProductID              `json:"subscriptionId"`
+	Token          PurchaseToken                      `json:"token"`
+	DryRun         bool                               `json:"dryRun"`
+	Applied        bool                               `json:"applied"`
+	Plan           SubscriptionPurchaseMutationPlan   `json:"plan"`
+}
+
+func MutateSubscriptionPurchase(ctx context.Context, mutator SubscriptionPurchaseMutator, options SubscriptionPurchaseMutationOptions) (SubscriptionPurchaseMutationResult, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionPurchaseMutationResult{}, err
+	}
+	result := SubscriptionPurchaseMutationResult{
+		Action:         options.Action,
+		PackageName:    options.PackageName,
+		SubscriptionID: options.SubscriptionID,
+		Token:          options.Token,
+		DryRun:         options.DryRun,
+		Plan: SubscriptionPurchaseMutationPlan{
+			Action:           options.Action,
+			PackageName:      options.PackageName,
+			SubscriptionID:   options.SubscriptionID,
+			Token:            options.Token,
+			DeveloperPayload: options.DeveloperPayload,
+			Confirm:          options.Confirm,
+			Steps:            []string{fmt.Sprintf("%s subscription purchase", options.Action)},
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if mutator == nil {
+		return SubscriptionPurchaseMutationResult{}, fmt.Errorf("subscription purchase mutator is required")
+	}
+	switch options.Action {
+	case SubscriptionPurchaseMutationActionAcknowledge:
+		if err := mutator.AcknowledgeSubscriptionPurchase(ctx, options); err != nil {
+			return SubscriptionPurchaseMutationResult{}, err
+		}
+	case SubscriptionPurchaseMutationActionCancel:
+		if err := mutator.CancelSubscriptionPurchase(ctx, options); err != nil {
+			return SubscriptionPurchaseMutationResult{}, err
+		}
+	default:
+		return SubscriptionPurchaseMutationResult{}, fmt.Errorf("unsupported subscription purchase mutation action %q", options.Action)
+	}
+	result.Applied = true
+	return result, nil
 }
 
 type SubscriptionRefundType string

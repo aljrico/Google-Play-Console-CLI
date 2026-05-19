@@ -1102,6 +1102,84 @@ func TestRevokeSubscriptionPurchaseUsesSubscriptionV2Endpoint(t *testing.T) {
 	}
 }
 
+func TestAcknowledgeSubscriptionPurchaseUsesLegacyEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/purchases/subscriptions/premium_monthly/tokens/token-123:acknowledge" {
+			t.Fatalf("path = %q, want legacy subscription acknowledge endpoint", r.URL.Path)
+		}
+		var request androidpublisher.SubscriptionPurchasesAcknowledgeRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.DeveloperPayload != "handled-by-gpc" {
+			t.Fatalf("DeveloperPayload = %q, want handled-by-gpc", request.DeveloperPayload)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+
+	err := publisher.AcknowledgeSubscriptionPurchase(context.Background(), SubscriptionPurchaseMutationOptions{
+		PackageName:      "com.example.app",
+		SubscriptionID:   "premium_monthly",
+		Token:            "token-123",
+		Action:           SubscriptionPurchaseMutationActionAcknowledge,
+		DeveloperPayload: "handled-by-gpc",
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("AcknowledgeSubscriptionPurchase() error = %v", err)
+	}
+}
+
+func TestCancelSubscriptionPurchaseUsesLegacyEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/purchases/subscriptions/premium_monthly/tokens/token-123:cancel" {
+			t.Fatalf("path = %q, want legacy subscription cancel endpoint", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+
+	err := publisher.CancelSubscriptionPurchase(context.Background(), SubscriptionPurchaseMutationOptions{
+		PackageName:    "com.example.app",
+		SubscriptionID: "premium_monthly",
+		Token:          "token-123",
+		Action:         SubscriptionPurchaseMutationActionCancel,
+		Confirm:        true,
+	})
+	if err != nil {
+		t.Fatalf("CancelSubscriptionPurchase() error = %v", err)
+	}
+}
+
+func TestCancelSubscriptionPurchaseRejectsDryRunBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	err := publisher.CancelSubscriptionPurchase(context.Background(), SubscriptionPurchaseMutationOptions{
+		PackageName:    "com.example.app",
+		SubscriptionID: "premium_monthly",
+		Token:          "token-123",
+		Action:         SubscriptionPurchaseMutationActionCancel,
+		DryRun:         true,
+	})
+	if err == nil {
+		t.Fatal("expected dry-run rejection")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
 func TestRevokeSubscriptionPurchaseRejectsDryRunBeforeRequest(t *testing.T) {
 	requests := 0
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -122,6 +122,65 @@ func TestGetSubscriptionPurchasePassesOptionsToGetter(t *testing.T) {
 	}
 }
 
+func TestMutateSubscriptionPurchaseDryRunDoesNotCallMutator(t *testing.T) {
+	result, err := MutateSubscriptionPurchase(context.Background(), nil, SubscriptionPurchaseMutationOptions{
+		PackageName:    "com.example.app",
+		SubscriptionID: "premium_monthly",
+		Token:          "token-123",
+		Action:         SubscriptionPurchaseMutationActionAcknowledge,
+		DryRun:         true,
+	})
+	if err != nil {
+		t.Fatalf("MutateSubscriptionPurchase() error = %v", err)
+	}
+	if result.Applied {
+		t.Fatalf("Applied = true, want false")
+	}
+	if result.Action != SubscriptionPurchaseMutationActionAcknowledge || result.Plan.Action != SubscriptionPurchaseMutationActionAcknowledge {
+		t.Fatalf("result = %#v, want acknowledge action", result)
+	}
+}
+
+func TestMutateSubscriptionPurchasePassesOptionsToMutator(t *testing.T) {
+	mutator := &fakePurchaseClient{}
+	options := SubscriptionPurchaseMutationOptions{
+		PackageName:    "com.example.app",
+		SubscriptionID: "premium_monthly",
+		Token:          "token-123",
+		Action:         SubscriptionPurchaseMutationActionCancel,
+		Confirm:        true,
+	}
+
+	result, err := MutateSubscriptionPurchase(context.Background(), mutator, options)
+	if err != nil {
+		t.Fatalf("MutateSubscriptionPurchase() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatalf("Applied = false, want true")
+	}
+	if mutator.subscriptionCancelOptions != options {
+		t.Fatalf("subscriptionCancelOptions = %#v, want %#v", mutator.subscriptionCancelOptions, options)
+	}
+}
+
+func TestSubscriptionPurchaseMutationRejectsInvalidOptions(t *testing.T) {
+	tests := []SubscriptionPurchaseMutationOptions{
+		{},
+		{PackageName: "bad", SubscriptionID: "premium_monthly", Token: "token-123", Action: SubscriptionPurchaseMutationActionAcknowledge, DryRun: true},
+		{PackageName: "com.example.app", Token: "token-123", Action: SubscriptionPurchaseMutationActionAcknowledge, DryRun: true},
+		{PackageName: "com.example.app", SubscriptionID: "premium_monthly", Action: SubscriptionPurchaseMutationActionAcknowledge, DryRun: true},
+		{PackageName: "com.example.app", SubscriptionID: "premium_monthly", Token: "token-123", DryRun: true},
+		{PackageName: "com.example.app", SubscriptionID: "premium_monthly", Token: "token-123", Action: SubscriptionPurchaseMutationActionCancel, DeveloperPayload: "payload", DryRun: true},
+		{PackageName: "com.example.app", SubscriptionID: "premium_monthly", Token: "token-123", Action: SubscriptionPurchaseMutationActionAcknowledge},
+		{PackageName: "com.example.app", SubscriptionID: "premium_monthly", Token: "token-123", Action: SubscriptionPurchaseMutationActionAcknowledge, Confirm: true, DryRun: true},
+	}
+	for _, options := range tests {
+		if _, err := MutateSubscriptionPurchase(context.Background(), nil, options); err == nil {
+			t.Fatalf("MutateSubscriptionPurchase(%#v) expected validation error", options)
+		}
+	}
+}
+
 func TestRevokeSubscriptionPurchaseDryRunDoesNotCallRevoker(t *testing.T) {
 	result, err := RevokeSubscriptionPurchase(context.Background(), nil, SubscriptionPurchaseRevokeOptions{
 		PackageName: "com.example.app",
@@ -287,15 +346,17 @@ func TestVoidedPurchaseListOptionsAcceptsValidTimeWindow(t *testing.T) {
 }
 
 type fakePurchaseClient struct {
-	productOptions            ProductPurchaseOptions
-	productPurchase           ProductPurchase
-	acknowledgeOptions        ProductPurchaseMutationOptions
-	consumeOptions            ProductPurchaseMutationOptions
-	subscriptionOptions       SubscriptionPurchaseOptions
-	subscriptionPurchase      SubscriptionPurchase
-	subscriptionRevokeOptions SubscriptionPurchaseRevokeOptions
-	voidedOptions             VoidedPurchaseListOptions
-	voidedResult              VoidedPurchaseListResult
+	productOptions                 ProductPurchaseOptions
+	productPurchase                ProductPurchase
+	acknowledgeOptions             ProductPurchaseMutationOptions
+	consumeOptions                 ProductPurchaseMutationOptions
+	subscriptionOptions            SubscriptionPurchaseOptions
+	subscriptionPurchase           SubscriptionPurchase
+	subscriptionAcknowledgeOptions SubscriptionPurchaseMutationOptions
+	subscriptionCancelOptions      SubscriptionPurchaseMutationOptions
+	subscriptionRevokeOptions      SubscriptionPurchaseRevokeOptions
+	voidedOptions                  VoidedPurchaseListOptions
+	voidedResult                   VoidedPurchaseListResult
 }
 
 func (c *fakePurchaseClient) GetProductPurchase(ctx context.Context, options ProductPurchaseOptions) (ProductPurchase, error) {
@@ -316,6 +377,16 @@ func (c *fakePurchaseClient) ConsumeProductPurchase(ctx context.Context, options
 func (c *fakePurchaseClient) GetSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseOptions) (SubscriptionPurchase, error) {
 	c.subscriptionOptions = options
 	return c.subscriptionPurchase, nil
+}
+
+func (c *fakePurchaseClient) AcknowledgeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseMutationOptions) error {
+	c.subscriptionAcknowledgeOptions = options
+	return nil
+}
+
+func (c *fakePurchaseClient) CancelSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseMutationOptions) error {
+	c.subscriptionCancelOptions = options
+	return nil
 }
 
 func (c *fakePurchaseClient) RevokeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseRevokeOptions) error {

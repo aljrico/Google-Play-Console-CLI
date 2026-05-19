@@ -185,7 +185,73 @@ func newPurchasesSubscriptionCommand(out io.Writer, options *globalOptions, pack
 		},
 	}
 	cmd.Flags().StringVar(&token, "token", "", "Purchase token")
-	cmd.AddCommand(newPurchasesSubscriptionRevokeCommand(out, options, packageName))
+	cmd.AddCommand(
+		newPurchasesSubscriptionMutationCommand(out, options, packageName, play.SubscriptionPurchaseMutationActionAcknowledge, "Acknowledge a subscription purchase through the legacy subscriptions API"),
+		newPurchasesSubscriptionMutationCommand(out, options, packageName, play.SubscriptionPurchaseMutationActionCancel, "Cancel a subscription purchase through the legacy subscriptions API"),
+		newPurchasesSubscriptionRevokeCommand(out, options, packageName),
+	)
+	return cmd
+}
+
+func newPurchasesSubscriptionMutationCommand(out io.Writer, options *globalOptions, packageName *string, action play.SubscriptionPurchaseMutationAction, short string) *cobra.Command {
+	var (
+		subscriptionID   string
+		token            string
+		developerPayload string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   action.String(),
+		Short: short,
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, typedToken, err := parsePurchaseParent(*packageName, token)
+			if err != nil {
+				return err
+			}
+			typedSubscriptionID, err := play.NewSubscriptionProductID(subscriptionID)
+			if err != nil {
+				return err
+			}
+			mutationOptions := play.SubscriptionPurchaseMutationOptions{
+				PackageName:      typedPackageName,
+				SubscriptionID:   typedSubscriptionID,
+				Token:            typedToken,
+				Action:           action,
+				DeveloperPayload: developerPayload,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if err := mutationOptions.Validate(); err != nil {
+				return err
+			}
+			if dryRun {
+				result, err := play.MutateSubscriptionPurchase(cmd.Context(), nil, mutationOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.MutateSubscriptionPurchase(cmd.Context(), publisher, mutationOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&subscriptionID, "subscription-id", "", "Legacy subscription product ID")
+	cmd.Flags().StringVar(&token, "token", "", "Purchase token")
+	if action == play.SubscriptionPurchaseMutationActionAcknowledge {
+		cmd.Flags().StringVar(&developerPayload, "developer-payload", "", "Optional developer payload to attach to the acknowledgement")
+	}
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription purchase mutation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription purchase mutation without calling Google Play")
 	return cmd
 }
 

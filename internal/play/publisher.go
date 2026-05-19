@@ -1190,6 +1190,34 @@ func (p GooglePublisher) GetSubscriptionPurchase(ctx context.Context, options Su
 	return subscriptionPurchaseFromAPI(options.PackageName, options.Token, purchase), nil
 }
 
+func (p GooglePublisher) AcknowledgeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseMutationOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	request := &androidpublisher.SubscriptionPurchasesAcknowledgeRequest{}
+	if options.DeveloperPayload != "" {
+		request.DeveloperPayload = options.DeveloperPayload
+	}
+	if err := p.service.Purchases.Subscriptions.Acknowledge(options.PackageName.String(), options.SubscriptionID.String(), options.Token.String(), request).
+		Context(ctx).
+		Do(); err != nil {
+		return fmt.Errorf("acknowledge subscription purchase %s for %s/%s: %w", options.Token, options.PackageName, options.SubscriptionID, err)
+	}
+	return nil
+}
+
+func (p GooglePublisher) CancelSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseMutationOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	if err := p.service.Purchases.Subscriptions.Cancel(options.PackageName.String(), options.SubscriptionID.String(), options.Token.String()).
+		Context(ctx).
+		Do(); err != nil {
+		return fmt.Errorf("cancel subscription purchase %s for %s/%s: %w", options.Token, options.PackageName, options.SubscriptionID, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) RevokeSubscriptionPurchase(ctx context.Context, options SubscriptionPurchaseRevokeOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
