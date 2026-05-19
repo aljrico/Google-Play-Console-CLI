@@ -888,6 +888,20 @@ func (p GooglePublisher) ListAppRecoveries(ctx context.Context, options AppRecov
 	return appRecoveryListResultFromAPI(options, response), nil
 }
 
+func (p GooglePublisher) AddAppRecoveryTargeting(ctx context.Context, options AppRecoveryTargetingUpdateOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	if _, err := p.service.Apprecovery.AddTargeting(
+		options.PackageName.String(),
+		options.AppRecoveryID.Int64(),
+		appRecoveryTargetingUpdateToAPI(options),
+	).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("add targeting to app recovery %s for %s: %w", options.AppRecoveryID, options.PackageName, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) DeployAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
@@ -2627,6 +2641,20 @@ func appRecoveryListResultFromAPI(options AppRecoveryListOptions, response *andr
 		})
 	}
 	return result
+}
+
+func appRecoveryTargetingUpdateToAPI(options AppRecoveryTargetingUpdateOptions) *androidpublisher.AddTargetingRequest {
+	update := &androidpublisher.TargetingUpdate{}
+	if options.AllUsers {
+		update.AllUsers = &androidpublisher.AllUsers{IsAllUsersRequested: true}
+	}
+	if len(options.SDKLevels) > 0 {
+		update.AndroidSdks = &androidpublisher.AndroidSdks{SdkLevels: googleapi.Int64s(append([]int64(nil), options.SDKLevels...))}
+	}
+	if len(options.RegionCodes) > 0 {
+		update.Regions = &androidpublisher.Regions{RegionCode: append([]string(nil), options.RegionCodes...)}
+	}
+	return &androidpublisher.AddTargetingRequest{TargetingUpdate: update}
 }
 
 func appRecoveryTargetingFromAPI(apiTargeting *androidpublisher.Targeting) *AppRecoveryTargeting {

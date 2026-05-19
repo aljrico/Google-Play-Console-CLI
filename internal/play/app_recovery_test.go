@@ -100,6 +100,65 @@ func TestCancelAppRecoveryPassesOptionsToMutator(t *testing.T) {
 	}
 }
 
+func TestAddAppRecoveryTargetingDryRunDoesNotCallAdder(t *testing.T) {
+	result, err := AddAppRecoveryTargeting(context.Background(), nil, AppRecoveryTargetingUpdateOptions{
+		PackageName:   "com.example.app",
+		AppRecoveryID: "7",
+		AllUsers:      true,
+		SDKLevels:     []int64{26, 35},
+		RegionCodes:   []string{"US", "BR"},
+		DryRun:        true,
+	})
+	if err != nil {
+		t.Fatalf("AddAppRecoveryTargeting() error = %v", err)
+	}
+	if result.Applied {
+		t.Fatalf("Applied = true, want false")
+	}
+	if !reflect.DeepEqual(result.Plan.Steps, []string{"add app recovery targeting", "target all users", "target android sdk levels", "target regions"}) {
+		t.Fatalf("Steps = %#v", result.Plan.Steps)
+	}
+}
+
+func TestAddAppRecoveryTargetingPassesOptionsToAdder(t *testing.T) {
+	adder := &fakeAppRecoveryMutator{}
+	options := AppRecoveryTargetingUpdateOptions{
+		PackageName:   "com.example.app",
+		AppRecoveryID: "7",
+		RegionCodes:   []string{"US"},
+		Confirm:       true,
+	}
+
+	result, err := AddAppRecoveryTargeting(context.Background(), adder, options)
+	if err != nil {
+		t.Fatalf("AddAppRecoveryTargeting() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatalf("Applied = false, want true")
+	}
+	if !reflect.DeepEqual(adder.targetingOptions, options) {
+		t.Fatalf("targetingOptions = %#v, want %#v", adder.targetingOptions, options)
+	}
+}
+
+func TestAddAppRecoveryTargetingRejectsInvalidOptions(t *testing.T) {
+	tests := []AppRecoveryTargetingUpdateOptions{
+		{},
+		{PackageName: "bad", AppRecoveryID: "7", AllUsers: true, DryRun: true},
+		{PackageName: "com.example.app", AllUsers: true, DryRun: true},
+		{PackageName: "com.example.app", AppRecoveryID: "7", DryRun: true},
+		{PackageName: "com.example.app", AppRecoveryID: "7", SDKLevels: []int64{0}, DryRun: true},
+		{PackageName: "com.example.app", AppRecoveryID: "7", RegionCodes: []string{"us"}, DryRun: true},
+		{PackageName: "com.example.app", AppRecoveryID: "7", AllUsers: true},
+		{PackageName: "com.example.app", AppRecoveryID: "7", AllUsers: true, Confirm: true, DryRun: true},
+	}
+	for _, options := range tests {
+		if _, err := AddAppRecoveryTargeting(context.Background(), nil, options); err == nil {
+			t.Fatalf("AddAppRecoveryTargeting(%#v) expected validation error", options)
+		}
+	}
+}
+
 func TestAppRecoveryMutationRejectsInvalidOptions(t *testing.T) {
 	tests := []AppRecoveryMutationOptions{
 		{},
@@ -128,8 +187,9 @@ func (l *fakeAppRecoveryLister) ListAppRecoveries(ctx context.Context, options A
 }
 
 type fakeAppRecoveryMutator struct {
-	deployOptions AppRecoveryMutationOptions
-	cancelOptions AppRecoveryMutationOptions
+	deployOptions    AppRecoveryMutationOptions
+	cancelOptions    AppRecoveryMutationOptions
+	targetingOptions AppRecoveryTargetingUpdateOptions
 }
 
 func (m *fakeAppRecoveryMutator) DeployAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
@@ -139,5 +199,10 @@ func (m *fakeAppRecoveryMutator) DeployAppRecovery(ctx context.Context, options 
 
 func (m *fakeAppRecoveryMutator) CancelAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {
 	m.cancelOptions = options
+	return nil
+}
+
+func (m *fakeAppRecoveryMutator) AddAppRecoveryTargeting(ctx context.Context, options AppRecoveryTargetingUpdateOptions) error {
+	m.targetingOptions = options
 	return nil
 }

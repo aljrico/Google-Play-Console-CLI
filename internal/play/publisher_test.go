@@ -2114,6 +2114,64 @@ func TestDeployAppRecoveryRejectsDryRunBeforeRequest(t *testing.T) {
 	}
 }
 
+func TestAddAppRecoveryTargetingUsesAddTargetingEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/appRecoveries/7:addTargeting" {
+			t.Fatalf("path = %q, want addTargeting endpoint", r.URL.Path)
+		}
+		var request androidpublisher.AddTargetingRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.TargetingUpdate == nil || request.TargetingUpdate.AllUsers == nil || !request.TargetingUpdate.AllUsers.IsAllUsersRequested {
+			t.Fatalf("TargetingUpdate = %#v, want all users", request.TargetingUpdate)
+		}
+		if !reflect.DeepEqual([]int64(request.TargetingUpdate.AndroidSdks.SdkLevels), []int64{26, 35}) {
+			t.Fatalf("SDKLevels = %#v, want 26 and 35", request.TargetingUpdate.AndroidSdks.SdkLevels)
+		}
+		if !reflect.DeepEqual(request.TargetingUpdate.Regions.RegionCode, []string{"US", "BR"}) {
+			t.Fatalf("RegionCode = %#v, want US and BR", request.TargetingUpdate.Regions.RegionCode)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+
+	if err := publisher.AddAppRecoveryTargeting(context.Background(), AppRecoveryTargetingUpdateOptions{
+		PackageName:   "com.example.app",
+		AppRecoveryID: "7",
+		AllUsers:      true,
+		SDKLevels:     []int64{26, 35},
+		RegionCodes:   []string{"US", "BR"},
+		Confirm:       true,
+	}); err != nil {
+		t.Fatalf("AddAppRecoveryTargeting() error = %v", err)
+	}
+}
+
+func TestAddAppRecoveryTargetingRejectsDryRunBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	err := publisher.AddAppRecoveryTargeting(context.Background(), AppRecoveryTargetingUpdateOptions{
+		PackageName:   "com.example.app",
+		AppRecoveryID: "7",
+		RegionCodes:   []string{"US"},
+		DryRun:        true,
+	})
+	if err == nil {
+		t.Fatal("expected dry-run rejection")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
 func TestCancelAppRecoveryUsesCancelEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

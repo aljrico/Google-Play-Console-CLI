@@ -52,7 +52,7 @@ Sources:
 | `xcode` | N/A | N/A | not applicable | Local Xcode helpers do not belong in a Play Console CLI. |
 | `xcode-cloud` | N/A | N/A | not applicable | Apple CI service. |
 | `devices` | `device-tier-configs` / `system-apks` | `applications.deviceTierConfigs`, `systemapks.variants` | tested | `gpc device-tier-configs list` and `get` inspect app device tier configs; `gpc system-apks variants list` inspects generated system APK variants for a version code. |
-| `apprecovery` | `app-recovery` | `apprecovery` | tested | `gpc app-recovery list` inspects recovery actions for a package/version code; `deploy` and `cancel` apply guarded recovery mutations only with `--confirm`, with dry-run planning. Create and targeting remain planned. |
+| `apprecovery` | `app-recovery` | `apprecovery` | tested | `gpc app-recovery list` inspects recovery actions for a package/version code; `add-targeting`, `deploy`, and `cancel` apply guarded recovery mutations only with `--confirm`, with dry-run planning. Draft creation remains planned. |
 | `internalappsharingartifacts` | `internal-sharing` | `internalappsharingartifacts` | tested | `gpc internal-sharing upload` uploads APKs or AABs to internal app sharing, with dry-run and local file preflight. |
 
 ## Metadata And Store Listing

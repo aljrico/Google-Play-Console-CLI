@@ -115,6 +115,10 @@ type AppRecoveryMutator interface {
 	CancelAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error
 }
 
+type AppRecoveryTargetingAdder interface {
+	AddAppRecoveryTargeting(ctx context.Context, options AppRecoveryTargetingUpdateOptions) error
+}
+
 func ListAppRecoveries(ctx context.Context, lister AppRecoveryLister, options AppRecoveryListOptions) (AppRecoveryListResult, error) {
 	if err := options.Validate(); err != nil {
 		return AppRecoveryListResult{}, err
@@ -223,4 +227,126 @@ func mutateAppRecovery(ctx context.Context, mutator AppRecoveryMutator, options 
 	}
 	result.Applied = true
 	return result, nil
+}
+
+type AppRecoveryTargetingUpdateOptions struct {
+	PackageName   PackageName   `json:"packageName"`
+	AppRecoveryID AppRecoveryID `json:"appRecoveryId"`
+	AllUsers      bool          `json:"allUsers,omitempty"`
+	SDKLevels     []int64       `json:"sdkLevels,omitempty"`
+	RegionCodes   []string      `json:"regionCodes,omitempty"`
+	Confirm       bool          `json:"confirm"`
+	DryRun        bool          `json:"dryRun"`
+}
+
+func (o AppRecoveryTargetingUpdateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if err := o.AppRecoveryID.Validate(); err != nil {
+		return err
+	}
+	if !o.AllUsers && len(o.SDKLevels) == 0 && len(o.RegionCodes) == 0 {
+		return fmt.Errorf("app recovery targeting requires --all-users, --sdk-level, or --region")
+	}
+	for _, sdkLevel := range o.SDKLevels {
+		if sdkLevel <= 0 {
+			return fmt.Errorf("SDK level must be greater than 0")
+		}
+	}
+	for _, regionCode := range o.RegionCodes {
+		if !isValidAppRecoveryRegionCode(regionCode) {
+			return fmt.Errorf("invalid region code %q", regionCode)
+		}
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("app recovery targeting update requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o AppRecoveryTargetingUpdateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live app recovery targeting update cannot run with --dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live app recovery targeting update requires --confirm")
+	}
+	return nil
+}
+
+type AppRecoveryTargetingUpdatePlan struct {
+	PackageName   PackageName   `json:"packageName"`
+	AppRecoveryID AppRecoveryID `json:"appRecoveryId"`
+	AllUsers      bool          `json:"allUsers,omitempty"`
+	SDKLevels     []int64       `json:"sdkLevels,omitempty"`
+	RegionCodes   []string      `json:"regionCodes,omitempty"`
+	Confirm       bool          `json:"confirm"`
+	Steps         []string      `json:"steps"`
+}
+
+type AppRecoveryTargetingUpdateResult struct {
+	PackageName   PackageName                    `json:"packageName"`
+	AppRecoveryID AppRecoveryID                  `json:"appRecoveryId"`
+	DryRun        bool                           `json:"dryRun"`
+	Applied       bool                           `json:"applied"`
+	Plan          AppRecoveryTargetingUpdatePlan `json:"plan"`
+}
+
+func AddAppRecoveryTargeting(ctx context.Context, adder AppRecoveryTargetingAdder, options AppRecoveryTargetingUpdateOptions) (AppRecoveryTargetingUpdateResult, error) {
+	if err := options.Validate(); err != nil {
+		return AppRecoveryTargetingUpdateResult{}, err
+	}
+	result := AppRecoveryTargetingUpdateResult{
+		PackageName:   options.PackageName,
+		AppRecoveryID: options.AppRecoveryID,
+		DryRun:        options.DryRun,
+		Plan: AppRecoveryTargetingUpdatePlan{
+			PackageName:   options.PackageName,
+			AppRecoveryID: options.AppRecoveryID,
+			AllUsers:      options.AllUsers,
+			SDKLevels:     append([]int64(nil), options.SDKLevels...),
+			RegionCodes:   append([]string(nil), options.RegionCodes...),
+			Confirm:       options.Confirm,
+			Steps:         appRecoveryTargetingUpdateSteps(options),
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if adder == nil {
+		return AppRecoveryTargetingUpdateResult{}, fmt.Errorf("app recovery targeting adder is required")
+	}
+	if err := adder.AddAppRecoveryTargeting(ctx, options); err != nil {
+		return AppRecoveryTargetingUpdateResult{}, err
+	}
+	result.Applied = true
+	return result, nil
+}
+
+func appRecoveryTargetingUpdateSteps(options AppRecoveryTargetingUpdateOptions) []string {
+	steps := []string{"add app recovery targeting"}
+	if options.AllUsers {
+		steps = append(steps, "target all users")
+	}
+	if len(options.SDKLevels) > 0 {
+		steps = append(steps, "target android sdk levels")
+	}
+	if len(options.RegionCodes) > 0 {
+		steps = append(steps, "target regions")
+	}
+	return steps
+}
+
+func isValidAppRecoveryRegionCode(value string) bool {
+	if len(value) != 2 {
+		return false
+	}
+	return value[0] >= 'A' && value[0] <= 'Z' && value[1] >= 'A' && value[1] <= 'Z'
 }

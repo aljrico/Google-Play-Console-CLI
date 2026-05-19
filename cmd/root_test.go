@@ -1691,6 +1691,71 @@ func TestAppRecoveryDeployDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestAppRecoveryAddTargetingDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"app-recovery",
+		"add-targeting",
+		"--package",
+		"com.example.app",
+		"--id",
+		"7",
+		"--all-users",
+		"--sdk-level",
+		"26",
+		"--region",
+		"US",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{`"dryRun":true`, `"applied":false`, `"appRecoveryId":"7"`, `"allUsers":true`, `"sdkLevels":[26]`, `"regionCodes":["US"]`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestAppRecoveryAddTargetingRejectsMissingTargetBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"app-recovery",
+		"add-targeting",
+		"--package",
+		"com.example.app",
+		"--id",
+		"7",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected targeting validation error")
+	}
+	if !strings.Contains(err.Error(), "targeting") {
+		t.Fatalf("error = %v, want targeting validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestAppRecoveryCancelRejectsMissingConfirmBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

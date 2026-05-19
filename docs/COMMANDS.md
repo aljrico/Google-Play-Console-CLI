@@ -127,9 +127,27 @@ gpc app-recovery
 
 #### Commands
 
+- `gpc app-recovery add-targeting`: Add targeting to an app recovery action
 - `gpc app-recovery cancel`: Cancel an app recovery action
 - `gpc app-recovery deploy`: Deploy a draft app recovery action
 - `gpc app-recovery list`: List app recovery actions for a version code
+
+#### gpc app-recovery add-targeting
+
+Add targeting to an app recovery action
+
+```sh
+gpc app-recovery add-targeting [flags]
+```
+
+##### Flags
+
+- `--all-users`: Target all users (default `false`)
+- `--confirm`: Apply the app recovery targeting update (default `false`)
+- `--dry-run`: Print the planned app recovery targeting update without calling Google Play (default `false`)
+- `--id`: App recovery action ID
+- `--region`: ISO 3166-1 alpha-2 region code to add, repeatable (default `[]`)
+- `--sdk-level`: Android SDK level to add, repeatable (default `[]`)
 
 #### gpc app-recovery cancel
 
