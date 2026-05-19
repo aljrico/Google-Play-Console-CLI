@@ -14,8 +14,8 @@ type ReportInsightsOptions struct {
 }
 
 type ReportInsights struct {
-	FinanceReports []finance.ReportSummary  `json:"financeReports,omitempty"`
-	StatsReports   []analytics.StatsSummary `json:"statsReports,omitempty"`
+	FinanceReports []finance.ReportSummary  `json:"financeReports"`
+	StatsReports   []analytics.StatsSummary `json:"statsReports"`
 	Highlights     []ReportInsightHighlight `json:"highlights,omitempty"`
 }
 
@@ -78,9 +78,9 @@ func (o ReportInsightsOptions) Validate() error {
 
 func financeReportHighlight(summary finance.ReportSummary) ReportInsightHighlight {
 	top := topTransactionTotal(summary.TransactionTypes)
-	message := fmt.Sprintf("%s report has %d rows", summary.ReportType, summary.Rows)
+	message := fmt.Sprintf("%s report has %s", summary.ReportType, formatRowCount(summary.Rows))
 	if top.TransactionType != "" {
-		message = fmt.Sprintf("%s; top transaction by count is %s (%d rows, total %s", message, top.TransactionType, top.Count, top.Total)
+		message = fmt.Sprintf("%s; top transaction by count is %s (%s, total %s", message, top.TransactionType, formatRowCount(top.Count), top.Total)
 		if top.Currency != "" {
 			message += " " + top.Currency
 		}
@@ -105,7 +105,7 @@ func topTransactionTotal(totals []finance.TransactionTotal) finance.TransactionT
 
 func statsReportHighlight(summary analytics.StatsSummary) ReportInsightHighlight {
 	top := topMetricSummary(summary.Metrics)
-	message := fmt.Sprintf("stats report has %d rows", summary.Rows)
+	message := fmt.Sprintf("stats report has %s", formatRowCount(summary.Rows))
 	if summary.PackageName != "" {
 		message = fmt.Sprintf("%s for %s", message, summary.PackageName)
 	}
@@ -132,4 +132,11 @@ func topMetricSummary(metrics []analytics.MetricSummary) analytics.MetricSummary
 		return analytics.MetricSummary{}
 	}
 	return metrics[0]
+}
+
+func formatRowCount(rows int) string {
+	if rows == 1 {
+		return "1 row"
+	}
+	return fmt.Sprintf("%d rows", rows)
 }

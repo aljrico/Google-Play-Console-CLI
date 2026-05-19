@@ -1,6 +1,7 @@
 package insights
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,5 +54,45 @@ func TestSummarizeReportsRejectsWhitespaceFile(t *testing.T) {
 	_, err := SummarizeReports(ReportInsightsOptions{FinanceFiles: []string{" earnings.csv"}})
 	if err == nil {
 		t.Fatal("SummarizeReports() error = nil, want whitespace validation")
+	}
+}
+
+func TestSummarizeReportsKeepsStableJSONArraysWhenOnlyFinanceProvided(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "earnings.csv")
+	if err := os.WriteFile(file, []byte("Transaction Type,Merchant Currency,Amount (Merchant Currency)\nCharge,USD,9.99\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	summary, err := SummarizeReports(ReportInsightsOptions{FinanceFiles: []string{file}})
+	if err != nil {
+		t.Fatalf("SummarizeReports() error = %v", err)
+	}
+	content, err := json.Marshal(summary)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	for _, want := range []string{`"financeReports":[`, `"statsReports":[]`, `1 row`} {
+		if !strings.Contains(string(content), want) {
+			t.Fatalf("JSON = %s, want %s", content, want)
+		}
+	}
+}
+
+func TestSummarizeReportsKeepsStableJSONArraysWhenOnlyStatsProvided(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "stats.csv")
+	if err := os.WriteFile(file, []byte("Date,Package name,Store listing visitors\n2026-05-01,com.example.app,10\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	summary, err := SummarizeReports(ReportInsightsOptions{StatsFiles: []string{file}})
+	if err != nil {
+		t.Fatalf("SummarizeReports() error = %v", err)
+	}
+	content, err := json.Marshal(summary)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	for _, want := range []string{`"financeReports":[]`, `"statsReports":[`, `1 row`} {
+		if !strings.Contains(string(content), want) {
+			t.Fatalf("JSON = %s, want %s", content, want)
+		}
 	}
 }
