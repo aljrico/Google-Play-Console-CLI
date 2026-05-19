@@ -3,6 +3,7 @@ package play
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -66,6 +67,208 @@ func TestGetInAppProductRejectsMissingSKU(t *testing.T) {
 	_, err = GetInAppProduct(context.Background(), nil, InAppProductGetOptions{PackageName: packageName})
 	if err == nil {
 		t.Fatal("expected SKU validation error")
+	}
+}
+
+func TestNewProductPriceParsesCurrencyAndMicros(t *testing.T) {
+	price, err := NewProductPrice("usd:1990000")
+	if err != nil {
+		t.Fatalf("NewProductPrice() error = %v", err)
+	}
+	if price.Currency != "USD" || price.PriceMicros != "1990000" {
+		t.Fatalf("price = %#v, want USD 1990000", price)
+	}
+}
+
+func TestNewProductPriceRejectsInvalidMicros(t *testing.T) {
+	_, err := NewProductPrice("USD:0")
+	if err == nil {
+		t.Fatal("expected positive micros validation error")
+	}
+}
+
+func TestCreateInAppProductDryRunBuildsManagedProductPlan(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	price, err := NewProductPrice("USD:1990000")
+	if err != nil {
+		t.Fatalf("NewProductPrice() error = %v", err)
+	}
+
+	result, err := CreateInAppProduct(context.Background(), nil, InAppProductCreateOptions{
+		PackageName:     packageName,
+		SKU:             "coins_100",
+		Status:          ProductStatusInactive,
+		DefaultLanguage: "en-US",
+		DefaultPrice:    price,
+		Listing:         InAppProductListing{Title: "100 coins", Description: "A small coin pack."},
+		DryRun:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateInAppProduct() error = %v", err)
+	}
+	if result.Created || !result.DryRun || result.Desired.PurchaseType != ProductPurchaseTypeManagedUser {
+		t.Fatalf("result = %#v, want dry-run managed product creation", result)
+	}
+	if result.Desired.DefaultPrice == nil || result.Desired.DefaultPrice.PriceMicros != "1990000" {
+		t.Fatalf("DefaultPrice = %#v, want 1990000 micros", result.Desired.DefaultPrice)
+	}
+	if result.Desired.Listings["en-US"].Title != "100 coins" {
+		t.Fatalf("Listings = %#v, want default listing", result.Desired.Listings)
+	}
+	if !result.Plan.AutoConvertMissingPrices {
+		t.Fatal("AutoConvertMissingPrices = false, want true")
+	}
+}
+
+func TestCreateInAppProductRequiresConfirmOrDryRun(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	price, err := NewProductPrice("USD:1990000")
+	if err != nil {
+		t.Fatalf("NewProductPrice() error = %v", err)
+	}
+
+	_, err = CreateInAppProduct(context.Background(), nil, InAppProductCreateOptions{
+		PackageName:     packageName,
+		SKU:             "coins_100",
+		Status:          ProductStatusInactive,
+		DefaultLanguage: "en-US",
+		DefaultPrice:    price,
+		Listing:         InAppProductListing{Title: "100 coins", Description: "A small coin pack."},
+	})
+	if err == nil {
+		t.Fatal("expected confirmation validation error")
+	}
+}
+
+func TestCreateInAppProductRejectsMissingListing(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	price, err := NewProductPrice("USD:1990000")
+	if err != nil {
+		t.Fatalf("NewProductPrice() error = %v", err)
+	}
+
+	_, err = CreateInAppProduct(context.Background(), nil, InAppProductCreateOptions{
+		PackageName:     packageName,
+		SKU:             "coins_100",
+		Status:          ProductStatusInactive,
+		DefaultLanguage: "en-US",
+		DefaultPrice:    price,
+		DryRun:          true,
+	})
+	if err == nil {
+		t.Fatal("expected listing validation error")
+	}
+}
+
+func TestCreateInAppProductRejectsInvalidManagedProductSKU(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	price, err := NewProductPrice("USD:1990000")
+	if err != nil {
+		t.Fatalf("NewProductPrice() error = %v", err)
+	}
+
+	_, err = CreateInAppProduct(context.Background(), nil, InAppProductCreateOptions{
+		PackageName:     packageName,
+		SKU:             "Coins-100",
+		Status:          ProductStatusInactive,
+		DefaultLanguage: "en-US",
+		DefaultPrice:    price,
+		Listing:         InAppProductListing{Title: "100 coins", Description: "A small coin pack."},
+		DryRun:          true,
+	})
+	if err == nil {
+		t.Fatal("expected SKU validation error")
+	}
+}
+
+func TestCreateInAppProductRejectsReservedTestSKU(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	price, err := NewProductPrice("USD:1990000")
+	if err != nil {
+		t.Fatalf("NewProductPrice() error = %v", err)
+	}
+
+	_, err = CreateInAppProduct(context.Background(), nil, InAppProductCreateOptions{
+		PackageName:     packageName,
+		SKU:             "android.test.purchased",
+		Status:          ProductStatusInactive,
+		DefaultLanguage: "en-US",
+		DefaultPrice:    price,
+		Listing:         InAppProductListing{Title: "100 coins", Description: "A small coin pack."},
+		DryRun:          true,
+	})
+	if err == nil {
+		t.Fatal("expected reserved SKU validation error")
+	}
+}
+
+func TestCreateInAppProductRejectsOverlongListing(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	price, err := NewProductPrice("USD:1990000")
+	if err != nil {
+		t.Fatalf("NewProductPrice() error = %v", err)
+	}
+
+	_, err = CreateInAppProduct(context.Background(), nil, InAppProductCreateOptions{
+		PackageName:     packageName,
+		SKU:             "coins_100",
+		Status:          ProductStatusInactive,
+		DefaultLanguage: "en-US",
+		DefaultPrice:    price,
+		Listing:         InAppProductListing{Title: strings.Repeat("x", 56), Description: "A small coin pack."},
+		DryRun:          true,
+	})
+	if err == nil {
+		t.Fatal("expected listing title length validation error")
+	}
+}
+
+func TestCreateInAppProductPassesOptionsToCreator(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	price, err := NewProductPrice("USD:1990000")
+	if err != nil {
+		t.Fatalf("NewProductPrice() error = %v", err)
+	}
+	creator := &fakeInAppProductClient{product: InAppProduct{SKU: "coins_100", Status: ProductStatusInactive}}
+
+	result, err := CreateInAppProduct(context.Background(), creator, InAppProductCreateOptions{
+		PackageName:     packageName,
+		SKU:             "coins_100",
+		Status:          ProductStatusInactive,
+		DefaultLanguage: "en-US",
+		DefaultPrice:    price,
+		Listing:         InAppProductListing{Title: "100 coins", Description: "A small coin pack."},
+		Confirm:         true,
+	})
+	if err != nil {
+		t.Fatalf("CreateInAppProduct() error = %v", err)
+	}
+	if !result.Created || result.Product == nil || result.Product.SKU != "coins_100" {
+		t.Fatalf("result = %#v, want created product", result)
+	}
+	if creator.createOptions.DefaultPrice.PriceMicros != "1990000" {
+		t.Fatalf("createOptions = %#v, want price", creator.createOptions)
 	}
 }
 
@@ -188,11 +391,12 @@ func TestPatchInAppProductRejectsLegacySubscription(t *testing.T) {
 }
 
 type fakeInAppProductClient struct {
-	listOptions  InAppProductListOptions
-	listResult   InAppProductListResult
-	patchOptions InAppProductPatchOptions
-	sku          InAppProductSKU
-	product      InAppProduct
+	listOptions   InAppProductListOptions
+	listResult    InAppProductListResult
+	createOptions InAppProductCreateOptions
+	patchOptions  InAppProductPatchOptions
+	sku           InAppProductSKU
+	product       InAppProduct
 }
 
 func (c *fakeInAppProductClient) ListInAppProducts(ctx context.Context, options InAppProductListOptions) (InAppProductListResult, error) {
@@ -202,6 +406,11 @@ func (c *fakeInAppProductClient) ListInAppProducts(ctx context.Context, options 
 
 func (c *fakeInAppProductClient) GetInAppProduct(ctx context.Context, packageName PackageName, sku InAppProductSKU) (InAppProduct, error) {
 	c.sku = sku
+	return c.product, nil
+}
+
+func (c *fakeInAppProductClient) CreateInAppProduct(ctx context.Context, options InAppProductCreateOptions) (InAppProduct, error) {
+	c.createOptions = options
 	return c.product, nil
 }
 

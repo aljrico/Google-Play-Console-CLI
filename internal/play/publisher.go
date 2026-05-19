@@ -391,6 +391,20 @@ func (p GooglePublisher) GetInAppProduct(ctx context.Context, packageName Packag
 	return inAppProductFromAPI(product), nil
 }
 
+func (p GooglePublisher) CreateInAppProduct(ctx context.Context, options InAppProductCreateOptions) (InAppProduct, error) {
+	if err := options.ValidateLive(); err != nil {
+		return InAppProduct{}, err
+	}
+	product, err := p.service.Inappproducts.Insert(options.PackageName.String(), inAppProductCreateToAPI(options)).
+		AutoConvertMissingPrices(true).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return InAppProduct{}, fmt.Errorf("create in-app product %s for %s: %w", options.SKU, options.PackageName, err)
+	}
+	return inAppProductFromAPI(product), nil
+}
+
 func (p GooglePublisher) PatchInAppProduct(ctx context.Context, options InAppProductPatchOptions) (InAppProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return InAppProduct{}, err
@@ -1773,11 +1787,33 @@ func inAppProductFromAPI(apiProduct *androidpublisher.InAppProduct) InAppProduct
 	}
 }
 
+func inAppProductCreateToAPI(options InAppProductCreateOptions) *androidpublisher.InAppProduct {
+	return &androidpublisher.InAppProduct{
+		PackageName:     options.PackageName.String(),
+		Sku:             options.SKU.String(),
+		Status:          options.Status.String(),
+		PurchaseType:    ProductPurchaseTypeManagedUser.String(),
+		DefaultLanguage: options.DefaultLanguage.String(),
+		DefaultPrice:    productPriceToAPI(options.DefaultPrice),
+		Listings: map[string]androidpublisher.InAppProductListing{
+			options.DefaultLanguage.String(): {
+				Title:       options.Listing.Title,
+				Description: options.Listing.Description,
+				Benefits:    options.Listing.Benefits,
+			},
+		},
+	}
+}
+
 func productPriceFromAPI(apiPrice *androidpublisher.Price) *ProductPrice {
 	if apiPrice == nil {
 		return nil
 	}
 	return &ProductPrice{Currency: apiPrice.Currency, PriceMicros: apiPrice.PriceMicros}
+}
+
+func productPriceToAPI(price ProductPrice) *androidpublisher.Price {
+	return &androidpublisher.Price{Currency: price.Currency, PriceMicros: price.PriceMicros}
 }
 
 func productPricesFromAPI(apiPrices map[string]androidpublisher.Price) map[string]ProductPrice {

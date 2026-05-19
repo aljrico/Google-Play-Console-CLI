@@ -619,6 +619,70 @@ func TestGooglePublisherPatchInAppProductSendsStatusPatch(t *testing.T) {
 	}
 }
 
+func TestGooglePublisherCreateInAppProductSendsManagedProduct(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/inappproducts" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("autoConvertMissingPrices"); got != "true" {
+			t.Fatalf("autoConvertMissingPrices = %q, want true", got)
+		}
+		var request androidpublisher.InAppProduct
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.PurchaseType != "managedUser" || request.Status != "inactive" || request.Sku != "coins_100" {
+			t.Fatalf("request = %#v, want managed product", request)
+		}
+		if request.DefaultPrice == nil || request.DefaultPrice.Currency != "USD" || request.DefaultPrice.PriceMicros != "1990000" {
+			t.Fatalf("DefaultPrice = %#v, want USD 1990000", request.DefaultPrice)
+		}
+		if request.DefaultLanguage != "en-US" || request.Listings["en-US"].Title != "100 coins" {
+			t.Fatalf("listing = %#v language = %q, want default listing", request.Listings, request.DefaultLanguage)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","sku":"coins_100","status":"inactive","purchaseType":"managedUser","defaultLanguage":"en-US","defaultPrice":{"currency":"USD","priceMicros":"1990000"}}`)
+	}))
+
+	product, err := publisher.CreateInAppProduct(context.Background(), InAppProductCreateOptions{
+		PackageName:     "com.example.app",
+		SKU:             "coins_100",
+		Status:          ProductStatusInactive,
+		DefaultLanguage: "en-US",
+		DefaultPrice:    ProductPrice{Currency: "USD", PriceMicros: "1990000"},
+		Listing:         InAppProductListing{Title: "100 coins", Description: "A small coin pack."},
+		Confirm:         true,
+	})
+	if err != nil {
+		t.Fatalf("CreateInAppProduct() error = %v", err)
+	}
+	if product.SKU != "coins_100" || product.PurchaseType != ProductPurchaseTypeManagedUser {
+		t.Fatalf("product = %#v, want managed product", product)
+	}
+}
+
+func TestGooglePublisherCreateInAppProductRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	_, err := publisher.CreateInAppProduct(context.Background(), InAppProductCreateOptions{
+		PackageName:     "com.example.app",
+		SKU:             "coins_100",
+		Status:          ProductStatusInactive,
+		DefaultLanguage: "en-US",
+		DefaultPrice:    ProductPrice{Currency: "USD", PriceMicros: "1990000"},
+		Listing:         InAppProductListing{Title: "100 coins", Description: "A small coin pack."},
+		DryRun:          true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+}
+
 func TestGooglePublisherPatchInAppProductRejectsDryRunBeforeRequest(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)

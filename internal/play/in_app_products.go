@@ -3,7 +3,9 @@ package play
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 type InAppProductSKU string
@@ -26,6 +28,10 @@ const (
 	ProductPurchaseTypeSubscription ProductPurchaseType = "subscription"
 	ProductPurchaseTypeUnspecified  ProductPurchaseType = "purchaseTypeUnspecified"
 )
+
+func (t ProductPurchaseType) String() string {
+	return string(t)
+}
 
 type ProductStatus string
 
@@ -62,11 +68,50 @@ type ProductPrice struct {
 	PriceMicros string `json:"priceMicros,omitempty"`
 }
 
+func NewProductPrice(value string) (ProductPrice, error) {
+	currency, priceMicros, ok := strings.Cut(strings.TrimSpace(value), ":")
+	if !ok {
+		return ProductPrice{}, fmt.Errorf("price must be formatted as CURRENCY:MICROS")
+	}
+	price := ProductPrice{Currency: strings.ToUpper(strings.TrimSpace(currency)), PriceMicros: strings.TrimSpace(priceMicros)}
+	if err := price.Validate(); err != nil {
+		return ProductPrice{}, err
+	}
+	return price, nil
+}
+
+func (p ProductPrice) Validate() error {
+	if len(p.Currency) != 3 {
+		return fmt.Errorf("price currency must be a three-letter ISO 4217 code")
+	}
+	for _, character := range p.Currency {
+		if character < 'A' || character > 'Z' {
+			return fmt.Errorf("price currency must be uppercase ISO 4217")
+		}
+	}
+	if p.Currency != strings.ToUpper(p.Currency) || strings.TrimSpace(p.Currency) != p.Currency {
+		return fmt.Errorf("price currency must be uppercase ISO 4217")
+	}
+	if p.PriceMicros == "" {
+		return fmt.Errorf("price micros is required")
+	}
+	micros, err := strconv.ParseInt(p.PriceMicros, 10, 64)
+	if err != nil || micros <= 0 {
+		return fmt.Errorf("price micros must be a positive integer")
+	}
+	return nil
+}
+
 type InAppProductListing struct {
 	Title       string   `json:"title,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Benefits    []string `json:"benefits,omitempty"`
 }
+
+const (
+	inAppProductListingTitleLimit       = 55
+	inAppProductListingDescriptionLimit = 200
+)
 
 type InAppProduct struct {
 	PackageName                            PackageName                    `json:"packageName"`
@@ -115,6 +160,165 @@ type InAppProductListResult struct {
 	Products    []InAppProduct          `json:"products"`
 	Pagination  *InAppProductPagination `json:"pagination,omitempty"`
 	Options     InAppProductListOptions `json:"options"`
+}
+
+type InAppProductCreateOptions struct {
+	PackageName     PackageName         `json:"packageName"`
+	SKU             InAppProductSKU     `json:"sku"`
+	Status          ProductStatus       `json:"status"`
+	DefaultLanguage ListingLanguage     `json:"defaultLanguage"`
+	DefaultPrice    ProductPrice        `json:"defaultPrice"`
+	Listing         InAppProductListing `json:"listing"`
+	Confirm         bool                `json:"confirm"`
+	DryRun          bool                `json:"dryRun"`
+}
+
+func (o InAppProductCreateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if err := validateManagedProductSKU(o.SKU); err != nil {
+		return err
+	}
+	if err := o.Status.Validate(); err != nil {
+		return err
+	}
+	if o.Status != ProductStatusActive && o.Status != ProductStatusInactive {
+		return fmt.Errorf("in-app product create status must be active or inactive")
+	}
+	if _, err := NewListingLanguage(o.DefaultLanguage.String()); err != nil {
+		return err
+	}
+	if err := o.DefaultPrice.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(o.Listing.Title) == "" {
+		return fmt.Errorf("listing title is required")
+	}
+	if utf8.RuneCountInString(o.Listing.Title) > inAppProductListingTitleLimit {
+		return fmt.Errorf("listing title must be %d characters or fewer", inAppProductListingTitleLimit)
+	}
+	if strings.TrimSpace(o.Listing.Description) == "" {
+		return fmt.Errorf("listing description is required")
+	}
+	if utf8.RuneCountInString(o.Listing.Description) > inAppProductListingDescriptionLimit {
+		return fmt.Errorf("listing description must be %d characters or fewer", inAppProductListingDescriptionLimit)
+	}
+	if o.DryRun && o.Confirm {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.DryRun && !o.Confirm {
+		return fmt.Errorf("in-app product create requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o InAppProductCreateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live in-app product create cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live in-app product create requires --confirm")
+	}
+	return nil
+}
+
+type InAppProductCreatePlan struct {
+	Action                   string              `json:"action"`
+	PackageName              PackageName         `json:"packageName"`
+	SKU                      InAppProductSKU     `json:"sku"`
+	Status                   ProductStatus       `json:"status"`
+	PurchaseType             ProductPurchaseType `json:"purchaseType"`
+	DefaultLanguage          ListingLanguage     `json:"defaultLanguage"`
+	DefaultPrice             ProductPrice        `json:"defaultPrice"`
+	AutoConvertMissingPrices bool                `json:"autoConvertMissingPrices"`
+	Confirm                  bool                `json:"confirm"`
+	Steps                    []string            `json:"steps"`
+}
+
+type InAppProductCreateResult struct {
+	Action  string                 `json:"action"`
+	DryRun  bool                   `json:"dryRun"`
+	Created bool                   `json:"created"`
+	Product *InAppProduct          `json:"product,omitempty"`
+	Desired InAppProduct           `json:"desiredProduct"`
+	Plan    InAppProductCreatePlan `json:"plan"`
+}
+
+type InAppProductCreator interface {
+	CreateInAppProduct(ctx context.Context, options InAppProductCreateOptions) (InAppProduct, error)
+}
+
+func CreateInAppProduct(ctx context.Context, creator InAppProductCreator, options InAppProductCreateOptions) (InAppProductCreateResult, error) {
+	if err := options.Validate(); err != nil {
+		return InAppProductCreateResult{}, err
+	}
+	desired := inAppProductCreateDesiredProduct(options)
+	result := InAppProductCreateResult{
+		Action:  "create",
+		DryRun:  options.DryRun,
+		Desired: desired,
+		Plan: InAppProductCreatePlan{
+			Action:                   "create",
+			PackageName:              options.PackageName,
+			SKU:                      options.SKU,
+			Status:                   options.Status,
+			PurchaseType:             ProductPurchaseTypeManagedUser,
+			DefaultLanguage:          options.DefaultLanguage,
+			DefaultPrice:             options.DefaultPrice,
+			AutoConvertMissingPrices: true,
+			Confirm:                  options.Confirm,
+			Steps:                    inAppProductCreateSteps(options.DryRun),
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if creator == nil {
+		return InAppProductCreateResult{}, fmt.Errorf("in-app product creator is required")
+	}
+	product, err := creator.CreateInAppProduct(ctx, options)
+	if err != nil {
+		return InAppProductCreateResult{}, err
+	}
+	result.Created = true
+	result.Product = &product
+	return result, nil
+}
+
+func inAppProductCreateDesiredProduct(options InAppProductCreateOptions) InAppProduct {
+	return InAppProduct{
+		PackageName:     options.PackageName,
+		SKU:             options.SKU,
+		Status:          options.Status,
+		PurchaseType:    ProductPurchaseTypeManagedUser,
+		DefaultLanguage: options.DefaultLanguage.String(),
+		DefaultPrice:    &options.DefaultPrice,
+		Listings: map[string]InAppProductListing{
+			options.DefaultLanguage.String(): options.Listing,
+		},
+	}
+}
+
+func inAppProductCreateSteps(dryRun bool) []string {
+	if dryRun {
+		return []string{"plan managed in-app product creation"}
+	}
+	return []string{"create managed in-app product"}
+}
+
+func validateManagedProductSKU(sku InAppProductSKU) error {
+	value := sku.String()
+	if _, err := NewInAppProductSKU(value); err != nil {
+		return err
+	}
+	if strings.HasPrefix(value, "android.test") || !isValidOneTimeProductID(value) {
+		return fmt.Errorf("invalid managed product SKU %q", value)
+	}
+	return nil
 }
 
 type InAppProductLister interface {

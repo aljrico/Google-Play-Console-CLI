@@ -735,9 +735,29 @@ gpc in-app-products
 
 #### Commands
 
+- `gpc in-app-products create`: Create a legacy managed in-app product
 - `gpc in-app-products get`: Get one legacy in-app product
 - `gpc in-app-products list`: List legacy in-app products
 - `gpc in-app-products patch`: Patch a legacy managed in-app product
+
+#### gpc in-app-products create
+
+Create a legacy managed in-app product
+
+```sh
+gpc in-app-products create [flags]
+```
+
+##### Flags
+
+- `--confirm`: Create the managed in-app product (default `false`)
+- `--default-language`: Default BCP-47 listing language, for example en-US
+- `--default-price`: Default checkout price as CURRENCY:MICROS, for example USD:1990000
+- `--description`: Default listing description
+- `--dry-run`: Print the planned managed in-app product creation without calling Google Play (default `false`)
+- `--sku`: In-app product SKU
+- `--status`: Initial product status: active or inactive (default `inactive`)
+- `--title`: Default listing title
 
 #### gpc in-app-products get
 

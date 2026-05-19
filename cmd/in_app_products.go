@@ -19,6 +19,7 @@ func newInAppProductsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 	cmd.AddCommand(
 		newInAppProductsListCommand(out, options, &packageName),
 		newInAppProductsGetCommand(out, options, &packageName),
+		newInAppProductsCreateCommand(out, options, &packageName),
 		newInAppProductsPatchCommand(out, options, &packageName),
 	)
 	return cmd
@@ -90,6 +91,92 @@ func newInAppProductsGetCommand(out io.Writer, options *globalOptions, packageNa
 	}
 	cmd.Flags().StringVar(&sku, "sku", "", "In-app product SKU")
 	return cmd
+}
+
+func newInAppProductsCreateCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		sku             string
+		status          string
+		defaultLanguage string
+		defaultPrice    string
+		title           string
+		description     string
+		confirm         bool
+		dryRun          bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a legacy managed in-app product",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedSKU, err := play.NewInAppProductSKU(sku)
+			if err != nil {
+				return err
+			}
+			typedStatus, err := play.NewProductStatus(status)
+			if err != nil {
+				return err
+			}
+			typedDefaultLanguage, err := play.NewListingLanguage(defaultLanguage)
+			if err != nil {
+				return err
+			}
+			typedDefaultPrice, err := play.NewProductPrice(defaultPrice)
+			if err != nil {
+				return err
+			}
+			createOptions := play.InAppProductCreateOptions{
+				PackageName:     typedPackageName,
+				SKU:             typedSKU,
+				Status:          typedStatus,
+				DefaultLanguage: typedDefaultLanguage,
+				DefaultPrice:    typedDefaultPrice,
+				Listing: play.InAppProductListing{
+					Title:       title,
+					Description: description,
+				},
+				Confirm: confirm,
+				DryRun:  dryRun,
+			}
+			return runInAppProductCreate(cmd, out, options, createOptions)
+		},
+	}
+	cmd.Flags().StringVar(&sku, "sku", "", "In-app product SKU")
+	cmd.Flags().StringVar(&status, "status", play.ProductStatusInactive.String(), "Initial product status: active or inactive")
+	cmd.Flags().StringVar(&defaultLanguage, "default-language", "", "Default BCP-47 listing language, for example en-US")
+	cmd.Flags().StringVar(&defaultPrice, "default-price", "", "Default checkout price as CURRENCY:MICROS, for example USD:1990000")
+	cmd.Flags().StringVar(&title, "title", "", "Default listing title")
+	cmd.Flags().StringVar(&description, "description", "", "Default listing description")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Create the managed in-app product")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned managed in-app product creation without calling Google Play")
+	return cmd
+}
+
+func runInAppProductCreate(cmd *cobra.Command, out io.Writer, options *globalOptions, createOptions play.InAppProductCreateOptions) error {
+	if createOptions.DryRun {
+		result, err := play.CreateInAppProduct(cmd.Context(), nil, createOptions)
+		if err != nil {
+			return err
+		}
+		return output.Write(out, options.output, options.pretty, result)
+	}
+	if err := createOptions.Validate(); err != nil {
+		return err
+	}
+	publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+	if err != nil {
+		return err
+	}
+	result, err := play.CreateInAppProduct(cmd.Context(), publisher, createOptions)
+	if err != nil {
+		return err
+	}
+	return output.Write(out, options.output, options.pretty, result)
 }
 
 func newInAppProductsPatchCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
