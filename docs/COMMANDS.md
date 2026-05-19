@@ -1182,6 +1182,7 @@ gpc notify
 #### Commands
 
 - `gpc notify send`: Send a JSON notification webhook
+- `gpc notify slack`: Send a Slack incoming webhook notification
 
 #### gpc notify send
 
@@ -1202,6 +1203,26 @@ gpc notify send [flags]
 - `--webhook-url`: HTTPS webhook URL; http is allowed only for loopback hosts
 - `--webhook-url-env`: Environment variable containing the webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
 - `--webhook-url-file`: File containing the webhook URL
+
+#### gpc notify slack
+
+Send a Slack incoming webhook notification
+
+```sh
+gpc notify slack [flags]
+```
+
+##### Flags
+
+- `--confirm`: Send the Slack webhook (default `false`)
+- `--dry-run`: Print the Slack payload without sending (default `false`)
+- `--field`: Notification field as name=value; repeatable (default `[]`)
+- `--message`: Notification message
+- `--severity`: Notification severity label
+- `--title`: Notification title
+- `--webhook-url`: HTTPS Slack incoming webhook URL; http is allowed only for loopback hosts
+- `--webhook-url-env`: Environment variable containing the Slack incoming webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-file`: File containing the Slack incoming webhook URL
 
 ### gpc one-time-product-offers
 
@@ -2076,7 +2097,7 @@ gpc subscriptions
 
 - `gpc subscriptions base-plan`: Manage subscription base plans
 - `gpc subscriptions batch-get`: Get multiple monetization subscriptions
-- `gpc subscriptions delete`: Delete a monetization subscription
+- `gpc subscriptions delete`: Delete a draft-only monetization subscription
 - `gpc subscriptions get`: Get one monetization subscription
 - `gpc subscriptions list`: List monetization subscriptions
 
@@ -2139,7 +2160,7 @@ gpc subscriptions batch-get [flags]
 
 #### gpc subscriptions delete
 
-Delete a monetization subscription
+Delete a draft-only monetization subscription
 
 ```sh
 gpc subscriptions delete [flags]

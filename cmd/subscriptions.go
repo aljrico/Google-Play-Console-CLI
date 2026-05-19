@@ -229,7 +229,7 @@ func newSubscriptionsDeleteCommand(out io.Writer, options *globalOptions, packag
 
 	cmd := &cobra.Command{
 		Use:   "delete",
-		Short: "Delete a monetization subscription",
+		Short: "Delete a draft-only monetization subscription",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, err := play.NewPackageName(*packageName)

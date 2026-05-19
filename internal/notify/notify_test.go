@@ -88,6 +88,69 @@ func TestSendPostsJSONWebhook(t *testing.T) {
 	}
 }
 
+func TestSendSlackDryRunBuildsSlackTextPayload(t *testing.T) {
+	sender := failingSlackSender{}
+	result, err := SendSlack(context.Background(), sender, SendOptions{
+		WebhookURL: "https://hooks.slack.com/services/T000/B000/SECRET?token=secret#fragment-secret",
+		Title:      "Release",
+		Message:    "Internal release staged",
+		Severity:   "info",
+		Fields:     []string{"track=internal", "version=42"},
+		DryRun:     true,
+	})
+	if err != nil {
+		t.Fatalf("SendSlack() error = %v", err)
+	}
+	if result.Delivered {
+		t.Fatalf("Delivered = true, want false")
+	}
+	for _, want := range []string{"*Release*", "Internal release staged", "Severity: info", "track: internal", "version: 42"} {
+		if !strings.Contains(result.Payload.Text, want) {
+			t.Fatalf("Slack text = %q, want %q", result.Payload.Text, want)
+		}
+	}
+	for _, leaked := range []string{"T000", "B000", "SECRET", "secret", "fragment-secret"} {
+		if strings.Contains(result.Webhook, leaked) {
+			t.Fatalf("Webhook = %q, leaked %q", result.Webhook, leaked)
+		}
+	}
+}
+
+func TestSendSlackPostsSlackWebhook(t *testing.T) {
+	var gotPayload SlackPayload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if got := r.Header.Get("Content-Type"); got != "application/json" {
+			t.Fatalf("Content-Type = %q, want application/json", got)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	result, err := SendSlack(context.Background(), WebhookSender{Client: server.Client()}, SendOptions{
+		WebhookURL: server.URL + "/hook?token=secret",
+		Message:    "Release shipped",
+		Confirm:    true,
+	})
+	if err != nil {
+		t.Fatalf("SendSlack() error = %v", err)
+	}
+	if !result.Delivered || result.StatusCode != http.StatusAccepted {
+		t.Fatalf("result = %#v, want delivered 202", result)
+	}
+	if gotPayload.Text != "Release shipped" {
+		t.Fatalf("payload = %#v", gotPayload)
+	}
+	if strings.Contains(result.Webhook, "secret") {
+		t.Fatalf("Webhook = %q, leaked query secret", result.Webhook)
+	}
+}
+
 func TestSendRequiresConfirmOrDryRun(t *testing.T) {
 	_, err := Send(context.Background(), nil, SendOptions{
 		WebhookURL: "https://example.com/hook",
@@ -188,5 +251,11 @@ func TestParseFieldRequiresNameValue(t *testing.T) {
 type failingSender struct{}
 
 func (failingSender) Send(context.Context, string, Payload) (int, error) {
+	panic("sender should not be called")
+}
+
+type failingSlackSender struct{}
+
+func (failingSlackSender) SendSlack(context.Context, string, SlackPayload) (int, error) {
 	panic("sender should not be called")
 }
