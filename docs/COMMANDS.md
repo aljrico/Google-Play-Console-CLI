@@ -1496,6 +1496,7 @@ gpc one-time-products
 - `gpc one-time-products delete`: Delete a one-time product
 - `gpc one-time-products get`: Get a one-time product
 - `gpc one-time-products list`: List one-time products
+- `gpc one-time-products patch`: Patch a one-time product listing
 - `gpc one-time-products purchase-option`: Manage one-time product purchase options
 
 #### gpc one-time-products batch-delete
@@ -1564,6 +1565,25 @@ gpc one-time-products list [flags]
 
 - `--page-size`: Maximum one-time products to return, capped at 1000 (default `0`)
 - `--page-token`: Pagination token from a previous response
+
+#### gpc one-time-products patch
+
+Patch a one-time product listing
+
+```sh
+gpc one-time-products patch [flags]
+```
+
+##### Flags
+
+- `--confirm`: Apply the one-time product listing patch (default `false`)
+- `--description`: Localized one-time product description
+- `--dry-run`: Print the planned one-time product listing patch without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--listing-language`: BCP-47 language code for the listing to patch, for example en-US
+- `--product-id`: One-time product ID
+- `--regions-version`: Google Play regions version required by oneTimeProducts.patch
+- `--title`: Localized one-time product title
 
 #### gpc one-time-products purchase-option
 

@@ -209,6 +209,119 @@ func TestDeleteOneTimeProductPassesOptionsToDeleter(t *testing.T) {
 	}
 }
 
+func TestPatchOneTimeProductDryRunBuildsPlanWithoutPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := PatchOneTimeProduct(context.Background(), nil, OneTimeProductPatchOptions{
+		PackageName: packageName,
+		ProductID:   "coins_100",
+		Listing: OneTimeProductListing{
+			LanguageCode: "en-US",
+			Title:        "100 coins",
+			Description:  "Buy a stack of coins.",
+		},
+		DescriptionSet:   true,
+		RegionsVersion:   "2022/02",
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("PatchOneTimeProduct() error = %v", err)
+	}
+	if !result.DryRun || result.Applied {
+		t.Fatalf("result = %#v, want dry-run patch plan", result)
+	}
+	if result.Plan.UpdateMask != oneTimeProductPatchUpdateMask {
+		t.Fatalf("UpdateMask = %q, want %q", result.Plan.UpdateMask, oneTimeProductPatchUpdateMask)
+	}
+}
+
+func TestPatchOneTimeProductRejectsLongListingText(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = PatchOneTimeProduct(context.Background(), nil, OneTimeProductPatchOptions{
+		PackageName: packageName,
+		ProductID:   "coins_100",
+		Listing: OneTimeProductListing{
+			LanguageCode: "en-US",
+			Title:        "this title is intentionally much longer than fifty five characters",
+		},
+		RegionsVersion:   "2022/02",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected listing length validation error")
+	}
+}
+
+func TestPatchOneTimeProductCountsListingCharacters(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = PatchOneTimeProduct(context.Background(), nil, OneTimeProductPatchOptions{
+		PackageName: packageName,
+		ProductID:   "coins_100",
+		Listing: OneTimeProductListing{
+			LanguageCode: "ja-JP",
+			Title:        "コインコインコインコインコインコインコインコインコインコインコインコインコインコインコインコインコインコイン",
+		},
+		TitleSet:         true,
+		RegionsVersion:   "2022/02",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("PatchOneTimeProduct() error = %v", err)
+	}
+}
+
+func TestPatchOneTimeProductPassesOptionsToPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	patcher := &fakeOneTimeProductClient{
+		product: OneTimeProduct{
+			ProductID: "coins_100",
+			Listings: []OneTimeProductListing{
+				{LanguageCode: "en-US", Title: "100 coins"},
+			},
+		},
+	}
+	options := OneTimeProductPatchOptions{
+		PackageName: packageName,
+		ProductID:   "coins_100",
+		Listing: OneTimeProductListing{
+			LanguageCode: "en-US",
+			Title:        "100 coins",
+		},
+		TitleSet:         true,
+		RegionsVersion:   "2022/02",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := PatchOneTimeProduct(context.Background(), patcher, options)
+	if err != nil {
+		t.Fatalf("PatchOneTimeProduct() error = %v", err)
+	}
+	if !result.Applied || result.Product == nil {
+		t.Fatalf("result = %#v, want applied product", result)
+	}
+	if !reflect.DeepEqual(patcher.patchOptions, options) {
+		t.Fatalf("patchOptions = %#v, want %#v", patcher.patchOptions, options)
+	}
+}
+
 func TestBatchDeleteOneTimeProductsDryRunBuildsPlanWithoutDeleter(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -487,6 +600,7 @@ type fakeOneTimeProductClient struct {
 	batchOptions                     OneTimeProductBatchGetOptions
 	batchResult                      OneTimeProductBatchGetResult
 	deleteOptions                    OneTimeProductDeleteOptions
+	patchOptions                     OneTimeProductPatchOptions
 	batchDeleteOptions               OneTimeProductBatchDeleteOptions
 	purchaseOptionBatchDeleteOptions PurchaseOptionBatchDeleteOptions
 	productID                        OneTimeProductID
@@ -512,6 +626,11 @@ func (c *fakeOneTimeProductClient) BatchGetOneTimeProducts(ctx context.Context, 
 func (c *fakeOneTimeProductClient) DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error {
 	c.deleteOptions = options
 	return nil
+}
+
+func (c *fakeOneTimeProductClient) PatchOneTimeProduct(ctx context.Context, options OneTimeProductPatchOptions) (OneTimeProduct, error) {
+	c.patchOptions = options
+	return c.product, nil
 }
 
 func (c *fakeOneTimeProductClient) BatchDeleteOneTimeProducts(ctx context.Context, options OneTimeProductBatchDeleteOptions) error {

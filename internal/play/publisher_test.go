@@ -3127,6 +3127,66 @@ func TestBatchGetOneTimeProductsUsesRepeatedProductIDs(t *testing.T) {
 	}
 }
 
+func TestGooglePublisherPatchOneTimeProductMergesListing(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100" {
+				t.Fatalf("path = %q, want one-time product get endpoint", r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{
+				"packageName":"com.example.app",
+				"productId":"coins_100",
+				"listings":[
+					{"languageCode":"en-US","title":"Old title","description":"Old description"},
+					{"languageCode":"es-ES","title":"Cien monedas","description":"Comprar monedas"}
+				]
+			}`)
+		case http.MethodPatch:
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/onetimeproducts/coins_100" {
+				t.Fatalf("path = %q, want one-time product patch endpoint", r.URL.Path)
+			}
+			assertQueryValue(t, r.URL.Query(), "updateMask", oneTimeProductPatchUpdateMask)
+			assertQueryValue(t, r.URL.Query(), "regionsVersion.version", "2026/05")
+			assertQueryValue(t, r.URL.Query(), "latencyTolerance", "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT")
+			var request androidpublisher.OneTimeProduct
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatalf("Decode() error = %v", err)
+			}
+			if len(request.Listings) != 2 {
+				t.Fatalf("len(Listings) = %d, want merged listings", len(request.Listings))
+			}
+			if request.Listings[0].Title != "Old title" || request.Listings[0].Description != "Fresh description" {
+				t.Fatalf("first listing = %#v, want preserved title and patched description", request.Listings[0])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"coins_100","listings":[{"languageCode":"en-US","title":"Old title","description":"Fresh description"}]}`)
+		default:
+			t.Fatalf("method = %s, want GET or PATCH", r.Method)
+		}
+	}))
+
+	product, err := publisher.PatchOneTimeProduct(context.Background(), OneTimeProductPatchOptions{
+		PackageName: "com.example.app",
+		ProductID:   "coins_100",
+		Listing: OneTimeProductListing{
+			LanguageCode: "en-US",
+			Description:  "Fresh description",
+		},
+		DescriptionSet:   true,
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("PatchOneTimeProduct() error = %v", err)
+	}
+	if product.Listings[0].Description != "Fresh description" {
+		t.Fatalf("Listings = %#v, want patched description", product.Listings)
+	}
+}
+
 func TestGooglePublisherDeleteOneTimeProductUsesMonetizationEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {

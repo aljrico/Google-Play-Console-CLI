@@ -20,6 +20,7 @@ func newOneTimeProductsCommand(out io.Writer, options *globalOptions) *cobra.Com
 		newOneTimeProductsListCommand(out, options, &packageName),
 		newOneTimeProductsGetCommand(out, options, &packageName),
 		newOneTimeProductsBatchGetCommand(out, options, &packageName),
+		newOneTimeProductsPatchCommand(out, options, &packageName),
 		newOneTimeProductsDeleteCommand(out, options, &packageName),
 		newOneTimeProductsBatchDeleteCommand(out, options, &packageName),
 		newOneTimeProductsPurchaseOptionCommand(out, options, &packageName),
@@ -331,6 +332,86 @@ func parseOneTimeProductIDs(values []string) ([]play.OneTimeProductID, error) {
 		productIDs = append(productIDs, productID)
 	}
 	return productIDs, nil
+}
+
+func newOneTimeProductsPatchCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID        string
+		listingLanguage  string
+		title            string
+		description      string
+		regionsVersion   string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "patch",
+		Short: "Patch a one-time product listing",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedProductID, err := play.NewOneTimeProductID(productID)
+			if err != nil {
+				return err
+			}
+			typedListingLanguage, err := play.NewListingLanguage(listingLanguage)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			patchOptions := play.OneTimeProductPatchOptions{
+				PackageName: typedPackageName,
+				ProductID:   typedProductID,
+				Listing: play.OneTimeProductListing{
+					LanguageCode: typedListingLanguage.String(),
+					Title:        title,
+					Description:  description,
+				},
+				TitleSet:         cmd.Flags().Changed("title"),
+				DescriptionSet:   cmd.Flags().Changed("description"),
+				RegionsVersion:   regionsVersion,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.PatchOneTimeProduct(cmd.Context(), nil, patchOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewOneTimeProductPatchPlan(patchOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.PatchOneTimeProduct(cmd.Context(), publisher, patchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&productID, "product-id", "", "One-time product ID")
+	cmd.Flags().StringVar(&listingLanguage, "listing-language", "", "BCP-47 language code for the listing to patch, for example en-US")
+	cmd.Flags().StringVar(&title, "title", "", "Localized one-time product title")
+	cmd.Flags().StringVar(&description, "description", "", "Localized one-time product description")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by oneTimeProducts.patch")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the one-time product listing patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product listing patch without calling Google Play")
+	return cmd
 }
 
 func newOneTimeProductsDeleteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {

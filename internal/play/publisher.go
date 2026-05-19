@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 
 	"google.golang.org/api/androidpublisher/v3"
 	"google.golang.org/api/googleapi"
@@ -532,6 +533,39 @@ func (p GooglePublisher) BatchGetOneTimeProducts(ctx context.Context, options On
 		return OneTimeProductBatchGetResult{}, fmt.Errorf("batch get one-time products for %s: %w", options.PackageName, err)
 	}
 	return oneTimeProductBatchGetResultFromAPI(options, response)
+}
+
+func (p GooglePublisher) PatchOneTimeProduct(ctx context.Context, options OneTimeProductPatchOptions) (OneTimeProduct, error) {
+	if err := options.ValidateLive(); err != nil {
+		return OneTimeProduct{}, err
+	}
+	current, err := p.service.Monetization.Onetimeproducts.Get(options.PackageName.String(), options.ProductID.String()).Context(ctx).Do()
+	if err != nil {
+		return OneTimeProduct{}, fmt.Errorf("get one-time product %s for %s before patch: %w", options.ProductID, options.PackageName, err)
+	}
+	currentProduct, err := oneTimeProductFromGeneratedAPI(current)
+	if err != nil {
+		return OneTimeProduct{}, fmt.Errorf("decode one-time product %s for %s before patch: %w", options.ProductID, options.PackageName, err)
+	}
+	mergedListings := mergeOneTimeProductListings(currentProduct.Listings, options)
+	if err := validateMergedOneTimeProductListing(options.Listing.LanguageCode, mergedListings); err != nil {
+		return OneTimeProduct{}, err
+	}
+	request := &androidpublisher.OneTimeProduct{
+		PackageName: options.PackageName.String(),
+		ProductId:   options.ProductID.String(),
+		Listings:    oneTimeProductListingsToAPI(mergedListings),
+	}
+	product, err := p.service.Monetization.Onetimeproducts.Patch(options.PackageName.String(), options.ProductID.String(), request).
+		UpdateMask(oneTimeProductPatchUpdateMask).
+		RegionsVersionVersion(options.RegionsVersion).
+		LatencyTolerance(productUpdateLatencyToleranceToAPI(options.LatencyTolerance)).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return OneTimeProduct{}, fmt.Errorf("patch one-time product %s for %s: %w", options.ProductID, options.PackageName, err)
+	}
+	return oneTimeProductFromGeneratedAPI(product)
 }
 
 func (p GooglePublisher) DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error {
@@ -2409,6 +2443,66 @@ func oneTimeProductListingsFromAPI(apiListings []rawOneTimeProductListing) []One
 		})
 	}
 	return listings
+}
+
+func oneTimeProductListingsToAPI(listings []OneTimeProductListing) []*androidpublisher.OneTimeProductListing {
+	apiListings := make([]*androidpublisher.OneTimeProductListing, 0, len(listings))
+	for _, listing := range listings {
+		apiListings = append(apiListings, oneTimeProductListingToAPI(listing))
+	}
+	return apiListings
+}
+
+func oneTimeProductListingToAPI(listing OneTimeProductListing) *androidpublisher.OneTimeProductListing {
+	return &androidpublisher.OneTimeProductListing{
+		LanguageCode: listing.LanguageCode,
+		Title:        listing.Title,
+		Description:  listing.Description,
+	}
+}
+
+func mergeOneTimeProductListings(current []OneTimeProductListing, options OneTimeProductPatchOptions) []OneTimeProductListing {
+	patch := options.Listing
+	merged := make([]OneTimeProductListing, 0, len(current)+1)
+	replaced := false
+	for _, listing := range current {
+		if listing.LanguageCode == patch.LanguageCode {
+			merged = append(merged, mergeOneTimeProductListing(listing, options))
+			replaced = true
+			continue
+		}
+		merged = append(merged, listing)
+	}
+	if !replaced {
+		merged = append(merged, patch)
+	}
+	return merged
+}
+
+func mergeOneTimeProductListing(current OneTimeProductListing, options OneTimeProductPatchOptions) OneTimeProductListing {
+	if options.TitleSet {
+		current.Title = options.Listing.Title
+	}
+	if options.DescriptionSet {
+		current.Description = options.Listing.Description
+	}
+	return current
+}
+
+func validateMergedOneTimeProductListing(languageCode string, listings []OneTimeProductListing) error {
+	for _, listing := range listings {
+		if listing.LanguageCode != languageCode {
+			continue
+		}
+		if strings.TrimSpace(listing.Title) == "" {
+			return fmt.Errorf("one-time product listing title is required when adding or replacing listing %s", languageCode)
+		}
+		if strings.TrimSpace(listing.Description) == "" {
+			return fmt.Errorf("one-time product listing description is required when adding or replacing listing %s", languageCode)
+		}
+		return nil
+	}
+	return fmt.Errorf("one-time product listing %s was not merged", languageCode)
 }
 
 func oneTimeProductPurchaseOptionsFromAPI(apiOptions []rawOneTimeProductPurchaseOption) []OneTimeProductPurchaseOption {

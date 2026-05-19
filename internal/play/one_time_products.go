@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 type OneTimeProductID string
@@ -218,6 +219,10 @@ type OneTimeProductDeleter interface {
 	DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error
 }
 
+type OneTimeProductPatcher interface {
+	PatchOneTimeProduct(ctx context.Context, options OneTimeProductPatchOptions) (OneTimeProduct, error)
+}
+
 type OneTimeProductBatchDeleter interface {
 	BatchDeleteOneTimeProducts(ctx context.Context, options OneTimeProductBatchDeleteOptions) error
 }
@@ -288,6 +293,18 @@ type OneTimeProductDeleteOptions struct {
 	DryRun           bool                          `json:"dryRun"`
 }
 
+type OneTimeProductPatchOptions struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        OneTimeProductID              `json:"productId"`
+	Listing          OneTimeProductListing         `json:"listing"`
+	TitleSet         bool                          `json:"titleSet,omitempty"`
+	DescriptionSet   bool                          `json:"descriptionSet,omitempty"`
+	RegionsVersion   string                        `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	DryRun           bool                          `json:"dryRun"`
+}
+
 func (o OneTimeProductDeleteOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
@@ -307,6 +324,34 @@ func (o OneTimeProductDeleteOptions) Validate() error {
 	return nil
 }
 
+func (o OneTimeProductPatchOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if err := validateOneTimeProductListing(o.Listing); err != nil {
+		return err
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("one-time product patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
 func (o OneTimeProductDeleteOptions) ValidateLive() error {
 	if err := o.Validate(); err != nil {
 		return err
@@ -316,6 +361,38 @@ func (o OneTimeProductDeleteOptions) ValidateLive() error {
 	}
 	if !o.Confirm {
 		return fmt.Errorf("live one-time product deletion requires --confirm")
+	}
+	return nil
+}
+
+func (o OneTimeProductPatchOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live one-time product patch cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live one-time product patch requires --confirm")
+	}
+	return nil
+}
+
+func validateOneTimeProductListing(listing OneTimeProductListing) error {
+	if _, err := NewListingLanguage(listing.LanguageCode); err != nil {
+		return err
+	}
+	if strings.TrimSpace(listing.Title) != listing.Title {
+		return fmt.Errorf("one-time product listing title cannot have leading or trailing whitespace")
+	}
+	if utf8.RuneCountInString(listing.Title) > 55 {
+		return fmt.Errorf("one-time product listing title cannot exceed 55 characters")
+	}
+	if strings.TrimSpace(listing.Description) != listing.Description {
+		return fmt.Errorf("one-time product listing description cannot have leading or trailing whitespace")
+	}
+	if utf8.RuneCountInString(listing.Description) > 200 {
+		return fmt.Errorf("one-time product listing description cannot exceed 200 characters")
 	}
 	return nil
 }
@@ -334,6 +411,29 @@ type OneTimeProductDeleteResult struct {
 	DryRun      bool                     `json:"dryRun"`
 	Deleted     bool                     `json:"deleted"`
 	Plan        OneTimeProductDeletePlan `json:"plan"`
+}
+
+type OneTimeProductPatchPlan struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        OneTimeProductID              `json:"productId"`
+	Listing          OneTimeProductListing         `json:"listing"`
+	TitleSet         bool                          `json:"titleSet,omitempty"`
+	DescriptionSet   bool                          `json:"descriptionSet,omitempty"`
+	UpdateMask       string                        `json:"updateMask"`
+	RegionsVersion   string                        `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	Steps            []string                      `json:"steps"`
+}
+
+type OneTimeProductPatchResult struct {
+	PackageName PackageName             `json:"packageName"`
+	ProductID   OneTimeProductID        `json:"productId"`
+	DryRun      bool                    `json:"dryRun"`
+	Applied     bool                    `json:"applied"`
+	Desired     OneTimeProduct          `json:"desiredProduct"`
+	Product     *OneTimeProduct         `json:"product,omitempty"`
+	Plan        OneTimeProductPatchPlan `json:"plan"`
 }
 
 func DeleteOneTimeProduct(ctx context.Context, deleter OneTimeProductDeleter, options OneTimeProductDeleteOptions) (OneTimeProductDeleteResult, error) {
@@ -362,6 +462,56 @@ func DeleteOneTimeProduct(ctx context.Context, deleter OneTimeProductDeleter, op
 		return OneTimeProductDeleteResult{}, err
 	}
 	result.Deleted = true
+	return result, nil
+}
+
+func NewOneTimeProductPatchPlan(options OneTimeProductPatchOptions) (OneTimeProductPatchPlan, error) {
+	if err := options.Validate(); err != nil {
+		return OneTimeProductPatchPlan{}, err
+	}
+	return OneTimeProductPatchPlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		Listing:          options.Listing,
+		TitleSet:         options.TitleSet,
+		DescriptionSet:   options.DescriptionSet,
+		UpdateMask:       oneTimeProductPatchUpdateMask,
+		RegionsVersion:   options.RegionsVersion,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            oneTimeProductPatchSteps(options),
+	}, nil
+}
+
+func PatchOneTimeProduct(ctx context.Context, patcher OneTimeProductPatcher, options OneTimeProductPatchOptions) (OneTimeProductPatchResult, error) {
+	plan, err := NewOneTimeProductPatchPlan(options)
+	if err != nil {
+		return OneTimeProductPatchResult{}, err
+	}
+	result := OneTimeProductPatchResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		DryRun:      options.DryRun,
+		Desired: OneTimeProduct{
+			PackageName:     options.PackageName,
+			ProductID:       options.ProductID,
+			Listings:        []OneTimeProductListing{options.Listing},
+			PurchaseOptions: []OneTimeProductPurchaseOption{},
+		},
+		Plan: plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if patcher == nil {
+		return OneTimeProductPatchResult{}, fmt.Errorf("one-time product patcher is required")
+	}
+	product, err := patcher.PatchOneTimeProduct(ctx, options)
+	if err != nil {
+		return OneTimeProductPatchResult{}, err
+	}
+	result.Applied = true
+	result.Product = &product
 	return result, nil
 }
 
@@ -462,6 +612,15 @@ func BatchDeleteOneTimeProducts(ctx context.Context, deleter OneTimeProductBatch
 	}
 	result.Deleted = true
 	return result, nil
+}
+
+const oneTimeProductPatchUpdateMask = "listings"
+
+func oneTimeProductPatchSteps(options OneTimeProductPatchOptions) []string {
+	if options.DryRun {
+		return []string{"plan one-time product listing patch"}
+	}
+	return []string{"fetch current one-time product", "merge localized listing", "patch one-time product listings"}
 }
 
 const OneTimeProductWildcardID = "-"

@@ -127,6 +127,7 @@ gpc in-app-products batch-delete --package com.example.app --sku coins_100 --sku
 gpc one-time-products list --package com.example.app --page-size 50
 gpc one-time-products get --package com.example.app --product-id coins_100
 gpc one-time-products batch-get --package com.example.app --product-id coins_100 --product-id coins_500
+gpc one-time-products patch --package com.example.app --product-id coins_100 --listing-language en-US --title "100 coins" --description "Buy a stack of coins." --regions-version 2026/05 --dry-run
 gpc one-time-products delete --package com.example.app --product-id coins_100 --dry-run
 gpc one-time-products batch-delete --package com.example.app --product-id coins_100 --product-id coins_500 --dry-run
 gpc one-time-products purchase-option batch-delete --package com.example.app --product-id - --purchase-option coins_100/buy --purchase-option coins_500/rent --dry-run
