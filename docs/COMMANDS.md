@@ -1305,6 +1305,7 @@ gpc one-time-product-offers
 #### Commands
 
 - `gpc one-time-product-offers activate`: activate a one-time product offer
+- `gpc one-time-product-offers batch-delete`: Delete multiple one-time product offers
 - `gpc one-time-product-offers batch-get`: Get multiple one-time product offers
 - `gpc one-time-product-offers cancel`: cancel a one-time product offer
 - `gpc one-time-product-offers deactivate`: deactivate a one-time product offer
@@ -1327,6 +1328,23 @@ gpc one-time-product-offers activate [flags]
 - `--offer-id`: One-time product offer ID
 - `--product-id`: Parent one-time product ID
 - `--purchase-option-id`: Parent one-time product purchase option ID
+
+#### gpc one-time-product-offers batch-delete
+
+Delete multiple one-time product offers
+
+```sh
+gpc one-time-product-offers batch-delete [flags]
+```
+
+##### Flags
+
+- `--confirm`: Apply the one-time product offer batch deletion (default `false`)
+- `--dry-run`: Print the planned one-time product offer batch deletion without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--offer`: Offer to delete as productId/purchaseOptionId/offerId; repeatable, up to 100 (default `[]`)
+- `--product-id`: Parent one-time product ID, or - for offers across products; inferred when omitted
+- `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
 
 #### gpc one-time-product-offers batch-get
 

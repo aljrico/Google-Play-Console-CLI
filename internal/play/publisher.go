@@ -687,6 +687,35 @@ func (p GooglePublisher) BatchGetOneTimeProductOffers(ctx context.Context, optio
 	return oneTimeProductOfferBatchGetResultFromAPI(options, response), nil
 }
 
+func (p GooglePublisher) BatchDeleteOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchDeleteOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	request := &androidpublisher.BatchDeleteOneTimeProductOffersRequest{
+		Requests: make([]*androidpublisher.DeleteOneTimeProductOfferRequest, 0, len(options.Requests)),
+	}
+	latencyTolerance := productUpdateLatencyToleranceToAPI(options.LatencyTolerance)
+	for _, item := range options.Requests {
+		request.Requests = append(request.Requests, &androidpublisher.DeleteOneTimeProductOfferRequest{
+			PackageName:      options.PackageName.String(),
+			ProductId:        item.ProductID.String(),
+			PurchaseOptionId: item.PurchaseOptionID.String(),
+			OfferId:          item.OfferID.String(),
+			LatencyTolerance: latencyTolerance,
+		})
+	}
+	err := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.BatchDelete(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.PurchaseOptionID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("batch delete one-time product offers for %s/%s/%s: %w", options.PackageName, options.ProductID, options.PurchaseOptionID, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProductOffer{}, err

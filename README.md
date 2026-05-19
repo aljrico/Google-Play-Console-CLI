@@ -134,6 +134,7 @@ gpc one-time-products purchase-option deactivate --package com.example.app --pro
 gpc one-time-product-offers list --package com.example.app --product-id coins_100 --purchase-option-id buy
 gpc one-time-product-offers get --package com.example.app --product-id coins_100 --purchase-option-id buy --offer-id intro
 gpc one-time-product-offers batch-get --package com.example.app --product-id - --purchase-option-id - --offer coins_100/buy/intro --offer coins_500/buy/preorder
+gpc one-time-product-offers batch-delete --package com.example.app --offer coins_100/buy/intro --offer coins_500/rent/preorder --dry-run
 gpc one-time-product-offers deactivate --package com.example.app --product-id coins_100 --purchase-option-id buy --offer-id intro --dry-run
 gpc one-time-product-offers cancel --package com.example.app --product-id coins_100 --purchase-option-id buy --offer-id preorder --dry-run
 gpc subscriptions list --package com.example.app --page-size 50
