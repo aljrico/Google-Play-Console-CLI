@@ -2644,6 +2644,7 @@ gpc subscription-offers create [flags]
 - `--product-id`: Parent subscription product ID
 - `--regions-version`: Google Play regions version required by subscriptionOffers.create
 - `--relative-discount`: Basic create regional phase relative discount as REGION:0.5, where 0.5 means the user pays 50% of the base plan price; repeatable (default `[]`)
+- `--targeting-acquisition-scope`: Basic create acquisition targeting scope: any-subscription-in-app or this-subscription
 
 #### gpc subscription-offers deactivate
 

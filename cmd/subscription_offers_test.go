@@ -548,6 +548,8 @@ func TestSubscriptionOffersCreateBasicFreePhaseDryRunDoesNotRequireAuth(t *testi
 		"--free-region",
 		"FR",
 		"--other-regions-free",
+		"--targeting-acquisition-scope",
+		"this-subscription",
 		"--phase-duration",
 		"P7D",
 		"--phase-recurrence",
@@ -571,6 +573,7 @@ func TestSubscriptionOffersCreateBasicFreePhaseDryRunDoesNotRequireAuth(t *testi
 		`"offerId":"intro"`,
 		`"offerTags":["trial"]`,
 		`"otherRegionsConfig":{"newSubscriberAvailability":true}`,
+		`"targeting":{"acquisition":{"scope":{"thisSubscription":true}}}`,
 		`"regionCode":"US"`,
 		`"regionCode":"FR"`,
 		`"newSubscriberAvailability":true`,
@@ -585,6 +588,42 @@ func TestSubscriptionOffersCreateBasicFreePhaseDryRunDoesNotRequireAuth(t *testi
 	}
 	if strings.Contains(output, "no active auth profile") {
 		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersCreateRejectsInvalidAcquisitionTargetingScope(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--free-region",
+		"US",
+		"--targeting-acquisition-scope",
+		"specific-subscription-in-app",
+		"--phase-duration",
+		"P7D",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected acquisition targeting scope validation error")
+	}
+	if !strings.Contains(err.Error(), "acquisition targeting scope") {
+		t.Fatalf("error = %v, want acquisition targeting scope validation", err)
 	}
 }
 

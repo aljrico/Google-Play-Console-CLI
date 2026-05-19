@@ -139,6 +139,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 		relativeDiscounts []string
 		absoluteDiscounts []string
 		otherRegionsFree  bool
+		acquisitionScope  string
 		phaseDuration     string
 		phaseRecurrence   int64
 		regionsVersion    string
@@ -150,7 +151,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 		Use:   "create",
 		Short: "Create a draft subscription offer",
 		Long: "Create a draft subscription offer from a Google Play API SubscriptionOffer JSON body or gpc subscription offer JSON output. " +
-			"Basic flags build one free, paid-price, relative-discount, or absolute-discount phase across explicit regions, with optional free other-regions config; use JSON for multi-phase offers, targeting, or paid other-regions config. " +
+			"Basic flags build one free, paid-price, relative-discount, or absolute-discount phase across explicit regions, with optional free other-regions config and acquisition targeting; use JSON for multi-phase offers, upgrade targeting, or paid other-regions config. " +
 			"Immutable parent IDs come from flags and override the JSON body; output-only state is ignored because Google creates draft offers.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -178,6 +179,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 				RelativeDiscounts: relativeDiscounts,
 				AbsoluteDiscounts: absoluteDiscounts,
 				OtherRegionsFree:  otherRegionsFree,
+				AcquisitionScope:  acquisitionScope,
 				PhaseDuration:     phaseDuration,
 				PhaseRecurrence:   phaseRecurrence,
 				BasicFlagsSet: cmd.Flags().Changed("offer-tag") ||
@@ -186,6 +188,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 					cmd.Flags().Changed("relative-discount") ||
 					cmd.Flags().Changed("absolute-discount") ||
 					cmd.Flags().Changed("other-regions-free") ||
+					cmd.Flags().Changed("targeting-acquisition-scope") ||
 					cmd.Flags().Changed("phase-duration") ||
 					cmd.Flags().Changed("phase-recurrence"),
 			})
@@ -238,6 +241,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 	cmd.Flags().StringArrayVar(&relativeDiscounts, "relative-discount", nil, "Basic create regional phase relative discount as REGION:0.5, where 0.5 means the user pays 50% of the base plan price; repeatable")
 	cmd.Flags().StringArrayVar(&absoluteDiscounts, "absolute-discount", nil, "Basic create regional phase absolute discount as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
 	cmd.Flags().BoolVar(&otherRegionsFree, "other-regions-free", false, "Basic create free phase mode for other regions")
+	cmd.Flags().StringVar(&acquisitionScope, "targeting-acquisition-scope", "", "Basic create acquisition targeting scope: any-subscription-in-app or this-subscription")
 	cmd.Flags().StringVar(&phaseDuration, "phase-duration", "", "Basic create phase duration as an ISO 8601 period, for example P7D or P1M")
 	cmd.Flags().Int64Var(&phaseRecurrence, "phase-recurrence", 1, "Basic create phase recurrence count")
 	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by subscriptionOffers.create")
@@ -254,6 +258,7 @@ type subscriptionOfferCreateBodyOptions struct {
 	RelativeDiscounts []string
 	AbsoluteDiscounts []string
 	OtherRegionsFree  bool
+	AcquisitionScope  string
 	PhaseDuration     string
 	PhaseRecurrence   int64
 	BasicFlagsSet     bool
@@ -279,6 +284,10 @@ func subscriptionOfferCreateBody(options subscriptionOfferCreateBodyOptions) (pl
 		offerOtherRegionsConfig = &play.SubscriptionOfferOtherRegionsConfig{NewSubscriberAvailability: true}
 		phaseOtherRegionsConfig = &play.SubscriptionOfferPhaseOtherRegionsConfig{Free: true}
 	}
+	targeting, err := subscriptionOfferCreateAcquisitionTargeting(options.AcquisitionScope)
+	if err != nil {
+		return play.SubscriptionOffer{}, err
+	}
 	return play.SubscriptionOffer{
 		OfferTags:          append([]string(nil), options.OfferTags...),
 		RegionalConfigs:    regionalConfigs,
@@ -289,6 +298,7 @@ func subscriptionOfferCreateBody(options subscriptionOfferCreateBodyOptions) (pl
 			RegionalConfigs:    phaseRegionalConfigs,
 			OtherRegionsConfig: phaseOtherRegionsConfig,
 		}},
+		Targeting: targeting,
 	}, nil
 }
 
@@ -371,6 +381,27 @@ func parseSubscriptionOfferCreatePhaseRegions(freeRegions []string, priceValues 
 		})
 	}
 	return regionalConfigs, phaseConfigs, nil
+}
+
+func subscriptionOfferCreateAcquisitionTargeting(scope string) (*play.SubscriptionOfferTargeting, error) {
+	switch strings.TrimSpace(scope) {
+	case "":
+		return nil, nil
+	case "any-subscription-in-app":
+		return &play.SubscriptionOfferTargeting{
+			Acquisition: &play.SubscriptionOfferAcquisitionTargeting{
+				Scope: &play.SubscriptionOfferTargetingScope{AnySubscriptionInApp: true},
+			},
+		}, nil
+	case "this-subscription":
+		return &play.SubscriptionOfferTargeting{
+			Acquisition: &play.SubscriptionOfferAcquisitionTargeting{
+				Scope: &play.SubscriptionOfferTargetingScope{ThisSubscription: true},
+			},
+		}, nil
+	default:
+		return nil, fmt.Errorf("subscription offer create acquisition targeting scope must be any-subscription-in-app or this-subscription")
+	}
 }
 
 func errSubscriptionOfferCreatePriceFormat() error {
