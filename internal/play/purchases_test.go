@@ -199,6 +199,37 @@ func TestRevokeSubscriptionPurchaseDryRunDoesNotCallRevoker(t *testing.T) {
 	}
 }
 
+func TestRevokeSubscriptionPurchaseItemRefundRequiresProductID(t *testing.T) {
+	_, err := RevokeSubscriptionPurchase(context.Background(), nil, SubscriptionPurchaseRevokeOptions{
+		PackageName: "com.example.app",
+		Token:       "token-123",
+		RefundType:  SubscriptionRefundTypeItem,
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected item refund product ID validation error")
+	}
+}
+
+func TestRevokeSubscriptionPurchaseItemRefundPlanIncludesProductID(t *testing.T) {
+	result, err := RevokeSubscriptionPurchase(context.Background(), nil, SubscriptionPurchaseRevokeOptions{
+		PackageName:     "com.example.app",
+		Token:           "token-123",
+		RefundType:      SubscriptionRefundTypeItem,
+		RefundProductID: "premium_addon",
+		DryRun:          true,
+	})
+	if err != nil {
+		t.Fatalf("RevokeSubscriptionPurchase() error = %v", err)
+	}
+	if result.RefundProductID != "premium_addon" {
+		t.Fatalf("RefundProductID = %q, want premium_addon", result.RefundProductID)
+	}
+	if !reflect.DeepEqual(result.Plan.Steps, []string{"revoke subscription purchase", "item refund", "refund subscription item premium_addon"}) {
+		t.Fatalf("Steps = %#v", result.Plan.Steps)
+	}
+}
+
 func TestRevokeSubscriptionPurchasePassesOptionsToRevoker(t *testing.T) {
 	revoker := &fakePurchaseClient{}
 	options := SubscriptionPurchaseRevokeOptions{
@@ -227,6 +258,7 @@ func TestRevokeSubscriptionPurchaseRejectsInvalidOptions(t *testing.T) {
 		{PackageName: "com.example.app", RefundType: SubscriptionRefundTypeFull, DryRun: true},
 		{PackageName: "com.example.app", Token: "token-123", DryRun: true},
 		{PackageName: "com.example.app", Token: "token-123", RefundType: "partial", DryRun: true},
+		{PackageName: "com.example.app", Token: "token-123", RefundType: SubscriptionRefundTypeFull, RefundProductID: "premium_addon", DryRun: true},
 		{PackageName: "com.example.app", Token: "token-123", RefundType: SubscriptionRefundTypeFull},
 		{PackageName: "com.example.app", Token: "token-123", RefundType: SubscriptionRefundTypeFull, Confirm: true, DryRun: true},
 	}

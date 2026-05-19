@@ -257,10 +257,11 @@ func newPurchasesSubscriptionMutationCommand(out io.Writer, options *globalOptio
 
 func newPurchasesSubscriptionRevokeCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	var (
-		token      string
-		refundType string
-		confirm    bool
-		dryRun     bool
+		token           string
+		refundType      string
+		refundProductID string
+		confirm         bool
+		dryRun          bool
 	)
 
 	cmd := &cobra.Command{
@@ -276,12 +277,20 @@ func newPurchasesSubscriptionRevokeCommand(out io.Writer, options *globalOptions
 			if err != nil {
 				return err
 			}
+			var typedRefundProductID play.SubscriptionProductID
+			if refundProductID != "" {
+				typedRefundProductID, err = play.NewSubscriptionProductID(refundProductID)
+				if err != nil {
+					return err
+				}
+			}
 			revokeOptions := play.SubscriptionPurchaseRevokeOptions{
-				PackageName: typedPackageName,
-				Token:       typedToken,
-				RefundType:  typedRefundType,
-				Confirm:     confirm,
-				DryRun:      dryRun,
+				PackageName:     typedPackageName,
+				Token:           typedToken,
+				RefundType:      typedRefundType,
+				RefundProductID: typedRefundProductID,
+				Confirm:         confirm,
+				DryRun:          dryRun,
 			}
 			if err := revokeOptions.Validate(); err != nil {
 				return err
@@ -305,7 +314,8 @@ func newPurchasesSubscriptionRevokeCommand(out io.Writer, options *globalOptions
 		},
 	}
 	cmd.Flags().StringVar(&token, "token", "", "Purchase token")
-	cmd.Flags().StringVar(&refundType, "refund", "", "Refund type: full or prorated")
+	cmd.Flags().StringVar(&refundType, "refund", "", "Refund type: full, prorated, or item")
+	cmd.Flags().StringVar(&refundProductID, "refund-product-id", "", "Subscription product ID to refund when --refund item is used")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription revocation")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription revocation without calling Google Play")
 	return cmd

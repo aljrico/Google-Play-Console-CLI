@@ -4363,6 +4363,42 @@ func TestPurchasesSubscriptionRevokeDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestPurchasesSubscriptionRevokeItemRefundDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"purchases",
+		"subscription",
+		"revoke",
+		"--package",
+		"com.example.app",
+		"--token",
+		"token-123",
+		"--refund",
+		"item",
+		"--refund-product-id",
+		"premium_addon",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{`"refundType":"item"`, `"refundProductId":"premium_addon"`, `"dryRun":true`, `"applied":false`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestPurchasesSubscriptionRevokeRejectsMissingRefundBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

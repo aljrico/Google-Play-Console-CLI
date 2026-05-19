@@ -400,12 +400,13 @@ type SubscriptionRefundType string
 const (
 	SubscriptionRefundTypeFull     SubscriptionRefundType = "full"
 	SubscriptionRefundTypeProrated SubscriptionRefundType = "prorated"
+	SubscriptionRefundTypeItem     SubscriptionRefundType = "item"
 )
 
 func NewSubscriptionRefundType(value string) (SubscriptionRefundType, error) {
 	refundType := SubscriptionRefundType(strings.TrimSpace(value))
 	switch refundType {
-	case SubscriptionRefundTypeFull, SubscriptionRefundTypeProrated:
+	case SubscriptionRefundTypeFull, SubscriptionRefundTypeProrated, SubscriptionRefundTypeItem:
 		return refundType, nil
 	default:
 		return "", fmt.Errorf("unsupported subscription refund type %q", value)
@@ -422,11 +423,12 @@ func (t SubscriptionRefundType) Validate() error {
 }
 
 type SubscriptionPurchaseRevokeOptions struct {
-	PackageName PackageName            `json:"packageName"`
-	Token       PurchaseToken          `json:"token"`
-	RefundType  SubscriptionRefundType `json:"refundType"`
-	Confirm     bool                   `json:"confirm"`
-	DryRun      bool                   `json:"dryRun"`
+	PackageName     PackageName            `json:"packageName"`
+	Token           PurchaseToken          `json:"token"`
+	RefundType      SubscriptionRefundType `json:"refundType"`
+	RefundProductID SubscriptionProductID  `json:"refundProductId,omitempty"`
+	Confirm         bool                   `json:"confirm"`
+	DryRun          bool                   `json:"dryRun"`
 }
 
 func (o SubscriptionPurchaseRevokeOptions) Validate() error {
@@ -438,6 +440,14 @@ func (o SubscriptionPurchaseRevokeOptions) Validate() error {
 	}
 	if err := o.RefundType.Validate(); err != nil {
 		return err
+	}
+	if o.RefundType == SubscriptionRefundTypeItem {
+		if _, err := NewSubscriptionProductID(o.RefundProductID.String()); err != nil {
+			return fmt.Errorf("item refund product ID: %w", err)
+		}
+	}
+	if o.RefundType != SubscriptionRefundTypeItem && o.RefundProductID != "" {
+		return fmt.Errorf("refund product ID is only supported with item refunds")
 	}
 	if o.Confirm && o.DryRun {
 		return fmt.Errorf("--confirm and --dry-run cannot be used together")
@@ -462,20 +472,22 @@ func (o SubscriptionPurchaseRevokeOptions) ValidateLive() error {
 }
 
 type SubscriptionPurchaseRevokePlan struct {
-	PackageName PackageName            `json:"packageName"`
-	Token       PurchaseToken          `json:"token"`
-	RefundType  SubscriptionRefundType `json:"refundType"`
-	Confirm     bool                   `json:"confirm"`
-	Steps       []string               `json:"steps"`
+	PackageName     PackageName            `json:"packageName"`
+	Token           PurchaseToken          `json:"token"`
+	RefundType      SubscriptionRefundType `json:"refundType"`
+	RefundProductID SubscriptionProductID  `json:"refundProductId,omitempty"`
+	Confirm         bool                   `json:"confirm"`
+	Steps           []string               `json:"steps"`
 }
 
 type SubscriptionPurchaseRevokeResult struct {
-	PackageName PackageName                    `json:"packageName"`
-	Token       PurchaseToken                  `json:"token"`
-	RefundType  SubscriptionRefundType         `json:"refundType"`
-	DryRun      bool                           `json:"dryRun"`
-	Applied     bool                           `json:"applied"`
-	Plan        SubscriptionPurchaseRevokePlan `json:"plan"`
+	PackageName     PackageName                    `json:"packageName"`
+	Token           PurchaseToken                  `json:"token"`
+	RefundType      SubscriptionRefundType         `json:"refundType"`
+	RefundProductID SubscriptionProductID          `json:"refundProductId,omitempty"`
+	DryRun          bool                           `json:"dryRun"`
+	Applied         bool                           `json:"applied"`
+	Plan            SubscriptionPurchaseRevokePlan `json:"plan"`
 }
 
 func RevokeSubscriptionPurchase(ctx context.Context, revoker SubscriptionPurchaseRevoker, options SubscriptionPurchaseRevokeOptions) (SubscriptionPurchaseRevokeResult, error) {
@@ -483,16 +495,18 @@ func RevokeSubscriptionPurchase(ctx context.Context, revoker SubscriptionPurchas
 		return SubscriptionPurchaseRevokeResult{}, err
 	}
 	result := SubscriptionPurchaseRevokeResult{
-		PackageName: options.PackageName,
-		Token:       options.Token,
-		RefundType:  options.RefundType,
-		DryRun:      options.DryRun,
+		PackageName:     options.PackageName,
+		Token:           options.Token,
+		RefundType:      options.RefundType,
+		RefundProductID: options.RefundProductID,
+		DryRun:          options.DryRun,
 		Plan: SubscriptionPurchaseRevokePlan{
-			PackageName: options.PackageName,
-			Token:       options.Token,
-			RefundType:  options.RefundType,
-			Confirm:     options.Confirm,
-			Steps:       []string{"revoke subscription purchase", string(options.RefundType) + " refund"},
+			PackageName:     options.PackageName,
+			Token:           options.Token,
+			RefundType:      options.RefundType,
+			RefundProductID: options.RefundProductID,
+			Confirm:         options.Confirm,
+			Steps:           subscriptionPurchaseRevokeSteps(options),
 		},
 	}
 	if options.DryRun {
@@ -506,6 +520,14 @@ func RevokeSubscriptionPurchase(ctx context.Context, revoker SubscriptionPurchas
 	}
 	result.Applied = true
 	return result, nil
+}
+
+func subscriptionPurchaseRevokeSteps(options SubscriptionPurchaseRevokeOptions) []string {
+	steps := []string{"revoke subscription purchase", string(options.RefundType) + " refund"}
+	if options.RefundType == SubscriptionRefundTypeItem {
+		steps = append(steps, "refund subscription item "+options.RefundProductID.String())
+	}
+	return steps
 }
 
 type VoidedPurchaseType int64

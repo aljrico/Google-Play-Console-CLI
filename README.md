@@ -131,6 +131,7 @@ gpc purchases subscription --package com.example.app --token PURCHASE_TOKEN
 gpc purchases subscription acknowledge --package com.example.app --subscription-id premium_monthly --token PURCHASE_TOKEN --dry-run
 gpc purchases subscription cancel --package com.example.app --subscription-id premium_monthly --token PURCHASE_TOKEN --dry-run
 gpc purchases subscription revoke --package com.example.app --token PURCHASE_TOKEN --refund full --dry-run
+gpc purchases subscription revoke --package com.example.app --token PURCHASE_TOKEN --refund item --refund-product-id premium_addon --dry-run
 gpc purchases voided list --package com.example.app --max-results 25
 gpc orders get --package com.example.app --order-id GPA.1234-5678-9012-34567
 gpc orders batch-get --package com.example.app --order-id GPA.1234 --order-id GPA.5678

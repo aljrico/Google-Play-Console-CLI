@@ -1102,6 +1102,34 @@ func TestRevokeSubscriptionPurchaseUsesSubscriptionV2Endpoint(t *testing.T) {
 	}
 }
 
+func TestRevokeSubscriptionPurchaseUsesItemRefundContext(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/purchases/subscriptionsv2/tokens/token-123:revoke" {
+			t.Fatalf("path = %q, want subscription v2 revoke endpoint", r.URL.Path)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		if !strings.Contains(string(body), `"itemBasedRefund":{"productId":"premium_addon"}`) {
+			t.Fatalf("body = %q, want item refund context", string(body))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+
+	err := publisher.RevokeSubscriptionPurchase(context.Background(), SubscriptionPurchaseRevokeOptions{
+		PackageName:     "com.example.app",
+		Token:           "token-123",
+		RefundType:      SubscriptionRefundTypeItem,
+		RefundProductID: "premium_addon",
+		Confirm:         true,
+	})
+	if err != nil {
+		t.Fatalf("RevokeSubscriptionPurchase() error = %v", err)
+	}
+}
+
 func TestAcknowledgeSubscriptionPurchaseUsesLegacyEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

@@ -3357,6 +3357,10 @@ func subscriptionRevokeRequestToAPI(options SubscriptionPurchaseRevokeOptions) *
 		context.FullRefund = &androidpublisher.RevocationContextFullRefund{}
 	case SubscriptionRefundTypeProrated:
 		context.ProratedRefund = &androidpublisher.RevocationContextProratedRefund{}
+	case SubscriptionRefundTypeItem:
+		context.ItemBasedRefund = &androidpublisher.RevocationContextItemBasedRefund{
+			ProductId: options.RefundProductID.String(),
+		}
 	}
 	return &androidpublisher.RevokeSubscriptionPurchaseRequest{
 		RevocationContext: context,

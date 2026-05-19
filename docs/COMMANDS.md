@@ -1462,7 +1462,8 @@ gpc purchases subscription revoke [flags]
 
 - `--confirm`: Apply the subscription revocation (default `false`)
 - `--dry-run`: Print the planned subscription revocation without calling Google Play (default `false`)
-- `--refund`: Refund type: full or prorated
+- `--refund`: Refund type: full, prorated, or item
+- `--refund-product-id`: Subscription product ID to refund when --refund item is used
 - `--token`: Purchase token
 
 #### gpc purchases voided
