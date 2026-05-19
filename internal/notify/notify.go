@@ -38,6 +38,10 @@ type SlackPayload struct {
 	Text string `json:"text"`
 }
 
+type MattermostPayload struct {
+	Text string `json:"text"`
+}
+
 type TeamsPayload struct {
 	Text string `json:"text"`
 }
@@ -92,6 +96,15 @@ type SlackSendResult struct {
 	Payload    SlackPayload `json:"payload"`
 }
 
+type MattermostSendResult struct {
+	Webhook    string            `json:"webhook"`
+	Confirm    bool              `json:"confirm"`
+	DryRun     bool              `json:"dryRun"`
+	Delivered  bool              `json:"delivered"`
+	StatusCode int               `json:"statusCode,omitempty"`
+	Payload    MattermostPayload `json:"payload"`
+}
+
 type TeamsSendResult struct {
 	Webhook    string       `json:"webhook"`
 	Confirm    bool         `json:"confirm"`
@@ -134,6 +147,10 @@ type Sender interface {
 
 type SlackSender interface {
 	SendSlack(ctx context.Context, webhookURL string, payload SlackPayload) (int, error)
+}
+
+type MattermostSender interface {
+	SendMattermost(ctx context.Context, webhookURL string, payload MattermostPayload) (int, error)
 }
 
 type TeamsSender interface {
@@ -216,6 +233,40 @@ func SendSlack(ctx context.Context, sender SlackSender, options SendOptions) (Sl
 		sender = WebhookSender{}
 	}
 	statusCode, err := sender.SendSlack(ctx, resolvedURL, payload)
+	result.StatusCode = statusCode
+	if err != nil {
+		return result, err
+	}
+	result.Delivered = true
+	return result, nil
+}
+
+func SendMattermost(ctx context.Context, sender MattermostSender, options SendOptions) (MattermostSendResult, error) {
+	resolvedURL, err := options.ResolvedWebhookURL()
+	if err != nil {
+		return MattermostSendResult{}, err
+	}
+	if err := options.ValidateWebhookURL(resolvedURL); err != nil {
+		return MattermostSendResult{}, err
+	}
+	payload, err := options.MattermostPayload()
+	if err != nil {
+		return MattermostSendResult{}, err
+	}
+	result := MattermostSendResult{
+		Webhook:   RedactedURL(resolvedURL),
+		Confirm:   options.Confirm,
+		DryRun:    options.DryRun,
+		Delivered: false,
+		Payload:   payload,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if sender == nil {
+		sender = WebhookSender{}
+	}
+	statusCode, err := sender.SendMattermost(ctx, resolvedURL, payload)
 	result.StatusCode = statusCode
 	if err != nil {
 		return result, err
@@ -466,6 +517,14 @@ func (o SendOptions) SlackPayload() (SlackPayload, error) {
 	return SlackPayload{Text: SlackText(payload)}, nil
 }
 
+func (o SendOptions) MattermostPayload() (MattermostPayload, error) {
+	payload, err := o.Payload()
+	if err != nil {
+		return MattermostPayload{}, err
+	}
+	return MattermostPayload{Text: MattermostText(payload)}, nil
+}
+
 func (o SendOptions) DiscordPayload() (DiscordPayload, error) {
 	payload, err := o.Payload()
 	if err != nil {
@@ -546,6 +605,27 @@ func SlackText(payload Payload) string {
 	return builder.String()
 }
 
+func MattermostText(payload Payload) string {
+	var builder strings.Builder
+	if payload.Title != "" {
+		builder.WriteString("**")
+		builder.WriteString(payload.Title)
+		builder.WriteString("**\n")
+	}
+	builder.WriteString(payload.Message)
+	if payload.Severity != "" {
+		builder.WriteString("\nSeverity: ")
+		builder.WriteString(payload.Severity)
+	}
+	for _, field := range payload.Fields {
+		builder.WriteString("\n")
+		builder.WriteString(field.Name)
+		builder.WriteString(": ")
+		builder.WriteString(field.Value)
+	}
+	return builder.String()
+}
+
 func PlainText(payload Payload) string {
 	var builder strings.Builder
 	if payload.Title != "" {
@@ -608,6 +688,10 @@ func (s WebhookSender) Send(ctx context.Context, webhookURL string, payload Payl
 }
 
 func (s WebhookSender) SendSlack(ctx context.Context, webhookURL string, payload SlackPayload) (int, error) {
+	return s.sendJSON(ctx, webhookURL, payload)
+}
+
+func (s WebhookSender) SendMattermost(ctx context.Context, webhookURL string, payload MattermostPayload) (int, error) {
 	return s.sendJSON(ctx, webhookURL, payload)
 }
 

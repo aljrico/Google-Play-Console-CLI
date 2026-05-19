@@ -152,6 +152,71 @@ func TestSendSlackPostsSlackWebhook(t *testing.T) {
 	}
 }
 
+func TestSendMattermostDryRunBuildsMattermostTextPayload(t *testing.T) {
+	sender := failingMattermostSender{}
+	result, err := SendMattermost(context.Background(), sender, SendOptions{
+		CommandPath: "notify mattermost",
+		WebhookURL:  "https://mattermost.example.com/hooks/SECRET?token=secret#fragment-secret",
+		Title:       "Release",
+		Message:     "Internal release staged",
+		Severity:    "info",
+		Fields:      []string{"track=internal", "version=42"},
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("SendMattermost() error = %v", err)
+	}
+	if result.Delivered {
+		t.Fatalf("Delivered = true, want false")
+	}
+	for _, want := range []string{"**Release**", "Internal release staged", "Severity: info", "track: internal", "version: 42"} {
+		if !strings.Contains(result.Payload.Text, want) {
+			t.Fatalf("Mattermost text = %q, want %q", result.Payload.Text, want)
+		}
+	}
+	for _, leaked := range []string{"SECRET", "secret", "fragment-secret"} {
+		if strings.Contains(result.Webhook, leaked) {
+			t.Fatalf("Webhook = %q, leaked %q", result.Webhook, leaked)
+		}
+	}
+}
+
+func TestSendMattermostPostsMattermostWebhook(t *testing.T) {
+	var gotPayload MattermostPayload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if got := r.Header.Get("Content-Type"); got != "application/json" {
+			t.Fatalf("Content-Type = %q, want application/json", got)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	result, err := SendMattermost(context.Background(), WebhookSender{Client: server.Client()}, SendOptions{
+		CommandPath: "notify mattermost",
+		WebhookURL:  server.URL + "/hooks/SECRET?token=secret",
+		Message:     "Release shipped",
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("SendMattermost() error = %v", err)
+	}
+	if !result.Delivered || result.StatusCode != http.StatusOK {
+		t.Fatalf("result = %#v, want delivered 200", result)
+	}
+	if gotPayload.Text != "Release shipped" {
+		t.Fatalf("payload = %#v", gotPayload)
+	}
+	if strings.Contains(result.Webhook, "secret") || strings.Contains(result.Webhook, "SECRET") {
+		t.Fatalf("Webhook = %q, leaked query secret", result.Webhook)
+	}
+}
+
 func TestSendTeamsDryRunBuildsTeamsTextPayload(t *testing.T) {
 	sender := failingTeamsSender{}
 	result, err := SendTeams(context.Background(), sender, SendOptions{
@@ -637,6 +702,12 @@ func (failingSender) Send(context.Context, string, Payload) (int, error) {
 type failingSlackSender struct{}
 
 func (failingSlackSender) SendSlack(context.Context, string, SlackPayload) (int, error) {
+	panic("sender should not be called")
+}
+
+type failingMattermostSender struct{}
+
+func (failingMattermostSender) SendMattermost(context.Context, string, MattermostPayload) (int, error) {
 	panic("sender should not be called")
 }
 

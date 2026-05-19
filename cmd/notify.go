@@ -13,7 +13,7 @@ func newNotifyCommand(out io.Writer, options *globalOptions) *cobra.Command {
 		Use:   "notify",
 		Short: "Send release workflow notifications",
 	}
-	cmd.AddCommand(newNotifySendCommand(out, options), newNotifyDiscordCommand(out, options), newNotifyGitHubCommand(out, options), newNotifyGoogleChatCommand(out, options), newNotifySlackCommand(out, options), newNotifyTeamsCommand(out, options))
+	cmd.AddCommand(newNotifySendCommand(out, options), newNotifyDiscordCommand(out, options), newNotifyGitHubCommand(out, options), newNotifyGoogleChatCommand(out, options), newNotifyMattermostCommand(out, options), newNotifySlackCommand(out, options), newNotifyTeamsCommand(out, options))
 	return cmd
 }
 
@@ -94,6 +94,33 @@ func newNotifyDiscordCommand(out io.Writer, options *globalOptions) *cobra.Comma
 		WebhookURLFile: "File containing the Discord incoming webhook URL",
 		Confirm:        "Send the Discord webhook",
 		DryRun:         "Print the Discord payload without sending",
+	})
+	return cmd
+}
+
+func newNotifyMattermostCommand(out io.Writer, options *globalOptions) *cobra.Command {
+	sendOptions := newNotifySendOptions("notify mattermost")
+	cmd := &cobra.Command{
+		Use:   "mattermost",
+		Short: "Send a Mattermost incoming webhook notification",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := notify.SendMattermost(cmd.Context(), nil, sendOptions)
+			if result.Webhook == "" {
+				return err
+			}
+			if writeErr := output.Write(out, options.output, options.pretty, result); writeErr != nil {
+				return writeErr
+			}
+			return err
+		},
+	}
+	addNotifyFlags(cmd, &sendOptions, notifyFlagHelp{
+		WebhookURL:     "HTTPS Mattermost incoming webhook URL; http is allowed only for loopback hosts",
+		WebhookURLEnv:  "Environment variable containing the Mattermost incoming webhook URL",
+		WebhookURLFile: "File containing the Mattermost incoming webhook URL",
+		Confirm:        "Send the Mattermost webhook",
+		DryRun:         "Print the Mattermost payload without sending",
 	})
 	return cmd
 }
