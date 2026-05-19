@@ -6086,6 +6086,60 @@ func TestCreateSubscriptionSendsTypedSubscriptionBody(t *testing.T) {
 	}
 }
 
+func TestCreateSubscriptionSendsPrepaidBasePlanBody(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions" {
+			t.Fatalf("path = %q, want subscription create endpoint", r.URL.Path)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		var request androidpublisher.Subscription
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if len(request.BasePlans) != 1 {
+			t.Fatalf("len(BasePlans) = %d, want 1", len(request.BasePlans))
+		}
+		basePlan := request.BasePlans[0]
+		if basePlan.AutoRenewingBasePlanType != nil {
+			t.Fatalf("AutoRenewingBasePlanType = %#v, want nil", basePlan.AutoRenewingBasePlanType)
+		}
+		if basePlan.PrepaidBasePlanType == nil {
+			t.Fatalf("PrepaidBasePlanType = nil, body = %s", body)
+		}
+		if basePlan.PrepaidBasePlanType.BillingPeriodDuration != "P1M" || basePlan.PrepaidBasePlanType.TimeExtension != "TIME_EXTENSION_ACTIVE" {
+			t.Fatalf("PrepaidBasePlanType = %#v, want billing period and time extension", basePlan.PrepaidBasePlanType)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","listings":[{"languageCode":"en-US","title":"Premium"}],"basePlans":[{"basePlanId":"monthly-prepaid","state":"DRAFT","prepaidBasePlanType":{"billingPeriodDuration":"P1M","timeExtension":"TIME_EXTENSION_ACTIVE"},"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"4","nanos":990000000}}]}]}`)
+	}))
+
+	subscription := validSubscriptionForCreate()
+	subscription.BasePlans[0].BasePlanID = "monthly-prepaid"
+	subscription.BasePlans[0].Type = SubscriptionBasePlanTypePrepaid
+	subscription.BasePlans[0].GracePeriodDuration = ""
+	subscription.BasePlans[0].TimeExtension = "TIME_EXTENSION_ACTIVE"
+	subscription.BasePlans[0].LegacyCompatible = false
+	result, err := publisher.CreateSubscription(context.Background(), SubscriptionCreateOptions{
+		PackageName:    "com.example.app",
+		ProductID:      "premium",
+		Subscription:   subscription,
+		RegionsVersion: "2026/05",
+		Confirm:        true,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubscription() error = %v", err)
+	}
+	if len(result.BasePlans) != 1 || result.BasePlans[0].Type != SubscriptionBasePlanTypePrepaid {
+		t.Fatalf("result = %#v, want prepaid draft subscription", result)
+	}
+}
+
 func TestCreateSubscriptionOfferSendsTypedOfferBody(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

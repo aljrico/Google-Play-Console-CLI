@@ -4745,6 +4745,146 @@ func TestSubscriptionsCreateBasicFlagsCanDisableLegacyCompatibility(t *testing.T
 	}
 }
 
+func TestSubscriptionsCreateBasicPrepaidFlagsDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--listing",
+		"en-US,Premium,Full access",
+		"--base-plan-id",
+		"monthly-prepaid",
+		"--prepaid",
+		"--billing-period",
+		"P1M",
+		"--time-extension",
+		"TIME_EXTENSION_ACTIVE",
+		"--price",
+		"us:USD:4:990000000",
+		"--offer-tag",
+		"public",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"productId":"premium"`,
+		`"basePlanId":"monthly-prepaid"`,
+		`"type":"prepaid"`,
+		`"billingPeriodDuration":"P1M"`,
+		`"timeExtension":"TIME_EXTENSION_ACTIVE"`,
+		`"offerTags":["public"]`,
+		`"regionCode":"US"`,
+		`"newSubscriberAvailability":true`,
+		`"currencyCode":"USD"`,
+		`"nanos":990000000`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, `"legacyCompatible":true`) || strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect legacy compatibility or auth", output)
+	}
+}
+
+func TestSubscriptionsCreateBasicFlagsRejectTimeExtensionWithoutPrepaidBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--listing",
+		"en-US,Premium,Full access",
+		"--base-plan-id",
+		"monthly",
+		"--billing-period",
+		"P1M",
+		"--time-extension=",
+		"--price",
+		"US:USD:4",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected time-extension validation error")
+	}
+	if !strings.Contains(err.Error(), "--time-extension requires --prepaid") {
+		t.Fatalf("error = %v, want time-extension prepaid validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestSubscriptionsCreateBasicFlagsRejectLegacyCompatibleWithPrepaidBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--listing",
+		"en-US,Premium,Full access",
+		"--base-plan-id",
+		"monthly-prepaid",
+		"--prepaid",
+		"--billing-period",
+		"P1M",
+		"--price",
+		"US:USD:4",
+		"--legacy-compatible=false",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected legacy-compatible validation error")
+	}
+	if !strings.Contains(err.Error(), "--legacy-compatible cannot be used with --prepaid") {
+		t.Fatalf("error = %v, want legacy-compatible prepaid validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
 func TestSubscriptionsCreateRejectsJSONWithBasicFlagsBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "subscription.json")
