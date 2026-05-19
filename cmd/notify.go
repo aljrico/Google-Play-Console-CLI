@@ -18,7 +18,7 @@ func newNotifyCommand(out io.Writer, options *globalOptions) *cobra.Command {
 }
 
 func newNotifySendCommand(out io.Writer, options *globalOptions) *cobra.Command {
-	var sendOptions notify.SendOptions
+	sendOptions := notify.SendOptions{WebhookURLEnv: notify.DefaultWebhookURLEnv}
 	cmd := &cobra.Command{
 		Use:   "send",
 		Short: "Send a JSON notification webhook",
@@ -34,7 +34,9 @@ func newNotifySendCommand(out io.Writer, options *globalOptions) *cobra.Command 
 			return err
 		},
 	}
-	cmd.Flags().StringVar(&sendOptions.WebhookURL, "webhook-url", "", "HTTP webhook URL")
+	cmd.Flags().StringVar(&sendOptions.WebhookURL, "webhook-url", "", "HTTPS webhook URL; http is allowed only for loopback hosts")
+	cmd.Flags().StringVar(&sendOptions.WebhookURLEnv, "webhook-url-env", notify.DefaultWebhookURLEnv, "Environment variable containing the webhook URL")
+	cmd.Flags().StringVar(&sendOptions.WebhookURLFile, "webhook-url-file", "", "File containing the webhook URL")
 	cmd.Flags().StringVar(&sendOptions.Title, "title", "", "Notification title")
 	cmd.Flags().StringVar(&sendOptions.Message, "message", "", "Notification message")
 	cmd.Flags().StringVar(&sendOptions.Severity, "severity", "", "Notification severity label")

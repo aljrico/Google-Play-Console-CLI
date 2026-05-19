@@ -457,14 +457,13 @@ func TestMigrateSupplyInspectOutputsInventoryWithoutAuth(t *testing.T) {
 
 func TestNotifySendDryRunOutputsPayloadWithoutAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_NOTIFY_WEBHOOK_URL", "https://hooks.example.com/services/T000/B000/SECRET?token=secret#fragment")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
 	cmd.SetArgs([]string{
 		"notify",
 		"send",
-		"--webhook-url",
-		"https://example.com/hook?token=secret",
 		"--title",
 		"Release",
 		"--message",
@@ -487,13 +486,16 @@ func TestNotifySendDryRunOutputsPayloadWithoutAuth(t *testing.T) {
 		`"name":"track"`,
 		`"value":"internal"`,
 		`redacted=true`,
+		`#redacted`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
 		}
 	}
-	if strings.Contains(output, "secret") {
-		t.Fatalf("output = %s, leaked webhook secret", output)
+	for _, leaked := range []string{"T000", "B000", "SECRET", "token=secret", "fragment"} {
+		if strings.Contains(output, leaked) {
+			t.Fatalf("output = %s, leaked %s", output, leaked)
+		}
 	}
 	if strings.Contains(output, "no active auth profile") {
 		t.Fatalf("output = %s, did not expect auth", output)
@@ -539,8 +541,37 @@ func TestNotifySendPostsWebhook(t *testing.T) {
 			t.Fatalf("output = %s, want %s", output, want)
 		}
 	}
-	if strings.Contains(output, "secret") {
+	if strings.Contains(output, "secret") || strings.Contains(output, "/hook") {
 		t.Fatalf("output = %s, leaked webhook secret", output)
+	}
+}
+
+func TestNotifySendTransportErrorDoesNotLeakWebhookSecret(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"notify",
+		"send",
+		"--webhook-url",
+		"http://127.0.0.1:1/services/T000/B000/SECRET?token=secret#fragment",
+		"--message",
+		"Release shipped",
+		"--confirm",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil, want transport error")
+	}
+	combined := buf.String() + err.Error()
+	for _, leaked := range []string{"T000", "B000", "SECRET", "token=secret", "fragment"} {
+		if strings.Contains(combined, leaked) {
+			t.Fatalf("combined output = %s, leaked %s", combined, leaked)
+		}
 	}
 }
 

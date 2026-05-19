@@ -811,7 +811,9 @@ gpc notify send [flags]
 - `--message`: Notification message
 - `--severity`: Notification severity label
 - `--title`: Notification title
-- `--webhook-url`: HTTP webhook URL
+- `--webhook-url`: HTTPS webhook URL; http is allowed only for loopback hosts
+- `--webhook-url-env`: Environment variable containing the webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-file`: File containing the webhook URL
 
 ### gpc one-time-product-offers
 

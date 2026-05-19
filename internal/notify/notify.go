@@ -5,13 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
 
 const defaultHTTPTimeout = 30 * time.Second
+const DefaultWebhookURLEnv = "GPC_NOTIFY_WEBHOOK_URL"
 
 type Field struct {
 	Name  string `json:"name"`
@@ -26,13 +29,15 @@ type Payload struct {
 }
 
 type SendOptions struct {
-	WebhookURL string   `json:"webhookUrl"`
-	Title      string   `json:"title,omitempty"`
-	Message    string   `json:"message"`
-	Severity   string   `json:"severity,omitempty"`
-	Fields     []string `json:"fields,omitempty"`
-	Confirm    bool     `json:"confirm"`
-	DryRun     bool     `json:"dryRun"`
+	WebhookURL     string   `json:"webhookUrl,omitempty"`
+	WebhookURLEnv  string   `json:"webhookUrlEnv,omitempty"`
+	WebhookURLFile string   `json:"webhookUrlFile,omitempty"`
+	Title          string   `json:"title,omitempty"`
+	Message        string   `json:"message"`
+	Severity       string   `json:"severity,omitempty"`
+	Fields         []string `json:"fields,omitempty"`
+	Confirm        bool     `json:"confirm"`
+	DryRun         bool     `json:"dryRun"`
 }
 
 type SendResult struct {
@@ -53,7 +58,11 @@ type WebhookSender struct {
 }
 
 func Send(ctx context.Context, sender Sender, options SendOptions) (SendResult, error) {
-	if err := options.Validate(); err != nil {
+	resolvedURL, err := options.ResolvedWebhookURL()
+	if err != nil {
+		return SendResult{}, err
+	}
+	if err := options.ValidateWebhookURL(resolvedURL); err != nil {
 		return SendResult{}, err
 	}
 	payload, err := options.Payload()
@@ -61,7 +70,7 @@ func Send(ctx context.Context, sender Sender, options SendOptions) (SendResult, 
 		return SendResult{}, err
 	}
 	result := SendResult{
-		Webhook:   RedactedURL(options.WebhookURL),
+		Webhook:   RedactedURL(resolvedURL),
 		Confirm:   options.Confirm,
 		DryRun:    options.DryRun,
 		Delivered: false,
@@ -73,7 +82,7 @@ func Send(ctx context.Context, sender Sender, options SendOptions) (SendResult, 
 	if sender == nil {
 		sender = WebhookSender{}
 	}
-	statusCode, err := sender.Send(ctx, options.WebhookURL, payload)
+	statusCode, err := sender.Send(ctx, resolvedURL, payload)
 	result.StatusCode = statusCode
 	if err != nil {
 		return result, err
@@ -82,22 +91,51 @@ func Send(ctx context.Context, sender Sender, options SendOptions) (SendResult, 
 	return result, nil
 }
 
-func (o SendOptions) Validate() error {
+func (o SendOptions) ResolvedWebhookURL() (string, error) {
 	if o.Confirm && o.DryRun {
-		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+		return "", fmt.Errorf("--confirm and --dry-run cannot be used together")
 	}
 	if !o.Confirm && !o.DryRun {
-		return fmt.Errorf("notify send requires --confirm or --dry-run")
+		return "", fmt.Errorf("notify send requires --confirm or --dry-run")
 	}
-	if strings.TrimSpace(o.WebhookURL) == "" {
+	if strings.TrimSpace(o.WebhookURLFile) != o.WebhookURLFile {
+		return "", fmt.Errorf("webhook URL file cannot have leading or trailing whitespace")
+	}
+	webhookURLEnv := o.webhookURLEnv()
+	if strings.TrimSpace(webhookURLEnv) != webhookURLEnv {
+		return "", fmt.Errorf("webhook URL environment variable cannot have leading or trailing whitespace")
+	}
+	if o.WebhookURL != "" && o.WebhookURLFile != "" {
+		return "", fmt.Errorf("--webhook-url and --webhook-url-file cannot be used together")
+	}
+	switch {
+	case o.WebhookURL != "":
+		return strings.TrimSpace(o.WebhookURL), nil
+	case o.WebhookURLFile != "":
+		content, err := os.ReadFile(o.WebhookURLFile)
+		if err != nil {
+			return "", fmt.Errorf("read webhook URL file: %w", err)
+		}
+		return strings.TrimSpace(string(content)), nil
+	case webhookURLEnv != "":
+		return strings.TrimSpace(os.Getenv(webhookURLEnv)), nil
+	default:
+		return "", fmt.Errorf("webhook URL is required")
+	}
+}
+
+func (o SendOptions) ValidateWebhookURL(webhookURL string) error {
+	if strings.TrimSpace(webhookURL) == "" {
 		return fmt.Errorf("webhook URL is required")
 	}
-	parsedURL, err := url.Parse(o.WebhookURL)
+	parsedURL, err := url.Parse(webhookURL)
 	if err != nil {
-		return fmt.Errorf("parse webhook URL: %w", err)
+		return fmt.Errorf("parse webhook URL: %s", RedactedURL(webhookURL))
 	}
-	if parsedURL.Scheme != "https" && parsedURL.Scheme != "http" {
-		return fmt.Errorf("webhook URL must use http or https")
+	if parsedURL.Scheme != "https" {
+		if parsedURL.Scheme != "http" || !isLoopbackHost(parsedURL.Hostname()) {
+			return fmt.Errorf("webhook URL must use https unless the host is loopback")
+		}
 	}
 	if parsedURL.Host == "" {
 		return fmt.Errorf("webhook URL host is required")
@@ -115,6 +153,13 @@ func (o SendOptions) Validate() error {
 		return fmt.Errorf("severity cannot have leading or trailing whitespace")
 	}
 	return nil
+}
+
+func (o SendOptions) webhookURLEnv() string {
+	if o.WebhookURLEnv == "" {
+		return DefaultWebhookURLEnv
+	}
+	return o.WebhookURLEnv
 }
 
 func (o SendOptions) Payload() (Payload, error) {
@@ -157,16 +202,13 @@ func (s WebhookSender) Send(ctx context.Context, webhookURL string, payload Payl
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(body))
 	if err != nil {
-		return 0, fmt.Errorf("create notification request: %w", err)
+		return 0, fmt.Errorf("create notification request for %s", RedactedURL(webhookURL))
 	}
 	request.Header.Set("Content-Type", "application/json")
-	client := s.Client
-	if client == nil {
-		client = &http.Client{Timeout: defaultHTTPTimeout}
-	}
+	client := noRedirectClient(s.Client)
 	response, err := client.Do(request)
 	if err != nil {
-		return 0, fmt.Errorf("send notification webhook: %w", err)
+		return 0, fmt.Errorf("send notification webhook to %s: %s", RedactedURL(webhookURL), RedactedError(webhookURL, err))
 	}
 	defer response.Body.Close()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
@@ -178,13 +220,48 @@ func (s WebhookSender) Send(ctx context.Context, webhookURL string, payload Payl
 func RedactedURL(rawURL string) string {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
-		return rawURL
+		return "redacted-url"
 	}
-	if parsedURL.User != nil {
-		parsedURL.User = url.User("redacted")
+	redactedURL := &url.URL{Scheme: parsedURL.Scheme, Host: parsedURL.Host}
+	if parsedURL.Path != "" && parsedURL.Path != "/" {
+		redactedURL.Path = "/redacted"
 	}
 	if parsedURL.RawQuery != "" {
-		parsedURL.RawQuery = "redacted=true"
+		redactedURL.RawQuery = "redacted=true"
 	}
-	return parsedURL.String()
+	if parsedURL.Fragment != "" {
+		redactedURL.Fragment = "redacted"
+	}
+	return redactedURL.String()
+}
+
+func RedactedError(rawURL string, err error) string {
+	if err == nil {
+		return ""
+	}
+	text := err.Error()
+	text = strings.ReplaceAll(text, rawURL, RedactedURL(rawURL))
+	if parsedURL, parseErr := url.Parse(rawURL); parseErr == nil {
+		text = strings.ReplaceAll(text, parsedURL.String(), RedactedURL(rawURL))
+	}
+	return text
+}
+
+func noRedirectClient(client *http.Client) *http.Client {
+	if client == nil {
+		client = &http.Client{Timeout: defaultHTTPTimeout}
+	}
+	copyClient := *client
+	copyClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return &copyClient
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
