@@ -56,7 +56,8 @@ func TestClientListAnomaliesUsesReportingEndpoint(t *testing.T) {
 						}
 					},
 					"dimensions": [
-						{"dimension": "versionCode", "int64Value": "123", "valueLabel": "1.2.3"}
+						{"dimension": "versionCode", "int64Value": "123", "valueLabel": "1.2.3"},
+						{"dimension": "apiLevel", "stringValue": "35"}
 					],
 					"timelineSpec": {
 						"aggregationPeriod": "DAILY",
@@ -97,8 +98,11 @@ func TestClientListAnomaliesUsesReportingEndpoint(t *testing.T) {
 	if anomaly.Metric == nil || anomaly.Metric.DecimalValue != "0.05" || anomaly.Metric.DecimalValueConfidenceInterval.LowerBound != "0.04" {
 		t.Fatalf("metric = %#v, want decimal metric with interval", anomaly.Metric)
 	}
-	if len(anomaly.Dimensions) != 1 || anomaly.Dimensions[0].Int64Value == nil || *anomaly.Dimensions[0].Int64Value != "123" {
+	if len(anomaly.Dimensions) != 2 || anomaly.Dimensions[0].Int64Value == nil || *anomaly.Dimensions[0].Int64Value != "123" {
 		t.Fatalf("dimensions = %#v, want version code dimension", anomaly.Dimensions)
+	}
+	if anomaly.Dimensions[1].StringValue != "35" || anomaly.Dimensions[1].Int64Value != nil {
+		t.Fatalf("api level dimension = %#v, want string-only apiLevel", anomaly.Dimensions[1])
 	}
 	if anomaly.TimelineSpec == nil || anomaly.TimelineSpec.StartTime == nil || anomaly.TimelineSpec.StartTime.TimeZone != "America/Los_Angeles" {
 		t.Fatalf("timeline = %#v, want mapped LA timeline", anomaly.TimelineSpec)

@@ -189,19 +189,23 @@ func TestDimensionValuesPreserveNumericZeroWithoutPollutingStringDimensions(t *t
 		{
 			Dimensions: []*playdeveloperreporting.GooglePlayDeveloperReportingV1beta1DimensionValue{
 				{Dimension: "versionCode", Int64Value: 0},
+				{Dimension: "apiLevel", StringValue: "35"},
 				{Dimension: "countryCode", StringValue: "US"},
 			},
 		},
 	})
 
-	if len(rows) != 1 || len(rows[0].Dimensions) != 2 {
-		t.Fatalf("rows = %#v, want two dimensions", rows)
+	if len(rows) != 1 || len(rows[0].Dimensions) != 3 {
+		t.Fatalf("rows = %#v, want three dimensions", rows)
 	}
 	if rows[0].Dimensions[0].Int64Value == nil || *rows[0].Dimensions[0].Int64Value != "0" {
 		t.Fatalf("numeric dimension = %#v, want explicit zero", rows[0].Dimensions[0])
 	}
-	if rows[0].Dimensions[1].Int64Value != nil {
-		t.Fatalf("string dimension = %#v, did not want int64Value", rows[0].Dimensions[1])
+	if rows[0].Dimensions[1].StringValue != "35" || rows[0].Dimensions[1].Int64Value != nil {
+		t.Fatalf("api level dimension = %#v, want string-only apiLevel", rows[0].Dimensions[1])
+	}
+	if rows[0].Dimensions[2].Int64Value != nil {
+		t.Fatalf("string dimension = %#v, did not want int64Value", rows[0].Dimensions[2])
 	}
 }
 

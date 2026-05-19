@@ -695,7 +695,6 @@ var betaMetricDimensions = stringSet{
 }
 
 var numericDimensions = stringSet{
-	"apiLevel",
 	"versionCode",
 	"deviceRamBucket",
 }
