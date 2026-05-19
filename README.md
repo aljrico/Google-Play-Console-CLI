@@ -70,7 +70,9 @@ gpc snitch report --title "Confusing release output" --command "gpc releases lis
 gpc notifications rtdn decode --file ./pubsub-rtdn.json
 gpc notifications rtdn decode --file ./unwrapped-rtdn.json --unwrapped
 gpc insights anomalies summarize --file ./vitals-anomalies.json
+gpc finance reports download --bucket pubsite_prod_rev_0123456789 --object earnings/earnings_202605.zip --file ./earnings_202605.zip --dry-run
 gpc finance reports summarize --file ./earnings_202605.csv
+gpc analytics stats download --bucket pubsite_prod_rev_0123456789 --object stats/store_performance/store_performance_com.example.app_202605_country.csv --file ./store_performance.csv --dry-run
 gpc analytics stats summarize --file ./store_performance_com.example.app_202605_country.csv
 gpc device-tier-configs list --package com.example.app --page-size 25
 gpc device-tier-configs get --package com.example.app --id 7
@@ -178,6 +180,8 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 `vitals` uses the Play Developer Reporting API, which is separate from Android Publisher and requires the Play Developer Reporting API to be enabled plus app-level "View app information (read-only)" access. Query and search commands accept explicit metrics, filters, and date ranges so automation never relies on API defaults; error issue and report search intervals use UTC when a timezone is set, and omitting it uses the API's UTC default.
 
 `notifications rtdn decode` expects a wrapped Pub/Sub push JSON body with `message.data` containing the base64-encoded Google Play `DeveloperNotification`; add `--unwrapped` when Pub/Sub push delivery sends the developer notification JSON directly. Pass exactly one of `--file` or `--data`.
+
+`finance reports download` and `analytics stats download` fetch report objects from the Google Play reports Cloud Storage bucket. Use the bucket ID shown in Play Console, usually shaped like `pubsite_prod_rev_0123456789`, and pass the exact object path for the report you want. Financial reports are ZIP files; statistics reports are CSV files.
 
 `in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; live status patches reject legacy subscription SKUs. `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources.
 

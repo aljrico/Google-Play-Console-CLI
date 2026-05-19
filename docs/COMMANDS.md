@@ -99,7 +99,24 @@ gpc analytics stats
 
 ##### Commands
 
+- `gpc analytics stats download`: Download a Play statistics report CSV from Google Cloud Storage
 - `gpc analytics stats summarize`: Summarize a Play statistics report CSV
+
+##### gpc analytics stats download
+
+Download a Play statistics report CSV from Google Cloud Storage
+
+```sh
+gpc analytics stats download [flags]
+```
+
+###### Flags
+
+- `--bucket`: Google Play reports bucket, for example pubsite_prod_rev_0123456789
+- `--dry-run`: Print the planned report download without calling Google Cloud Storage (default `false`)
+- `--file`: Destination .csv or .zip path
+- `--force`: Overwrite the destination file (default `false`)
+- `--object`: Cloud Storage object path for the report
 
 ##### gpc analytics stats summarize
 
@@ -489,7 +506,24 @@ gpc finance reports
 
 ##### Commands
 
+- `gpc finance reports download`: Download a Play financial report ZIP from Google Cloud Storage
 - `gpc finance reports summarize`: Summarize a Play financial report CSV
+
+##### gpc finance reports download
+
+Download a Play financial report ZIP from Google Cloud Storage
+
+```sh
+gpc finance reports download [flags]
+```
+
+###### Flags
+
+- `--bucket`: Google Play reports bucket, for example pubsite_prod_rev_0123456789
+- `--dry-run`: Print the planned report download without calling Google Cloud Storage (default `false`)
+- `--file`: Destination .csv or .zip path
+- `--force`: Overwrite the destination file (default `false`)
+- `--object`: Cloud Storage object path for the report
 
 ##### gpc finance reports summarize
 
