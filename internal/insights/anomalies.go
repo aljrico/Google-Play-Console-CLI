@@ -15,12 +15,14 @@ type AnomalySummaryOptions struct {
 }
 
 type AnomalySummary struct {
-	File        string   `json:"file"`
-	Total       int      `json:"total"`
-	MetricSets  []Count  `json:"metricSets,omitempty"`
-	Metrics     []Count  `json:"metrics,omitempty"`
-	PackageName string   `json:"packageName,omitempty"`
-	Highlights  []string `json:"highlights,omitempty"`
+	File          string   `json:"file"`
+	Total         int      `json:"total"`
+	Partial       bool     `json:"partial"`
+	NextPageToken string   `json:"nextPageToken,omitempty"`
+	MetricSets    []Count  `json:"metricSets,omitempty"`
+	Metrics       []Count  `json:"metrics,omitempty"`
+	PackageName   string   `json:"packageName,omitempty"`
+	Highlights    []string `json:"highlights,omitempty"`
 }
 
 type Count struct {
@@ -36,11 +38,33 @@ func SummarizeAnomalies(options AnomalySummaryOptions) (AnomalySummary, error) {
 	if err != nil {
 		return AnomalySummary{}, fmt.Errorf("read anomaly file %s: %w", options.File, err)
 	}
+	if err := validateAnomalyExportShape(content); err != nil {
+		return AnomalySummary{}, fmt.Errorf("validate anomaly file %s: %w", options.File, err)
+	}
 	var result reporting.AnomalyListResult
 	if err := json.Unmarshal(content, &result); err != nil {
 		return AnomalySummary{}, fmt.Errorf("parse anomaly file %s: %w", options.File, err)
 	}
+	if string(result.PackageName) == "" && string(result.Options.PackageName) == "" {
+		return AnomalySummary{}, fmt.Errorf("anomaly file %s must include packageName or options.packageName", options.File)
+	}
 	return summarizeAnomalyList(options.File, result), nil
+}
+
+func validateAnomalyExportShape(content []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(content, &raw); err != nil {
+		return err
+	}
+	anomalies, ok := raw["anomalies"]
+	if !ok {
+		return fmt.Errorf("anomalies array is required")
+	}
+	var anomalyItems []json.RawMessage
+	if err := json.Unmarshal(anomalies, &anomalyItems); err != nil {
+		return fmt.Errorf("anomalies must be an array")
+	}
+	return nil
 }
 
 func summarizeAnomalyList(file string, result reporting.AnomalyListResult) AnomalySummary {
@@ -54,12 +78,18 @@ func summarizeAnomalyList(file string, result reporting.AnomalyListResult) Anoma
 			metricCounts[anomaly.Metric.Metric]++
 		}
 	}
+	packageName := string(result.PackageName)
+	if packageName == "" {
+		packageName = string(result.Options.PackageName)
+	}
 	summary := AnomalySummary{
-		File:        file,
-		Total:       len(result.Anomalies),
-		MetricSets:  countsFromMap(metricSetCounts),
-		Metrics:     countsFromMap(metricCounts),
-		PackageName: string(result.PackageName),
+		File:          file,
+		Total:         len(result.Anomalies),
+		Partial:       result.NextPageToken != "",
+		NextPageToken: result.NextPageToken,
+		MetricSets:    countsFromMap(metricSetCounts),
+		Metrics:       countsFromMap(metricCounts),
+		PackageName:   packageName,
 	}
 	summary.Highlights = highlights(summary)
 	return summary
@@ -81,6 +111,9 @@ func countsFromMap(values map[string]int) []Count {
 
 func highlights(summary AnomalySummary) []string {
 	values := []string{fmt.Sprintf("%d anomalies", summary.Total)}
+	if summary.Partial {
+		values = append(values, "partial result: nextPageToken present")
+	}
 	if len(summary.MetricSets) > 0 {
 		values = append(values, fmt.Sprintf("top metric set: %s (%d)", summary.MetricSets[0].Name, summary.MetricSets[0].Count))
 	}
