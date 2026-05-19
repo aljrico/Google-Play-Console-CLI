@@ -19,7 +19,53 @@ func newSubscriptionOffersCommand(out io.Writer, options *globalOptions) *cobra.
 	cmd.AddCommand(
 		newSubscriptionOffersListCommand(out, options, &packageName),
 		newSubscriptionOffersGetCommand(out, options, &packageName),
+		newSubscriptionOffersBatchGetCommand(out, options, &packageName),
 	)
+	return cmd
+}
+
+func newSubscriptionOffersBatchGetCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID  string
+		basePlanID string
+		offers     []string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-get",
+		Short: "Get multiple subscription offers",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, typedProductID, typedBasePlanID, err := parseSubscriptionOfferListParent(*packageName, productID, basePlanID)
+			if err != nil {
+				return err
+			}
+			requests, err := parseSubscriptionOfferBatchRequests(offers)
+			if err != nil {
+				return err
+			}
+			batchOptions := play.SubscriptionOfferBatchGetOptions{
+				PackageName: typedPackageName,
+				ProductID:   typedProductID,
+				BasePlanID:  typedBasePlanID,
+				Requests:    requests,
+			}
+			if err := batchOptions.Validate(); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchGetSubscriptionOffers(cmd.Context(), publisher, batchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	addSubscriptionOfferParentFlags(cmd, &productID, &basePlanID)
+	cmd.Flags().StringArrayVar(&offers, "offer", nil, "Offer to fetch as productId/basePlanId/offerId; repeatable, up to 100")
 	return cmd
 }
 
@@ -147,4 +193,16 @@ func parseSubscriptionOfferGetParent(packageName string, productID string, baseP
 		return "", "", "", err
 	}
 	return typedPackageName, typedProductID, typedBasePlanID, nil
+}
+
+func parseSubscriptionOfferBatchRequests(values []string) ([]play.SubscriptionOfferBatchGetRequest, error) {
+	requests := make([]play.SubscriptionOfferBatchGetRequest, 0, len(values))
+	for _, value := range values {
+		request, err := play.NewSubscriptionOfferBatchGetRequest(value)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, nil
 }

@@ -1561,8 +1561,23 @@ gpc subscription-offers
 
 #### Commands
 
+- `gpc subscription-offers batch-get`: Get multiple subscription offers
 - `gpc subscription-offers get`: Get one subscription offer
 - `gpc subscription-offers list`: List subscription offers
+
+#### gpc subscription-offers batch-get
+
+Get multiple subscription offers
+
+```sh
+gpc subscription-offers batch-get [flags]
+```
+
+##### Flags
+
+- `--base-plan-id`: Parent subscription base plan ID
+- `--offer`: Offer to fetch as productId/basePlanId/offerId; repeatable, up to 100 (default `[]`)
+- `--product-id`: Parent subscription product ID
 
 #### gpc subscription-offers get
 

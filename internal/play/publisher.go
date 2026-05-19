@@ -867,12 +867,54 @@ func (p GooglePublisher) GetSubscriptionOffer(ctx context.Context, packageName P
 	return subscriptionOfferFromAPI(offer), nil
 }
 
+func (p GooglePublisher) BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error) {
+	request := &androidpublisher.BatchGetSubscriptionOffersRequest{
+		Requests: make([]*androidpublisher.GetSubscriptionOfferRequest, 0, len(options.Requests)),
+	}
+	for _, item := range options.Requests {
+		request.Requests = append(request.Requests, &androidpublisher.GetSubscriptionOfferRequest{
+			PackageName: options.PackageName.String(),
+			ProductId:   item.ProductID.String(),
+			BasePlanId:  item.BasePlanID.String(),
+			OfferId:     item.OfferID.String(),
+		})
+	}
+	response, err := p.service.Monetization.Subscriptions.BasePlans.Offers.BatchGet(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.BasePlanID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return SubscriptionOfferBatchGetResult{}, fmt.Errorf("batch get subscription offers for %s/%s/%s: %w", options.PackageName, options.ProductID, options.BasePlanID, err)
+	}
+	return subscriptionOfferBatchGetResultFromAPI(options, response), nil
+}
+
 func (p GooglePublisher) GetProductPurchase(ctx context.Context, options ProductPurchaseOptions) (ProductPurchase, error) {
 	purchase, err := p.service.Purchases.Productsv2.Getproductpurchasev2(options.PackageName.String(), options.Token.String()).Context(ctx).Do()
 	if err != nil {
 		return ProductPurchase{}, fmt.Errorf("get product purchase %s for %s: %w", options.Token, options.PackageName, err)
 	}
 	return productPurchaseFromAPI(options, purchase), nil
+}
+
+func subscriptionOfferBatchGetResultFromAPI(options SubscriptionOfferBatchGetOptions, response *androidpublisher.BatchGetSubscriptionOffersResponse) SubscriptionOfferBatchGetResult {
+	result := SubscriptionOfferBatchGetResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		BasePlanID:  options.BasePlanID,
+		Offers:      []SubscriptionOffer{},
+		Options:     options,
+		Requests:    append([]SubscriptionOfferBatchGetRequest(nil), options.Requests...),
+	}
+	if response == nil {
+		return result
+	}
+	for _, apiOffer := range response.SubscriptionOffers {
+		result.Offers = append(result.Offers, subscriptionOfferFromAPI(apiOffer))
+	}
+	return result
 }
 
 func (p GooglePublisher) AcknowledgeProductPurchase(ctx context.Context, options ProductPurchaseMutationOptions) error {

@@ -2580,6 +2580,45 @@ func TestGetOneTimeProductOfferUsesBatchGetEndpoint(t *testing.T) {
 	}
 }
 
+func TestBatchGetSubscriptionOffersUsesBatchGetEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/-/basePlans/-/offers:batchGet" {
+			t.Fatalf("path = %q, want subscription offers batchGet endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		var request androidpublisher.BatchGetSubscriptionOffersRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if len(request.Requests) != 2 {
+			t.Fatalf("len(Requests) = %d, want 2", len(request.Requests))
+		}
+		if request.Requests[1].ProductId != "premium" || request.Requests[1].BasePlanId != "annual" || request.Requests[1].OfferId != "winback" {
+			t.Fatalf("Requests[1] = %#v", request.Requests[1])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"subscriptionOffers":[{"packageName":"com.example.app","productId":"premium","basePlanId":"monthly","offerId":"intro"}]}`)
+	}))
+
+	result, err := publisher.BatchGetSubscriptionOffers(context.Background(), SubscriptionOfferBatchGetOptions{
+		PackageName: "com.example.app",
+		ProductID:   "-",
+		BasePlanID:  "-",
+		Requests: []SubscriptionOfferBatchGetRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro"},
+			{ProductID: "premium", BasePlanID: "annual", OfferID: "winback"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetSubscriptionOffers() error = %v", err)
+	}
+	if len(result.Offers) != 1 || result.Offers[0].OfferID != "intro" {
+		t.Fatalf("Offers = %#v, want intro offer", result.Offers)
+	}
+}
+
 func newTestPublisher(t *testing.T, handler http.Handler) GooglePublisher {
 	t.Helper()
 	server := httptest.NewServer(handler)

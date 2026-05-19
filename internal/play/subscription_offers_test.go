@@ -135,11 +135,75 @@ func TestGetSubscriptionOfferPassesIDsToGetter(t *testing.T) {
 	}
 }
 
+func TestBatchGetSubscriptionOffersPassesOptionsToGetter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	getter := &fakeSubscriptionOfferClient{
+		batchResult: SubscriptionOfferBatchGetResult{
+			PackageName: packageName,
+			Offers:      []SubscriptionOffer{{OfferID: "intro"}},
+		},
+	}
+	options := SubscriptionOfferBatchGetOptions{
+		PackageName: packageName,
+		ProductID:   "-",
+		BasePlanID:  "-",
+		Requests: []SubscriptionOfferBatchGetRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro"},
+		},
+	}
+
+	result, err := BatchGetSubscriptionOffers(context.Background(), getter, options)
+	if err != nil {
+		t.Fatalf("BatchGetSubscriptionOffers() error = %v", err)
+	}
+	if len(result.Offers) != 1 {
+		t.Fatalf("len(Offers) = %d, want 1", len(result.Offers))
+	}
+	if !reflect.DeepEqual(getter.batchOptions, options) {
+		t.Fatalf("batchOptions = %#v, want %#v", getter.batchOptions, options)
+	}
+}
+
+func TestBatchGetSubscriptionOffersRejectsDuplicates(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchGetSubscriptionOffers(context.Background(), nil, SubscriptionOfferBatchGetOptions{
+		PackageName: packageName,
+		ProductID:   "-",
+		BasePlanID:  "-",
+		Requests: []SubscriptionOfferBatchGetRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro"},
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected duplicate offer validation error")
+	}
+}
+
+func TestNewSubscriptionOfferBatchGetRequestParsesPath(t *testing.T) {
+	request, err := NewSubscriptionOfferBatchGetRequest("premium/monthly/intro")
+	if err != nil {
+		t.Fatalf("NewSubscriptionOfferBatchGetRequest() error = %v", err)
+	}
+	if request.ProductID != "premium" || request.BasePlanID != "monthly" || request.OfferID != "intro" {
+		t.Fatalf("request = %#v", request)
+	}
+}
+
 type fakeSubscriptionOfferClient struct {
-	listOptions SubscriptionOfferListOptions
-	listResult  SubscriptionOfferListResult
-	offerID     SubscriptionOfferID
-	offer       SubscriptionOffer
+	listOptions  SubscriptionOfferListOptions
+	listResult   SubscriptionOfferListResult
+	batchOptions SubscriptionOfferBatchGetOptions
+	batchResult  SubscriptionOfferBatchGetResult
+	offerID      SubscriptionOfferID
+	offer        SubscriptionOffer
 }
 
 func (c *fakeSubscriptionOfferClient) ListSubscriptionOffers(ctx context.Context, options SubscriptionOfferListOptions) (SubscriptionOfferListResult, error) {
@@ -150,4 +214,9 @@ func (c *fakeSubscriptionOfferClient) ListSubscriptionOffers(ctx context.Context
 func (c *fakeSubscriptionOfferClient) GetSubscriptionOffer(ctx context.Context, packageName PackageName, productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, offerID SubscriptionOfferID) (SubscriptionOffer, error) {
 	c.offerID = offerID
 	return c.offer, nil
+}
+
+func (c *fakeSubscriptionOfferClient) BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error) {
+	c.batchOptions = options
+	return c.batchResult, nil
 }

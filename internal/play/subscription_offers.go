@@ -3,6 +3,7 @@ package play
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 type SubscriptionBasePlanID string
@@ -234,4 +235,99 @@ func GetSubscriptionOffer(ctx context.Context, getter SubscriptionOfferGetter, o
 		return SubscriptionOffer{}, fmt.Errorf("subscription offer getter is required")
 	}
 	return getter.GetSubscriptionOffer(ctx, options.PackageName, options.ProductID, options.BasePlanID, options.OfferID)
+}
+
+type SubscriptionOfferBatchGetRequest struct {
+	ProductID  SubscriptionProductID  `json:"productId"`
+	BasePlanID SubscriptionBasePlanID `json:"basePlanId"`
+	OfferID    SubscriptionOfferID    `json:"offerId"`
+}
+
+func NewSubscriptionOfferBatchGetRequest(value string) (SubscriptionOfferBatchGetRequest, error) {
+	parts := strings.Split(strings.TrimSpace(value), "/")
+	if len(parts) != 3 {
+		return SubscriptionOfferBatchGetRequest{}, fmt.Errorf("subscription offer must use productId/basePlanId/offerId")
+	}
+	productID, err := NewSubscriptionProductID(parts[0])
+	if err != nil {
+		return SubscriptionOfferBatchGetRequest{}, err
+	}
+	basePlanID, err := NewSubscriptionBasePlanID(parts[1])
+	if err != nil {
+		return SubscriptionOfferBatchGetRequest{}, err
+	}
+	offerID, err := NewSubscriptionOfferID(parts[2])
+	if err != nil {
+		return SubscriptionOfferBatchGetRequest{}, err
+	}
+	return SubscriptionOfferBatchGetRequest{ProductID: productID, BasePlanID: basePlanID, OfferID: offerID}, nil
+}
+
+type SubscriptionOfferBatchGetOptions struct {
+	PackageName PackageName                        `json:"packageName"`
+	ProductID   SubscriptionProductID              `json:"productId"`
+	BasePlanID  SubscriptionBasePlanID             `json:"basePlanId"`
+	Requests    []SubscriptionOfferBatchGetRequest `json:"requests"`
+}
+
+func (o SubscriptionOfferBatchGetOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionOfferListProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionOfferListBasePlanID(o.BasePlanID.String()); err != nil {
+		return err
+	}
+	if o.ProductID.String() == SubscriptionOfferWildcardID && o.BasePlanID.String() != SubscriptionOfferWildcardID {
+		return fmt.Errorf("subscription base plan ID must be %q when product ID is %q", SubscriptionOfferWildcardID, SubscriptionOfferWildcardID)
+	}
+	if len(o.Requests) == 0 {
+		return fmt.Errorf("at least one subscription offer is required")
+	}
+	if len(o.Requests) > 100 {
+		return fmt.Errorf("subscription offer batch-get cannot exceed 100 offers")
+	}
+	seen := map[string]struct{}{}
+	for _, request := range o.Requests {
+		if _, err := NewSubscriptionProductID(request.ProductID.String()); err != nil {
+			return err
+		}
+		if _, err := NewSubscriptionBasePlanID(request.BasePlanID.String()); err != nil {
+			return err
+		}
+		if _, err := NewSubscriptionOfferID(request.OfferID.String()); err != nil {
+			return err
+		}
+		key := request.ProductID.String() + "/" + request.BasePlanID.String() + "/" + request.OfferID.String()
+		if _, ok := seen[key]; ok {
+			return fmt.Errorf("subscription offer %s is duplicated", key)
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
+}
+
+type SubscriptionOfferBatchGetResult struct {
+	PackageName PackageName                        `json:"packageName"`
+	ProductID   SubscriptionProductID              `json:"productId"`
+	BasePlanID  SubscriptionBasePlanID             `json:"basePlanId"`
+	Offers      []SubscriptionOffer                `json:"offers"`
+	Options     SubscriptionOfferBatchGetOptions   `json:"options"`
+	Requests    []SubscriptionOfferBatchGetRequest `json:"requests"`
+}
+
+type SubscriptionOfferBatchGetter interface {
+	BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error)
+}
+
+func BatchGetSubscriptionOffers(ctx context.Context, getter SubscriptionOfferBatchGetter, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionOfferBatchGetResult{}, err
+	}
+	if getter == nil {
+		return SubscriptionOfferBatchGetResult{}, fmt.Errorf("subscription offer batch getter is required")
+	}
+	return getter.BatchGetSubscriptionOffers(ctx, options)
 }
