@@ -36,6 +36,15 @@ func newMetadataApplyCommand(out io.Writer, options *globalOptions, packageName 
 			if err != nil {
 				return err
 			}
+			requestOptions := play.MetadataApplyOptions{
+				PackageName: typedPackageName,
+				FilePath:    filePath,
+				Confirm:     confirm,
+				DryRun:      dryRun,
+			}
+			if err := requestOptions.ValidateRequest(); err != nil {
+				return err
+			}
 			metadataFile, err := play.LoadMetadataFile(filePath)
 			if err != nil {
 				return err

@@ -2819,6 +2819,36 @@ func TestMetadataApplyRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestMetadataApplyRejectsConfirmAndDryRunBeforeFileRead(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"metadata",
+		"apply",
+		"--package",
+		"com.example.app",
+		"--file",
+		t.TempDir() + "/missing.json",
+		"--confirm",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected flag conflict error")
+	}
+	if !strings.Contains(err.Error(), "--confirm and --dry-run cannot be used together") {
+		t.Fatalf("error = %v, want flag conflict", err)
+	}
+	if strings.Contains(err.Error(), "open file") {
+		t.Fatalf("error = %v, did not expect file read error", err)
+	}
+}
+
 func TestDataSafetyUpdateDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	csvPath := writeRootTestFile(t, "data-safety.csv")

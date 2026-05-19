@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -54,6 +55,97 @@ func TestMetadataApplyDryRunSortsListingsAndDoesNotRequireApplier(t *testing.T) 
 	}
 }
 
+func TestMetadataApplyNormalizesLanguageTags(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := ApplyMetadata(context.Background(), nil, MetadataApplyOptions{
+		PackageName: packageName,
+		FilePath:    "metadata.json",
+		Details:     &AppDetails{DefaultLanguage: stringValue("en-us")},
+		Listings:    []Listing{{Language: "es-es", Title: stringValue("Ejemplo")}},
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("ApplyMetadata() error = %v", err)
+	}
+	if result.Details == nil || result.Details.DefaultLanguage == nil || *result.Details.DefaultLanguage != "en-US" {
+		t.Fatalf("DefaultLanguage = %#v, want en-US", result.Details)
+	}
+	if len(result.Listings) != 1 || result.Listings[0].Language != "es-ES" {
+		t.Fatalf("Listings = %#v, want es-ES", result.Listings)
+	}
+}
+
+func TestMetadataApplyRejectsInvalidDetails(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	tests := []struct {
+		name    string
+		details AppDetails
+		want    string
+	}{
+		{name: "language", details: AppDetails{DefaultLanguage: stringValue("zz-ZZ")}, want: "invalid defaultLanguage"},
+		{name: "website", details: AppDetails{ContactWebsite: stringValue("ftp://example.com")}, want: "contactWebsite must use http or https"},
+		{name: "email", details: AppDetails{ContactEmail: stringValue("not-email")}, want: "contactEmail must be a valid email address"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewMetadataApplyPlan(MetadataApplyOptions{
+				PackageName: packageName,
+				FilePath:    "metadata.json",
+				Details:     &tt.details,
+				DryRun:      true,
+			})
+			if err == nil {
+				t.Fatal("NewMetadataApplyPlan() error = nil, want validation error")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error = %v, want %s", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestMetadataApplyRejectsInvalidListingValues(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	tests := []struct {
+		name    string
+		listing Listing
+		want    string
+	}{
+		{name: "empty title", listing: Listing{Language: "en-US", Title: stringValue("")}, want: "title must be non-empty"},
+		{name: "long title", listing: Listing{Language: "en-US", Title: stringValue(strings.Repeat("a", listingTitleMaxRunes+1))}, want: "title must be at most 30 characters"},
+		{name: "long short description", listing: Listing{Language: "en-US", ShortDescription: stringValue(strings.Repeat("a", listingShortDescriptionMaxRunes+1))}, want: "shortDescription must be at most 80 characters"},
+		{name: "long full description", listing: Listing{Language: "en-US", FullDescription: stringValue(strings.Repeat("a", listingFullDescriptionMaxRunes+1))}, want: "fullDescription must be at most 4000 characters"},
+		{name: "bad video scheme", listing: Listing{Language: "en-US", Video: stringValue("ftp://youtube.com/watch?v=abc")}, want: "video must use http or https"},
+		{name: "bad video host", listing: Listing{Language: "en-US", Video: stringValue("https://example.com/watch?v=abc")}, want: "video must use a youtube.com or youtu.be URL"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewMetadataApplyPlan(MetadataApplyOptions{
+				PackageName: packageName,
+				FilePath:    "metadata.json",
+				Listings:    []Listing{tt.listing},
+				DryRun:      true,
+			})
+			if err == nil {
+				t.Fatal("NewMetadataApplyPlan() error = nil, want validation error")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error = %v, want %s", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestMetadataApplyUsesSingleEditAndCommitsWhenConfirmed(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -83,6 +175,31 @@ func TestMetadataApplyUsesSingleEditAndCommitsWhenConfirmed(t *testing.T) {
 	}
 }
 
+func TestMetadataApplyCleansUpWhenListingPatchFails(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	applier := &fakeMetadataApplier{patchListingErr: errors.New("patch failed")}
+
+	_, err = ApplyMetadata(context.Background(), applier, MetadataApplyOptions{
+		PackageName: packageName,
+		FilePath:    "metadata.json",
+		Listings:    []Listing{{Language: "en-US", Title: stringValue("Example")}},
+		Confirm:     true,
+	})
+	if err == nil {
+		t.Fatal("ApplyMetadata() error = nil, want patch error")
+	}
+	if !strings.Contains(err.Error(), "patch failed") {
+		t.Fatalf("error = %v, want patch failure", err)
+	}
+	wantCalls := []string{"insert", "patch-listing:en-US", "delete"}
+	if !reflect.DeepEqual(applier.calls, wantCalls) {
+		t.Fatalf("calls = %#v, want %#v", applier.calls, wantCalls)
+	}
+}
+
 func TestMetadataApplyRejectsDuplicateListingLanguages(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -94,7 +211,7 @@ func TestMetadataApplyRejectsDuplicateListingLanguages(t *testing.T) {
 		FilePath:    "metadata.json",
 		Listings: []Listing{
 			{Language: "en-US", Title: stringValue("Example")},
-			{Language: "en-US", ShortDescription: stringValue("Duplicate")},
+			{Language: "en-us", ShortDescription: stringValue("Duplicate")},
 		},
 		DryRun: true,
 	})
@@ -126,7 +243,8 @@ func TestMetadataApplyRequiresConfirmOrDryRun(t *testing.T) {
 }
 
 type fakeMetadataApplier struct {
-	calls []string
+	calls           []string
+	patchListingErr error
 }
 
 func (a *fakeMetadataApplier) InsertEdit(ctx context.Context, packageName PackageName) (Edit, error) {
@@ -141,6 +259,9 @@ func (a *fakeMetadataApplier) PatchAppDetails(ctx context.Context, packageName P
 
 func (a *fakeMetadataApplier) PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
 	a.calls = append(a.calls, "patch-listing:"+listing.Language.String())
+	if a.patchListingErr != nil {
+		return Listing{}, a.patchListingErr
+	}
 	return listing, nil
 }
 

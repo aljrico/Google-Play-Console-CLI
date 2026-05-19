@@ -7,8 +7,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/mail"
+	"net/url"
 	"os"
 	"sort"
+	"strings"
+	"unicode/utf8"
+)
+
+const (
+	listingTitleMaxRunes            = 30
+	listingShortDescriptionMaxRunes = 80
+	listingFullDescriptionMaxRunes  = 4000
 )
 
 type MetadataFile struct {
@@ -54,6 +64,41 @@ type MetadataApplyOptions struct {
 }
 
 func (o MetadataApplyOptions) Validate() error {
+	if err := o.ValidateRequest(); err != nil {
+		return err
+	}
+	if o.Details == nil && len(o.Listings) == 0 {
+		return fmt.Errorf("metadata file must include details or at least one listing")
+	}
+	if o.Details != nil && !hasAppDetailsFields(*o.Details) && len(o.Listings) == 0 {
+		return fmt.Errorf("metadata file must include at least one details field or listing field")
+	}
+	if o.Details != nil {
+		if err := validateMetadataDetails(*o.Details); err != nil {
+			return err
+		}
+	}
+	seenLanguages := make(map[ListingLanguage]struct{}, len(o.Listings))
+	for _, listing := range o.Listings {
+		language, err := NewListingLanguage(listing.Language.String())
+		if err != nil {
+			return err
+		}
+		if !hasListingFields(listing) {
+			return fmt.Errorf("listing %s must include at least one listing field", listing.Language)
+		}
+		if err := validateMetadataListing(listing); err != nil {
+			return err
+		}
+		if _, ok := seenLanguages[language]; ok {
+			return fmt.Errorf("duplicate listing language %s", language)
+		}
+		seenLanguages[language] = struct{}{}
+	}
+	return nil
+}
+
+func (o MetadataApplyOptions) ValidateRequest() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
 	}
@@ -65,25 +110,6 @@ func (o MetadataApplyOptions) Validate() error {
 	}
 	if !o.Confirm && !o.DryRun {
 		return fmt.Errorf("metadata apply requires --confirm or --dry-run")
-	}
-	if o.Details == nil && len(o.Listings) == 0 {
-		return fmt.Errorf("metadata file must include details or at least one listing")
-	}
-	if o.Details != nil && !hasAppDetailsFields(*o.Details) && len(o.Listings) == 0 {
-		return fmt.Errorf("metadata file must include at least one details field or listing field")
-	}
-	seenLanguages := make(map[ListingLanguage]struct{}, len(o.Listings))
-	for _, listing := range o.Listings {
-		if _, err := NewListingLanguage(listing.Language.String()); err != nil {
-			return err
-		}
-		if !hasListingFields(listing) {
-			return fmt.Errorf("listing %s must include at least one listing field", listing.Language)
-		}
-		if _, ok := seenLanguages[listing.Language]; ok {
-			return fmt.Errorf("duplicate listing language %s", listing.Language)
-		}
-		seenLanguages[listing.Language] = struct{}{}
 	}
 	return nil
 }
@@ -221,11 +247,120 @@ func NormalizeMetadataApplyOptions(options MetadataApplyOptions) (MetadataApplyO
 		return MetadataApplyOptions{}, err
 	}
 	normalizedOptions := options
+	if options.Details != nil {
+		details := *options.Details
+		if details.DefaultLanguage != nil {
+			defaultLanguage, err := NewListingLanguage(*details.DefaultLanguage)
+			if err != nil {
+				return MetadataApplyOptions{}, err
+			}
+			normalizedDefaultLanguage := defaultLanguage.String()
+			details.DefaultLanguage = &normalizedDefaultLanguage
+		}
+		normalizedOptions.Details = &details
+	}
 	normalizedOptions.Listings = append([]Listing(nil), options.Listings...)
+	for index, listing := range normalizedOptions.Listings {
+		language, err := NewListingLanguage(listing.Language.String())
+		if err != nil {
+			return MetadataApplyOptions{}, err
+		}
+		listing.Language = language
+		normalizedOptions.Listings[index] = listing
+	}
 	sort.Slice(normalizedOptions.Listings, func(left int, right int) bool {
 		return normalizedOptions.Listings[left].Language < normalizedOptions.Listings[right].Language
 	})
 	return normalizedOptions, nil
+}
+
+func validateMetadataDetails(details AppDetails) error {
+	if details.DefaultLanguage != nil {
+		if _, err := NewListingLanguage(*details.DefaultLanguage); err != nil {
+			return fmt.Errorf("invalid defaultLanguage: %w", err)
+		}
+	}
+	if details.ContactWebsite != nil {
+		if err := validateHTTPSURL("contactWebsite", *details.ContactWebsite); err != nil {
+			return err
+		}
+	}
+	if details.ContactEmail != nil {
+		if strings.TrimSpace(*details.ContactEmail) != *details.ContactEmail || *details.ContactEmail == "" {
+			return fmt.Errorf("contactEmail must be a valid email address")
+		}
+		address, err := mail.ParseAddress(*details.ContactEmail)
+		if err != nil || address.Address != *details.ContactEmail {
+			return fmt.Errorf("contactEmail must be a valid email address")
+		}
+	}
+	if details.ContactPhone != nil && strings.TrimSpace(*details.ContactPhone) != *details.ContactPhone {
+		return fmt.Errorf("contactPhone cannot have leading or trailing whitespace")
+	}
+	return nil
+}
+
+func validateMetadataListing(listing Listing) error {
+	if listing.Title != nil {
+		if err := validateRequiredTextField("title", *listing.Title, listingTitleMaxRunes); err != nil {
+			return fmt.Errorf("listing %s %w", listing.Language, err)
+		}
+	}
+	if listing.ShortDescription != nil {
+		if err := validateRequiredTextField("shortDescription", *listing.ShortDescription, listingShortDescriptionMaxRunes); err != nil {
+			return fmt.Errorf("listing %s %w", listing.Language, err)
+		}
+	}
+	if listing.FullDescription != nil {
+		if err := validateRequiredTextField("fullDescription", *listing.FullDescription, listingFullDescriptionMaxRunes); err != nil {
+			return fmt.Errorf("listing %s %w", listing.Language, err)
+		}
+	}
+	if listing.Video != nil && *listing.Video != "" {
+		if err := validateHTTPSURL("video", *listing.Video); err != nil {
+			return fmt.Errorf("listing %s %w", listing.Language, err)
+		}
+		if !isYouTubeHost(*listing.Video) {
+			return fmt.Errorf("listing %s video must use a youtube.com or youtu.be URL", listing.Language)
+		}
+	}
+	return nil
+}
+
+func validateRequiredTextField(name string, value string, maxRunes int) error {
+	if strings.TrimSpace(value) != value || value == "" {
+		return fmt.Errorf("%s must be non-empty and cannot have leading or trailing whitespace", name)
+	}
+	if utf8.RuneCountInString(value) > maxRunes {
+		return fmt.Errorf("%s must be at most %d characters", name, maxRunes)
+	}
+	return nil
+}
+
+func validateHTTPSURL(name string, value string) error {
+	if strings.TrimSpace(value) != value || value == "" {
+		return fmt.Errorf("%s must be a valid http or https URL", name)
+	}
+	parsedURL, err := url.ParseRequestURI(value)
+	if err != nil {
+		return fmt.Errorf("%s must be a valid http or https URL", name)
+	}
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return fmt.Errorf("%s must use http or https", name)
+	}
+	if parsedURL.Host == "" {
+		return fmt.Errorf("%s must include a host", name)
+	}
+	return nil
+}
+
+func isYouTubeHost(value string) bool {
+	parsedURL, err := url.Parse(value)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsedURL.Hostname())
+	return host == "youtu.be" || host == "youtube.com" || strings.HasSuffix(host, ".youtube.com")
 }
 
 func hasAppDetailsFields(details AppDetails) bool {

@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
+	"golang.org/x/text/language"
 )
 
 type ListingLanguage string
@@ -12,7 +15,14 @@ func NewListingLanguage(value string) (ListingLanguage, error) {
 	if value == "" {
 		return "", fmt.Errorf("language is required")
 	}
-	return ListingLanguage(value), nil
+	if strings.TrimSpace(value) != value {
+		return "", fmt.Errorf("language cannot have leading or trailing whitespace")
+	}
+	tag, err := language.Parse(value)
+	if err != nil || tag.String() == "und" {
+		return "", fmt.Errorf("invalid BCP-47 language %q", value)
+	}
+	return ListingLanguage(tag.String()), nil
 }
 
 func (l ListingLanguage) String() string {

@@ -137,6 +137,30 @@ gpc users delete --developer 1234567890 --user-email user@example.com --dry-run
 gpc grants create --developer 1234567890 --user-email user@example.com --package com.example.app --permission CAN_VIEW_NON_FINANCIAL_DATA --dry-run
 ```
 
+Metadata files accepted by `gpc metadata apply` are strict JSON: unknown fields and trailing JSON are rejected, languages are canonicalized as BCP-47 tags, and listing text is checked against Play's public limits before any API call.
+
+```json
+{
+  "details": {
+    "defaultLanguage": "en-US",
+    "contactWebsite": "https://example.com/support",
+    "contactEmail": "support@example.com",
+    "contactPhone": "+15555555555"
+  },
+  "listings": [
+    {
+      "language": "en-US",
+      "title": "Example",
+      "shortDescription": "Short store listing copy.",
+      "fullDescription": "Long store listing copy.",
+      "video": "https://youtu.be/example"
+    }
+  ]
+}
+```
+
+Supported listing fields are `title` (30 characters), `shortDescription` (80), `fullDescription` (4000), and `video` as an empty string or a YouTube URL. `gpc migrate supply convert` emits this shape from fastlane supply text files.
+
 Review APIs follow Google Play's limits: list responses are recent reviews with comments, reply text is capped at 350 characters, and live replies require a service account with review-reply access.
 
 `vitals` uses the Play Developer Reporting API, which is separate from Android Publisher and requires the Play Developer Reporting API to be enabled plus app-level "View app information (read-only)" access. Query and search commands accept explicit metrics, filters, and date ranges so automation never relies on API defaults; error issue and report search intervals use UTC when a timezone is set, and omitting it uses the API's UTC default.
