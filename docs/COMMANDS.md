@@ -45,6 +45,7 @@ gpc [flags]
 - `gpc releases`: Upload and manage Google Play releases
 - `gpc reviews`: Read and reply to Google Play reviews
 - `gpc schema`: Print the Google Play discovery schema
+- `gpc search`: Search gpc commands and flags
 - `gpc status`: Summarize Google Play release status
 - `gpc subscription-offers`: Inspect Google Play subscription offers
 - `gpc subscriptions`: Inspect Google Play monetization subscriptions
@@ -1324,6 +1325,18 @@ gpc schema [flags]
 
 - `--method`: Filter by discovery method name or ID, for example list or androidpublisher.edits.tracks.list
 - `--resource`: Filter by dotted discovery resource path, for example edits.tracks
+
+### gpc search
+
+Search gpc commands and flags
+
+```sh
+gpc search QUERY [flags]
+```
+
+#### Flags
+
+- `--limit`: Maximum number of matches; 0 returns all matches (default `20`)
 
 ### gpc status
 

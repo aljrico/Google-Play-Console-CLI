@@ -137,6 +137,7 @@ Sources:
 | `migrate` | `migrate` | N/A | tested | `gpc migrate supply inspect` inventories fastlane supply metadata directories by locale, listing files, changelogs, image sets, and unknown files as stable JSON. Conversion/import remains planned. |
 | `diff` | `diff` | N/A | tested | `gpc diff json FROM TO` compares local JSON payloads with deterministic JSON Pointer paths and optional `--fail-on-change` CI behavior. |
 | `capabilities` | `capabilities` | N/A | tested | `gpc capabilities` exposes this parity matrix as structured CLI output with status and section filters. |
+| `search` | `search` | N/A | tested | `gpc search QUERY` searches command paths, descriptions, and flag names for agent-oriented command discovery. |
 | `schema` | `schema` | Discovery document | tested | `gpc schema` fetches the Android Publisher discovery document and emits a stable resource/method summary, with resource and method filters. |
 | `snitch` | `snitch` | N/A | planned | Nice-to-have friction reporter. |
 | `web` | `web` | N/A | planned | Experimental Play Console browser workflows only when no API exists. |
