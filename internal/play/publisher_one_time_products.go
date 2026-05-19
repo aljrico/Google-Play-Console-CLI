@@ -1059,11 +1059,6 @@ func oneTimeProductPreOrderOfferToAPI(offer *OneTimeProductPreOrderOffer) *andro
 	}
 }
 
-func isGoogleNotFound(err error) bool {
-	apiError, ok := err.(*googleapi.Error)
-	return ok && apiError.Code == http.StatusNotFound
-}
-
 type rawOfferTag struct {
 	Tag string `json:"tag,omitempty"`
 }

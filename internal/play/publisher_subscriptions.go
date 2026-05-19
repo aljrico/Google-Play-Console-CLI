@@ -838,36 +838,6 @@ func regionalPriceMigrationsToAPI(regions []BasePlanPriceMigrationConfig) []*and
 	return apiRegions
 }
 
-func regionalTaxRateInfoToAPI(taxRateInfo map[string]RegionalTaxRateInfo) map[string]androidpublisher.RegionalTaxRateInfo {
-	if len(taxRateInfo) == 0 {
-		return nil
-	}
-	apiTaxRateInfo := make(map[string]androidpublisher.RegionalTaxRateInfo, len(taxRateInfo))
-	for region, info := range taxRateInfo {
-		apiTaxRateInfo[region] = androidpublisher.RegionalTaxRateInfo{
-			EligibleForStreamingServiceTaxRate: info.EligibleForStreamingServiceTaxRate,
-			StreamingTaxType:                   info.StreamingTaxType,
-			TaxTier:                            info.TaxTier,
-		}
-	}
-	return apiTaxRateInfo
-}
-
-func regionalTaxRateInfoFromAPI(apiTaxRateInfo map[string]androidpublisher.RegionalTaxRateInfo) map[string]RegionalTaxRateInfo {
-	if len(apiTaxRateInfo) == 0 {
-		return nil
-	}
-	taxRateInfo := make(map[string]RegionalTaxRateInfo, len(apiTaxRateInfo))
-	for region, apiInfo := range apiTaxRateInfo {
-		taxRateInfo[region] = RegionalTaxRateInfo{
-			EligibleForStreamingServiceTaxRate: apiInfo.EligibleForStreamingServiceTaxRate,
-			StreamingTaxType:                   apiInfo.StreamingTaxType,
-			TaxTier:                            apiInfo.TaxTier,
-		}
-	}
-	return taxRateInfo
-}
-
 func restrictedCountriesFromAPI(apiCountries *androidpublisher.RestrictedPaymentCountries) []string {
 	if apiCountries == nil {
 		return nil
