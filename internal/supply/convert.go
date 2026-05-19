@@ -21,6 +21,12 @@ type ConvertChangelogsOptions struct {
 	VersionCode int64  `json:"versionCode,omitempty"`
 }
 
+type ConvertImagesOptions struct {
+	Directory string `json:"directory,omitempty"`
+	Language  string `json:"language,omitempty"`
+	Type      string `json:"type,omitempty"`
+}
+
 type ChangelogMigration struct {
 	Directory  string             `json:"directory"`
 	Changelogs []ReleaseChangelog `json:"changelogs"`
@@ -30,6 +36,19 @@ type ReleaseChangelog struct {
 	VersionCode     int64              `json:"versionCode"`
 	ReleaseNotes    []play.ReleaseNote `json:"releaseNotes"`
 	ReleaseNoteArgs []string           `json:"releaseNoteArgs"`
+}
+
+type ImageMigration struct {
+	Directory string        `json:"directory"`
+	Images    []SupplyImage `json:"images"`
+}
+
+type SupplyImage struct {
+	Language   play.ListingLanguage `json:"language"`
+	Type       play.ImageType       `json:"type"`
+	FileName   string               `json:"fileName"`
+	Path       string               `json:"path"`
+	UploadArgs []string             `json:"uploadArgs"`
 }
 
 func Convert(ctx context.Context, options ConvertOptions) (play.MetadataFile, error) {
@@ -138,6 +157,89 @@ func ConvertChangelogs(ctx context.Context, options ConvertChangelogsOptions) (C
 	return ChangelogMigration{Directory: inventory.Directory, Changelogs: changelogs}, nil
 }
 
+func ConvertImages(ctx context.Context, options ConvertImagesOptions) (ImageMigration, error) {
+	filterLanguage, hasLanguageFilter, err := optionalListingLanguage(options.Language)
+	if err != nil {
+		return ImageMigration{}, err
+	}
+	filterType, hasTypeFilter, err := optionalImageType(options.Type)
+	if err != nil {
+		return ImageMigration{}, err
+	}
+	inventory, err := Inspect(ctx, InspectOptions{Directory: options.Directory})
+	if err != nil {
+		return ImageMigration{}, err
+	}
+	images := make([]SupplyImage, 0)
+	for _, locale := range inventory.Locales {
+		select {
+		case <-ctx.Done():
+			return ImageMigration{}, ctx.Err()
+		default:
+		}
+		language, err := play.NewListingLanguage(locale.Language)
+		if err != nil {
+			return ImageMigration{}, fmt.Errorf("convert supply image locale %s: %w", locale.Language, err)
+		}
+		if hasLanguageFilter && language != filterLanguage {
+			continue
+		}
+		for _, imageSet := range locale.ImageSets {
+			if hasTypeFilter && imageSet.Type != filterType.String() {
+				continue
+			}
+			imageType, err := play.NewImageType(imageSet.Type)
+			if err != nil {
+				return ImageMigration{}, fmt.Errorf("convert supply image set %s: %w", imageSet.Type, err)
+			}
+			for _, file := range imageSet.Files {
+				if err := play.ValidateReadableImageFile(file.Path); err != nil {
+					return ImageMigration{}, err
+				}
+				images = append(images, SupplyImage{
+					Language:   language,
+					Type:       imageType,
+					FileName:   file.Name,
+					Path:       file.Path,
+					UploadArgs: imageUploadArgs(language, imageType, file.Path),
+				})
+			}
+		}
+	}
+	sort.Slice(images, func(i, j int) bool {
+		if images[i].Language != images[j].Language {
+			return images[i].Language < images[j].Language
+		}
+		if images[i].Type != images[j].Type {
+			return images[i].Type < images[j].Type
+		}
+		return images[i].Path < images[j].Path
+	})
+	return ImageMigration{Directory: inventory.Directory, Images: images}, nil
+}
+
+func optionalListingLanguage(value string) (play.ListingLanguage, bool, error) {
+	if value == "" {
+		return "", false, nil
+	}
+	language, err := play.NewListingLanguage(value)
+	if err != nil {
+		return "", false, err
+	}
+	return language, true, nil
+}
+
+func optionalImageType(value string) (play.ImageType, bool, error) {
+	if value == "" {
+		return "", false, nil
+	}
+	imageType, err := play.NewImageType(value)
+	if err != nil {
+		return "", false, err
+	}
+	return imageType, true, nil
+}
+
 func changelogVersionCode(name string) (int64, error) {
 	if filepath.Ext(name) != ".txt" {
 		return 0, fmt.Errorf("supply changelog file %s must be named VERSION_CODE.txt", name)
@@ -156,6 +258,10 @@ func releaseNoteArgs(notes []play.ReleaseNote) []string {
 		args = append(args, fmt.Sprintf("%s=%s", note.Language, note.Text))
 	}
 	return args
+}
+
+func imageUploadArgs(language play.ListingLanguage, imageType play.ImageType, path string) []string {
+	return []string{"--language", language.String(), "--type", imageType.String(), "--file", path}
 }
 
 func readSupplyTextFile(path string) (string, error) {

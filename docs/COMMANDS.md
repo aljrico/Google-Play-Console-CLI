@@ -971,6 +971,7 @@ gpc migrate supply
 
 - `gpc migrate supply changelogs`: Convert fastlane supply changelogs to release-note payloads
 - `gpc migrate supply convert`: Convert fastlane supply listings to gpc metadata JSON
+- `gpc migrate supply images`: Convert fastlane supply images to image upload payloads
 - `gpc migrate supply inspect`: Inventory a fastlane supply metadata directory
 
 ##### gpc migrate supply changelogs
@@ -997,6 +998,20 @@ gpc migrate supply convert [flags]
 ###### Flags
 
 - `--directory`: fastlane supply metadata directory (default `fastlane/metadata/android`)
+
+##### gpc migrate supply images
+
+Convert fastlane supply images to image upload payloads
+
+```sh
+gpc migrate supply images [flags]
+```
+
+###### Flags
+
+- `--directory`: fastlane supply metadata directory (default `fastlane/metadata/android`)
+- `--language`: Only include images for this BCP-47 listing language
+- `--type`: Only include this image type
 
 ##### gpc migrate supply inspect
 

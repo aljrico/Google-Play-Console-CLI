@@ -2102,6 +2102,42 @@ func TestMigrateSupplyChangelogsDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestMigrateSupplyImagesDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	directory := filepath.Join(t.TempDir(), "fastlane", "metadata", "android")
+	imagePath := filepath.Join(directory, "en-US", "images", "phoneScreenshots", "1.png")
+	writeNestedRootTestFile(t, imagePath, "png")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"migrate",
+		"supply",
+		"images",
+		"--directory",
+		directory,
+		"--language",
+		"en-US",
+		"--type",
+		"phoneScreenshots",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{`"language":"en-US"`, `"type":"phoneScreenshots"`, `"uploadArgs":["--language","en-US","--type","phoneScreenshots","--file","` + filepath.ToSlash(imagePath) + `"]`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestPublishInternalLiveRejectsInvalidUserFractionBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bundlePath := writeRootTestFile(t, "app-release.aab")

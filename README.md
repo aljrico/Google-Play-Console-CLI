@@ -63,6 +63,7 @@ gpc workflow run release-internal --dry-run
 gpc migrate supply inspect --directory fastlane/metadata/android
 gpc migrate supply convert --directory fastlane/metadata/android --pretty > play-metadata.json
 gpc migrate supply changelogs --directory fastlane/metadata/android --version-code 42 --pretty
+gpc migrate supply images --directory fastlane/metadata/android --language en-US --type phoneScreenshots --pretty
 GPC_NOTIFY_WEBHOOK_URL="$WEBHOOK_URL" gpc notify send --message "Internal release staged" --dry-run
 gpc search "release upload" --limit 5
 gpc snitch report --title "Confusing release output" --command "gpc releases list --package com.example.app"
@@ -170,7 +171,7 @@ Metadata files accepted by `gpc metadata apply` are strict JSON: unknown fields 
 }
 ```
 
-Supported listing fields are `title` (30 characters), `shortDescription` (80), `fullDescription` (4000), and `video` as an empty string or a YouTube URL. `gpc migrate supply convert` emits this shape from fastlane supply text files. `gpc migrate supply changelogs` groups fastlane `changelogs/VERSION_CODE.txt` files into Play release-note payloads and raw `language=text` arguments for `--release-note`.
+Supported listing fields are `title` (30 characters), `shortDescription` (80), `fullDescription` (4000), and `video` as an empty string or a YouTube URL. `gpc migrate supply convert` emits this shape from fastlane supply text files. `gpc migrate supply changelogs` groups fastlane `changelogs/VERSION_CODE.txt` files into Play release-note payloads and raw `language=text` arguments for `--release-note`. `gpc migrate supply images` converts fastlane image directories into validated `gpc images upload` argument lists.
 
 Review APIs follow Google Play's limits: list responses are recent reviews with comments, reply text is capped at 350 characters, and live replies require a service account with review-reply access.
 

@@ -253,6 +253,66 @@ func TestConvertChangelogsRejectsInvalidChangelogName(t *testing.T) {
 	}
 }
 
+func TestConvertImagesCreatesUploadPayloads(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "fastlane", "metadata", "android")
+	phonePath := filepath.Join(directory, "en-US", "images", "phoneScreenshots", "1.png")
+	wearPath := filepath.Join(directory, "en-US", "images", "wearScreenshots", "1.jpg")
+	customPath := filepath.Join(directory, "en-US", "images", "customArt", "1.png")
+	esPath := filepath.Join(directory, "es-ES", "images", "phoneScreenshots", "1.png")
+	writeFile(t, phonePath, "png")
+	writeFile(t, wearPath, "jpg")
+	writeFile(t, customPath, "png")
+	writeFile(t, esPath, "png")
+
+	migration, err := ConvertImages(context.Background(), ConvertImagesOptions{Directory: directory, Language: "en-US", Type: "phoneScreenshots"})
+	if err != nil {
+		t.Fatalf("ConvertImages() error = %v", err)
+	}
+	if migration.Directory != filepath.ToSlash(directory) {
+		t.Fatalf("Directory = %q, want %q", migration.Directory, filepath.ToSlash(directory))
+	}
+	if len(migration.Images) != 1 {
+		t.Fatalf("len(Images) = %d, want 1", len(migration.Images))
+	}
+	image := migration.Images[0]
+	if image.Language != "en-US" || image.Type != "phoneScreenshots" || image.Path != filepath.ToSlash(phonePath) {
+		t.Fatalf("image = %#v, want en-US phone screenshot", image)
+	}
+	wantArgs := strings.Join([]string{"--language", "en-US", "--type", "phoneScreenshots", "--file", filepath.ToSlash(phonePath)}, ",")
+	if strings.Join(image.UploadArgs, ",") != wantArgs {
+		t.Fatalf("UploadArgs = %q, want %q", strings.Join(image.UploadArgs, ","), wantArgs)
+	}
+}
+
+func TestConvertImagesRejectsUnsupportedImageSet(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "fastlane", "metadata", "android")
+	writeFile(t, filepath.Join(directory, "en-US", "images", "customArt", "1.png"), "png")
+
+	_, err := ConvertImages(context.Background(), ConvertImagesOptions{Directory: directory})
+	if err == nil {
+		t.Fatalf("ConvertImages() expected error")
+	}
+	if !strings.Contains(err.Error(), "unsupported image type") {
+		t.Fatalf("error = %v, want unsupported image type", err)
+	}
+}
+
+func TestConvertImagesRejectsUnsupportedImageExtension(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "fastlane", "metadata", "android")
+	writeFile(t, filepath.Join(directory, "en-US", "images", "phoneScreenshots", "1.gif"), "gif")
+
+	_, err := ConvertImages(context.Background(), ConvertImagesOptions{Directory: directory})
+	if err == nil {
+		t.Fatalf("ConvertImages() expected error")
+	}
+	if !strings.Contains(err.Error(), "image path must end") {
+		t.Fatalf("error = %v, want image extension error", err)
+	}
+}
+
 func TestInspectRejectsSymlinkImageSet(t *testing.T) {
 	root := t.TempDir()
 	directory := filepath.Join(root, "metadata")

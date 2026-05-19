@@ -26,6 +26,7 @@ func newMigrateSupplyCommand(out io.Writer, options *globalOptions) *cobra.Comma
 		newMigrateSupplyInspectCommand(out, options),
 		newMigrateSupplyConvertCommand(out, options),
 		newMigrateSupplyChangelogsCommand(out, options),
+		newMigrateSupplyImagesCommand(out, options),
 	)
 	return cmd
 }
@@ -70,6 +71,34 @@ func newMigrateSupplyChangelogsCommand(out io.Writer, options *globalOptions) *c
 	}
 	cmd.Flags().StringVar(&directory, "directory", supply.DefaultMetadataDirectory, "fastlane supply metadata directory")
 	cmd.Flags().Int64Var(&versionCode, "version-code", 0, "Only include changelogs for this version code")
+	return cmd
+}
+
+func newMigrateSupplyImagesCommand(out io.Writer, options *globalOptions) *cobra.Command {
+	var (
+		directory string
+		language  string
+		imageType string
+	)
+	cmd := &cobra.Command{
+		Use:   "images",
+		Short: "Convert fastlane supply images to image upload payloads",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			images, err := supply.ConvertImages(cmd.Context(), supply.ConvertImagesOptions{
+				Directory: directory,
+				Language:  language,
+				Type:      imageType,
+			})
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, images)
+		},
+	}
+	cmd.Flags().StringVar(&directory, "directory", supply.DefaultMetadataDirectory, "fastlane supply metadata directory")
+	cmd.Flags().StringVar(&language, "language", "", "Only include images for this BCP-47 listing language")
+	cmd.Flags().StringVar(&imageType, "type", "", "Only include this image type")
 	return cmd
 }
 
