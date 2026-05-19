@@ -1317,11 +1317,27 @@ gpc one-time-products
 
 #### Commands
 
+- `gpc one-time-products batch-delete`: Delete multiple one-time products
 - `gpc one-time-products batch-get`: Get multiple one-time products
 - `gpc one-time-products delete`: Delete a one-time product
 - `gpc one-time-products get`: Get a one-time product
 - `gpc one-time-products list`: List one-time products
 - `gpc one-time-products purchase-option`: Manage one-time product purchase options
+
+#### gpc one-time-products batch-delete
+
+Delete multiple one-time products
+
+```sh
+gpc one-time-products batch-delete [flags]
+```
+
+##### Flags
+
+- `--confirm`: Apply the one-time product batch deletion (default `false`)
+- `--dry-run`: Print the planned one-time product batch deletion without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: One-time product ID; repeatable, up to 100 (default `[]`)
 
 #### gpc one-time-products batch-get
 

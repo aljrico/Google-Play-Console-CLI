@@ -2937,6 +2937,57 @@ func TestGooglePublisherDeleteOneTimeProductRejectsDryRunBeforeRequest(t *testin
 	}
 }
 
+func TestGooglePublisherBatchDeleteOneTimeProductsUsesMonetizationEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts:batchDelete" {
+			t.Fatalf("path = %q, want one-time products batch-delete endpoint", r.URL.Path)
+		}
+		var request androidpublisher.BatchDeleteOneTimeProductsRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if len(request.Requests) != 2 {
+			t.Fatalf("len(Requests) = %d, want 2", len(request.Requests))
+		}
+		if request.Requests[0].PackageName != "com.example.app" || request.Requests[0].ProductId != "coins_100" {
+			t.Fatalf("first request = %#v, want identifiers", request.Requests[0])
+		}
+		if request.Requests[0].LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+			t.Fatalf("LatencyTolerance = %q, want tolerant enum", request.Requests[0].LatencyTolerance)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	err := publisher.BatchDeleteOneTimeProducts(context.Background(), OneTimeProductBatchDeleteOptions{
+		PackageName:      "com.example.app",
+		ProductIDs:       []OneTimeProductID{"coins_100", "coins_500"},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchDeleteOneTimeProducts() error = %v", err)
+	}
+}
+
+func TestGooglePublisherBatchDeleteOneTimeProductsRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	err := publisher.BatchDeleteOneTimeProducts(context.Background(), OneTimeProductBatchDeleteOptions{
+		PackageName:      "com.example.app",
+		ProductIDs:       []OneTimeProductID{"coins_100", "coins_500"},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+}
+
 func TestUpdatePurchaseOptionStateUsesBatchUpdateStatesEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

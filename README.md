@@ -123,6 +123,7 @@ gpc one-time-products list --package com.example.app --page-size 50
 gpc one-time-products get --package com.example.app --product-id coins_100
 gpc one-time-products batch-get --package com.example.app --product-id coins_100 --product-id coins_500
 gpc one-time-products delete --package com.example.app --product-id coins_100 --dry-run
+gpc one-time-products batch-delete --package com.example.app --product-id coins_100 --product-id coins_500 --dry-run
 gpc one-time-products purchase-option deactivate --package com.example.app --product-id coins_100 --purchase-option-id buy --dry-run
 gpc one-time-product-offers list --package com.example.app --product-id coins_100 --purchase-option-id buy
 gpc one-time-product-offers get --package com.example.app --product-id coins_100 --purchase-option-id buy --offer-id intro

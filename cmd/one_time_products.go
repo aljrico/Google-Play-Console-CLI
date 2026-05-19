@@ -21,6 +21,7 @@ func newOneTimeProductsCommand(out io.Writer, options *globalOptions) *cobra.Com
 		newOneTimeProductsGetCommand(out, options, &packageName),
 		newOneTimeProductsBatchGetCommand(out, options, &packageName),
 		newOneTimeProductsDeleteCommand(out, options, &packageName),
+		newOneTimeProductsBatchDeleteCommand(out, options, &packageName),
 		newOneTimeProductsPurchaseOptionCommand(out, options, &packageName),
 	)
 	return cmd
@@ -286,5 +287,65 @@ func newOneTimeProductsDeleteCommand(out io.Writer, options *globalOptions, pack
 	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the one-time product deletion")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product deletion without calling Google Play")
+	return cmd
+}
+
+func newOneTimeProductsBatchDeleteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productIDs       []string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-delete",
+		Short: "Delete multiple one-time products",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedProductIDs, err := parseOneTimeProductIDs(productIDs)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			deleteOptions := play.OneTimeProductBatchDeleteOptions{
+				PackageName:      typedPackageName,
+				ProductIDs:       typedProductIDs,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if err := deleteOptions.Validate(); err != nil {
+				return err
+			}
+			if dryRun {
+				result, err := play.BatchDeleteOneTimeProducts(cmd.Context(), nil, deleteOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchDeleteOneTimeProducts(cmd.Context(), publisher, deleteOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringArrayVar(&productIDs, "product-id", nil, "One-time product ID; repeatable, up to 100")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the one-time product batch deletion")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product batch deletion without calling Google Play")
 	return cmd
 }

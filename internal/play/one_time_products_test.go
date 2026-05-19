@@ -209,6 +209,70 @@ func TestDeleteOneTimeProductPassesOptionsToDeleter(t *testing.T) {
 	}
 }
 
+func TestBatchDeleteOneTimeProductsDryRunBuildsPlanWithoutDeleter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchDeleteOneTimeProducts(context.Background(), nil, OneTimeProductBatchDeleteOptions{
+		PackageName:      packageName,
+		ProductIDs:       []OneTimeProductID{"coins_100", "coins_500"},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchDeleteOneTimeProducts() error = %v", err)
+	}
+	if !result.DryRun || result.Deleted {
+		t.Fatalf("result = %#v, want dry-run batch deletion plan", result)
+	}
+	if len(result.ProductIDs) != 2 || result.ProductIDs[1] != "coins_500" {
+		t.Fatalf("ProductIDs = %#v, want requested product IDs", result.ProductIDs)
+	}
+}
+
+func TestBatchDeleteOneTimeProductsRejectsDuplicates(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchDeleteOneTimeProducts(context.Background(), nil, OneTimeProductBatchDeleteOptions{
+		PackageName:      packageName,
+		ProductIDs:       []OneTimeProductID{"coins_100", "coins_100"},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate product ID validation error")
+	}
+}
+
+func TestBatchDeleteOneTimeProductsPassesOptionsToDeleter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	deleter := &fakeOneTimeProductClient{}
+
+	result, err := BatchDeleteOneTimeProducts(context.Background(), deleter, OneTimeProductBatchDeleteOptions{
+		PackageName:      packageName,
+		ProductIDs:       []OneTimeProductID{"coins_100", "coins_500"},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchDeleteOneTimeProducts() error = %v", err)
+	}
+	if !result.Deleted {
+		t.Fatal("Deleted = false, want true")
+	}
+	if len(deleter.batchDeleteOptions.ProductIDs) != 2 {
+		t.Fatalf("batchDeleteOptions = %#v, want two products", deleter.batchDeleteOptions)
+	}
+}
+
 func TestUpdatePurchaseOptionStateDryRunBuildsPlanWithoutUpdater(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -282,14 +346,15 @@ func TestUpdatePurchaseOptionStatePassesOptionsToUpdater(t *testing.T) {
 }
 
 type fakeOneTimeProductClient struct {
-	listOptions   OneTimeProductListOptions
-	listResult    OneTimeProductListResult
-	batchOptions  OneTimeProductBatchGetOptions
-	batchResult   OneTimeProductBatchGetResult
-	deleteOptions OneTimeProductDeleteOptions
-	productID     OneTimeProductID
-	product       OneTimeProduct
-	stateOptions  PurchaseOptionStateUpdateOptions
+	listOptions        OneTimeProductListOptions
+	listResult         OneTimeProductListResult
+	batchOptions       OneTimeProductBatchGetOptions
+	batchResult        OneTimeProductBatchGetResult
+	deleteOptions      OneTimeProductDeleteOptions
+	batchDeleteOptions OneTimeProductBatchDeleteOptions
+	productID          OneTimeProductID
+	product            OneTimeProduct
+	stateOptions       PurchaseOptionStateUpdateOptions
 }
 
 func (c *fakeOneTimeProductClient) ListOneTimeProducts(ctx context.Context, options OneTimeProductListOptions) (OneTimeProductListResult, error) {
@@ -309,6 +374,11 @@ func (c *fakeOneTimeProductClient) BatchGetOneTimeProducts(ctx context.Context, 
 
 func (c *fakeOneTimeProductClient) DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error {
 	c.deleteOptions = options
+	return nil
+}
+
+func (c *fakeOneTimeProductClient) BatchDeleteOneTimeProducts(ctx context.Context, options OneTimeProductBatchDeleteOptions) error {
+	c.batchDeleteOptions = options
 	return nil
 }
 

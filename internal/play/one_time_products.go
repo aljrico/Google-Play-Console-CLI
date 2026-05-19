@@ -217,6 +217,10 @@ type OneTimeProductDeleter interface {
 	DeleteOneTimeProduct(ctx context.Context, options OneTimeProductDeleteOptions) error
 }
 
+type OneTimeProductBatchDeleter interface {
+	BatchDeleteOneTimeProducts(ctx context.Context, options OneTimeProductBatchDeleteOptions) error
+}
+
 func GetOneTimeProduct(ctx context.Context, getter OneTimeProductGetter, options OneTimeProductGetOptions) (OneTimeProduct, error) {
 	if err := options.Validate(); err != nil {
 		return OneTimeProduct{}, err
@@ -355,6 +359,105 @@ func DeleteOneTimeProduct(ctx context.Context, deleter OneTimeProductDeleter, op
 	}
 	if err := deleter.DeleteOneTimeProduct(ctx, options); err != nil {
 		return OneTimeProductDeleteResult{}, err
+	}
+	result.Deleted = true
+	return result, nil
+}
+
+type OneTimeProductBatchDeleteOptions struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductIDs       []OneTimeProductID            `json:"productIds"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	DryRun           bool                          `json:"dryRun"`
+}
+
+func (o OneTimeProductBatchDeleteOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if len(o.ProductIDs) == 0 {
+		return fmt.Errorf("at least one one-time product ID is required")
+	}
+	if len(o.ProductIDs) > 100 {
+		return fmt.Errorf("one-time product batch-delete cannot exceed 100 product IDs")
+	}
+	seen := map[OneTimeProductID]struct{}{}
+	for _, productID := range o.ProductIDs {
+		if _, err := NewOneTimeProductID(productID.String()); err != nil {
+			return err
+		}
+		if _, ok := seen[productID]; ok {
+			return fmt.Errorf("one-time product ID %q is duplicated", productID)
+		}
+		seen[productID] = struct{}{}
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("one-time product batch deletion requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o OneTimeProductBatchDeleteOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live one-time product batch deletion cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live one-time product batch deletion requires --confirm")
+	}
+	return nil
+}
+
+type OneTimeProductBatchDeletePlan struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductIDs       []OneTimeProductID            `json:"productIds"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	Steps            []string                      `json:"steps"`
+}
+
+type OneTimeProductBatchDeleteResult struct {
+	PackageName PackageName                   `json:"packageName"`
+	ProductIDs  []OneTimeProductID            `json:"productIds"`
+	DryRun      bool                          `json:"dryRun"`
+	Deleted     bool                          `json:"deleted"`
+	Plan        OneTimeProductBatchDeletePlan `json:"plan"`
+}
+
+func BatchDeleteOneTimeProducts(ctx context.Context, deleter OneTimeProductBatchDeleter, options OneTimeProductBatchDeleteOptions) (OneTimeProductBatchDeleteResult, error) {
+	if err := options.Validate(); err != nil {
+		return OneTimeProductBatchDeleteResult{}, err
+	}
+	productIDs := append([]OneTimeProductID(nil), options.ProductIDs...)
+	result := OneTimeProductBatchDeleteResult{
+		PackageName: options.PackageName,
+		ProductIDs:  productIDs,
+		DryRun:      options.DryRun,
+		Plan: OneTimeProductBatchDeletePlan{
+			PackageName:      options.PackageName,
+			ProductIDs:       productIDs,
+			LatencyTolerance: options.LatencyTolerance,
+			Confirm:          options.Confirm,
+			Steps:            []string{"delete one-time products"},
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if deleter == nil {
+		return OneTimeProductBatchDeleteResult{}, fmt.Errorf("one-time product batch deleter is required")
+	}
+	if err := deleter.BatchDeleteOneTimeProducts(ctx, options); err != nil {
+		return OneTimeProductBatchDeleteResult{}, err
 	}
 	result.Deleted = true
 	return result, nil
