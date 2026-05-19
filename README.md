@@ -134,6 +134,7 @@ gpc one-time-products list --package com.example.app --page-size 50
 gpc one-time-products get --package com.example.app --product-id coins_100
 gpc one-time-products batch-get --package com.example.app --product-id coins_100 --product-id coins_500
 gpc one-time-products create --package com.example.app --product-id coins_100 --from-json one-time-product.json --regions-version 2026/05 --dry-run
+gpc one-time-products create --package com.example.app --product-id coins_100 --listing 'en-US,100 coins,Buy coins.' --price US:USD:1:990000000 --offer-tag public --regions-version 2026/05 --dry-run
 gpc one-time-products patch --package com.example.app --product-id coins_100 --listing-language en-US --title "100 coins" --description "Buy a stack of coins." --regions-version 2026/05 --dry-run
 gpc one-time-products batch-patch-listings --package com.example.app --listing 'coins_100,en-US,100 coins,Buy coins.' --listing 'coins_500,en-US,500 coins,Buy more coins.' --regions-version 2026/05 --dry-run
 gpc one-time-products delete --package com.example.app --product-id coins_100 --dry-run
@@ -238,7 +239,7 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 
 `in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `create` builds managed products only and asks Google to auto-convert missing regional prices from the default price, while live patches and deletes reject legacy subscription SKUs. Batch deletes preflight every requested SKU and fail closed unless Google returns managed products for all of them. Default and regional price patches also request regional auto-conversion; tax compliance patches can set EEA withdrawal right type, tokenized digital asset declaration, regional reduced-tax tiers, and US streaming tax type. `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources. `one-time-products create` uses Google's patch endpoint with `allowMissing=true`, because that is the actual create surface. One-time product purchase option batch deletion follows Google's current rule that each request targets a different one-time product; use `--force` only when you also intend to delete associated offers.
 
-`one-time-products create --from-json` accepts either Google Play API `OneTimeProduct` JSON or `gpc one-time-products get --output json` shape. The `--package` and `--product-id` flags override immutable IDs in the file, and output-only purchase option `state` is ignored. The JSON body must include at least one listing and one buy or rent purchase option. Example:
+`one-time-products create --from-json` accepts either Google Play API `OneTimeProduct` JSON or `gpc one-time-products get --output json` shape. The `--package` and `--product-id` flags override immutable IDs in the file, and output-only purchase option `state` is ignored. For simple buy products, `create` can also build the body from `--listing` and `--price` flags; advanced rent options, new-regions pricing, and compliance settings still belong in JSON. The JSON body must include at least one listing and one buy or rent purchase option. Example:
 
 ```json
 {

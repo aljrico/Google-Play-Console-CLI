@@ -37,6 +37,12 @@ func newOneTimeProductsCreateCommand(out io.Writer, options *globalOptions, pack
 	var (
 		productID        string
 		fromJSON         string
+		listings         []string
+		prices           []string
+		purchaseOptionID string
+		offerTags        []string
+		legacyCompatible bool
+		multiQuantity    bool
 		regionsVersion   string
 		latencyTolerance string
 		confirm          bool
@@ -58,7 +64,21 @@ func newOneTimeProductsCreateCommand(out io.Writer, options *globalOptions, pack
 			if err != nil {
 				return err
 			}
-			product, err := readOneTimeProductJSON(fromJSON)
+			product, err := oneTimeProductCreateBody(oneTimeProductCreateBodyOptions{
+				FromJSON:         fromJSON,
+				Listings:         listings,
+				Prices:           prices,
+				PurchaseOptionID: purchaseOptionID,
+				OfferTags:        offerTags,
+				LegacyCompatible: legacyCompatible,
+				MultiQuantity:    multiQuantity,
+				BasicFlagsSet: cmd.Flags().Changed("listing") ||
+					cmd.Flags().Changed("price") ||
+					cmd.Flags().Changed("purchase-option-id") ||
+					cmd.Flags().Changed("offer-tag") ||
+					cmd.Flags().Changed("legacy-compatible") ||
+					cmd.Flags().Changed("multi-quantity"),
+			})
 			if err != nil {
 				return err
 			}
@@ -98,11 +118,68 @@ func newOneTimeProductsCreateCommand(out io.Writer, options *globalOptions, pack
 	}
 	cmd.Flags().StringVar(&productID, "product-id", "", "One-time product ID")
 	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or gpc JSON one-time product body")
+	cmd.Flags().StringArrayVar(&listings, "listing", nil, "Basic create listing as CSV language,title,description; repeatable")
+	cmd.Flags().StringArrayVar(&prices, "price", nil, "Basic create regional price as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
+	cmd.Flags().StringVar(&purchaseOptionID, "purchase-option-id", "buy", "Basic create purchase option ID")
+	cmd.Flags().StringArrayVar(&offerTags, "offer-tag", nil, "Basic create offer tag on the product and purchase option; repeatable")
+	cmd.Flags().BoolVar(&legacyCompatible, "legacy-compatible", true, "Mark the basic buy purchase option as legacy compatible")
+	cmd.Flags().BoolVar(&multiQuantity, "multi-quantity", false, "Enable multi-quantity purchases on the basic buy purchase option")
 	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by oneTimeProducts.patch")
 	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Create the one-time product")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product creation without calling Google Play")
 	return cmd
+}
+
+type oneTimeProductCreateBodyOptions struct {
+	FromJSON         string
+	Listings         []string
+	Prices           []string
+	PurchaseOptionID string
+	OfferTags        []string
+	LegacyCompatible bool
+	MultiQuantity    bool
+	BasicFlagsSet    bool
+}
+
+func oneTimeProductCreateBody(options oneTimeProductCreateBodyOptions) (play.OneTimeProduct, error) {
+	if strings.TrimSpace(options.FromJSON) != "" {
+		if options.UsesBasicFlags() {
+			return play.OneTimeProduct{}, fmt.Errorf("--from-json cannot be combined with basic create flags")
+		}
+		return readOneTimeProductJSON(options.FromJSON)
+	}
+	if !options.UsesBasicFlags() {
+		return play.OneTimeProduct{}, fmt.Errorf("one-time product create requires --from-json or basic create flags")
+	}
+	listings, err := parseOneTimeProductCreateListings(options.Listings)
+	if err != nil {
+		return play.OneTimeProduct{}, err
+	}
+	regionalConfigs, err := parseOneTimeProductCreateRegionalPrices(options.Prices)
+	if err != nil {
+		return play.OneTimeProduct{}, err
+	}
+	purchaseOptionID, err := play.NewOneTimeProductPurchaseOptionID(options.PurchaseOptionID)
+	if err != nil {
+		return play.OneTimeProduct{}, err
+	}
+	return play.OneTimeProduct{
+		Listings:  listings,
+		OfferTags: append([]string(nil), options.OfferTags...),
+		PurchaseOptions: []play.OneTimeProductPurchaseOption{{
+			PurchaseOptionID:     purchaseOptionID.String(),
+			Type:                 play.OneTimeProductPurchaseOptionTypeBuy,
+			LegacyCompatible:     options.LegacyCompatible,
+			MultiQuantityEnabled: options.MultiQuantity,
+			OfferTags:            append([]string(nil), options.OfferTags...),
+			RegionalConfigs:      regionalConfigs,
+		}},
+	}, nil
+}
+
+func (o oneTimeProductCreateBodyOptions) UsesBasicFlags() bool {
+	return o.BasicFlagsSet
 }
 
 func readOneTimeProductJSON(path string) (play.OneTimeProduct, error) {
@@ -118,6 +195,81 @@ func readOneTimeProductJSON(path string) (play.OneTimeProduct, error) {
 		return play.OneTimeProduct{}, fmt.Errorf("parse one-time product JSON %s: %w", path, err)
 	}
 	return product, nil
+}
+
+func parseOneTimeProductCreateListings(values []string) ([]play.OneTimeProductListing, error) {
+	if len(values) == 0 {
+		return nil, fmt.Errorf("basic one-time product create requires at least one --listing")
+	}
+	listings := make([]play.OneTimeProductListing, 0, len(values))
+	for _, value := range values {
+		listing, err := parseOneTimeProductCreateListing(value)
+		if err != nil {
+			return nil, err
+		}
+		listings = append(listings, listing)
+	}
+	return listings, nil
+}
+
+func parseOneTimeProductCreateListing(value string) (play.OneTimeProductListing, error) {
+	reader := csv.NewReader(strings.NewReader(value))
+	reader.TrimLeadingSpace = true
+	records, err := reader.ReadAll()
+	if err != nil {
+		return play.OneTimeProductListing{}, fmt.Errorf("parse one-time product create listing CSV: %w", err)
+	}
+	if len(records) != 1 {
+		return play.OneTimeProductListing{}, fmt.Errorf("one-time product create listing must contain exactly one CSV record")
+	}
+	fields := records[0]
+	if len(fields) != 3 {
+		return play.OneTimeProductListing{}, fmt.Errorf("one-time product create listing must be CSV language,title,description")
+	}
+	language, err := play.NewListingLanguage(fields[0])
+	if err != nil {
+		return play.OneTimeProductListing{}, err
+	}
+	return play.OneTimeProductListing{
+		LanguageCode: language.String(),
+		Title:        fields[1],
+		Description:  fields[2],
+	}, nil
+}
+
+func parseOneTimeProductCreateRegionalPrices(values []string) ([]play.OneTimeProductRegionalConfig, error) {
+	if len(values) == 0 {
+		return nil, fmt.Errorf("basic one-time product create requires at least one --price")
+	}
+	configs := make([]play.OneTimeProductRegionalConfig, 0, len(values))
+	for _, value := range values {
+		config, err := parseOneTimeProductCreateRegionalPrice(value)
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, config)
+	}
+	return configs, nil
+}
+
+func parseOneTimeProductCreateRegionalPrice(value string) (play.OneTimeProductRegionalConfig, error) {
+	regionCode, priceValue, ok := strings.Cut(strings.TrimSpace(value), ":")
+	if !ok {
+		return play.OneTimeProductRegionalConfig{}, errOneTimeProductCreateRegionalPriceFormat()
+	}
+	price, err := parseRegionalPricePatchMoney(priceValue, errOneTimeProductCreateRegionalPriceFormat)
+	if err != nil {
+		return play.OneTimeProductRegionalConfig{}, err
+	}
+	return play.OneTimeProductRegionalConfig{
+		RegionCode:   strings.ToUpper(strings.TrimSpace(regionCode)),
+		Availability: play.PurchaseOptionAvailabilityAvailable.String(),
+		Price:        &price,
+	}, nil
+}
+
+func errOneTimeProductCreateRegionalPriceFormat() error {
+	return fmt.Errorf("one-time product create price must use REGION:CURRENCY:UNITS[:NANOS]")
 }
 
 func newOneTimeProductsBatchPatchListingsCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {

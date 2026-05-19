@@ -5357,6 +5357,105 @@ func TestOneTimeProductsCreateDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestOneTimeProductsCreateBasicFlagsDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-products",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--listing",
+		"en-US,100 coins,Buy coins.",
+		"--price",
+		"us:USD:1:990000000",
+		"--purchase-option-id",
+		"buy",
+		"--offer-tag",
+		"public",
+		"--multi-quantity",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"productId":"coins_100"`,
+		`"languageCode":"en-US"`,
+		`"title":"100 coins"`,
+		`"purchaseOptionId":"buy"`,
+		`"type":"buy"`,
+		`"legacyCompatible":true`,
+		`"multiQuantityEnabled":true`,
+		`"offerTags":["public"]`,
+		`"regionCode":"US"`,
+		`"availability":"available"`,
+		`"currencyCode":"USD"`,
+		`"nanos":990000000`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestOneTimeProductsCreateRejectsJSONWithBasicFlagsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "one-time-product.json")
+	if err := os.WriteFile(bodyPath, []byte(`{
+		"listings":[{"languageCode":"en-US","title":"100 coins","description":"Buy coins."}],
+		"purchaseOptions":[{"purchaseOptionId":"buy","buyOption":{"legacyCompatible":true},"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","price":{"currencyCode":"USD","units":"1"}}]}]
+	}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-products",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--from-json",
+		bodyPath,
+		"--listing",
+		"en-US,100 coins,Buy coins.",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected from-json and basic flags validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("error = %v, want combination validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestOneTimeProductsCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "one-time-product.json")

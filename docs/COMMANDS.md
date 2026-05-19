@@ -1749,7 +1749,13 @@ gpc one-time-products create [flags]
 - `--dry-run`: Print the planned one-time product creation without calling Google Play (default `false`)
 - `--from-json`: Path to a Google Play API or gpc JSON one-time product body
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--legacy-compatible`: Mark the basic buy purchase option as legacy compatible (default `true`)
+- `--listing`: Basic create listing as CSV language,title,description; repeatable (default `[]`)
+- `--multi-quantity`: Enable multi-quantity purchases on the basic buy purchase option (default `false`)
+- `--offer-tag`: Basic create offer tag on the product and purchase option; repeatable (default `[]`)
+- `--price`: Basic create regional price as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
 - `--product-id`: One-time product ID
+- `--purchase-option-id`: Basic create purchase option ID (default `buy`)
 - `--regions-version`: Google Play regions version required by oneTimeProducts.patch
 
 #### gpc one-time-products delete
