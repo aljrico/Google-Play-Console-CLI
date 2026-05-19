@@ -281,6 +281,7 @@ func newSubscriptionsPatchCommand(out io.Writer, options *globalOptions, package
 		title            string
 		description      string
 		benefits         []string
+		regionsVersion   string
 		latencyTolerance string
 		confirm          bool
 		dryRun           bool
@@ -316,6 +317,9 @@ func newSubscriptionsPatchCommand(out io.Writer, options *globalOptions, package
 					Description:  description,
 					Benefits:     benefits,
 				},
+				DescriptionSet:   cmd.Flags().Changed("description"),
+				BenefitsSet:      cmd.Flags().Changed("benefit"),
+				RegionsVersion:   regionsVersion,
 				LatencyTolerance: typedLatencyTolerance,
 				Confirm:          confirm,
 				DryRun:           dryRun,
@@ -346,6 +350,7 @@ func newSubscriptionsPatchCommand(out io.Writer, options *globalOptions, package
 	cmd.Flags().StringVar(&title, "title", "", "Localized subscription title")
 	cmd.Flags().StringVar(&description, "description", "", "Localized subscription description")
 	cmd.Flags().StringArrayVar(&benefits, "benefit", nil, "Localized subscription benefit; repeatable, up to 4")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by subscriptions.patch")
 	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription listing patch")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription listing patch without calling Google Play")

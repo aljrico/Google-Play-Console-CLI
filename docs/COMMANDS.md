@@ -2237,6 +2237,7 @@ gpc subscriptions patch [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--listing-language`: BCP-47 language code for the listing to patch, for example en-US
 - `--product-id`: Subscription product ID
+- `--regions-version`: Google Play regions version required by subscriptions.patch
 - `--title`: Localized subscription title
 
 ### gpc system-apks

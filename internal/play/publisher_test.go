@@ -908,7 +908,7 @@ func TestGooglePublisherPatchSubscriptionMergesListingsBeforePatch(t *testing.T)
 				"packageName": "com.example.app",
 				"productId": "premium",
 				"listings": [
-					{"languageCode": "en-US", "title": "Premium", "description": "Old English"},
+					{"languageCode": "en-US", "title": "Premium", "description": "Old English", "benefits": ["Old benefit"]},
 					{"languageCode": "es-ES", "title": "Premium ES", "description": "Spanish"}
 				]
 			}`)
@@ -922,6 +922,9 @@ func TestGooglePublisherPatchSubscriptionMergesListingsBeforePatch(t *testing.T)
 			if got := r.URL.Query().Get("updateMask"); got != "listings" {
 				t.Fatalf("updateMask = %q, want listings", got)
 			}
+			if got := r.URL.Query().Get("regionsVersion.version"); got != "2022/02" {
+				t.Fatalf("regionsVersion.version = %q, want 2022/02", got)
+			}
 			if got := r.URL.Query().Get("latencyTolerance"); got != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
 				t.Fatalf("latencyTolerance = %q, want tolerant", got)
 			}
@@ -932,8 +935,11 @@ func TestGooglePublisherPatchSubscriptionMergesListingsBeforePatch(t *testing.T)
 			if len(request.Listings) != 2 {
 				t.Fatalf("len(Listings) = %d, want merged listings", len(request.Listings))
 			}
-			if request.Listings[0].LanguageCode != "en-US" || request.Listings[0].Description != "New English" {
-				t.Fatalf("Listings[0] = %#v, want patched English listing", request.Listings[0])
+			if request.Listings[0].LanguageCode != "en-US" || request.Listings[0].Title != "Premium Plus" {
+				t.Fatalf("Listings[0] = %#v, want patched English title", request.Listings[0])
+			}
+			if request.Listings[0].Description != "Old English" || !reflect.DeepEqual(request.Listings[0].Benefits, []string{"Old benefit"}) {
+				t.Fatalf("Listings[0] = %#v, want preserved omitted fields", request.Listings[0])
 			}
 			if request.Listings[1].LanguageCode != "es-ES" || request.Listings[1].Description != "Spanish" {
 				t.Fatalf("Listings[1] = %#v, want preserved Spanish listing", request.Listings[1])
@@ -943,7 +949,7 @@ func TestGooglePublisherPatchSubscriptionMergesListingsBeforePatch(t *testing.T)
 				"packageName": "com.example.app",
 				"productId": "premium",
 				"listings": [
-					{"languageCode": "en-US", "title": "Premium", "description": "New English"},
+					{"languageCode": "en-US", "title": "Premium Plus", "description": "Old English", "benefits": ["Old benefit"]},
 					{"languageCode": "es-ES", "title": "Premium ES", "description": "Spanish"}
 				]
 			}`)
@@ -957,10 +963,9 @@ func TestGooglePublisherPatchSubscriptionMergesListingsBeforePatch(t *testing.T)
 		ProductID:   "premium",
 		Listing: SubscriptionListing{
 			LanguageCode: "en-US",
-			Title:        "Premium",
-			Description:  "New English",
-			Benefits:     []string{"Everything"},
+			Title:        "Premium Plus",
 		},
+		RegionsVersion:   "2022/02",
 		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
 		Confirm:          true,
 	})
@@ -970,7 +975,7 @@ func TestGooglePublisherPatchSubscriptionMergesListingsBeforePatch(t *testing.T)
 	if requestCount != 2 {
 		t.Fatalf("requestCount = %d, want get plus patch", requestCount)
 	}
-	if len(subscription.Listings) != 2 || subscription.Listings[0].Description != "New English" {
+	if len(subscription.Listings) != 2 || subscription.Listings[0].Title != "Premium Plus" || subscription.Listings[0].Description != "Old English" {
 		t.Fatalf("Listings = %#v, want patched listing", subscription.Listings)
 	}
 }
@@ -984,6 +989,7 @@ func TestGooglePublisherPatchSubscriptionRejectsDryRunBeforeRequest(t *testing.T
 		PackageName:      "com.example.app",
 		ProductID:        "premium",
 		Listing:          SubscriptionListing{LanguageCode: "en-US", Title: "Premium"},
+		RegionsVersion:   "2022/02",
 		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
 		DryRun:           true,
 	})

@@ -134,7 +134,7 @@ gpc one-time-product-offers cancel --package com.example.app --product-id coins_
 gpc subscriptions list --package com.example.app --page-size 50
 gpc subscriptions get --package com.example.app --product-id premium_monthly
 gpc subscriptions batch-get --package com.example.app --product-id premium_monthly --product-id premium_yearly
-gpc subscriptions patch --package com.example.app --product-id premium_monthly --listing-language en-US --title "Premium" --description "Full access" --dry-run
+gpc subscriptions patch --package com.example.app --product-id premium_monthly --listing-language en-US --title "Premium" --description "Full access" --regions-version 2022/02 --dry-run
 gpc subscriptions delete --package com.example.app --product-id premium_draft --dry-run
 gpc subscriptions base-plan deactivate --package com.example.app --product-id premium_monthly --base-plan-id monthly --dry-run
 gpc subscription-offers list --package com.example.app --product-id premium_monthly --base-plan-id monthly

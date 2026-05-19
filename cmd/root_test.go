@@ -4750,6 +4750,8 @@ func TestSubscriptionsPatchDryRunDoesNotRequireAuth(t *testing.T) {
 		"Full access",
 		"--benefit",
 		"Unlimited projects",
+		"--regions-version",
+		"2022/02",
 		"--latency-tolerance",
 		"latencyTolerant",
 		"--dry-run",
@@ -4767,6 +4769,7 @@ func TestSubscriptionsPatchDryRunDoesNotRequireAuth(t *testing.T) {
 		`"languageCode":"en-US"`,
 		`"title":"Premium"`,
 		`"updateMask":"listings"`,
+		`"regionsVersion":"2022/02"`,
 		`"latencyTolerance":"latencyTolerant"`,
 	} {
 		if !strings.Contains(output, want) {
@@ -4794,6 +4797,8 @@ func TestSubscriptionsPatchRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
 		"en-US",
 		"--title",
 		"Premium",
+		"--regions-version",
+		"2022/02",
 		"--output",
 		"json",
 	})

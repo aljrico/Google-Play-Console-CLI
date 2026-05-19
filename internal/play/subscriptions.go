@@ -349,6 +349,9 @@ type SubscriptionPatchOptions struct {
 	PackageName      PackageName                   `json:"packageName"`
 	ProductID        SubscriptionProductID         `json:"productId"`
 	Listing          SubscriptionListing           `json:"listing"`
+	DescriptionSet   bool                          `json:"descriptionSet,omitempty"`
+	BenefitsSet      bool                          `json:"benefitsSet,omitempty"`
+	RegionsVersion   string                        `json:"regionsVersion"`
 	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
 	Confirm          bool                          `json:"confirm"`
 	DryRun           bool                          `json:"dryRun"`
@@ -363,6 +366,12 @@ func (o SubscriptionPatchOptions) Validate() error {
 	}
 	if err := validateSubscriptionListing(o.Listing); err != nil {
 		return err
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
 	}
 	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
 		return err
@@ -402,8 +411,8 @@ func validateSubscriptionListing(listing SubscriptionListing) error {
 	if strings.TrimSpace(listing.Description) != listing.Description {
 		return fmt.Errorf("subscription listing description cannot have leading or trailing whitespace")
 	}
-	if len(listing.Description) > 200 {
-		return fmt.Errorf("subscription listing description cannot exceed 200 characters")
+	if len(listing.Description) > 80 {
+		return fmt.Errorf("subscription listing description cannot exceed 80 characters")
 	}
 	if len(listing.Benefits) > 4 {
 		return fmt.Errorf("subscription listing cannot have more than 4 benefits")
@@ -482,7 +491,10 @@ type SubscriptionPatchPlan struct {
 	PackageName      PackageName                   `json:"packageName"`
 	ProductID        SubscriptionProductID         `json:"productId"`
 	Listing          SubscriptionListing           `json:"listing"`
+	DescriptionSet   bool                          `json:"descriptionSet,omitempty"`
+	BenefitsSet      bool                          `json:"benefitsSet,omitempty"`
 	UpdateMask       string                        `json:"updateMask"`
+	RegionsVersion   string                        `json:"regionsVersion"`
 	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
 	Confirm          bool                          `json:"confirm"`
 	Steps            []string                      `json:"steps"`
@@ -514,7 +526,10 @@ func NewSubscriptionPatchPlan(options SubscriptionPatchOptions) (SubscriptionPat
 		PackageName:      options.PackageName,
 		ProductID:        options.ProductID,
 		Listing:          options.Listing,
+		DescriptionSet:   options.DescriptionSet,
+		BenefitsSet:      options.BenefitsSet,
 		UpdateMask:       subscriptionPatchUpdateMask,
+		RegionsVersion:   options.RegionsVersion,
 		LatencyTolerance: options.LatencyTolerance,
 		Confirm:          options.Confirm,
 		Steps:            subscriptionPatchSteps(options),
@@ -535,6 +550,7 @@ func PatchSubscription(ctx context.Context, patcher SubscriptionPatcher, options
 			PackageName: options.PackageName,
 			ProductID:   options.ProductID,
 			Listings:    []SubscriptionListing{options.Listing},
+			BasePlans:   []SubscriptionBasePlan{},
 		},
 		Plan: plan,
 	}

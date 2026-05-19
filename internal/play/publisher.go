@@ -717,7 +717,7 @@ func (p GooglePublisher) PatchSubscription(ctx context.Context, options Subscrip
 	if err != nil {
 		return Subscription{}, fmt.Errorf("get subscription %s for %s before patch: %w", options.ProductID, options.PackageName, err)
 	}
-	mergedListings := mergeSubscriptionListings(subscriptionListingsFromAPI(current.Listings), options.Listing)
+	mergedListings := mergeSubscriptionListings(subscriptionListingsFromAPI(current.Listings), options)
 	request := &androidpublisher.Subscription{
 		PackageName: options.PackageName.String(),
 		ProductId:   options.ProductID.String(),
@@ -725,6 +725,7 @@ func (p GooglePublisher) PatchSubscription(ctx context.Context, options Subscrip
 	}
 	subscription, err := p.service.Monetization.Subscriptions.Patch(options.PackageName.String(), options.ProductID.String(), request).
 		UpdateMask(subscriptionPatchUpdateMask).
+		RegionsVersionVersion(options.RegionsVersion).
 		LatencyTolerance(productUpdateLatencyToleranceToAPI(options.LatencyTolerance)).
 		Context(ctx).
 		Do()
@@ -2509,12 +2510,13 @@ func subscriptionListingToAPI(listing SubscriptionListing) *androidpublisher.Sub
 	}
 }
 
-func mergeSubscriptionListings(current []SubscriptionListing, patch SubscriptionListing) []SubscriptionListing {
+func mergeSubscriptionListings(current []SubscriptionListing, options SubscriptionPatchOptions) []SubscriptionListing {
+	patch := options.Listing
 	merged := make([]SubscriptionListing, 0, len(current)+1)
 	replaced := false
 	for _, listing := range current {
 		if listing.LanguageCode == patch.LanguageCode {
-			merged = append(merged, patch)
+			merged = append(merged, mergeSubscriptionListing(listing, options))
 			replaced = true
 			continue
 		}
@@ -2524,6 +2526,17 @@ func mergeSubscriptionListings(current []SubscriptionListing, patch Subscription
 		merged = append(merged, patch)
 	}
 	return merged
+}
+
+func mergeSubscriptionListing(current SubscriptionListing, options SubscriptionPatchOptions) SubscriptionListing {
+	current.Title = options.Listing.Title
+	if options.DescriptionSet {
+		current.Description = options.Listing.Description
+	}
+	if options.BenefitsSet {
+		current.Benefits = options.Listing.Benefits
+	}
+	return current
 }
 
 func subscriptionBasePlansFromAPI(apiBasePlans []*androidpublisher.BasePlan) []SubscriptionBasePlan {

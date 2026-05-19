@@ -278,6 +278,8 @@ func TestPatchSubscriptionDryRunBuildsPlanWithoutPatcher(t *testing.T) {
 		PackageName:      packageName,
 		ProductID:        "premium",
 		Listing:          SubscriptionListing{LanguageCode: "en-US", Title: "Premium", Description: "Full access"},
+		DescriptionSet:   true,
+		RegionsVersion:   "2022/02",
 		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
 		DryRun:           true,
 	})
@@ -289,6 +291,12 @@ func TestPatchSubscriptionDryRunBuildsPlanWithoutPatcher(t *testing.T) {
 	}
 	if result.Plan.UpdateMask != "listings" {
 		t.Fatalf("UpdateMask = %q, want listings", result.Plan.UpdateMask)
+	}
+	if result.Plan.RegionsVersion != "2022/02" {
+		t.Fatalf("RegionsVersion = %q, want 2022/02", result.Plan.RegionsVersion)
+	}
+	if result.Desired.BasePlans == nil {
+		t.Fatal("Desired.BasePlans = nil, want empty slice")
 	}
 	wantSteps := []string{"plan subscription listing patch"}
 	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
@@ -306,6 +314,7 @@ func TestPatchSubscriptionRequiresConfirmOrDryRun(t *testing.T) {
 		PackageName:      packageName,
 		ProductID:        "premium",
 		Listing:          SubscriptionListing{LanguageCode: "en-US", Title: "Premium"},
+		RegionsVersion:   "2022/02",
 		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
 	})
 	if err == nil {
@@ -327,11 +336,37 @@ func TestPatchSubscriptionRejectsTooManyBenefits(t *testing.T) {
 			Title:        "Premium",
 			Benefits:     []string{"one", "two", "three", "four", "five"},
 		},
+		BenefitsSet:      true,
+		RegionsVersion:   "2022/02",
 		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
 		DryRun:           true,
 	})
 	if err == nil {
 		t.Fatal("expected benefits validation error")
+	}
+}
+
+func TestPatchSubscriptionRejectsDescriptionAboveGoogleLimit(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewSubscriptionPatchPlan(SubscriptionPatchOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		Listing: SubscriptionListing{
+			LanguageCode: "en-US",
+			Title:        "Premium",
+			Description:  "This subscription description is intentionally longer than eighty characters for validation.",
+		},
+		DescriptionSet:   true,
+		RegionsVersion:   "2022/02",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected description validation error")
 	}
 }
 
@@ -347,6 +382,8 @@ func TestPatchSubscriptionPassesOptionsToPatcher(t *testing.T) {
 		PackageName:      packageName,
 		ProductID:        "premium",
 		Listing:          SubscriptionListing{LanguageCode: "en-US", Title: "Premium", Description: "Full access"},
+		DescriptionSet:   true,
+		RegionsVersion:   "2022/02",
 		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
 		Confirm:          true,
 	}
