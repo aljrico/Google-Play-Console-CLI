@@ -210,6 +210,7 @@ gpc orders batch-get --package com.example.app --order-id GPA.1234 --order-id GP
 gpc orders refund --package com.example.app --order-id GPA.1234-5678-9012-34567 --dry-run
 gpc orders refund --package com.example.app --order-id GPA.1234-5678-9012-34567 --revoke --confirm
 gpc pricing convert-region-prices --package com.example.app --currency USD --units 9 --nanos 990000000
+gpc pricing build-price-patches --from-json conversion.json --target subscription-base-plan --product-id premium_monthly --base-plan-id monthly
 gpc users list --developer 1234567890
 gpc users create --developer 1234567890 --user-email user@example.com --permission CAN_VIEW_NON_FINANCIAL_DATA_GLOBAL --dry-run
 gpc users patch --developer 1234567890 --user-email user@example.com --permission CAN_REPLY_TO_REVIEWS_GLOBAL --dry-run
@@ -252,6 +253,8 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 `notifications pubsub pull` reads messages from a pull subscription and can decode each message as a Google Play RTDN payload. It only acknowledges messages after output succeeds and only when both `--ack` and `--confirm` are passed.
 
 `finance reports download` and `analytics stats download` fetch report objects from the Google Play reports Cloud Storage bucket. Use the bucket ID shown in Play Console, usually shaped like `pubsite_prod_rev_0123456789`, and pass the exact object path for the report you want. Financial reports are ZIP files; statistics reports are CSV files. `insights reports summarize` composes already-downloaded finance and statistics CSVs into one local JSON artifact with report summaries and highlights.
+
+`pricing convert-region-prices` calls Google Play's regional price conversion API for a source Money value. `pricing build-price-patches` turns that JSON output into deterministic patch arguments and a suggested dry-run command for in-app product regional prices, one-time product purchase option prices, subscription base-plan prices, or subscription offer phase prices.
 
 `in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `create` builds managed products only and asks Google to auto-convert missing regional prices from the default price, while live patches and deletes reject legacy subscription SKUs. Batch deletes preflight every requested SKU and fail closed unless Google returns managed products for all of them. Default and regional price patches also request regional auto-conversion; tax compliance patches can set EEA withdrawal right type, tokenized digital asset declaration, regional reduced-tax tiers, and US streaming tax type. `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources. `one-time-products create` uses Google's patch endpoint with `allowMissing=true`, because that is the actual create surface. One-time product purchase option batch deletion follows Google's current rule that each request targets a different one-time product; use `--force` only when you also intend to delete associated offers.
 

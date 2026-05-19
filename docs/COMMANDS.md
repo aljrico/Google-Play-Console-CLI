@@ -44,7 +44,7 @@ gpc [flags]
 - `gpc one-time-product-offers`: Inspect Google Play one-time product offers
 - `gpc one-time-products`: Inspect Google Play one-time products
 - `gpc orders`: Inspect and refund Google Play orders
-- `gpc pricing`: Inspect Google Play price conversions
+- `gpc pricing`: Build and inspect Google Play price conversions
 - `gpc publish`: Run high-level Google Play publishing workflows
 - `gpc purchases`: Inspect and manage Google Play purchase tokens
 - `gpc releases`: Upload and manage Google Play releases
@@ -2005,7 +2005,7 @@ gpc orders refund [flags]
 
 ### gpc pricing
 
-Inspect Google Play price conversions
+Build and inspect Google Play price conversions
 
 ```sh
 gpc pricing
@@ -2017,7 +2017,27 @@ gpc pricing
 
 #### Commands
 
+- `gpc pricing build-price-patches`: Build regional price patch arguments from converted Play prices
 - `gpc pricing convert-region-prices`: Convert one source price into Play region prices
+
+#### gpc pricing build-price-patches
+
+Build regional price patch arguments from converted Play prices
+
+```sh
+gpc pricing build-price-patches [flags]
+```
+
+##### Flags
+
+- `--base-plan-id`: Base plan ID for subscription targets
+- `--from-json`: Path to gpc pricing convert-region-prices JSON output
+- `--offer-id`: Offer ID for --target subscription-offer-phase
+- `--phase-index`: Zero-based offer phase index for --target subscription-offer-phase (default `-1`)
+- `--product-id`: One-time product or subscription product ID
+- `--purchase-option-id`: Purchase option ID for --target one-time-product
+- `--sku`: In-app product SKU for --target in-app-product
+- `--target`: Patch target: in-app-product, one-time-product, subscription-base-plan, or subscription-offer-phase
 
 #### gpc pricing convert-region-prices
 
