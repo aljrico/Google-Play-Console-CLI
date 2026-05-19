@@ -13,7 +13,7 @@ func newNotifyCommand(out io.Writer, options *globalOptions) *cobra.Command {
 		Use:   "notify",
 		Short: "Send release workflow notifications",
 	}
-	cmd.AddCommand(newNotifySendCommand(out, options), newNotifyDiscordCommand(out, options), newNotifySlackCommand(out, options))
+	cmd.AddCommand(newNotifySendCommand(out, options), newNotifyDiscordCommand(out, options), newNotifySlackCommand(out, options), newNotifyTeamsCommand(out, options))
 	return cmd
 }
 
@@ -94,6 +94,33 @@ func newNotifyDiscordCommand(out io.Writer, options *globalOptions) *cobra.Comma
 		WebhookURLFile: "File containing the Discord incoming webhook URL",
 		Confirm:        "Send the Discord webhook",
 		DryRun:         "Print the Discord payload without sending",
+	})
+	return cmd
+}
+
+func newNotifyTeamsCommand(out io.Writer, options *globalOptions) *cobra.Command {
+	sendOptions := newNotifySendOptions("notify teams")
+	cmd := &cobra.Command{
+		Use:   "teams",
+		Short: "Send a Microsoft Teams Workflows webhook notification",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := notify.SendTeams(cmd.Context(), nil, sendOptions)
+			if result.Webhook == "" {
+				return err
+			}
+			if writeErr := output.Write(out, options.output, options.pretty, result); writeErr != nil {
+				return writeErr
+			}
+			return err
+		},
+	}
+	addNotifyFlags(cmd, &sendOptions, notifyFlagHelp{
+		WebhookURL:     "HTTPS Microsoft Teams Workflows webhook URL; legacy incoming connector URLs are also supported; http is allowed only for loopback hosts",
+		WebhookURLEnv:  "Environment variable containing the Microsoft Teams Workflows webhook URL",
+		WebhookURLFile: "File containing the Microsoft Teams Workflows webhook URL",
+		Confirm:        "Send the Microsoft Teams webhook",
+		DryRun:         "Print the Microsoft Teams payload without sending",
 	})
 	return cmd
 }

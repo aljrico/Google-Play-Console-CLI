@@ -67,6 +67,7 @@ gpc migrate supply images --directory fastlane/metadata/android --language en-US
 GPC_NOTIFY_WEBHOOK_URL="$WEBHOOK_URL" gpc notify send --message "Internal release staged" --dry-run
 GPC_NOTIFY_WEBHOOK_URL="$DISCORD_WEBHOOK_URL" gpc notify discord --title "Release" --message "Internal release staged" --field track=internal --dry-run
 GPC_NOTIFY_WEBHOOK_URL="$SLACK_WEBHOOK_URL" gpc notify slack --title "Release" --message "Internal release staged" --field track=internal --dry-run
+GPC_NOTIFY_WEBHOOK_URL="$TEAMS_WEBHOOK_URL" gpc notify teams --title "Release" --message "Internal release staged" --field track=internal --dry-run
 gpc search "release upload" --limit 5
 gpc snitch report --title "Confusing release output" --command "gpc releases list --package com.example.app"
 gpc notifications pubsub setup --project play-project --topic play-rtdn --subscription play-rtdn-sub --dry-run

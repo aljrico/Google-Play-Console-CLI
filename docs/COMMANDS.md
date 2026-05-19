@@ -1234,6 +1234,7 @@ gpc notify
 - `gpc notify discord`: Send a Discord incoming webhook notification
 - `gpc notify send`: Send a JSON notification webhook
 - `gpc notify slack`: Send a Slack incoming webhook notification
+- `gpc notify teams`: Send a Microsoft Teams Workflows webhook notification
 
 #### gpc notify discord
 
@@ -1294,6 +1295,26 @@ gpc notify slack [flags]
 - `--webhook-url`: HTTPS Slack incoming webhook URL; http is allowed only for loopback hosts
 - `--webhook-url-env`: Environment variable containing the Slack incoming webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
 - `--webhook-url-file`: File containing the Slack incoming webhook URL
+
+#### gpc notify teams
+
+Send a Microsoft Teams Workflows webhook notification
+
+```sh
+gpc notify teams [flags]
+```
+
+##### Flags
+
+- `--confirm`: Send the Microsoft Teams webhook (default `false`)
+- `--dry-run`: Print the Microsoft Teams payload without sending (default `false`)
+- `--field`: Notification field as name=value; repeatable (default `[]`)
+- `--message`: Notification message
+- `--severity`: Notification severity label
+- `--title`: Notification title
+- `--webhook-url`: HTTPS Microsoft Teams Workflows webhook URL; legacy incoming connector URLs are also supported; http is allowed only for loopback hosts
+- `--webhook-url-env`: Environment variable containing the Microsoft Teams Workflows webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-file`: File containing the Microsoft Teams Workflows webhook URL
 
 ### gpc one-time-product-offers
 

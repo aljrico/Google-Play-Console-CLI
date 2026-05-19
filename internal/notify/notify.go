@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -17,6 +19,8 @@ import (
 
 const defaultHTTPTimeout = 30 * time.Second
 const DefaultWebhookURLEnv = "GPC_NOTIFY_WEBHOOK_URL"
+const maxTeamsWebhookPayloadBytes = 28 * 1024
+const maxTeamsWebhookResponseBytes = 32 * 1024
 
 type Field struct {
 	Name  string `json:"name"`
@@ -31,6 +35,10 @@ type Payload struct {
 }
 
 type SlackPayload struct {
+	Text string `json:"text"`
+}
+
+type TeamsPayload struct {
 	Text string `json:"text"`
 }
 
@@ -74,6 +82,15 @@ type SlackSendResult struct {
 	Payload    SlackPayload `json:"payload"`
 }
 
+type TeamsSendResult struct {
+	Webhook    string       `json:"webhook"`
+	Confirm    bool         `json:"confirm"`
+	DryRun     bool         `json:"dryRun"`
+	Delivered  bool         `json:"delivered"`
+	StatusCode int          `json:"statusCode,omitempty"`
+	Payload    TeamsPayload `json:"payload"`
+}
+
 type DiscordSendResult struct {
 	Webhook    string         `json:"webhook"`
 	Confirm    bool           `json:"confirm"`
@@ -89,6 +106,10 @@ type Sender interface {
 
 type SlackSender interface {
 	SendSlack(ctx context.Context, webhookURL string, payload SlackPayload) (int, error)
+}
+
+type TeamsSender interface {
+	SendTeams(ctx context.Context, webhookURL string, payload TeamsPayload) (int, error)
 }
 
 type DiscordSender interface {
@@ -159,6 +180,40 @@ func SendSlack(ctx context.Context, sender SlackSender, options SendOptions) (Sl
 		sender = WebhookSender{}
 	}
 	statusCode, err := sender.SendSlack(ctx, resolvedURL, payload)
+	result.StatusCode = statusCode
+	if err != nil {
+		return result, err
+	}
+	result.Delivered = true
+	return result, nil
+}
+
+func SendTeams(ctx context.Context, sender TeamsSender, options SendOptions) (TeamsSendResult, error) {
+	resolvedURL, err := options.ResolvedWebhookURL()
+	if err != nil {
+		return TeamsSendResult{}, err
+	}
+	if err := options.ValidateWebhookURL(resolvedURL); err != nil {
+		return TeamsSendResult{}, err
+	}
+	payload, err := options.TeamsPayload()
+	if err != nil {
+		return TeamsSendResult{}, err
+	}
+	result := TeamsSendResult{
+		Webhook:   RedactedTeamsURL(resolvedURL),
+		Confirm:   options.Confirm,
+		DryRun:    options.DryRun,
+		Delivered: false,
+		Payload:   payload,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if sender == nil {
+		sender = WebhookSender{}
+	}
+	statusCode, err := sender.SendTeams(ctx, resolvedURL, payload)
 	result.StatusCode = statusCode
 	if err != nil {
 		return result, err
@@ -324,12 +379,48 @@ func (o SendOptions) DiscordPayload() (DiscordPayload, error) {
 	}, nil
 }
 
+func (o SendOptions) TeamsPayload() (TeamsPayload, error) {
+	payload, err := o.Payload()
+	if err != nil {
+		return TeamsPayload{}, err
+	}
+	teamsPayload := TeamsPayload{Text: PlainText(payload)}
+	body, err := json.Marshal(teamsPayload)
+	if err != nil {
+		return TeamsPayload{}, fmt.Errorf("encode Teams notification payload: %w", err)
+	}
+	if len(body) > maxTeamsWebhookPayloadBytes {
+		return TeamsPayload{}, fmt.Errorf("Teams notification payload cannot exceed 28 KB")
+	}
+	return teamsPayload, nil
+}
+
 func SlackText(payload Payload) string {
 	var builder strings.Builder
 	if payload.Title != "" {
 		builder.WriteString("*")
 		builder.WriteString(payload.Title)
 		builder.WriteString("*\n")
+	}
+	builder.WriteString(payload.Message)
+	if payload.Severity != "" {
+		builder.WriteString("\nSeverity: ")
+		builder.WriteString(payload.Severity)
+	}
+	for _, field := range payload.Fields {
+		builder.WriteString("\n")
+		builder.WriteString(field.Name)
+		builder.WriteString(": ")
+		builder.WriteString(field.Value)
+	}
+	return builder.String()
+}
+
+func PlainText(payload Payload) string {
+	var builder strings.Builder
+	if payload.Title != "" {
+		builder.WriteString(payload.Title)
+		builder.WriteString("\n")
 	}
 	builder.WriteString(payload.Message)
 	if payload.Severity != "" {
@@ -388,6 +479,41 @@ func (s WebhookSender) Send(ctx context.Context, webhookURL string, payload Payl
 
 func (s WebhookSender) SendSlack(ctx context.Context, webhookURL string, payload SlackPayload) (int, error) {
 	return s.sendJSON(ctx, webhookURL, payload)
+}
+
+func (s WebhookSender) SendTeams(ctx context.Context, webhookURL string, payload TeamsPayload) (int, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return 0, fmt.Errorf("encode Teams notification payload: %w", err)
+	}
+	if len(body) > maxTeamsWebhookPayloadBytes {
+		return 0, fmt.Errorf("Teams notification payload cannot exceed 28 KB")
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, webhookURL, bytes.NewReader(body))
+	if err != nil {
+		return 0, fmt.Errorf("create Teams notification request for %s", RedactedTeamsURL(webhookURL))
+	}
+	request.Header.Set("Content-Type", "application/json")
+	client := noRedirectClient(s.Client)
+	response, err := client.Do(request)
+	if err != nil {
+		return 0, fmt.Errorf("send Teams notification webhook to %s: %s", RedactedTeamsURL(webhookURL), RedactedError(webhookURL, err))
+	}
+	defer response.Body.Close()
+	responseBody, readErr := io.ReadAll(io.LimitReader(response.Body, maxTeamsWebhookResponseBytes+1))
+	if readErr != nil {
+		return response.StatusCode, fmt.Errorf("read Teams notification response from %s: %w", RedactedTeamsURL(webhookURL), readErr)
+	}
+	if len(responseBody) > maxTeamsWebhookResponseBytes {
+		return response.StatusCode, fmt.Errorf("Teams notification response exceeded %d bytes", maxTeamsWebhookResponseBytes)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return response.StatusCode, fmt.Errorf("Teams notification webhook returned status %d", response.StatusCode)
+	}
+	if statusCode, ok := teamsBodyHTTPErrorStatus(string(responseBody)); ok {
+		return statusCode, fmt.Errorf("Teams notification webhook returned status %d in response body", statusCode)
+	}
+	return response.StatusCode, nil
 }
 
 func (s WebhookSender) SendDiscord(ctx context.Context, webhookURL string, payload DiscordPayload) (int, error) {
@@ -449,6 +575,25 @@ func RedactedURL(rawURL string) string {
 	return redactedURL.String()
 }
 
+func RedactedTeamsURL(rawURL string) string {
+	redactedURL := RedactedURL(rawURL)
+	parsedURL, err := url.Parse(redactedURL)
+	if err != nil {
+		return redactedURL
+	}
+	hostParts := strings.Split(parsedURL.Hostname(), ".")
+	if len(hostParts) < 4 || !strings.HasSuffix(parsedURL.Hostname(), ".webhook.office.com") {
+		return redactedURL
+	}
+	hostParts[0] = "redacted"
+	host := strings.Join(hostParts, ".")
+	if parsedURL.Port() != "" {
+		host = net.JoinHostPort(host, parsedURL.Port())
+	}
+	parsedURL.Host = host
+	return parsedURL.String()
+}
+
 func RedactedError(rawURL string, err error) string {
 	if err == nil {
 		return ""
@@ -477,6 +622,27 @@ func noRedirectClient(client *http.Client) *http.Client {
 		return http.ErrUseLastResponse
 	}
 	return &copyClient
+}
+
+func teamsBodyHTTPErrorStatus(body string) (int, bool) {
+	const prefix = "Microsoft Teams endpoint returned HTTP error "
+	index := strings.Index(body, prefix)
+	if index == -1 {
+		return 0, false
+	}
+	remaining := body[index+len(prefix):]
+	end := 0
+	for end < len(remaining) && remaining[end] >= '0' && remaining[end] <= '9' {
+		end++
+	}
+	if end == 0 {
+		return 0, false
+	}
+	statusCode, err := strconv.Atoi(remaining[:end])
+	if err != nil {
+		return 0, false
+	}
+	return statusCode, true
 }
 
 func isLoopbackHost(host string) bool {

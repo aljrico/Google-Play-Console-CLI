@@ -152,6 +152,116 @@ func TestSendSlackPostsSlackWebhook(t *testing.T) {
 	}
 }
 
+func TestSendTeamsDryRunBuildsTeamsTextPayload(t *testing.T) {
+	sender := failingTeamsSender{}
+	result, err := SendTeams(context.Background(), sender, SendOptions{
+		CommandPath: "notify teams",
+		WebhookURL:  "https://example.webhook.office.com/webhookb2/SECRET?token=secret#fragment-secret",
+		Title:       "Release",
+		Message:     "Internal release staged",
+		Severity:    "info",
+		Fields:      []string{"track=internal", "version=42"},
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("SendTeams() error = %v", err)
+	}
+	if result.Delivered {
+		t.Fatalf("Delivered = true, want false")
+	}
+	for _, want := range []string{"Release", "Internal release staged", "Severity: info", "track: internal", "version: 42"} {
+		if !strings.Contains(result.Payload.Text, want) {
+			t.Fatalf("Teams text = %q, want %q", result.Payload.Text, want)
+		}
+	}
+	for _, leaked := range []string{"SECRET", "secret", "fragment-secret"} {
+		if strings.Contains(result.Webhook, leaked) {
+			t.Fatalf("Webhook = %q, leaked %q", result.Webhook, leaked)
+		}
+	}
+	if strings.Contains(result.Webhook, "example.webhook.office.com") {
+		t.Fatalf("Webhook = %q, leaked Teams tenant host label", result.Webhook)
+	}
+}
+
+func TestSendTeamsPostsTeamsWebhook(t *testing.T) {
+	var gotPayload TeamsPayload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if got := r.Header.Get("Content-Type"); got != "application/json" {
+			t.Fatalf("Content-Type = %q, want application/json", got)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	result, err := SendTeams(context.Background(), WebhookSender{Client: server.Client()}, SendOptions{
+		CommandPath: "notify teams",
+		WebhookURL:  server.URL + "/hook?token=secret",
+		Message:     "Release shipped",
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("SendTeams() error = %v", err)
+	}
+	if !result.Delivered || result.StatusCode != http.StatusAccepted {
+		t.Fatalf("result = %#v, want delivered 202", result)
+	}
+	if gotPayload.Text != "Release shipped" {
+		t.Fatalf("payload = %#v", gotPayload)
+	}
+	if strings.Contains(result.Webhook, "secret") {
+		t.Fatalf("Webhook = %q, leaked query secret", result.Webhook)
+	}
+}
+
+func TestSendTeamsRejectsPayloadAboveTeamsLimit(t *testing.T) {
+	_, err := SendTeams(context.Background(), failingTeamsSender{}, SendOptions{
+		CommandPath: "notify teams",
+		WebhookURL:  "https://example.webhook.office.com/webhookb2/SECRET",
+		Message:     strings.Repeat("a", maxTeamsWebhookPayloadBytes),
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("SendTeams() error = nil, want payload length validation")
+	}
+	if !strings.Contains(err.Error(), "28 KB") {
+		t.Fatalf("error = %v, want Teams payload length validation", err)
+	}
+}
+
+func TestSendTeamsDetectsHTTPErrorInSuccessBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("Microsoft Teams endpoint returned HTTP error 429"))
+	}))
+	defer server.Close()
+
+	result, err := SendTeams(context.Background(), WebhookSender{Client: server.Client()}, SendOptions{
+		CommandPath: "notify teams",
+		WebhookURL:  server.URL + "/hook?token=secret",
+		Message:     "Release shipped",
+		Confirm:     true,
+	})
+	if err == nil {
+		t.Fatal("SendTeams() error = nil, want Teams body error")
+	}
+	if result.Delivered {
+		t.Fatalf("Delivered = true, want false")
+	}
+	if result.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("StatusCode = %d, want 429", result.StatusCode)
+	}
+	if !strings.Contains(err.Error(), "429") {
+		t.Fatalf("error = %v, want body status", err)
+	}
+}
+
 func TestSendDiscordDryRunBuildsDiscordContentPayload(t *testing.T) {
 	sender := failingDiscordSender{}
 	result, err := SendDiscord(context.Background(), sender, SendOptions{
@@ -378,6 +488,12 @@ func (failingSender) Send(context.Context, string, Payload) (int, error) {
 type failingSlackSender struct{}
 
 func (failingSlackSender) SendSlack(context.Context, string, SlackPayload) (int, error) {
+	panic("sender should not be called")
+}
+
+type failingTeamsSender struct{}
+
+func (failingTeamsSender) SendTeams(context.Context, string, TeamsPayload) (int, error) {
 	panic("sender should not be called")
 }
 
