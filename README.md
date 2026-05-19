@@ -67,6 +67,7 @@ gpc migrate supply images --directory fastlane/metadata/android --language en-US
 GPC_NOTIFY_WEBHOOK_URL="$WEBHOOK_URL" gpc notify send --message "Internal release staged" --dry-run
 gpc search "release upload" --limit 5
 gpc snitch report --title "Confusing release output" --command "gpc releases list --package com.example.app"
+gpc notifications pubsub setup --project play-project --topic play-rtdn --subscription play-rtdn-sub --dry-run
 gpc notifications rtdn decode --file ./pubsub-rtdn.json
 gpc notifications rtdn decode --file ./unwrapped-rtdn.json --unwrapped
 gpc insights anomalies summarize --file ./vitals-anomalies.json
@@ -180,6 +181,8 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 `vitals` uses the Play Developer Reporting API, which is separate from Android Publisher and requires the Play Developer Reporting API to be enabled plus app-level "View app information (read-only)" access. Query and search commands accept explicit metrics, filters, and date ranges so automation never relies on API defaults; error issue and report search intervals use UTC when a timezone is set, and omitting it uses the API's UTC default.
 
 `notifications rtdn decode` expects a wrapped Pub/Sub push JSON body with `message.data` containing the base64-encoded Google Play `DeveloperNotification`; add `--unwrapped` when Pub/Sub push delivery sends the developer notification JSON directly. Pass exactly one of `--file` or `--data`.
+
+`notifications pubsub setup` creates the Google Cloud side of Play real-time developer notifications: a topic, a subscription, and the Pub/Sub Publisher IAM binding for `google-play-developer-notifications@system.gserviceaccount.com`. You still need to select the topic in Play Console and send a test notification there.
 
 `finance reports download` and `analytics stats download` fetch report objects from the Google Play reports Cloud Storage bucket. Use the bucket ID shown in Play Console, usually shaped like `pubsite_prod_rev_0123456789`, and pass the exact object path for the report you want. Financial reports are ZIP files; statistics reports are CSV files.
 

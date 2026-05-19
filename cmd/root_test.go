@@ -754,6 +754,48 @@ func TestNotificationsRTDNDecodeOutputsKindWithoutAuth(t *testing.T) {
 	}
 }
 
+func TestNotificationsPubSubSetupDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"notifications",
+		"pubsub",
+		"setup",
+		"--project",
+		"play-project",
+		"--topic",
+		"play-rtdn",
+		"--subscription",
+		"play-rtdn-sub",
+		"--push-endpoint",
+		"https://example.com/rtdn",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"topicName":"projects/play-project/topics/play-rtdn"`,
+		`"subscriptionName":"projects/play-project/subscriptions/play-rtdn-sub"`,
+		`"publisherMember":"serviceAccount:google-play-developer-notifications@system.gserviceaccount.com"`,
+		`"pushEndpoint":"https://example.com/rtdn"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestInsightsAnomaliesSummarizeOutputsCountsWithoutAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	file := writeRootTestPathContent(t, filepath.Join(t.TempDir(), "anomalies.json"), `{

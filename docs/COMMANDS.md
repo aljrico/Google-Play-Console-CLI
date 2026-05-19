@@ -1069,7 +1069,38 @@ gpc notifications
 
 #### Commands
 
+- `gpc notifications pubsub`: Set up Google Cloud Pub/Sub for Play notifications
 - `gpc notifications rtdn`: Inspect real-time developer notifications
+
+#### gpc notifications pubsub
+
+Set up Google Cloud Pub/Sub for Play notifications
+
+```sh
+gpc notifications pubsub
+```
+
+##### Commands
+
+- `gpc notifications pubsub setup`: Create Pub/Sub resources for Play real-time developer notifications
+
+##### gpc notifications pubsub setup
+
+Create Pub/Sub resources for Play real-time developer notifications
+
+```sh
+gpc notifications pubsub setup [flags]
+```
+
+###### Flags
+
+- `--ack-deadline`: Subscription acknowledgement deadline in seconds (default `10`)
+- `--confirm`: Create Pub/Sub resources and grant the Google Play publisher role (default `false`)
+- `--dry-run`: Print the planned Pub/Sub setup without calling Google Cloud (default `false`)
+- `--project`: Google Cloud project ID that owns the Pub/Sub resources
+- `--push-endpoint`: Optional HTTPS push endpoint; omit for pull subscriptions
+- `--subscription`: Pub/Sub subscription ID to create
+- `--topic`: Pub/Sub topic ID to create
 
 #### gpc notifications rtdn
 
