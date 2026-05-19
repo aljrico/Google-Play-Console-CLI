@@ -1336,6 +1336,7 @@ gpc one-time-product-offers
 - `gpc one-time-product-offers batch-deactivate`: deactivate multiple one-time product offers
 - `gpc one-time-product-offers batch-delete`: Delete multiple one-time product offers
 - `gpc one-time-product-offers batch-get`: Get multiple one-time product offers
+- `gpc one-time-product-offers batch-patch-absolute-discounts`: Batch patch one-time product offer absolute discounts
 - `gpc one-time-product-offers batch-patch-availability`: Batch patch one-time product offer regional availability
 - `gpc one-time-product-offers batch-patch-relative-discounts`: Batch patch one-time product offer relative discounts
 - `gpc one-time-product-offers cancel`: cancel a one-time product offer
@@ -1441,6 +1442,24 @@ gpc one-time-product-offers batch-get [flags]
 - `--offer`: Offer to fetch as productId/purchaseOptionId/offerId; repeatable, up to 100 (default `[]`)
 - `--product-id`: Parent one-time product ID, or - for offers across products
 - `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options
+
+#### gpc one-time-product-offers batch-patch-absolute-discounts
+
+Batch patch one-time product offer absolute discounts
+
+```sh
+gpc one-time-product-offers batch-patch-absolute-discounts [flags]
+```
+
+##### Flags
+
+- `--absolute-discount`: Absolute discount patch as productId/purchaseOptionId/offerId/REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
+- `--confirm`: Apply the one-time product offer absolute discount batch patch (default `false`)
+- `--dry-run`: Print the planned one-time product offer absolute discount batch patch without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: Parent one-time product ID, or - for offers across products; inferred when omitted
+- `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
+- `--regions-version`: Google Play regions version required by oneTimeProductOffers.batchUpdate
 
 #### gpc one-time-product-offers batch-patch-availability
 

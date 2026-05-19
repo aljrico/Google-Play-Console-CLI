@@ -4549,6 +4549,109 @@ func TestBatchPatchOneTimeProductOfferRelativeDiscountsRejectsMissingRegion(t *t
 	}
 }
 
+func TestBatchPatchOneTimeProductOfferAbsoluteDiscountsMergesAndBatchUpdates(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchGet", r.Method)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro","regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","relativeDiscount":0.25},{"regionCode":"FR","availability":"AVAILABLE","noOverride":{}},{"regionCode":"DE","availability":"AVAILABLE","absoluteDiscount":{"currencyCode":"EUR","units":"1","nanos":500000000}}]}]}`)
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchUpdate":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchUpdate", r.Method)
+			}
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("ReadAll() error = %v", err)
+			}
+			rawBody := string(body)
+			if strings.Contains(rawBody, "relativeDiscount") {
+				t.Fatalf("body = %s, did not expect relativeDiscount in absolute discount patch request", rawBody)
+			}
+			if strings.Contains(rawBody, "noOverride") {
+				t.Fatalf("body = %s, did not expect noOverride in absolute discount patch request", rawBody)
+			}
+			var request androidpublisher.BatchUpdateOneTimeProductOffersRequest
+			if err := json.Unmarshal(body, &request); err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+			if len(request.Requests) != 1 {
+				t.Fatalf("len(Requests) = %d, want 1", len(request.Requests))
+			}
+			update := request.Requests[0]
+			if update.UpdateMask != "regionalPricingAndAvailabilityConfigs" {
+				t.Fatalf("UpdateMask = %q, want regionalPricingAndAvailabilityConfigs", update.UpdateMask)
+			}
+			configs := update.OneTimeProductOffer.RegionalPricingAndAvailabilityConfigs
+			if len(configs) != 3 {
+				t.Fatalf("len(RegionalPricingAndAvailabilityConfigs) = %d, want preserved configs", len(configs))
+			}
+			if configs[0].RegionCode != "US" || configs[0].Availability != "AVAILABLE" || configs[0].AbsoluteDiscount == nil || configs[0].AbsoluteDiscount.CurrencyCode != "USD" || configs[0].AbsoluteDiscount.Units != 1 || configs[0].RelativeDiscount != 0 || configs[0].NoOverride != nil {
+				t.Fatalf("first config = %#v, want US absolute discount with old price mode cleared", configs[0])
+			}
+			if configs[1].RegionCode != "FR" || configs[1].Availability != "AVAILABLE" || configs[1].AbsoluteDiscount == nil || configs[1].AbsoluteDiscount.CurrencyCode != "EUR" || configs[1].NoOverride != nil {
+				t.Fatalf("second config = %#v, want FR absolute discount with noOverride cleared", configs[1])
+			}
+			if configs[2].RegionCode != "DE" || configs[2].Availability != "AVAILABLE" || configs[2].AbsoluteDiscount == nil {
+				t.Fatalf("third config = %#v, want preserved DE absolute discount", configs[2])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro","regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","absoluteDiscount":{"currencyCode":"USD","units":"1"}},{"regionCode":"FR","availability":"AVAILABLE","absoluteDiscount":{"currencyCode":"EUR","nanos":500000000}}]}]}`)
+		default:
+			t.Fatalf("unexpected path = %q", r.URL.Path)
+		}
+	}))
+
+	result, err := publisher.BatchPatchOneTimeProductOfferAbsoluteDiscounts(context.Background(), OneTimeProductOfferBatchPatchAbsoluteDiscountsOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferAbsoluteDiscountPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "US", AbsoluteDiscount: Money{CurrencyCode: "USD", Units: 1}},
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "FR", AbsoluteDiscount: Money{CurrencyCode: "EUR", Nanos: 500000000}},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchOneTimeProductOfferAbsoluteDiscounts() error = %v", err)
+	}
+	if !result.Applied || len(result.Offers) != 1 || result.Offers[0].RegionalConfigs[0].AbsoluteDiscount == nil {
+		t.Fatalf("result = %#v, want applied offer with absolute discount", result)
+	}
+}
+
+func TestBatchPatchOneTimeProductOfferAbsoluteDiscountsRejectsMissingRegion(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet" {
+			t.Fatalf("path = %q, want batchGet only", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro","regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","relativeDiscount":0.5}]}]}`)
+	}))
+
+	_, err := publisher.BatchPatchOneTimeProductOfferAbsoluteDiscounts(context.Background(), OneTimeProductOfferBatchPatchAbsoluteDiscountsOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		RegionsVersion:   "2026/05",
+		Requests: []OneTimeProductOfferAbsoluteDiscountPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro", RegionCode: "FR", AbsoluteDiscount: Money{CurrencyCode: "EUR", Units: 1}},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected missing region validation error")
+	}
+	if !strings.Contains(err.Error(), "region that is not already configured") {
+		t.Fatalf("error = %v, want missing configured region message", err)
+	}
+}
+
 func TestBatchUpdateOneTimeProductOfferStatesRejectsDryRunBeforeRequest(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
