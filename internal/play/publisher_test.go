@@ -4433,6 +4433,126 @@ func TestUpdateBasePlanStateUsesActivateEndpoint(t *testing.T) {
 	}
 }
 
+func TestBatchUpdateBasePlanStatesUsesBatchUpdateEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium/basePlans:batchUpdateStates" {
+			t.Fatalf("path = %q, want base plans batchUpdateStates endpoint", r.URL.Path)
+		}
+		var request androidpublisher.BatchUpdateBasePlanStatesRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if len(request.Requests) != 2 {
+			t.Fatalf("len(Requests) = %d, want 2", len(request.Requests))
+		}
+		deactivate := request.Requests[0].DeactivateBasePlanRequest
+		if deactivate == nil || deactivate.ProductId != "premium" || deactivate.BasePlanId != "monthly" {
+			t.Fatalf("first request = %#v, want deactivate monthly", request.Requests[0])
+		}
+		if deactivate.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+			t.Fatalf("LatencyTolerance = %q, want tolerant", deactivate.LatencyTolerance)
+		}
+		if request.Requests[1].DeactivateBasePlanRequest == nil || request.Requests[1].DeactivateBasePlanRequest.BasePlanId != "annual" {
+			t.Fatalf("second request = %#v, want deactivate annual", request.Requests[1])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"subscriptions":[
+			{"packageName":"com.example.app","productId":"premium","basePlans":[{"basePlanId":"monthly","state":"INACTIVE"}]},
+			{"packageName":"com.example.app","productId":"premium","basePlans":[{"basePlanId":"annual","state":"INACTIVE"}]}
+		]}`)
+	}))
+
+	result, err := publisher.BatchUpdateBasePlanStates(context.Background(), BasePlanBatchStateUpdateOptions{
+		PackageName: "com.example.app",
+		ProductID:   "premium",
+		Requests: []BasePlanBatchStateUpdateRequest{
+			{ProductID: "premium", BasePlanID: "monthly"},
+			{ProductID: "premium", BasePlanID: "annual"},
+		},
+		Action:           BasePlanStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchUpdateBasePlanStates() error = %v", err)
+	}
+	if len(result.Subscriptions) != 2 {
+		t.Fatalf("len(Subscriptions) = %d, want 2", len(result.Subscriptions))
+	}
+	if result.Subscriptions[0].BasePlans[0].BasePlanID != "monthly" || result.Subscriptions[1].BasePlans[0].BasePlanID != "annual" {
+		t.Fatalf("Subscriptions = %#v, want response order", result.Subscriptions)
+	}
+}
+
+func TestBatchUpdateBasePlanStatesUsesActivateUnionForWildcardProduct(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/-/basePlans:batchUpdateStates" {
+			t.Fatalf("path = %q, want wildcard base plans batchUpdateStates endpoint", r.URL.Path)
+		}
+		var request androidpublisher.BatchUpdateBasePlanStatesRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if len(request.Requests) != 2 {
+			t.Fatalf("len(Requests) = %d, want 2", len(request.Requests))
+		}
+		activate := request.Requests[0].ActivateBasePlanRequest
+		if activate == nil || request.Requests[0].DeactivateBasePlanRequest != nil {
+			t.Fatalf("first request = %#v, want activate union only", request.Requests[0])
+		}
+		if activate.PackageName != "com.example.app" || activate.ProductId != "premium" || activate.BasePlanId != "monthly" {
+			t.Fatalf("activate = %#v, want first request identifiers", activate)
+		}
+		second := request.Requests[1].ActivateBasePlanRequest
+		if second == nil || second.ProductId != "vip" || second.BasePlanId != "annual" {
+			t.Fatalf("second request = %#v, want activate vip/annual", request.Requests[1])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"subscriptions":[]}`)
+	}))
+
+	_, err := publisher.BatchUpdateBasePlanStates(context.Background(), BasePlanBatchStateUpdateOptions{
+		PackageName: "com.example.app",
+		ProductID:   "-",
+		Requests: []BasePlanBatchStateUpdateRequest{
+			{ProductID: "premium", BasePlanID: "monthly"},
+			{ProductID: "vip", BasePlanID: "annual"},
+		},
+		Action:           BasePlanStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchUpdateBasePlanStates() error = %v", err)
+	}
+}
+
+func TestBatchUpdateBasePlanStatesRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	_, err := publisher.BatchUpdateBasePlanStates(context.Background(), BasePlanBatchStateUpdateOptions{
+		PackageName: "com.example.app",
+		ProductID:   "premium",
+		Requests: []BasePlanBatchStateUpdateRequest{
+			{ProductID: "premium", BasePlanID: "monthly"},
+		},
+		Action:           BasePlanStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot be a dry-run") {
+		t.Fatalf("error = %v, want dry-run validation", err)
+	}
+}
+
 func newTestPublisher(t *testing.T, handler http.Handler) GooglePublisher {
 	t.Helper()
 	server := httptest.NewServer(handler)

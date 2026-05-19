@@ -2340,6 +2340,8 @@ gpc subscriptions base-plan
 ##### Commands
 
 - `gpc subscriptions base-plan activate`: activate a subscription base plan
+- `gpc subscriptions base-plan batch-activate`: Batch activate subscription base plans
+- `gpc subscriptions base-plan batch-deactivate`: Batch deactivate subscription base plans
 - `gpc subscriptions base-plan deactivate`: deactivate a subscription base plan
 
 ##### gpc subscriptions base-plan activate
@@ -2357,6 +2359,40 @@ gpc subscriptions base-plan activate [flags]
 - `--dry-run`: Print the planned base plan state update without calling Google Play (default `false`)
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--product-id`: Subscription product ID
+
+##### gpc subscriptions base-plan batch-activate
+
+Batch activate subscription base plans
+
+```sh
+gpc subscriptions base-plan batch-activate [flags]
+```
+
+###### Flags
+
+- `--base-plan`: Subscription base plan as productId/basePlanId; repeat for cross-subscription batches (default `[]`)
+- `--base-plan-id`: Subscription base plan ID; repeat for multiple base plans (default `[]`)
+- `--confirm`: Apply the base plan batch state update (default `false`)
+- `--dry-run`: Print the planned base plan batch state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: Subscription product ID, or - for base plans across subscriptions; inferred when --base-plan is used
+
+##### gpc subscriptions base-plan batch-deactivate
+
+Batch deactivate subscription base plans
+
+```sh
+gpc subscriptions base-plan batch-deactivate [flags]
+```
+
+###### Flags
+
+- `--base-plan`: Subscription base plan as productId/basePlanId; repeat for cross-subscription batches (default `[]`)
+- `--base-plan-id`: Subscription base plan ID; repeat for multiple base plans (default `[]`)
+- `--confirm`: Apply the base plan batch state update (default `false`)
+- `--dry-run`: Print the planned base plan batch state update without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: Subscription product ID, or - for base plans across subscriptions; inferred when --base-plan is used
 
 ##### gpc subscriptions base-plan deactivate
 

@@ -1006,6 +1006,71 @@ func (p GooglePublisher) UpdateBasePlanState(ctx context.Context, options BasePl
 	return subscriptionFromAPI(subscription), nil
 }
 
+func (p GooglePublisher) BatchUpdateBasePlanStates(ctx context.Context, options BasePlanBatchStateUpdateOptions) (BasePlanBatchStateUpdateResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return BasePlanBatchStateUpdateResult{}, err
+	}
+	request := &androidpublisher.BatchUpdateBasePlanStatesRequest{
+		Requests: make([]*androidpublisher.UpdateBasePlanStateRequest, 0, len(options.Requests)),
+	}
+	for _, item := range options.Requests {
+		request.Requests = append(request.Requests, basePlanStateRequestToAPI(options, item))
+	}
+	response, err := p.service.Monetization.Subscriptions.BasePlans.BatchUpdateStates(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return BasePlanBatchStateUpdateResult{}, fmt.Errorf("batch %s base plans for %s/%s: %w", options.Action, options.PackageName, options.ProductID, err)
+	}
+	subscriptions := make([]Subscription, 0)
+	if response != nil {
+		subscriptions = make([]Subscription, 0, len(response.Subscriptions))
+		for _, apiSubscription := range response.Subscriptions {
+			subscriptions = append(subscriptions, subscriptionFromAPI(apiSubscription))
+		}
+	}
+	return BasePlanBatchStateUpdateResult{
+		PackageName:   options.PackageName,
+		ProductID:     options.ProductID,
+		Requests:      options.Requests,
+		Action:        options.Action,
+		DryRun:        false,
+		Applied:       true,
+		Subscriptions: subscriptions,
+	}, nil
+}
+
+func basePlanStateRequestToAPI(options BasePlanBatchStateUpdateOptions, item BasePlanBatchStateUpdateRequest) *androidpublisher.UpdateBasePlanStateRequest {
+	switch options.Action {
+	case BasePlanStateActionActivate:
+		return &androidpublisher.UpdateBasePlanStateRequest{ActivateBasePlanRequest: activateBasePlanRequestToAPI(options, item)}
+	case BasePlanStateActionDeactivate:
+		return &androidpublisher.UpdateBasePlanStateRequest{DeactivateBasePlanRequest: deactivateBasePlanRequestToAPI(options, item)}
+	default:
+		return &androidpublisher.UpdateBasePlanStateRequest{}
+	}
+}
+
+func activateBasePlanRequestToAPI(options BasePlanBatchStateUpdateOptions, item BasePlanBatchStateUpdateRequest) *androidpublisher.ActivateBasePlanRequest {
+	return &androidpublisher.ActivateBasePlanRequest{
+		PackageName:      options.PackageName.String(),
+		ProductId:        item.ProductID.String(),
+		BasePlanId:       item.BasePlanID.String(),
+		LatencyTolerance: productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+	}
+}
+
+func deactivateBasePlanRequestToAPI(options BasePlanBatchStateUpdateOptions, item BasePlanBatchStateUpdateRequest) *androidpublisher.DeactivateBasePlanRequest {
+	return &androidpublisher.DeactivateBasePlanRequest{
+		PackageName:      options.PackageName.String(),
+		ProductId:        item.ProductID.String(),
+		BasePlanId:       item.BasePlanID.String(),
+		LatencyTolerance: productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+	}
+}
+
 func (p GooglePublisher) ListSubscriptionOffers(ctx context.Context, options SubscriptionOfferListOptions) (SubscriptionOfferListResult, error) {
 	call := p.service.Monetization.Subscriptions.BasePlans.Offers.List(
 		options.PackageName.String(),

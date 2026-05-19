@@ -345,6 +345,21 @@ type BasePlanStateUpdateOptions struct {
 	DryRun           bool                          `json:"dryRun"`
 }
 
+type BasePlanBatchStateUpdateRequest struct {
+	ProductID  SubscriptionProductID  `json:"productId"`
+	BasePlanID SubscriptionBasePlanID `json:"basePlanId"`
+}
+
+type BasePlanBatchStateUpdateOptions struct {
+	PackageName      PackageName                       `json:"packageName"`
+	ProductID        SubscriptionProductID             `json:"productId"`
+	Requests         []BasePlanBatchStateUpdateRequest `json:"requests"`
+	Action           BasePlanStateAction               `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance     `json:"latencyTolerance"`
+	Confirm          bool                              `json:"confirm"`
+	DryRun           bool                              `json:"dryRun"`
+}
+
 type SubscriptionPatchOptions struct {
 	PackageName      PackageName                   `json:"packageName"`
 	ProductID        SubscriptionProductID         `json:"productId"`
@@ -466,6 +481,83 @@ func (o BasePlanStateUpdateOptions) ValidateLive() error {
 	return nil
 }
 
+func (o BasePlanBatchStateUpdateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionBasePlanBatchProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if len(o.Requests) == 0 {
+		return fmt.Errorf("at least one subscription base plan is required")
+	}
+	if len(o.Requests) > 100 {
+		return fmt.Errorf("subscription base plan batch state update cannot exceed 100 base plans")
+	}
+	seen := map[string]struct{}{}
+	seenProducts := map[SubscriptionProductID]struct{}{}
+	for _, request := range o.Requests {
+		if _, err := NewSubscriptionProductID(request.ProductID.String()); err != nil {
+			return err
+		}
+		if _, err := NewSubscriptionBasePlanID(request.BasePlanID.String()); err != nil {
+			return err
+		}
+		if o.ProductID.String() != SubscriptionOfferWildcardID && request.ProductID != o.ProductID {
+			return fmt.Errorf("subscription base plan %s/%s does not match parent product ID %s", request.ProductID, request.BasePlanID, o.ProductID)
+		}
+		key := subscriptionBasePlanBatchStateUpdateKey(request.ProductID, request.BasePlanID)
+		if _, ok := seen[key]; ok {
+			return fmt.Errorf("subscription base plan %s is duplicated", key)
+		}
+		seen[key] = struct{}{}
+		seenProducts[request.ProductID] = struct{}{}
+	}
+	if len(seenProducts) == 1 && o.ProductID.String() == SubscriptionOfferWildcardID {
+		return fmt.Errorf("single-product base plan batch state update requires parent product ID, not %q", SubscriptionOfferWildcardID)
+	}
+	if len(seenProducts) > 1 && o.ProductID.String() != SubscriptionOfferWildcardID {
+		return fmt.Errorf("multi-product base plan batch state update requires parent product ID %q", SubscriptionOfferWildcardID)
+	}
+	if err := o.Action.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("base plan batch state update requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func NewSubscriptionBasePlanBatchProductID(value string) (SubscriptionProductID, error) {
+	if value == SubscriptionOfferWildcardID {
+		return SubscriptionProductID(value), nil
+	}
+	return NewSubscriptionProductID(value)
+}
+
+func subscriptionBasePlanBatchStateUpdateKey(productID SubscriptionProductID, basePlanID SubscriptionBasePlanID) string {
+	return productID.String() + "/" + basePlanID.String()
+}
+
+func (o BasePlanBatchStateUpdateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live base plan batch state update cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live base plan batch state update requires --confirm")
+	}
+	return nil
+}
+
 type BasePlanStateUpdatePlan struct {
 	PackageName      PackageName                   `json:"packageName"`
 	ProductID        SubscriptionProductID         `json:"productId"`
@@ -485,6 +577,27 @@ type BasePlanStateUpdateResult struct {
 	Applied      bool                    `json:"applied"`
 	Subscription *Subscription           `json:"subscription,omitempty"`
 	Plan         BasePlanStateUpdatePlan `json:"plan"`
+}
+
+type BasePlanBatchStateUpdatePlan struct {
+	PackageName      PackageName                       `json:"packageName"`
+	ProductID        SubscriptionProductID             `json:"productId"`
+	Requests         []BasePlanBatchStateUpdateRequest `json:"requests"`
+	Action           BasePlanStateAction               `json:"action"`
+	LatencyTolerance ProductUpdateLatencyTolerance     `json:"latencyTolerance"`
+	Confirm          bool                              `json:"confirm"`
+	Steps            []string                          `json:"steps"`
+}
+
+type BasePlanBatchStateUpdateResult struct {
+	PackageName   PackageName                       `json:"packageName"`
+	ProductID     SubscriptionProductID             `json:"productId"`
+	Requests      []BasePlanBatchStateUpdateRequest `json:"requests"`
+	Action        BasePlanStateAction               `json:"action"`
+	DryRun        bool                              `json:"dryRun"`
+	Applied       bool                              `json:"applied"`
+	Subscriptions []Subscription                    `json:"subscriptions,omitempty"`
+	Plan          BasePlanBatchStateUpdatePlan      `json:"plan"`
 }
 
 type SubscriptionPatchPlan struct {
@@ -512,6 +625,10 @@ type SubscriptionPatchResult struct {
 
 type BasePlanStateUpdater interface {
 	UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error)
+}
+
+type BasePlanBatchStateUpdater interface {
+	BatchUpdateBasePlanStates(ctx context.Context, options BasePlanBatchStateUpdateOptions) (BasePlanBatchStateUpdateResult, error)
 }
 
 type SubscriptionPatcher interface {
@@ -613,11 +730,67 @@ func UpdateBasePlanState(ctx context.Context, updater BasePlanStateUpdater, opti
 	return result, nil
 }
 
+func NewBasePlanBatchStateUpdatePlan(options BasePlanBatchStateUpdateOptions) (BasePlanBatchStateUpdatePlan, error) {
+	if err := options.Validate(); err != nil {
+		return BasePlanBatchStateUpdatePlan{}, err
+	}
+	return BasePlanBatchStateUpdatePlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		Requests:         options.Requests,
+		Action:           options.Action,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            basePlanBatchStateUpdateSteps(options),
+	}, nil
+}
+
+func BatchUpdateBasePlanStates(ctx context.Context, updater BasePlanBatchStateUpdater, options BasePlanBatchStateUpdateOptions) (BasePlanBatchStateUpdateResult, error) {
+	plan, err := NewBasePlanBatchStateUpdatePlan(options)
+	if err != nil {
+		return BasePlanBatchStateUpdateResult{}, err
+	}
+	result := BasePlanBatchStateUpdateResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		Requests:    options.Requests,
+		Action:      options.Action,
+		DryRun:      options.DryRun,
+		Applied:     false,
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if updater == nil {
+		return BasePlanBatchStateUpdateResult{}, fmt.Errorf("base plan batch state updater is required")
+	}
+	liveResult, err := updater.BatchUpdateBasePlanStates(ctx, options)
+	if err != nil {
+		return BasePlanBatchStateUpdateResult{}, err
+	}
+	liveResult.PackageName = options.PackageName
+	liveResult.ProductID = options.ProductID
+	liveResult.Requests = options.Requests
+	liveResult.Action = options.Action
+	liveResult.DryRun = false
+	liveResult.Applied = true
+	liveResult.Plan = plan
+	return liveResult, nil
+}
+
 func basePlanStateUpdateSteps(options BasePlanStateUpdateOptions) []string {
 	if options.DryRun {
 		return []string{fmt.Sprintf("plan %s base plan", options.Action)}
 	}
 	return []string{fmt.Sprintf("%s base plan", options.Action)}
+}
+
+func basePlanBatchStateUpdateSteps(options BasePlanBatchStateUpdateOptions) []string {
+	if options.DryRun {
+		return []string{fmt.Sprintf("plan batch %s base plans", options.Action)}
+	}
+	return []string{fmt.Sprintf("batch %s base plans", options.Action)}
 }
 
 const subscriptionPatchUpdateMask = "listings"

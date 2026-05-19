@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"io"
+	"strings"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
 	"github.com/aljrico/Google-Play-Console-CLI/internal/play"
@@ -35,8 +37,144 @@ func newSubscriptionsBasePlanCommand(out io.Writer, options *globalOptions, pack
 	cmd.AddCommand(
 		newSubscriptionsBasePlanStateCommand(out, options, packageName, play.BasePlanStateActionActivate),
 		newSubscriptionsBasePlanStateCommand(out, options, packageName, play.BasePlanStateActionDeactivate),
+		newSubscriptionsBasePlanBatchStateCommand(out, options, packageName, play.BasePlanStateActionActivate),
+		newSubscriptionsBasePlanBatchStateCommand(out, options, packageName, play.BasePlanStateActionDeactivate),
 	)
 	return cmd
+}
+
+func newSubscriptionsBasePlanBatchStateCommand(out io.Writer, options *globalOptions, packageName *string, action play.BasePlanStateAction) *cobra.Command {
+	var (
+		productID        string
+		basePlanIDs      []string
+		basePlans        []string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-" + action.String(),
+		Short: "Batch " + string(action) + " subscription base plans",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			resolvedProductID, requests, err := parseBasePlanBatchStateUpdateRequests(productID, basePlanIDs, basePlans)
+			if err != nil {
+				return err
+			}
+			typedProductID, err := play.NewSubscriptionBasePlanBatchProductID(resolvedProductID)
+			if err != nil {
+				return err
+			}
+			updateOptions := play.BasePlanBatchStateUpdateOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				Requests:         requests,
+				Action:           action,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.BatchUpdateBasePlanStates(cmd.Context(), nil, updateOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewBasePlanBatchStateUpdatePlan(updateOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchUpdateBasePlanStates(cmd.Context(), publisher, updateOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID, or - for base plans across subscriptions; inferred when --base-plan is used")
+	cmd.Flags().StringArrayVar(&basePlanIDs, "base-plan-id", nil, "Subscription base plan ID; repeat for multiple base plans")
+	cmd.Flags().StringArrayVar(&basePlans, "base-plan", nil, "Subscription base plan as productId/basePlanId; repeat for cross-subscription batches")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the base plan batch state update")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned base plan batch state update without calling Google Play")
+	return cmd
+}
+
+func parseBasePlanBatchStateUpdateRequests(productID string, basePlanIDs []string, basePlans []string) (string, []play.BasePlanBatchStateUpdateRequest, error) {
+	requests := make([]play.BasePlanBatchStateUpdateRequest, 0, len(basePlanIDs)+len(basePlans))
+	if len(basePlanIDs) > 0 {
+		if productID == "" || productID == play.SubscriptionOfferWildcardID {
+			return "", nil, errBasePlanIDRequiresConcreteProduct()
+		}
+		typedProductID, err := play.NewSubscriptionProductID(productID)
+		if err != nil {
+			return "", nil, err
+		}
+		for _, basePlanID := range basePlanIDs {
+			typedBasePlanID, err := play.NewSubscriptionBasePlanID(basePlanID)
+			if err != nil {
+				return "", nil, err
+			}
+			requests = append(requests, play.BasePlanBatchStateUpdateRequest{ProductID: typedProductID, BasePlanID: typedBasePlanID})
+		}
+	}
+	for _, basePlan := range basePlans {
+		request, err := parseBasePlanBatchStateUpdateRequest(basePlan)
+		if err != nil {
+			return "", nil, err
+		}
+		requests = append(requests, request)
+	}
+	return inferBasePlanBatchStateUpdateProductID(productID, requests), requests, nil
+}
+
+func parseBasePlanBatchStateUpdateRequest(value string) (play.BasePlanBatchStateUpdateRequest, error) {
+	parts := strings.Split(value, "/")
+	if len(parts) != 2 {
+		return play.BasePlanBatchStateUpdateRequest{}, fmt.Errorf("subscription base plan must use productId/basePlanId")
+	}
+	productID, err := play.NewSubscriptionProductID(parts[0])
+	if err != nil {
+		return play.BasePlanBatchStateUpdateRequest{}, err
+	}
+	basePlanID, err := play.NewSubscriptionBasePlanID(parts[1])
+	if err != nil {
+		return play.BasePlanBatchStateUpdateRequest{}, err
+	}
+	return play.BasePlanBatchStateUpdateRequest{ProductID: productID, BasePlanID: basePlanID}, nil
+}
+
+func inferBasePlanBatchStateUpdateProductID(productID string, requests []play.BasePlanBatchStateUpdateRequest) string {
+	if productID != "" {
+		return productID
+	}
+	if len(requests) == 0 {
+		return productID
+	}
+	firstProductID := requests[0].ProductID.String()
+	for _, request := range requests[1:] {
+		if request.ProductID.String() != firstProductID {
+			return play.SubscriptionOfferWildcardID
+		}
+	}
+	return firstProductID
+}
+
+func errBasePlanIDRequiresConcreteProduct() error {
+	return fmt.Errorf("--base-plan-id requires a concrete --product-id; use --base-plan productId/basePlanId for cross-subscription batches")
 }
 
 func newSubscriptionsBasePlanStateCommand(out io.Writer, options *globalOptions, packageName *string, action play.BasePlanStateAction) *cobra.Command {

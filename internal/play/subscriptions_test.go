@@ -268,6 +268,132 @@ func TestUpdateBasePlanStatePassesOptionsToUpdater(t *testing.T) {
 	}
 }
 
+func TestBatchUpdateBasePlanStatesDryRunBuildsPlanWithoutUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchUpdateBasePlanStates(context.Background(), nil, BasePlanBatchStateUpdateOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		Requests: []BasePlanBatchStateUpdateRequest{
+			{ProductID: "premium", BasePlanID: "monthly"},
+			{ProductID: "premium", BasePlanID: "annual"},
+		},
+		Action:           BasePlanStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchUpdateBasePlanStates() error = %v", err)
+	}
+	if !result.DryRun {
+		t.Fatal("DryRun = false, want true")
+	}
+	wantSteps := []string{"plan batch activate base plans"}
+	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
+		t.Fatalf("steps = %#v, want %#v", result.Plan.Steps, wantSteps)
+	}
+}
+
+func TestBatchUpdateBasePlanStatesRejectsDuplicateBasePlan(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewBasePlanBatchStateUpdatePlan(BasePlanBatchStateUpdateOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		Requests: []BasePlanBatchStateUpdateRequest{
+			{ProductID: "premium", BasePlanID: "monthly"},
+			{ProductID: "premium", BasePlanID: "monthly"},
+		},
+		Action:           BasePlanStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate validation error")
+	}
+}
+
+func TestBatchUpdateBasePlanStatesAllowsMultipleProductsWithWildcardParent(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewBasePlanBatchStateUpdatePlan(BasePlanBatchStateUpdateOptions{
+		PackageName: packageName,
+		ProductID:   "-",
+		Requests: []BasePlanBatchStateUpdateRequest{
+			{ProductID: "premium", BasePlanID: "monthly"},
+			{ProductID: "vip", BasePlanID: "annual"},
+		},
+		Action:           BasePlanStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("NewBasePlanBatchStateUpdatePlan() error = %v", err)
+	}
+}
+
+func TestBatchUpdateBasePlanStatesRejectsConcreteParentMismatch(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewBasePlanBatchStateUpdatePlan(BasePlanBatchStateUpdateOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		Requests: []BasePlanBatchStateUpdateRequest{
+			{ProductID: "vip", BasePlanID: "monthly"},
+		},
+		Action:           BasePlanStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected parent mismatch validation error")
+	}
+}
+
+func TestBatchUpdateBasePlanStatesPassesOptionsToUpdater(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	updater := &fakeSubscriptionClient{
+		batchStateResult: BasePlanBatchStateUpdateResult{
+			Subscriptions: []Subscription{{ProductID: "premium"}},
+		},
+	}
+
+	result, err := BatchUpdateBasePlanStates(context.Background(), updater, BasePlanBatchStateUpdateOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		Requests: []BasePlanBatchStateUpdateRequest{
+			{ProductID: "premium", BasePlanID: "monthly"},
+		},
+		Action:           BasePlanStateActionDeactivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchUpdateBasePlanStates() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatal("Applied = false, want true")
+	}
+	if updater.batchStateOptions.Action != BasePlanStateActionDeactivate {
+		t.Fatalf("Action = %q, want deactivate", updater.batchStateOptions.Action)
+	}
+}
+
 func TestPatchSubscriptionDryRunBuildsPlanWithoutPatcher(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -401,15 +527,17 @@ func TestPatchSubscriptionPassesOptionsToPatcher(t *testing.T) {
 }
 
 type fakeSubscriptionClient struct {
-	listOptions   SubscriptionListOptions
-	listResult    SubscriptionListResult
-	batchOptions  SubscriptionBatchGetOptions
-	batchResult   SubscriptionBatchGetResult
-	deleteOptions SubscriptionDeleteOptions
-	patchOptions  SubscriptionPatchOptions
-	productID     SubscriptionProductID
-	subscription  Subscription
-	stateOptions  BasePlanStateUpdateOptions
+	listOptions       SubscriptionListOptions
+	listResult        SubscriptionListResult
+	batchOptions      SubscriptionBatchGetOptions
+	batchResult       SubscriptionBatchGetResult
+	deleteOptions     SubscriptionDeleteOptions
+	patchOptions      SubscriptionPatchOptions
+	productID         SubscriptionProductID
+	subscription      Subscription
+	stateOptions      BasePlanStateUpdateOptions
+	batchStateOptions BasePlanBatchStateUpdateOptions
+	batchStateResult  BasePlanBatchStateUpdateResult
 }
 
 func (c *fakeSubscriptionClient) ListSubscriptions(ctx context.Context, options SubscriptionListOptions) (SubscriptionListResult, error) {
@@ -435,6 +563,11 @@ func (c *fakeSubscriptionClient) DeleteSubscription(ctx context.Context, options
 func (c *fakeSubscriptionClient) UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error) {
 	c.stateOptions = options
 	return c.subscription, nil
+}
+
+func (c *fakeSubscriptionClient) BatchUpdateBasePlanStates(ctx context.Context, options BasePlanBatchStateUpdateOptions) (BasePlanBatchStateUpdateResult, error) {
+	c.batchStateOptions = options
+	return c.batchStateResult, nil
 }
 
 func (c *fakeSubscriptionClient) PatchSubscription(ctx context.Context, options SubscriptionPatchOptions) (Subscription, error) {
