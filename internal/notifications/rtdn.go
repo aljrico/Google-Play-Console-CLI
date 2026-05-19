@@ -13,8 +13,9 @@ import (
 )
 
 type RTDNDecodeOptions struct {
-	File string `json:"file,omitempty"`
-	Data string `json:"data,omitempty"`
+	File      string `json:"file,omitempty"`
+	Data      string `json:"data,omitempty"`
+	Unwrapped bool   `json:"unwrapped,omitempty"`
 }
 
 type PubSubEnvelope struct {
@@ -81,6 +82,20 @@ func DecodeRTDN(options RTDNDecodeOptions) (RTDNDecodeResult, error) {
 	if err != nil {
 		return RTDNDecodeResult{}, err
 	}
+	if options.Unwrapped {
+		notification, err := decodeDeveloperNotification(content)
+		if err != nil {
+			return RTDNDecodeResult{}, err
+		}
+		kind, err := notification.Kind()
+		if err != nil {
+			return RTDNDecodeResult{}, err
+		}
+		return RTDNDecodeResult{
+			Kind:         kind,
+			Notification: notification,
+		}, nil
+	}
 	var envelope PubSubEnvelope
 	if err := decodeSingleJSON(content, &envelope, false); err != nil {
 		return RTDNDecodeResult{}, fmt.Errorf("parse Pub/Sub push payload: %w", err)
@@ -92,11 +107,8 @@ func DecodeRTDN(options RTDNDecodeOptions) (RTDNDecodeResult, error) {
 	if err != nil {
 		return RTDNDecodeResult{}, fmt.Errorf("decode Pub/Sub message data: %w", err)
 	}
-	var notification DeveloperNotification
-	if err := decodeSingleJSON(decodedData, &notification, true); err != nil {
-		return RTDNDecodeResult{}, fmt.Errorf("parse developer notification: %w", err)
-	}
-	if err := notification.Validate(); err != nil {
+	notification, err := decodeDeveloperNotification(decodedData)
+	if err != nil {
 		return RTDNDecodeResult{}, err
 	}
 	kind, err := notification.Kind()
@@ -113,6 +125,17 @@ func DecodeRTDN(options RTDNDecodeOptions) (RTDNDecodeResult, error) {
 		Kind:            kind,
 		Notification:    notification,
 	}, nil
+}
+
+func decodeDeveloperNotification(content []byte) (DeveloperNotification, error) {
+	var notification DeveloperNotification
+	if err := decodeSingleJSON(content, &notification, true); err != nil {
+		return DeveloperNotification{}, fmt.Errorf("parse developer notification: %w", err)
+	}
+	if err := notification.Validate(); err != nil {
+		return DeveloperNotification{}, err
+	}
+	return notification, nil
 }
 
 func decodeSingleJSON(content []byte, target any, useNumber bool) error {
@@ -150,7 +173,7 @@ func (o RTDNDecodeOptions) content() ([]byte, error) {
 	case strings.TrimSpace(o.Data) != "":
 		return []byte(o.Data), nil
 	default:
-		return nil, fmt.Errorf("Pub/Sub payload requires --file or --data")
+		return nil, fmt.Errorf("RTDN payload requires --file or --data")
 	}
 }
 

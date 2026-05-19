@@ -948,8 +948,9 @@ gpc notifications rtdn decode [flags]
 
 ###### Flags
 
-- `--data`: Inline Pub/Sub wrapped push JSON payload; required unless --file is set
-- `--file`: Pub/Sub wrapped push JSON payload file; required unless --data is set
+- `--data`: Inline RTDN JSON payload; required unless --file is set
+- `--file`: RTDN JSON payload file; required unless --data is set
+- `--unwrapped`: Decode an unwrapped push payload containing the developer notification directly (default `false`)
 
 ### gpc notify
 

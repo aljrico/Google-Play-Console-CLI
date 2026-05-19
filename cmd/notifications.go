@@ -40,7 +40,8 @@ func newNotificationsRTDNDecodeCommand(out io.Writer, options *globalOptions) *c
 			return output.Write(out, options.output, options.pretty, result)
 		},
 	}
-	cmd.Flags().StringVar(&decodeOptions.File, "file", "", "Pub/Sub wrapped push JSON payload file; required unless --data is set")
-	cmd.Flags().StringVar(&decodeOptions.Data, "data", "", "Inline Pub/Sub wrapped push JSON payload; required unless --file is set")
+	cmd.Flags().StringVar(&decodeOptions.File, "file", "", "RTDN JSON payload file; required unless --data is set")
+	cmd.Flags().StringVar(&decodeOptions.Data, "data", "", "Inline RTDN JSON payload; required unless --file is set")
+	cmd.Flags().BoolVar(&decodeOptions.Unwrapped, "unwrapped", false, "Decode an unwrapped push payload containing the developer notification directly")
 	return cmd
 }

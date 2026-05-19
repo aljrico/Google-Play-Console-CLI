@@ -65,6 +65,7 @@ GPC_NOTIFY_WEBHOOK_URL="$WEBHOOK_URL" gpc notify send --message "Internal releas
 gpc search "release upload" --limit 5
 gpc snitch report --title "Confusing release output" --command "gpc releases list --package com.example.app"
 gpc notifications rtdn decode --file ./pubsub-rtdn.json
+gpc notifications rtdn decode --file ./unwrapped-rtdn.json --unwrapped
 gpc insights anomalies summarize --file ./vitals-anomalies.json
 gpc finance reports summarize --file ./earnings_202605.csv
 gpc analytics stats summarize --file ./store_performance_com.example.app_202605_country.csv
@@ -136,7 +137,7 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 
 `vitals` uses the Play Developer Reporting API, which is separate from Android Publisher and requires the Play Developer Reporting API to be enabled plus app-level "View app information (read-only)" access. Query and search commands accept explicit metrics, filters, and date ranges so automation never relies on API defaults; error issue and report search intervals use UTC when a timezone is set, and omitting it uses the API's UTC default.
 
-`notifications rtdn decode` expects a wrapped Pub/Sub push JSON body with `message.data` containing the base64-encoded Google Play `DeveloperNotification`; pass exactly one of `--file` or `--data`.
+`notifications rtdn decode` expects a wrapped Pub/Sub push JSON body with `message.data` containing the base64-encoded Google Play `DeveloperNotification`; add `--unwrapped` when Pub/Sub push delivery sends the developer notification JSON directly. Pass exactly one of `--file` or `--data`.
 
 `in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; live status patches reject legacy subscription SKUs. `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources.
 

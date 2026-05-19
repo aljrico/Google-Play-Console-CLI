@@ -64,6 +64,21 @@ func TestDecodeRTDNTestNotificationFromData(t *testing.T) {
 	}
 }
 
+func TestDecodeRTDNUnwrappedTestNotificationFromData(t *testing.T) {
+	notification := `{"version":"1.0","packageName":"com.example.app","eventTimeMillis":1700000000000,"testNotification":{"version":"1.0"}}`
+
+	result, err := DecodeRTDN(RTDNDecodeOptions{Data: notification, Unwrapped: true})
+	if err != nil {
+		t.Fatalf("DecodeRTDN() error = %v", err)
+	}
+	if result.Kind != "test" {
+		t.Fatalf("Kind = %q, want test", result.Kind)
+	}
+	if result.MessageID != "" || result.Subscription != "" {
+		t.Fatalf("result = %#v, did not expect Pub/Sub envelope metadata", result)
+	}
+}
+
 func TestDecodeRTDNRejectsMultipleKinds(t *testing.T) {
 	notification := `{"version":"1.0","packageName":"com.example.app","eventTimeMillis":1700000000000,"testNotification":{"version":"1.0"},"subscriptionNotification":{"version":"1.0","notificationType":1,"purchaseToken":"token"}}`
 	payload := fmt.Sprintf(`{"message":{"data":%q}}`, base64.StdEncoding.EncodeToString([]byte(notification)))
