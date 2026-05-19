@@ -119,6 +119,10 @@ type AppRecoveryTargetingAdder interface {
 	AddAppRecoveryTargeting(ctx context.Context, options AppRecoveryTargetingUpdateOptions) error
 }
 
+type AppRecoveryCreator interface {
+	CreateAppRecovery(ctx context.Context, options AppRecoveryCreateOptions) (AppRecoveryAction, error)
+}
+
 func ListAppRecoveries(ctx context.Context, lister AppRecoveryLister, options AppRecoveryListOptions) (AppRecoveryListResult, error) {
 	if err := options.Validate(); err != nil {
 		return AppRecoveryListResult{}, err
@@ -362,4 +366,94 @@ func isValidAppRecoveryRegionCode(value string) bool {
 		return false
 	}
 	return value[0] >= 'A' && value[0] <= 'Z' && value[1] >= 'A' && value[1] <= 'Z'
+}
+
+type AppRecoveryCreateOptions struct {
+	PackageName  PackageName `json:"packageName"`
+	VersionCodes []int64     `json:"versionCodes"`
+	Confirm      bool        `json:"confirm"`
+	DryRun       bool        `json:"dryRun"`
+}
+
+func (o AppRecoveryCreateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if len(o.VersionCodes) == 0 {
+		return fmt.Errorf("app recovery create requires at least one version code")
+	}
+	seenVersionCodes := make(map[int64]struct{}, len(o.VersionCodes))
+	for _, versionCode := range o.VersionCodes {
+		if versionCode <= 0 {
+			return fmt.Errorf("version code must be greater than 0")
+		}
+		if _, ok := seenVersionCodes[versionCode]; ok {
+			return fmt.Errorf("duplicate version code %d", versionCode)
+		}
+		seenVersionCodes[versionCode] = struct{}{}
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("app recovery create requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o AppRecoveryCreateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live app recovery create cannot run with --dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live app recovery create requires --confirm")
+	}
+	return nil
+}
+
+type AppRecoveryCreatePlan struct {
+	PackageName  PackageName `json:"packageName"`
+	VersionCodes []int64     `json:"versionCodes"`
+	Confirm      bool        `json:"confirm"`
+	Steps        []string    `json:"steps"`
+}
+
+type AppRecoveryCreateResult struct {
+	PackageName PackageName           `json:"packageName"`
+	DryRun      bool                  `json:"dryRun"`
+	Created     bool                  `json:"created"`
+	Action      *AppRecoveryAction    `json:"action,omitempty"`
+	Plan        AppRecoveryCreatePlan `json:"plan"`
+}
+
+func CreateAppRecovery(ctx context.Context, creator AppRecoveryCreator, options AppRecoveryCreateOptions) (AppRecoveryCreateResult, error) {
+	if err := options.Validate(); err != nil {
+		return AppRecoveryCreateResult{}, err
+	}
+	result := AppRecoveryCreateResult{
+		PackageName: options.PackageName,
+		DryRun:      options.DryRun,
+		Plan: AppRecoveryCreatePlan{
+			PackageName:  options.PackageName,
+			VersionCodes: append([]int64(nil), options.VersionCodes...),
+			Confirm:      options.Confirm,
+			Steps:        []string{"create draft remote in-app update recovery", "target version codes"},
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if creator == nil {
+		return AppRecoveryCreateResult{}, fmt.Errorf("app recovery creator is required")
+	}
+	action, err := creator.CreateAppRecovery(ctx, options)
+	if err != nil {
+		return AppRecoveryCreateResult{}, err
+	}
+	result.Created = true
+	result.Action = &action
+	return result, nil
 }

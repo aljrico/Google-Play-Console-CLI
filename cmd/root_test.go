@@ -1691,6 +1691,64 @@ func TestAppRecoveryDeployDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestAppRecoveryCreateDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"app-recovery",
+		"create",
+		"--package",
+		"com.example.app",
+		"--version-code",
+		"42",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{`"dryRun":true`, `"created":false`, `"versionCodes":[42]`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestAppRecoveryCreateRejectsMissingVersionCodeBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"app-recovery",
+		"create",
+		"--package",
+		"com.example.app",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected version code validation error")
+	}
+	if !strings.Contains(err.Error(), "version code") {
+		t.Fatalf("error = %v, want version code validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestAppRecoveryAddTargetingDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

@@ -80,6 +80,65 @@ func TestDeployAppRecoveryDryRunDoesNotCallMutator(t *testing.T) {
 	}
 }
 
+func TestCreateAppRecoveryDryRunDoesNotCallCreator(t *testing.T) {
+	result, err := CreateAppRecovery(context.Background(), nil, AppRecoveryCreateOptions{
+		PackageName:  "com.example.app",
+		VersionCodes: []int64{42, 43},
+		DryRun:       true,
+	})
+	if err != nil {
+		t.Fatalf("CreateAppRecovery() error = %v", err)
+	}
+	if result.Created {
+		t.Fatalf("Created = true, want false")
+	}
+	if !reflect.DeepEqual(result.Plan.VersionCodes, []int64{42, 43}) {
+		t.Fatalf("VersionCodes = %#v, want 42 and 43", result.Plan.VersionCodes)
+	}
+}
+
+func TestCreateAppRecoveryPassesOptionsToCreator(t *testing.T) {
+	creator := &fakeAppRecoveryMutator{
+		createAction: AppRecoveryAction{AppRecoveryID: "7", Status: "RECOVERY_STATUS_DRAFT"},
+	}
+	options := AppRecoveryCreateOptions{
+		PackageName:  "com.example.app",
+		VersionCodes: []int64{42},
+		Confirm:      true,
+	}
+
+	result, err := CreateAppRecovery(context.Background(), creator, options)
+	if err != nil {
+		t.Fatalf("CreateAppRecovery() error = %v", err)
+	}
+	if !result.Created {
+		t.Fatalf("Created = false, want true")
+	}
+	if creator.createOptions.PackageName != options.PackageName || !reflect.DeepEqual(creator.createOptions.VersionCodes, options.VersionCodes) {
+		t.Fatalf("createOptions = %#v, want %#v", creator.createOptions, options)
+	}
+	if result.Action == nil || result.Action.AppRecoveryID != "7" {
+		t.Fatalf("Action = %#v, want created action", result.Action)
+	}
+}
+
+func TestCreateAppRecoveryRejectsInvalidOptions(t *testing.T) {
+	tests := []AppRecoveryCreateOptions{
+		{},
+		{PackageName: "bad", VersionCodes: []int64{42}, DryRun: true},
+		{PackageName: "com.example.app", DryRun: true},
+		{PackageName: "com.example.app", VersionCodes: []int64{0}, DryRun: true},
+		{PackageName: "com.example.app", VersionCodes: []int64{42, 42}, DryRun: true},
+		{PackageName: "com.example.app", VersionCodes: []int64{42}},
+		{PackageName: "com.example.app", VersionCodes: []int64{42}, Confirm: true, DryRun: true},
+	}
+	for _, options := range tests {
+		if _, err := CreateAppRecovery(context.Background(), nil, options); err == nil {
+			t.Fatalf("CreateAppRecovery(%#v) expected validation error", options)
+		}
+	}
+}
+
 func TestCancelAppRecoveryPassesOptionsToMutator(t *testing.T) {
 	mutator := &fakeAppRecoveryMutator{}
 	options := AppRecoveryMutationOptions{
@@ -186,9 +245,16 @@ func (l *fakeAppRecoveryLister) ListAppRecoveries(ctx context.Context, options A
 }
 
 type fakeAppRecoveryMutator struct {
+	createOptions    AppRecoveryCreateOptions
+	createAction     AppRecoveryAction
 	deployOptions    AppRecoveryMutationOptions
 	cancelOptions    AppRecoveryMutationOptions
 	targetingOptions AppRecoveryTargetingUpdateOptions
+}
+
+func (m *fakeAppRecoveryMutator) CreateAppRecovery(ctx context.Context, options AppRecoveryCreateOptions) (AppRecoveryAction, error) {
+	m.createOptions = options
+	return m.createAction, nil
 }
 
 func (m *fakeAppRecoveryMutator) DeployAppRecovery(ctx context.Context, options AppRecoveryMutationOptions) error {

@@ -2091,6 +2091,61 @@ func TestDeployAppRecoveryUsesDeployEndpoint(t *testing.T) {
 	}
 }
 
+func TestCreateAppRecoveryUsesCreateEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/appRecoveries" {
+			t.Fatalf("path = %q, want app recovery create endpoint", r.URL.Path)
+		}
+		var request androidpublisher.CreateDraftAppRecoveryRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.RemoteInAppUpdate == nil || !request.RemoteInAppUpdate.IsRemoteInAppUpdateRequested {
+			t.Fatalf("RemoteInAppUpdate = %#v, want requested", request.RemoteInAppUpdate)
+		}
+		if request.Targeting == nil || request.Targeting.VersionList == nil || !reflect.DeepEqual([]int64(request.Targeting.VersionList.VersionCodes), []int64{42, 43}) {
+			t.Fatalf("Targeting = %#v, want version list", request.Targeting)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"appRecoveryId":"7","status":"RECOVERY_STATUS_DRAFT","targeting":{"versionList":{"versionCodes":["42","43"]}}}`))
+	}))
+
+	action, err := publisher.CreateAppRecovery(context.Background(), AppRecoveryCreateOptions{
+		PackageName:  "com.example.app",
+		VersionCodes: []int64{42, 43},
+		Confirm:      true,
+	})
+	if err != nil {
+		t.Fatalf("CreateAppRecovery() error = %v", err)
+	}
+	if action.AppRecoveryID != "7" || action.Status != "RECOVERY_STATUS_DRAFT" {
+		t.Fatalf("action = %#v, want draft recovery 7", action)
+	}
+}
+
+func TestCreateAppRecoveryRejectsDryRunBeforeRequest(t *testing.T) {
+	requests := 0
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		t.Fatalf("unexpected request to %s", r.URL.Path)
+	}))
+
+	_, err := publisher.CreateAppRecovery(context.Background(), AppRecoveryCreateOptions{
+		PackageName:  "com.example.app",
+		VersionCodes: []int64{42},
+		DryRun:       true,
+	})
+	if err == nil {
+		t.Fatal("expected dry-run rejection")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
 func TestDeployAppRecoveryRejectsDryRunBeforeRequest(t *testing.T) {
 	requests := 0
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

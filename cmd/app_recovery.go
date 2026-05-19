@@ -19,10 +19,60 @@ func newAppRecoveryCommand(out io.Writer, options *globalOptions) *cobra.Command
 	cmd.PersistentFlags().StringVar(&packageName, "package", "", "Android package name, for example com.example.app")
 	cmd.AddCommand(
 		newAppRecoveryListCommand(out, options, &packageName),
+		newAppRecoveryCreateCommand(out, options, &packageName),
 		newAppRecoveryAddTargetingCommand(out, options, &packageName),
 		newAppRecoveryDeployCommand(out, options, &packageName),
 		newAppRecoveryCancelCommand(out, options, &packageName),
 	)
+	return cmd
+}
+
+func newAppRecoveryCreateCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		versionCodes []int64
+		confirm      bool
+		dryRun       bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a draft remote in-app update recovery action",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			createOptions := play.AppRecoveryCreateOptions{
+				PackageName:  typedPackageName,
+				VersionCodes: versionCodes,
+				Confirm:      confirm,
+				DryRun:       dryRun,
+			}
+			if err := createOptions.Validate(); err != nil {
+				return err
+			}
+			if dryRun {
+				result, err := play.CreateAppRecovery(cmd.Context(), nil, createOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.CreateAppRecovery(cmd.Context(), publisher, createOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().Int64SliceVar(&versionCodes, "version-code", nil, "App version code to target, repeatable")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Create the draft app recovery action")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned app recovery creation without calling Google Play")
 	return cmd
 }
 

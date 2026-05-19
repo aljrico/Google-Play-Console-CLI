@@ -888,6 +888,19 @@ func (p GooglePublisher) ListAppRecoveries(ctx context.Context, options AppRecov
 	return appRecoveryListResultFromAPI(options, response), nil
 }
 
+func (p GooglePublisher) CreateAppRecovery(ctx context.Context, options AppRecoveryCreateOptions) (AppRecoveryAction, error) {
+	if err := options.ValidateLive(); err != nil {
+		return AppRecoveryAction{}, err
+	}
+	action, err := p.service.Apprecovery.Create(options.PackageName.String(), appRecoveryCreateToAPI(options)).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return AppRecoveryAction{}, fmt.Errorf("create app recovery for %s: %w", options.PackageName, err)
+	}
+	return appRecoveryActionFromAPI(action), nil
+}
+
 func (p GooglePublisher) AddAppRecoveryTargeting(ctx context.Context, options AppRecoveryTargetingUpdateOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
@@ -2629,18 +2642,35 @@ func appRecoveryListResultFromAPI(options AppRecoveryListOptions, response *andr
 		if apiAction == nil {
 			continue
 		}
-		result.Actions = append(result.Actions, AppRecoveryAction{
-			AppRecoveryID:         strconv.FormatInt(apiAction.AppRecoveryId, 10),
-			Status:                apiAction.Status,
-			CreateTime:            apiAction.CreateTime,
-			DeployTime:            apiAction.DeployTime,
-			CancelTime:            apiAction.CancelTime,
-			LastUpdateTime:        apiAction.LastUpdateTime,
-			Targeting:             appRecoveryTargetingFromAPI(apiAction.Targeting),
-			RemoteInAppUpdateData: appRecoveryRemoteInAppUpdateDataFromAPI(apiAction.RemoteInAppUpdateData),
-		})
+		result.Actions = append(result.Actions, appRecoveryActionFromAPI(apiAction))
 	}
 	return result
+}
+
+func appRecoveryActionFromAPI(apiAction *androidpublisher.AppRecoveryAction) AppRecoveryAction {
+	if apiAction == nil {
+		return AppRecoveryAction{}
+	}
+	action := AppRecoveryAction{
+		AppRecoveryID:         strconv.FormatInt(apiAction.AppRecoveryId, 10),
+		Status:                apiAction.Status,
+		CreateTime:            apiAction.CreateTime,
+		DeployTime:            apiAction.DeployTime,
+		CancelTime:            apiAction.CancelTime,
+		LastUpdateTime:        apiAction.LastUpdateTime,
+		Targeting:             appRecoveryTargetingFromAPI(apiAction.Targeting),
+		RemoteInAppUpdateData: appRecoveryRemoteInAppUpdateDataFromAPI(apiAction.RemoteInAppUpdateData),
+	}
+	return action
+}
+
+func appRecoveryCreateToAPI(options AppRecoveryCreateOptions) *androidpublisher.CreateDraftAppRecoveryRequest {
+	return &androidpublisher.CreateDraftAppRecoveryRequest{
+		RemoteInAppUpdate: &androidpublisher.RemoteInAppUpdate{IsRemoteInAppUpdateRequested: true},
+		Targeting: &androidpublisher.Targeting{
+			VersionList: &androidpublisher.AppVersionList{VersionCodes: googleapi.Int64s(append([]int64(nil), options.VersionCodes...))},
+		},
+	}
 }
 
 func appRecoveryTargetingUpdateToAPI(options AppRecoveryTargetingUpdateOptions) *androidpublisher.AddTargetingRequest {

@@ -84,6 +84,7 @@ gpc releases halt --package com.example.app --track production --version-code 12
 gpc releases resume --package com.example.app --track production --version-code 123 --status inProgress --user-fraction 0.25 --dry-run
 gpc internal-sharing upload --package com.example.app --aab ./app-release.aab --dry-run
 gpc app-recovery list --package com.example.app --version-code 123
+gpc app-recovery create --package com.example.app --version-code 123 --dry-run
 gpc app-recovery add-targeting --package com.example.app --id 7 --region US --dry-run
 gpc app-recovery deploy --package com.example.app --id 7 --dry-run
 gpc app-recovery cancel --package com.example.app --id 7 --dry-run

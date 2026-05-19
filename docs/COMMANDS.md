@@ -129,6 +129,7 @@ gpc app-recovery
 
 - `gpc app-recovery add-targeting`: Add targeting to an app recovery action
 - `gpc app-recovery cancel`: Cancel an app recovery action
+- `gpc app-recovery create`: Create a draft remote in-app update recovery action
 - `gpc app-recovery deploy`: Deploy a draft app recovery action
 - `gpc app-recovery list`: List app recovery actions for a version code
 
@@ -162,6 +163,20 @@ gpc app-recovery cancel [flags]
 - `--confirm`: Apply the app recovery mutation (default `false`)
 - `--dry-run`: Print the planned app recovery mutation without calling Google Play (default `false`)
 - `--id`: App recovery action ID
+
+#### gpc app-recovery create
+
+Create a draft remote in-app update recovery action
+
+```sh
+gpc app-recovery create [flags]
+```
+
+##### Flags
+
+- `--confirm`: Create the draft app recovery action (default `false`)
+- `--dry-run`: Print the planned app recovery creation without calling Google Play (default `false`)
+- `--version-code`: App version code to target, repeatable (default `[]`)
 
 #### gpc app-recovery deploy
 
