@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 
 	"google.golang.org/api/androidpublisher/v3"
@@ -940,10 +941,39 @@ func subscriptionOfferBatchGetResultFromAPI(options SubscriptionOfferBatchGetOpt
 	if response == nil {
 		return result
 	}
+	byKey := make(map[string]SubscriptionOffer, len(response.SubscriptionOffers))
+	extras := make([]SubscriptionOffer, 0)
 	for _, apiOffer := range response.SubscriptionOffers {
-		result.Offers = append(result.Offers, subscriptionOfferFromAPI(apiOffer))
+		offer := subscriptionOfferFromAPI(apiOffer)
+		key := subscriptionOfferKey(offer.ProductID, offer.BasePlanID, offer.OfferID)
+		if key == "//" {
+			continue
+		}
+		if _, ok := byKey[key]; ok {
+			extras = append(extras, offer)
+			continue
+		}
+		byKey[key] = offer
 	}
+	for _, request := range options.Requests {
+		key := subscriptionOfferKey(request.ProductID, request.BasePlanID, request.OfferID)
+		if offer, ok := byKey[key]; ok {
+			result.Offers = append(result.Offers, offer)
+			delete(byKey, key)
+		}
+	}
+	for _, offer := range byKey {
+		extras = append(extras, offer)
+	}
+	sort.Slice(extras, func(i, j int) bool {
+		return subscriptionOfferKey(extras[i].ProductID, extras[i].BasePlanID, extras[i].OfferID) < subscriptionOfferKey(extras[j].ProductID, extras[j].BasePlanID, extras[j].OfferID)
+	})
+	result.Offers = append(result.Offers, extras...)
 	return result
+}
+
+func subscriptionOfferKey(productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, offerID SubscriptionOfferID) string {
+	return productID.String() + "/" + basePlanID.String() + "/" + offerID.String()
 }
 
 func (p GooglePublisher) AcknowledgeProductPurchase(ctx context.Context, options ProductPurchaseMutationOptions) error {

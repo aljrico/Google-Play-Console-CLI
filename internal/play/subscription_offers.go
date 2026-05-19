@@ -61,6 +61,9 @@ func NewSubscriptionOfferID(value string) (SubscriptionOfferID, error) {
 	if value == "" {
 		return "", fmt.Errorf("subscription offer ID is required")
 	}
+	if len(value) > 63 {
+		return "", fmt.Errorf("subscription offer ID cannot exceed 63 characters")
+	}
 	if !isValidSubscriptionBasePlanID(value) {
 		return "", fmt.Errorf("invalid subscription offer ID %q", value)
 	}

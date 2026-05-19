@@ -2619,6 +2619,32 @@ func TestBatchGetSubscriptionOffersUsesBatchGetEndpoint(t *testing.T) {
 	}
 }
 
+func TestBatchGetSubscriptionOffersOrdersOutputByRequestOrder(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"subscriptionOffers":[
+			{"packageName":"com.example.app","productId":"premium","basePlanId":"annual","offerId":"winback"},
+			{"packageName":"com.example.app","productId":"premium","basePlanId":"monthly","offerId":"intro"}
+		]}`)
+	}))
+
+	result, err := publisher.BatchGetSubscriptionOffers(context.Background(), SubscriptionOfferBatchGetOptions{
+		PackageName: "com.example.app",
+		ProductID:   "premium",
+		BasePlanID:  "-",
+		Requests: []SubscriptionOfferBatchGetRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro"},
+			{ProductID: "premium", BasePlanID: "annual", OfferID: "winback"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetSubscriptionOffers() error = %v", err)
+	}
+	if len(result.Offers) != 2 || result.Offers[0].OfferID != "intro" || result.Offers[1].OfferID != "winback" {
+		t.Fatalf("Offers = %#v, want request order", result.Offers)
+	}
+}
+
 func TestBatchGetSubscriptionsUsesRepeatedProductIDs(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions:batchGet" {

@@ -34,6 +34,7 @@ func newSubscriptionOffersBatchGetCommand(out io.Writer, options *globalOptions,
 	cmd := &cobra.Command{
 		Use:   "batch-get",
 		Short: "Get multiple subscription offers",
+		Long:  "Get multiple subscription offers. Use - for both --product-id and --base-plan-id when the batch spans products or base plans. Concrete parent IDs must match every --offer value.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, typedProductID, typedBasePlanID, err := parseSubscriptionOfferListParent(*packageName, productID, basePlanID)

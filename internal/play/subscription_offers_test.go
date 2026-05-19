@@ -139,7 +139,7 @@ func TestSubscriptionOfferIDValidatesGoogleShape(t *testing.T) {
 	if _, err := NewSubscriptionOfferID("intro-offer-1"); err != nil {
 		t.Fatalf("NewSubscriptionOfferID() error = %v", err)
 	}
-	for _, value := range []string{"", "Intro", "intro_offer", "intro offer"} {
+	for _, value := range []string{"", "Intro", "intro_offer", "intro offer", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"} {
 		if _, err := NewSubscriptionOfferID(value); err == nil {
 			t.Fatalf("NewSubscriptionOfferID(%q) succeeded, want error", value)
 		}
