@@ -2912,6 +2912,7 @@ gpc subscriptions create [flags]
 - `--product-id`: Subscription product ID
 - `--regions-version`: Google Play regions version required by subscriptions.create
 - `--renewal-type`: Basic installments renewal type: RENEWAL_TYPE_RENEWS_WITHOUT_COMMITMENT or RENEWAL_TYPE_RENEWS_WITH_COMMITMENT
+- `--restricted-country`: Basic create restricted payment country as REGION; repeatable (default `[]`)
 - `--time-extension`: Basic prepaid time extension: TIME_EXTENSION_ACTIVE or TIME_EXTENSION_INACTIVE
 
 #### gpc subscriptions delete

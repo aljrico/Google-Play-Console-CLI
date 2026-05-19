@@ -6067,14 +6067,19 @@ func TestCreateSubscriptionSendsTypedSubscriptionBody(t *testing.T) {
 		if len(request.BasePlans) != 1 || request.BasePlans[0].AutoRenewingBasePlanType == nil || request.BasePlans[0].RegionalConfigs[0].Price == nil {
 			t.Fatalf("BasePlans = %#v, want typed base plan", request.BasePlans)
 		}
+		if request.RestrictedPaymentCountries == nil || !reflect.DeepEqual(request.RestrictedPaymentCountries.RegionCodes, []string{"BR", "IN"}) {
+			t.Fatalf("RestrictedPaymentCountries = %#v, want BR and IN", request.RestrictedPaymentCountries)
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","listings":[{"languageCode":"en-US","title":"Premium"}],"basePlans":[{"basePlanId":"monthly","state":"DRAFT","autoRenewingBasePlanType":{"billingPeriodDuration":"P1M"},"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"4","nanos":990000000}}]}]}`)
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","listings":[{"languageCode":"en-US","title":"Premium"}],"basePlans":[{"basePlanId":"monthly","state":"DRAFT","autoRenewingBasePlanType":{"billingPeriodDuration":"P1M"},"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"4","nanos":990000000}}]}],"restrictedPaymentCountries":{"regionCodes":["BR","IN"]}}`)
 	}))
 
+	subscription := validSubscriptionForCreate()
+	subscription.RestrictedCountries = []string{"BR", "IN"}
 	result, err := publisher.CreateSubscription(context.Background(), SubscriptionCreateOptions{
 		PackageName:    "com.example.app",
 		ProductID:      "premium",
-		Subscription:   validSubscriptionForCreate(),
+		Subscription:   subscription,
 		RegionsVersion: "2026/05",
 		Confirm:        true,
 	})
@@ -6083,6 +6088,9 @@ func TestCreateSubscriptionSendsTypedSubscriptionBody(t *testing.T) {
 	}
 	if result.ProductID != "premium" || len(result.BasePlans) != 1 || result.BasePlans[0].State != SubscriptionStateDraft {
 		t.Fatalf("result = %#v, want created draft subscription", result)
+	}
+	if !reflect.DeepEqual(result.RestrictedCountries, []string{"BR", "IN"}) {
+		t.Fatalf("RestrictedCountries = %#v, want BR and IN", result.RestrictedCountries)
 	}
 }
 

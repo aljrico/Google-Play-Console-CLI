@@ -34,29 +34,30 @@ func newSubscriptionsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 
 func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	var (
-		productID         string
-		fromJSON          string
-		prepaid           bool
-		installments      bool
-		listings          []string
-		basePlanID        string
-		billingPeriod     string
-		timeExtension     string
-		committedPayments int64
-		renewalType       string
-		prices            []string
-		offerTags         []string
-		legacyCompatible  bool
-		regionsVersion    string
-		confirm           bool
-		dryRun            bool
+		productID           string
+		fromJSON            string
+		prepaid             bool
+		installments        bool
+		listings            []string
+		basePlanID          string
+		billingPeriod       string
+		timeExtension       string
+		committedPayments   int64
+		renewalType         string
+		restrictedCountries []string
+		prices              []string
+		offerTags           []string
+		legacyCompatible    bool
+		regionsVersion      string
+		confirm             bool
+		dryRun              bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a draft subscription",
 		Long: "Create a draft subscription from a Google Play API Subscription JSON body or gpc subscription JSON output. " +
-			"Basic flags build one auto-renewing, prepaid, or installments base plan; use JSON for compliance, restricted countries, or other advanced fields. " +
+			"Basic flags build one auto-renewing, prepaid, or installments base plan; use JSON for compliance or other advanced fields. " +
 			"Immutable package and product IDs come from flags and override JSON bodies; output-only subscription and base-plan state is ignored.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -81,6 +82,7 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 				CommittedPaymentsSet: cmd.Flags().Changed("committed-payments"),
 				RenewalType:          renewalType,
 				RenewalTypeSet:       cmd.Flags().Changed("renewal-type"),
+				RestrictedCountries:  restrictedCountries,
 				Prices:               prices,
 				OfferTags:            offerTags,
 				LegacyCompatible:     legacyCompatible,
@@ -93,6 +95,7 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 					cmd.Flags().Changed("time-extension") ||
 					cmd.Flags().Changed("committed-payments") ||
 					cmd.Flags().Changed("renewal-type") ||
+					cmd.Flags().Changed("restricted-country") ||
 					cmd.Flags().Changed("price") ||
 					cmd.Flags().Changed("offer-tag") ||
 					cmd.Flags().Changed("legacy-compatible"),
@@ -139,6 +142,7 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 	cmd.Flags().StringVar(&timeExtension, "time-extension", "", "Basic prepaid time extension: TIME_EXTENSION_ACTIVE or TIME_EXTENSION_INACTIVE")
 	cmd.Flags().Int64Var(&committedPayments, "committed-payments", 0, "Basic installments committed payments count")
 	cmd.Flags().StringVar(&renewalType, "renewal-type", "", "Basic installments renewal type: RENEWAL_TYPE_RENEWS_WITHOUT_COMMITMENT or RENEWAL_TYPE_RENEWS_WITH_COMMITMENT")
+	cmd.Flags().StringArrayVar(&restrictedCountries, "restricted-country", nil, "Basic create restricted payment country as REGION; repeatable")
 	cmd.Flags().StringArrayVar(&prices, "price", nil, "Basic create regional price as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
 	cmd.Flags().StringArrayVar(&offerTags, "offer-tag", nil, "Basic create base plan offer tag; repeatable")
 	cmd.Flags().BoolVar(&legacyCompatible, "legacy-compatible", true, "Mark the basic auto-renewing base plan as legacy compatible")
@@ -161,6 +165,7 @@ type subscriptionCreateBodyOptions struct {
 	CommittedPaymentsSet bool
 	RenewalType          string
 	RenewalTypeSet       bool
+	RestrictedCountries  []string
 	Prices               []string
 	OfferTags            []string
 	LegacyCompatible     bool
@@ -228,7 +233,8 @@ func subscriptionCreateBody(options subscriptionCreateBodyOptions) (play.Subscri
 		}
 	}
 	return play.Subscription{
-		Listings: listings,
+		Listings:            listings,
+		RestrictedCountries: parseSubscriptionCreateRestrictedCountries(options.RestrictedCountries),
 		BasePlans: []play.SubscriptionBasePlan{{
 			BasePlanID:             basePlanID.String(),
 			Type:                   basePlanType,
@@ -241,6 +247,14 @@ func subscriptionCreateBody(options subscriptionCreateBodyOptions) (play.Subscri
 			RegionalConfigs:        regionalConfigs,
 		}},
 	}, nil
+}
+
+func parseSubscriptionCreateRestrictedCountries(values []string) []string {
+	countries := make([]string, 0, len(values))
+	for _, value := range values {
+		countries = append(countries, strings.ToUpper(strings.TrimSpace(value)))
+	}
+	return countries
 }
 
 func (o subscriptionCreateBodyOptions) UsesBasicFlags() bool {
