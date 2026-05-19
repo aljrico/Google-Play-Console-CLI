@@ -30,6 +30,7 @@ gpc [flags]
 - `gpc images`: Manage localized Google Play store images
 - `gpc in-app-products`: Inspect legacy Google Play in-app products
 - `gpc init`: Create a local gpc workspace
+- `gpc install-skills`: Install bundled gpc agent skills
 - `gpc internal-sharing`: Upload artifacts to Google Play internal app sharing
 - `gpc listings`: Manage localized Google Play store listings
 - `gpc one-time-product-offers`: Inspect Google Play one-time product offers
@@ -607,6 +608,21 @@ gpc init [flags]
 - `--directory`: Directory for gpc helper files (default `.gpc`)
 - `--dry-run`: Print the planned init files without writing (default `false`)
 - `--force`: Overwrite existing gpc helper files (default `false`)
+
+### gpc install-skills
+
+Install bundled gpc agent skills
+
+```sh
+gpc install-skills [flags]
+```
+
+#### Flags
+
+- `--directory`: Directory for installed agent skills, defaults to ~/.agents/skills
+- `--dry-run`: Print planned skill installs without writing (default `false`)
+- `--force`: Overwrite existing skill files (default `false`)
+- `--skill`: Install one bundled skill by name; repeat to install multiple (default `[]`)
 
 ### gpc internal-sharing
 

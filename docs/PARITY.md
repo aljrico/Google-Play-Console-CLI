@@ -22,7 +22,7 @@ Sources:
 | --- | --- | --- | --- | --- |
 | `auth` | `auth` | OAuth/service account credentials | implemented | Scaffold supports service account profile storage and validation. |
 | `doctor` | `auth doctor` | OAuth/service account credentials | implemented | Validates the configured service account JSON. |
-| `install-skills` | `skills` | N/A | planned | Useful later for agent workflows, not core CLI behavior. |
+| `install-skills` | `install-skills` | N/A | tested | Installs bundled gpc agent skills with dry-run, selection, and force modes. |
 | `init` | `init` | N/A | tested | `gpc init` creates `.gpc/` helper docs and a starter workflow template, with dry-run and force modes. |
 | `docs` | `docs` | N/A | tested | `gpc docs parity` prints the embedded parity matrix, `gpc docs commands` generates a command reference from the Cobra command tree as JSON or markdown, and `docs/COMMANDS.md` is checked in with `make docs-check`. Release packaging is covered by GoReleaser config, Homebrew formula smoke checks, checksum-verifying install script, and README install docs. |
 | `version` | `version` | N/A | implemented | Prints build metadata. |

@@ -52,6 +52,7 @@ gpc tracks list --package com.example.app
 gpc capabilities --status tested
 gpc docs parity --output markdown
 gpc docs commands --output markdown
+gpc install-skills --dry-run
 gpc schema --resource edits.tracks --method list --pretty
 gpc diff json ./metadata.old.json ./metadata.new.json --fail-on-change
 gpc workflow list

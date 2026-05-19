@@ -62,6 +62,7 @@ func newRootCommand(out io.Writer) *cobra.Command {
 		newGrantsCommand(out, options),
 		newInAppProductsCommand(out, options),
 		newImagesCommand(out, options),
+		newInstallSkillsCommand(out, options),
 		newOneTimeProductsCommand(out, options),
 		newOneTimeProductOffersCommand(out, options),
 		newSubscriptionsCommand(out, options),
