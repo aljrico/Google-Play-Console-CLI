@@ -2621,8 +2621,12 @@ gpc subscription-offers create [flags]
 - `--base-plan-id`: Parent subscription base plan ID
 - `--confirm`: Create the draft subscription offer (default `false`)
 - `--dry-run`: Print the planned subscription offer creation without calling Google Play (default `false`)
+- `--free-region`: Basic create region with new-subscriber availability and a free phase price mode; repeatable (default `[]`)
 - `--from-json`: Path to a Google Play API or gpc JSON subscription offer body
 - `--offer-id`: Subscription offer ID
+- `--offer-tag`: Basic create offer tag; repeatable (default `[]`)
+- `--phase-duration`: Basic create free phase duration as an ISO 8601 period, for example P7D or P1M
+- `--phase-recurrence`: Basic create free phase recurrence count (default `1`)
 - `--product-id`: Parent subscription product ID
 - `--regions-version`: Google Play regions version required by subscriptionOffers.create
 

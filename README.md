@@ -172,6 +172,7 @@ gpc subscriptions base-plan batch-patch-prices --package com.example.app --regio
 gpc subscription-offers list --package com.example.app --product-id premium_monthly --base-plan-id monthly
 gpc subscription-offers get --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro
 gpc subscription-offers create --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro --from-json offer.json --regions-version 2026/05 --dry-run
+gpc subscription-offers create --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro --free-region US --phase-duration P7D --regions-version 2026/05 --dry-run
 gpc subscription-offers delete --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id draft-intro --dry-run
 gpc subscription-offers deactivate --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro --dry-run
 gpc subscription-offers batch-get --package com.example.app --product-id - --base-plan-id - --offer premium_monthly/monthly/intro --offer premium_yearly/annual/winback
@@ -279,7 +280,7 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 }
 ```
 
-`subscription-offers create --from-json` accepts either Google Play API `SubscriptionOffer` JSON or `gpc subscription-offers get --output json` shape. The `--package`, `--product-id`, `--base-plan-id`, and `--offer-id` flags override immutable IDs in the file, and output-only `state` is ignored because Play creates draft offers. Google Play only supports offers under auto-renewing base plans. The JSON body must include regional configs and one or two phases; each phase needs one price mode per configured region (`price`, `absoluteDiscount`, `relativeDiscount`, or `free`). Phase patch commands fetch current offers and preserve untouched phases/regions; `batch-patch-phase-free` clears existing regional price, absolute discount, and relative discount fields for the targeted phase regions. Example:
+`subscription-offers create` accepts either Google Play API `SubscriptionOffer` JSON, `gpc subscription-offers get --output json` shape, or basic flags for one free phase across explicit regions. The `--package`, `--product-id`, `--base-plan-id`, and `--offer-id` flags override immutable IDs in JSON files, and output-only `state` is ignored because Play creates draft offers. Basic flags require at least one `--free-region` and `--phase-duration`; `--phase-recurrence` defaults to 1. Use JSON for paid phases, absolute or relative discounts, two-phase offers, targeting rules, and other-regions config. Google Play only supports offers under auto-renewing base plans. The JSON body must include regional configs and one or two phases; each phase needs one price mode per configured region (`price`, `absoluteDiscount`, `relativeDiscount`, or `free`). Phase patch commands fetch current offers and preserve untouched phases/regions; `batch-patch-phase-free` clears existing regional price, absolute discount, and relative discount fields for the targeted phase regions. Example:
 
 ```json
 {

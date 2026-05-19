@@ -8403,6 +8403,112 @@ func TestSubscriptionOffersCreateDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestSubscriptionOffersCreateBasicFreePhaseDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--offer-tag",
+		"trial",
+		"--free-region",
+		"us",
+		"--free-region",
+		"FR",
+		"--phase-duration",
+		"P7D",
+		"--phase-recurrence",
+		"1",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"offerId":"intro"`,
+		`"offerTags":["trial"]`,
+		`"regionCode":"US"`,
+		`"regionCode":"FR"`,
+		`"newSubscriberAvailability":true`,
+		`"duration":"P7D"`,
+		`"recurrenceCount":1`,
+		`"free":true`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersCreateRejectsJSONWithBasicFlagsBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "offer.json")
+	if err := os.WriteFile(bodyPath, []byte(`{
+		"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}],
+		"phases":[{"duration":"P7D","recurrenceCount":1,"regionalConfigs":[{"regionCode":"US","free":{}}]}]
+	}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--from-json",
+		bodyPath,
+		"--free-region",
+		"US",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected from-json and basic flags validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("error = %v, want combination validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestSubscriptionOffersCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "offer.json")

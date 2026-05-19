@@ -5983,6 +5983,51 @@ func TestCreateSubscriptionOfferSendsTypedOfferBody(t *testing.T) {
 	}
 }
 
+func TestCreateSubscriptionOfferSendsFreePhaseBody(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		var request androidpublisher.SubscriptionOffer
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if len(request.Phases) != 1 || len(request.Phases[0].RegionalConfigs) != 1 {
+			t.Fatalf("Phases = %#v, want one regional free phase", request.Phases)
+		}
+		config := request.Phases[0].RegionalConfigs[0]
+		if config.RegionCode != "US" || config.Free == nil || config.Price != nil || config.AbsoluteDiscount != nil || config.RelativeDiscount != 0 {
+			t.Fatalf("phase regional config = %#v, want only free price mode", config)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","basePlanId":"monthly","offerId":"intro","state":"DRAFT","regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}],"phases":[{"duration":"P7D","recurrenceCount":1,"regionalConfigs":[{"regionCode":"US","free":{}}]}]}`)
+	}))
+
+	result, err := publisher.CreateSubscriptionOffer(context.Background(), SubscriptionOfferCreateOptions{
+		PackageName: "com.example.app",
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		OfferID:     "intro",
+		Offer: SubscriptionOffer{
+			RegionalConfigs: []SubscriptionOfferRegionalConfig{{RegionCode: "US", NewSubscriberAvailability: true}},
+			Phases: []SubscriptionOfferPhase{{
+				Duration:        "P7D",
+				RecurrenceCount: 1,
+				RegionalConfigs: []SubscriptionOfferPhaseRegionalConfig{{RegionCode: "US", Free: true}},
+			}},
+		},
+		RegionsVersion: "2026/05",
+		Confirm:        true,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubscriptionOffer() error = %v", err)
+	}
+	if result.State != SubscriptionOfferStateDraft || !result.Phases[0].RegionalConfigs[0].Free {
+		t.Fatalf("result = %#v, want created draft free offer", result)
+	}
+}
+
 func TestBatchUpdateSubscriptionOfferStatesRejectsDryRunBeforeRequest(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
