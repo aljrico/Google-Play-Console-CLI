@@ -39,8 +39,143 @@ func newSubscriptionsBasePlanCommand(out io.Writer, options *globalOptions, pack
 		newSubscriptionsBasePlanStateCommand(out, options, packageName, play.BasePlanStateActionDeactivate),
 		newSubscriptionsBasePlanBatchStateCommand(out, options, packageName, play.BasePlanStateActionActivate),
 		newSubscriptionsBasePlanBatchStateCommand(out, options, packageName, play.BasePlanStateActionDeactivate),
+		newSubscriptionsBasePlanBatchMigratePricesCommand(out, options, packageName),
 	)
 	return cmd
+}
+
+func newSubscriptionsBasePlanBatchMigratePricesCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID         string
+		regionsVersion    string
+		migrations        []string
+		priceIncreaseType string
+		latencyTolerance  string
+		confirm           bool
+		dryRun            bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-migrate-prices",
+		Short: "Batch migrate subscription base plan prices",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			typedPriceIncreaseType := play.BasePlanPriceIncreaseType(priceIncreaseType)
+			if err := typedPriceIncreaseType.Validate(); err != nil {
+				return err
+			}
+			resolvedProductID, requests, err := parseBasePlanPriceMigrationRequests(productID, migrations, typedPriceIncreaseType)
+			if err != nil {
+				return err
+			}
+			typedProductID, err := play.NewSubscriptionBasePlanBatchProductID(resolvedProductID)
+			if err != nil {
+				return err
+			}
+			migrationOptions := play.BasePlanBatchPriceMigrationOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				RegionsVersion:   regionsVersion,
+				Requests:         requests,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.BatchMigrateBasePlanPrices(cmd.Context(), nil, migrationOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewBasePlanBatchPriceMigrationPlan(migrationOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchMigrateBasePlanPrices(cmd.Context(), publisher, migrationOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID, or - for migrations across subscriptions; inferred from --migration values")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by batchMigratePrices")
+	cmd.Flags().StringArrayVar(&migrations, "migration", nil, "Price migration as productId/basePlanId/REGION/RFC3339_TIME; repeat for multiple regions or base plans")
+	cmd.Flags().StringVar(&priceIncreaseType, "price-increase-type", "", "Price increase type: optIn or optOut")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the base plan price migration")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned base plan price migration without calling Google Play")
+	return cmd
+}
+
+func parseBasePlanPriceMigrationRequests(productID string, values []string, priceIncreaseType play.BasePlanPriceIncreaseType) (string, []play.BasePlanPriceMigrationRequest, error) {
+	grouped := map[string]int{}
+	requests := make([]play.BasePlanPriceMigrationRequest, 0, len(values))
+	for _, value := range values {
+		request, region, err := parseBasePlanPriceMigration(value, priceIncreaseType)
+		if err != nil {
+			return "", nil, err
+		}
+		key := request.ProductID.String() + "/" + request.BasePlanID.String()
+		index, ok := grouped[key]
+		if !ok {
+			grouped[key] = len(requests)
+			request.Regions = []play.BasePlanPriceMigrationConfig{region}
+			requests = append(requests, request)
+			continue
+		}
+		requests[index].Regions = append(requests[index].Regions, region)
+	}
+	return inferBasePlanPriceMigrationProductID(productID, requests), requests, nil
+}
+
+func parseBasePlanPriceMigration(value string, priceIncreaseType play.BasePlanPriceIncreaseType) (play.BasePlanPriceMigrationRequest, play.BasePlanPriceMigrationConfig, error) {
+	parts := strings.Split(value, "/")
+	if len(parts) != 4 {
+		return play.BasePlanPriceMigrationRequest{}, play.BasePlanPriceMigrationConfig{}, fmt.Errorf("price migration must use productId/basePlanId/REGION/RFC3339_TIME")
+	}
+	productID, err := play.NewSubscriptionProductID(parts[0])
+	if err != nil {
+		return play.BasePlanPriceMigrationRequest{}, play.BasePlanPriceMigrationConfig{}, err
+	}
+	basePlanID, err := play.NewSubscriptionBasePlanID(parts[1])
+	if err != nil {
+		return play.BasePlanPriceMigrationRequest{}, play.BasePlanPriceMigrationConfig{}, err
+	}
+	region := play.BasePlanPriceMigrationConfig{
+		RegionCode:                    strings.ToUpper(parts[2]),
+		OldestAllowedPriceVersionTime: parts[3],
+		PriceIncreaseType:             priceIncreaseType,
+	}
+	return play.BasePlanPriceMigrationRequest{ProductID: productID, BasePlanID: basePlanID}, region, nil
+}
+
+func inferBasePlanPriceMigrationProductID(productID string, requests []play.BasePlanPriceMigrationRequest) string {
+	if productID != "" {
+		return productID
+	}
+	if len(requests) == 0 {
+		return productID
+	}
+	firstProductID := requests[0].ProductID.String()
+	for _, request := range requests[1:] {
+		if request.ProductID.String() != firstProductID {
+			return play.SubscriptionOfferWildcardID
+		}
+	}
+	return firstProductID
 }
 
 func newSubscriptionsBasePlanBatchStateCommand(out io.Writer, options *globalOptions, packageName *string, action play.BasePlanStateAction) *cobra.Command {

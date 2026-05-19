@@ -394,6 +394,106 @@ func TestBatchUpdateBasePlanStatesPassesOptionsToUpdater(t *testing.T) {
 	}
 }
 
+func TestBatchMigrateBasePlanPricesDryRunBuildsPlanWithoutMigrator(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchMigrateBasePlanPrices(context.Background(), nil, BasePlanBatchPriceMigrationOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		RegionsVersion: "2026/05",
+		Requests: []BasePlanPriceMigrationRequest{
+			{
+				ProductID:  "premium",
+				BasePlanID: "monthly",
+				Regions: []BasePlanPriceMigrationConfig{
+					{RegionCode: "US", OldestAllowedPriceVersionTime: "2026-05-01T00:00:00Z", PriceIncreaseType: BasePlanPriceIncreaseTypeOptOut},
+				},
+			},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchMigrateBasePlanPrices() error = %v", err)
+	}
+	if !result.DryRun {
+		t.Fatal("DryRun = false, want true")
+	}
+	wantSteps := []string{"plan batch base plan price migration"}
+	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
+		t.Fatalf("steps = %#v, want %#v", result.Plan.Steps, wantSteps)
+	}
+}
+
+func TestBatchMigrateBasePlanPricesRejectsDuplicateRegion(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewBasePlanBatchPriceMigrationPlan(BasePlanBatchPriceMigrationOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		RegionsVersion: "2026/05",
+		Requests: []BasePlanPriceMigrationRequest{
+			{
+				ProductID:  "premium",
+				BasePlanID: "monthly",
+				Regions: []BasePlanPriceMigrationConfig{
+					{RegionCode: "US", OldestAllowedPriceVersionTime: "2026-05-01T00:00:00Z"},
+					{RegionCode: "US", OldestAllowedPriceVersionTime: "2026-05-01T00:00:00Z"},
+				},
+			},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate region validation error")
+	}
+}
+
+func TestBatchMigrateBasePlanPricesPassesOptionsToMigrator(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	migrator := &fakeSubscriptionClient{
+		priceMigrationResult: BasePlanBatchPriceMigrationResult{
+			Responses: []BasePlanPriceMigrationResponse{{ProductID: "premium", BasePlanID: "monthly"}},
+		},
+	}
+
+	result, err := BatchMigrateBasePlanPrices(context.Background(), migrator, BasePlanBatchPriceMigrationOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		RegionsVersion: "2026/05",
+		Requests: []BasePlanPriceMigrationRequest{
+			{
+				ProductID:  "premium",
+				BasePlanID: "monthly",
+				Regions: []BasePlanPriceMigrationConfig{
+					{RegionCode: "US", OldestAllowedPriceVersionTime: "2026-05-01T00:00:00Z"},
+				},
+			},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchMigrateBasePlanPrices() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatal("Applied = false, want true")
+	}
+	if migrator.priceMigrationOptions.RegionsVersion != "2026/05" {
+		t.Fatalf("RegionsVersion = %q, want 2026/05", migrator.priceMigrationOptions.RegionsVersion)
+	}
+}
+
 func TestPatchSubscriptionDryRunBuildsPlanWithoutPatcher(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -527,17 +627,19 @@ func TestPatchSubscriptionPassesOptionsToPatcher(t *testing.T) {
 }
 
 type fakeSubscriptionClient struct {
-	listOptions       SubscriptionListOptions
-	listResult        SubscriptionListResult
-	batchOptions      SubscriptionBatchGetOptions
-	batchResult       SubscriptionBatchGetResult
-	deleteOptions     SubscriptionDeleteOptions
-	patchOptions      SubscriptionPatchOptions
-	productID         SubscriptionProductID
-	subscription      Subscription
-	stateOptions      BasePlanStateUpdateOptions
-	batchStateOptions BasePlanBatchStateUpdateOptions
-	batchStateResult  BasePlanBatchStateUpdateResult
+	listOptions           SubscriptionListOptions
+	listResult            SubscriptionListResult
+	batchOptions          SubscriptionBatchGetOptions
+	batchResult           SubscriptionBatchGetResult
+	deleteOptions         SubscriptionDeleteOptions
+	patchOptions          SubscriptionPatchOptions
+	productID             SubscriptionProductID
+	subscription          Subscription
+	stateOptions          BasePlanStateUpdateOptions
+	batchStateOptions     BasePlanBatchStateUpdateOptions
+	batchStateResult      BasePlanBatchStateUpdateResult
+	priceMigrationOptions BasePlanBatchPriceMigrationOptions
+	priceMigrationResult  BasePlanBatchPriceMigrationResult
 }
 
 func (c *fakeSubscriptionClient) ListSubscriptions(ctx context.Context, options SubscriptionListOptions) (SubscriptionListResult, error) {
@@ -568,6 +670,11 @@ func (c *fakeSubscriptionClient) UpdateBasePlanState(ctx context.Context, option
 func (c *fakeSubscriptionClient) BatchUpdateBasePlanStates(ctx context.Context, options BasePlanBatchStateUpdateOptions) (BasePlanBatchStateUpdateResult, error) {
 	c.batchStateOptions = options
 	return c.batchStateResult, nil
+}
+
+func (c *fakeSubscriptionClient) BatchMigrateBasePlanPrices(ctx context.Context, options BasePlanBatchPriceMigrationOptions) (BasePlanBatchPriceMigrationResult, error) {
+	c.priceMigrationOptions = options
+	return c.priceMigrationResult, nil
 }
 
 func (c *fakeSubscriptionClient) PatchSubscription(ctx context.Context, options SubscriptionPatchOptions) (Subscription, error) {

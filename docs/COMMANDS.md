@@ -2342,6 +2342,7 @@ gpc subscriptions base-plan
 - `gpc subscriptions base-plan activate`: activate a subscription base plan
 - `gpc subscriptions base-plan batch-activate`: Batch activate subscription base plans
 - `gpc subscriptions base-plan batch-deactivate`: Batch deactivate subscription base plans
+- `gpc subscriptions base-plan batch-migrate-prices`: Batch migrate subscription base plan prices
 - `gpc subscriptions base-plan deactivate`: deactivate a subscription base plan
 
 ##### gpc subscriptions base-plan activate
@@ -2393,6 +2394,24 @@ gpc subscriptions base-plan batch-deactivate [flags]
 - `--dry-run`: Print the planned base plan batch state update without calling Google Play (default `false`)
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--product-id`: Subscription product ID, or - for base plans across subscriptions; inferred when --base-plan is used
+
+##### gpc subscriptions base-plan batch-migrate-prices
+
+Batch migrate subscription base plan prices
+
+```sh
+gpc subscriptions base-plan batch-migrate-prices [flags]
+```
+
+###### Flags
+
+- `--confirm`: Apply the base plan price migration (default `false`)
+- `--dry-run`: Print the planned base plan price migration without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--migration`: Price migration as productId/basePlanId/REGION/RFC3339_TIME; repeat for multiple regions or base plans (default `[]`)
+- `--price-increase-type`: Price increase type: optIn or optOut
+- `--product-id`: Subscription product ID, or - for migrations across subscriptions; inferred from --migration values
+- `--regions-version`: Google Play regions version required by batchMigratePrices
 
 ##### gpc subscriptions base-plan deactivate
 

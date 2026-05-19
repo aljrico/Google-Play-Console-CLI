@@ -4553,6 +4553,108 @@ func TestBatchUpdateBasePlanStatesRejectsDryRunBeforeRequest(t *testing.T) {
 	}
 }
 
+func TestBatchMigrateBasePlanPricesUsesBatchMigrateEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/-/basePlans:batchMigratePrices" {
+			t.Fatalf("path = %q, want base plan batchMigratePrices endpoint", r.URL.Path)
+		}
+		var request androidpublisher.BatchMigrateBasePlanPricesRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if len(request.Requests) != 2 {
+			t.Fatalf("len(Requests) = %d, want 2", len(request.Requests))
+		}
+		first := request.Requests[0]
+		if first.PackageName != "com.example.app" || first.ProductId != "premium" || first.BasePlanId != "monthly" {
+			t.Fatalf("first request = %#v, want premium/monthly", first)
+		}
+		if first.RegionsVersion == nil || first.RegionsVersion.Version != "2026/05" {
+			t.Fatalf("RegionsVersion = %#v, want 2026/05", first.RegionsVersion)
+		}
+		if first.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+			t.Fatalf("LatencyTolerance = %q, want tolerant", first.LatencyTolerance)
+		}
+		if len(first.RegionalPriceMigrations) != 2 {
+			t.Fatalf("len(RegionalPriceMigrations) = %d, want 2", len(first.RegionalPriceMigrations))
+		}
+		if first.RegionalPriceMigrations[0].RegionCode != "US" || first.RegionalPriceMigrations[0].PriceIncreaseType != "PRICE_INCREASE_TYPE_OPT_OUT" {
+			t.Fatalf("first regional migration = %#v, want US opt-out", first.RegionalPriceMigrations[0])
+		}
+		if request.Requests[1].ProductId != "vip" || request.Requests[1].BasePlanId != "annual" {
+			t.Fatalf("second request = %#v, want vip/annual", request.Requests[1])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"responses":[{},{}]}`)
+	}))
+
+	result, err := publisher.BatchMigrateBasePlanPrices(context.Background(), BasePlanBatchPriceMigrationOptions{
+		PackageName:    "com.example.app",
+		ProductID:      "-",
+		RegionsVersion: "2026/05",
+		Requests: []BasePlanPriceMigrationRequest{
+			{
+				ProductID:  "premium",
+				BasePlanID: "monthly",
+				Regions: []BasePlanPriceMigrationConfig{
+					{RegionCode: "US", OldestAllowedPriceVersionTime: "2026-05-01T00:00:00Z", PriceIncreaseType: BasePlanPriceIncreaseTypeOptOut},
+					{RegionCode: "BR", OldestAllowedPriceVersionTime: "2026-05-01T00:00:00Z", PriceIncreaseType: BasePlanPriceIncreaseTypeOptOut},
+				},
+			},
+			{
+				ProductID:  "vip",
+				BasePlanID: "annual",
+				Regions: []BasePlanPriceMigrationConfig{
+					{RegionCode: "US", OldestAllowedPriceVersionTime: "2026-05-01T00:00:00Z", PriceIncreaseType: BasePlanPriceIncreaseTypeOptOut},
+				},
+			},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchMigrateBasePlanPrices() error = %v", err)
+	}
+	if len(result.Responses) != 2 {
+		t.Fatalf("len(Responses) = %d, want 2", len(result.Responses))
+	}
+	if result.Responses[0].ProductID != "premium" || result.Responses[1].ProductID != "vip" {
+		t.Fatalf("Responses = %#v, want request identities", result.Responses)
+	}
+}
+
+func TestBatchMigrateBasePlanPricesRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	_, err := publisher.BatchMigrateBasePlanPrices(context.Background(), BasePlanBatchPriceMigrationOptions{
+		PackageName:    "com.example.app",
+		ProductID:      "premium",
+		RegionsVersion: "2026/05",
+		Requests: []BasePlanPriceMigrationRequest{
+			{
+				ProductID:  "premium",
+				BasePlanID: "monthly",
+				Regions: []BasePlanPriceMigrationConfig{
+					{RegionCode: "US", OldestAllowedPriceVersionTime: "2026-05-01T00:00:00Z"},
+				},
+			},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot be a dry-run") {
+		t.Fatalf("error = %v, want dry-run validation", err)
+	}
+}
+
 func newTestPublisher(t *testing.T, handler http.Handler) GooglePublisher {
 	t.Helper()
 	server := httptest.NewServer(handler)

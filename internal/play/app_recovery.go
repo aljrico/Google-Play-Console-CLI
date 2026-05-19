@@ -362,6 +362,10 @@ func appRecoveryTargetingUpdateSteps(options AppRecoveryTargetingUpdateOptions) 
 }
 
 func isValidAppRecoveryRegionCode(value string) bool {
+	return isValidRegionCode(value)
+}
+
+func isValidRegionCode(value string) bool {
 	if len(value) != 2 {
 		return false
 	}

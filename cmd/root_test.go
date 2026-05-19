@@ -4328,6 +4328,85 @@ func TestSubscriptionsBasePlanBatchActivateRejectsMissingBasePlanBeforeAuth(t *t
 	}
 }
 
+func TestSubscriptionsBasePlanBatchMigratePricesDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"base-plan",
+		"batch-migrate-prices",
+		"--package",
+		"com.example.app",
+		"--regions-version",
+		"2026/05",
+		"--migration",
+		"premium/monthly/US/2026-05-01T00:00:00Z",
+		"--migration",
+		"premium/monthly/BR/2026-05-01T00:00:00Z",
+		"--price-increase-type",
+		"optOut",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"regionCode":"US"`,
+		`"regionCode":"BR"`,
+		`"priceIncreaseType":"optOut"`,
+		`"regionsVersion":"2026/05"`,
+		`"dryRun":true`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionsBasePlanBatchMigratePricesRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"base-plan",
+		"batch-migrate-prices",
+		"--package",
+		"com.example.app",
+		"--regions-version",
+		"2026/05",
+		"--migration",
+		"premium/monthly/US/2026-05-01T00:00:00Z",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestOneTimeProductsListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

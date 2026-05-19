@@ -1042,6 +1042,83 @@ func (p GooglePublisher) BatchUpdateBasePlanStates(ctx context.Context, options 
 	}, nil
 }
 
+func (p GooglePublisher) BatchMigrateBasePlanPrices(ctx context.Context, options BasePlanBatchPriceMigrationOptions) (BasePlanBatchPriceMigrationResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return BasePlanBatchPriceMigrationResult{}, err
+	}
+	request := &androidpublisher.BatchMigrateBasePlanPricesRequest{
+		Requests: make([]*androidpublisher.MigrateBasePlanPricesRequest, 0, len(options.Requests)),
+	}
+	for _, item := range options.Requests {
+		request.Requests = append(request.Requests, basePlanPriceMigrationRequestToAPI(options, item))
+	}
+	response, err := p.service.Monetization.Subscriptions.BasePlans.BatchMigratePrices(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return BasePlanBatchPriceMigrationResult{}, fmt.Errorf("batch migrate base plan prices for %s/%s: %w", options.PackageName, options.ProductID, err)
+	}
+	responses := basePlanPriceMigrationResponsesFromAPI(options, response)
+	return BasePlanBatchPriceMigrationResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		DryRun:      false,
+		Applied:     true,
+		Responses:   responses,
+	}, nil
+}
+
+func basePlanPriceMigrationRequestToAPI(options BasePlanBatchPriceMigrationOptions, item BasePlanPriceMigrationRequest) *androidpublisher.MigrateBasePlanPricesRequest {
+	return &androidpublisher.MigrateBasePlanPricesRequest{
+		PackageName:             options.PackageName.String(),
+		ProductId:               item.ProductID.String(),
+		BasePlanId:              item.BasePlanID.String(),
+		RegionsVersion:          &androidpublisher.RegionsVersion{Version: options.RegionsVersion},
+		LatencyTolerance:        productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+		RegionalPriceMigrations: regionalPriceMigrationsToAPI(item.Regions),
+	}
+}
+
+func regionalPriceMigrationsToAPI(regions []BasePlanPriceMigrationConfig) []*androidpublisher.RegionalPriceMigrationConfig {
+	apiRegions := make([]*androidpublisher.RegionalPriceMigrationConfig, 0, len(regions))
+	for _, region := range regions {
+		apiRegions = append(apiRegions, &androidpublisher.RegionalPriceMigrationConfig{
+			RegionCode:                    region.RegionCode,
+			OldestAllowedPriceVersionTime: region.OldestAllowedPriceVersionTime,
+			PriceIncreaseType:             basePlanPriceIncreaseTypeToAPI(region.PriceIncreaseType),
+		})
+	}
+	return apiRegions
+}
+
+func basePlanPriceIncreaseTypeToAPI(value BasePlanPriceIncreaseType) string {
+	switch value {
+	case BasePlanPriceIncreaseTypeOptIn:
+		return "PRICE_INCREASE_TYPE_OPT_IN"
+	case BasePlanPriceIncreaseTypeOptOut:
+		return "PRICE_INCREASE_TYPE_OPT_OUT"
+	default:
+		return ""
+	}
+}
+
+func basePlanPriceMigrationResponsesFromAPI(options BasePlanBatchPriceMigrationOptions, response *androidpublisher.BatchMigrateBasePlanPricesResponse) []BasePlanPriceMigrationResponse {
+	if response == nil {
+		return []BasePlanPriceMigrationResponse{}
+	}
+	count := len(response.Responses)
+	if count > len(options.Requests) {
+		count = len(options.Requests)
+	}
+	responses := make([]BasePlanPriceMigrationResponse, 0, count)
+	for _, request := range options.Requests[:count] {
+		responses = append(responses, BasePlanPriceMigrationResponse{ProductID: request.ProductID, BasePlanID: request.BasePlanID})
+	}
+	return responses
+}
+
 func basePlanStateRequestToAPI(options BasePlanBatchStateUpdateOptions, item BasePlanBatchStateUpdateRequest) *androidpublisher.UpdateBasePlanStateRequest {
 	switch options.Action {
 	case BasePlanStateActionActivate:
