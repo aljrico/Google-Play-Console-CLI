@@ -6552,6 +6552,56 @@ func TestOneTimeProductOffersCreateBasicAbsoluteDiscountDryRunDoesNotRequireAuth
 	}
 }
 
+func TestOneTimeProductOffersCreateBasicNoOverrideDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"intro",
+		"--start-time",
+		"2026-06-01T00:00:00Z",
+		"--end-time",
+		"2026-07-01T00:00:00Z",
+		"--no-override",
+		"us",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"type":"discounted"`,
+		`"regionCode":"US"`,
+		`"availability":"available"`,
+		`"noOverride":true`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestOneTimeProductOffersCreateBasicMixedDiscountModesDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
@@ -6572,6 +6622,8 @@ func TestOneTimeProductOffersCreateBasicMixedDiscountModesDryRunDoesNotRequireAu
 		"US:0.5",
 		"--absolute-discount",
 		"JP:JPY:100",
+		"--no-override",
+		"BR",
 		"--regions-version",
 		"2026/05",
 		"--dry-run",
@@ -6588,6 +6640,8 @@ func TestOneTimeProductOffersCreateBasicMixedDiscountModesDryRunDoesNotRequireAu
 		`"relativeDiscount":0.5`,
 		`"regionCode":"JP"`,
 		`"absoluteDiscount":{"currencyCode":"JPY","units":100}`,
+		`"regionCode":"BR"`,
+		`"noOverride":true`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)

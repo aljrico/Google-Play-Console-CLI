@@ -4078,6 +4078,81 @@ func TestGooglePublisherCreateOneTimeProductOfferUsesAllowMissingBatchUpdate(t *
 	}
 }
 
+func TestGooglePublisherCreateOneTimeProductOfferSerializesNoOverrideRegion(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchGet", r.Method)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProductOffers":[]}`)
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchUpdate":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchUpdate", r.Method)
+			}
+			rawBody, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("ReadAll() error = %v", err)
+			}
+			if !strings.Contains(string(rawBody), `"noOverride":{}`) {
+				t.Fatalf("body = %s, want serialized noOverride object", rawBody)
+			}
+			var request androidpublisher.BatchUpdateOneTimeProductOffersRequest
+			if err := json.Unmarshal(rawBody, &request); err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+			if len(request.Requests) != 1 {
+				t.Fatalf("len(Requests) = %d, want 1", len(request.Requests))
+			}
+			update := request.Requests[0]
+			if !update.AllowMissing {
+				t.Fatal("AllowMissing = false, want true")
+			}
+			if update.UpdateMask != oneTimeProductOfferCreateUpdateMask {
+				t.Fatalf("UpdateMask = %q, want create mask", update.UpdateMask)
+			}
+			if update.RegionsVersion == nil || update.RegionsVersion.Version != "2026/05" {
+				t.Fatalf("RegionsVersion = %#v, want 2026/05", update.RegionsVersion)
+			}
+			configs := update.OneTimeProductOffer.RegionalPricingAndAvailabilityConfigs
+			if len(configs) != 1 {
+				t.Fatalf("len(RegionalPricingAndAvailabilityConfigs) = %d, want 1", len(configs))
+			}
+			if configs[0].RegionCode != "US" || configs[0].Availability != "AVAILABLE" || configs[0].NoOverride == nil {
+				t.Fatalf("regional config = %#v, want US available noOverride", configs[0])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro","discountedOffer":{"startTime":"2026-06-01T00:00:00Z"},"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","noOverride":{}}]}]}`)
+		default:
+			t.Fatalf("path = %q, want offer batchGet or batchUpdate", r.URL.Path)
+		}
+	}))
+
+	offer := validOneTimeProductOfferForCreate()
+	offer.RegionalConfigs = []OneTimeProductOfferRegion{{
+		RegionCode:   "US",
+		Availability: "available",
+		NoOverride:   true,
+	}}
+	created, err := publisher.CreateOneTimeProductOffer(context.Background(), OneTimeProductOfferCreateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		OfferID:          "intro",
+		Offer:            offer,
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateOneTimeProductOffer() error = %v", err)
+	}
+	if len(created.RegionalConfigs) != 1 || !created.RegionalConfigs[0].NoOverride {
+		t.Fatalf("RegionalConfigs = %#v, want noOverride response", created.RegionalConfigs)
+	}
+}
+
 func TestGooglePublisherCreateOneTimeProductOfferRejectsExistingOffer(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet" {

@@ -1619,6 +1619,7 @@ gpc one-time-product-offers create [flags]
 - `--end-time`: Basic discounted offer end time as RFC3339
 - `--from-json`: Path to a Google Play API or gpc JSON one-time product offer body
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--no-override`: Basic create regional no-override price mode as REGION; repeatable (default `[]`)
 - `--offer-id`: One-time product offer ID
 - `--offer-tag`: Basic create offer tag; repeatable (default `[]`)
 - `--product-id`: Parent one-time product ID
