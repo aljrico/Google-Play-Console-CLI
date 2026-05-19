@@ -663,6 +663,143 @@ func TestBatchDeletePurchaseOptionsPassesOptionsToDeleter(t *testing.T) {
 	}
 }
 
+func TestBatchPatchPurchaseOptionAvailabilityDryRunBuildsPlanWithoutPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchPatchPurchaseOptionAvailability(context.Background(), nil, PurchaseOptionBatchPatchAvailabilityOptions{
+		PackageName: packageName,
+		Requests: []PurchaseOptionAvailabilityPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", RegionCode: "US", Availability: PurchaseOptionAvailabilityNoLongerAvailable},
+			{ProductID: "coins_100", PurchaseOptionID: "buy", RegionCode: "FR", Availability: PurchaseOptionAvailabilityAvailable},
+		},
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchPurchaseOptionAvailability() error = %v", err)
+	}
+	if !result.DryRun || result.Applied {
+		t.Fatalf("result = %#v, want dry-run availability patch", result)
+	}
+	if result.Plan.UpdateMask != "purchaseOptions" {
+		t.Fatalf("UpdateMask = %q, want purchaseOptions", result.Plan.UpdateMask)
+	}
+	if len(result.Desired) != 1 || len(result.Desired[0].PurchaseOptions) != 1 || len(result.Desired[0].PurchaseOptions[0].RegionalConfigs) != 2 {
+		t.Fatalf("Desired = %#v, want grouped purchase option regions", result.Desired)
+	}
+}
+
+func TestBatchPatchPurchaseOptionAvailabilityRejectsDuplicateRegion(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchPatchPurchaseOptionAvailability(context.Background(), nil, PurchaseOptionBatchPatchAvailabilityOptions{
+		PackageName: packageName,
+		Requests: []PurchaseOptionAvailabilityPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", RegionCode: "US", Availability: PurchaseOptionAvailabilityAvailable},
+			{ProductID: "coins_100", PurchaseOptionID: "buy", RegionCode: "US", Availability: PurchaseOptionAvailabilityNoLongerAvailable},
+		},
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate purchase option availability validation error")
+	}
+}
+
+func TestBatchPatchPurchaseOptionAvailabilityAllowsMoreThanHundredRegionsForOneProduct(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	requests := make([]PurchaseOptionAvailabilityPatchRequest, 0, 101)
+	for index := 0; index < 101; index++ {
+		requests = append(requests, PurchaseOptionAvailabilityPatchRequest{
+			ProductID:        "coins_100",
+			PurchaseOptionID: "buy",
+			RegionCode:       testRegionCode(index),
+			Availability:     PurchaseOptionAvailabilityAvailable,
+		})
+	}
+
+	_, err = NewPurchaseOptionBatchPatchAvailabilityPlan(PurchaseOptionBatchPatchAvailabilityOptions{
+		PackageName:      packageName,
+		Requests:         requests,
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("NewPurchaseOptionBatchPatchAvailabilityPlan() error = %v", err)
+	}
+}
+
+func TestBatchPatchPurchaseOptionAvailabilityRejectsMoreThanHundredProducts(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	requests := make([]PurchaseOptionAvailabilityPatchRequest, 0, 101)
+	for index := 0; index < 101; index++ {
+		requests = append(requests, PurchaseOptionAvailabilityPatchRequest{
+			ProductID:        OneTimeProductID(fmt.Sprintf("coins_%d", index)),
+			PurchaseOptionID: "buy",
+			RegionCode:       "US",
+			Availability:     PurchaseOptionAvailabilityAvailable,
+		})
+	}
+
+	_, err = NewPurchaseOptionBatchPatchAvailabilityPlan(PurchaseOptionBatchPatchAvailabilityOptions{
+		PackageName:      packageName,
+		Requests:         requests,
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected product count validation error")
+	}
+}
+
+func TestBatchPatchPurchaseOptionAvailabilityPassesOptionsToPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	patcher := &fakeOneTimeProductClient{
+		purchaseOptionAvailabilityResult: PurchaseOptionBatchPatchAvailabilityResult{
+			Products: []OneTimeProduct{{ProductID: "coins_100"}},
+		},
+	}
+	options := PurchaseOptionBatchPatchAvailabilityOptions{
+		PackageName: packageName,
+		Requests: []PurchaseOptionAvailabilityPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", RegionCode: "US", Availability: PurchaseOptionAvailabilityNoLongerAvailable},
+		},
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := BatchPatchPurchaseOptionAvailability(context.Background(), patcher, options)
+	if err != nil {
+		t.Fatalf("BatchPatchPurchaseOptionAvailability() error = %v", err)
+	}
+	if !result.Applied || len(result.Products) != 1 {
+		t.Fatalf("result = %#v, want applied product", result)
+	}
+	if !reflect.DeepEqual(patcher.purchaseOptionAvailabilityOptions, options) {
+		t.Fatalf("purchaseOptionAvailabilityOptions = %#v, want %#v", patcher.purchaseOptionAvailabilityOptions, options)
+	}
+}
+
 func TestUpdatePurchaseOptionStateDryRunBuildsPlanWithoutUpdater(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -735,20 +872,28 @@ func TestUpdatePurchaseOptionStatePassesOptionsToUpdater(t *testing.T) {
 	}
 }
 
+func testRegionCode(index int) string {
+	first := byte('A' + (index / 26))
+	second := byte('A' + (index % 26))
+	return string([]byte{first, second})
+}
+
 type fakeOneTimeProductClient struct {
-	listOptions                      OneTimeProductListOptions
-	listResult                       OneTimeProductListResult
-	batchOptions                     OneTimeProductBatchGetOptions
-	batchResult                      OneTimeProductBatchGetResult
-	deleteOptions                    OneTimeProductDeleteOptions
-	patchOptions                     OneTimeProductPatchOptions
-	batchPatchOptions                OneTimeProductBatchPatchListingsOptions
-	batchPatchResult                 OneTimeProductBatchPatchListingsResult
-	batchDeleteOptions               OneTimeProductBatchDeleteOptions
-	purchaseOptionBatchDeleteOptions PurchaseOptionBatchDeleteOptions
-	productID                        OneTimeProductID
-	product                          OneTimeProduct
-	stateOptions                     PurchaseOptionStateUpdateOptions
+	listOptions                       OneTimeProductListOptions
+	listResult                        OneTimeProductListResult
+	batchOptions                      OneTimeProductBatchGetOptions
+	batchResult                       OneTimeProductBatchGetResult
+	deleteOptions                     OneTimeProductDeleteOptions
+	patchOptions                      OneTimeProductPatchOptions
+	batchPatchOptions                 OneTimeProductBatchPatchListingsOptions
+	batchPatchResult                  OneTimeProductBatchPatchListingsResult
+	batchDeleteOptions                OneTimeProductBatchDeleteOptions
+	purchaseOptionBatchDeleteOptions  PurchaseOptionBatchDeleteOptions
+	purchaseOptionAvailabilityOptions PurchaseOptionBatchPatchAvailabilityOptions
+	purchaseOptionAvailabilityResult  PurchaseOptionBatchPatchAvailabilityResult
+	productID                         OneTimeProductID
+	product                           OneTimeProduct
+	stateOptions                      PurchaseOptionStateUpdateOptions
 }
 
 func (c *fakeOneTimeProductClient) ListOneTimeProducts(ctx context.Context, options OneTimeProductListOptions) (OneTimeProductListResult, error) {
@@ -789,6 +934,11 @@ func (c *fakeOneTimeProductClient) BatchDeleteOneTimeProducts(ctx context.Contex
 func (c *fakeOneTimeProductClient) BatchDeletePurchaseOptions(ctx context.Context, options PurchaseOptionBatchDeleteOptions) error {
 	c.purchaseOptionBatchDeleteOptions = options
 	return nil
+}
+
+func (c *fakeOneTimeProductClient) BatchPatchPurchaseOptionAvailability(ctx context.Context, options PurchaseOptionBatchPatchAvailabilityOptions) (PurchaseOptionBatchPatchAvailabilityResult, error) {
+	c.purchaseOptionAvailabilityOptions = options
+	return c.purchaseOptionAvailabilityResult, nil
 }
 
 func (c *fakeOneTimeProductClient) UpdatePurchaseOptionState(ctx context.Context, options PurchaseOptionStateUpdateOptions) (OneTimeProduct, error) {

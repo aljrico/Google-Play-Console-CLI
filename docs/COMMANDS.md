@@ -1659,6 +1659,7 @@ gpc one-time-products purchase-option
 
 - `gpc one-time-products purchase-option activate`: activate a one-time product purchase option
 - `gpc one-time-products purchase-option batch-delete`: Delete one-time product purchase options
+- `gpc one-time-products purchase-option batch-patch-availability`: Batch patch one-time product purchase option availability
 - `gpc one-time-products purchase-option deactivate`: deactivate a one-time product purchase option
 
 ##### gpc one-time-products purchase-option activate
@@ -1693,6 +1694,22 @@ gpc one-time-products purchase-option batch-delete [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--product-id`: Parent one-time product ID, or - when deleting across products; inferred when omitted
 - `--purchase-option`: Purchase option to delete as productId/purchaseOptionId; repeatable, up to 100 (default `[]`)
+
+##### gpc one-time-products purchase-option batch-patch-availability
+
+Batch patch one-time product purchase option availability
+
+```sh
+gpc one-time-products purchase-option batch-patch-availability [flags]
+```
+
+###### Flags
+
+- `--availability`: Availability patch as productId/purchaseOptionId/REGION:available|noLongerAvailable|availableIfReleased|availableForOffersOnly; repeatable (default `[]`)
+- `--confirm`: Apply the purchase option availability batch patch (default `false`)
+- `--dry-run`: Print the planned purchase option availability batch patch without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--regions-version`: Google Play regions version required by oneTimeProducts.batchUpdate
 
 ##### gpc one-time-products purchase-option deactivate
 

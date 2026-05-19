@@ -146,10 +146,119 @@ func newOneTimeProductsPurchaseOptionCommand(out io.Writer, options *globalOptio
 	}
 	cmd.AddCommand(
 		newOneTimeProductsPurchaseOptionBatchDeleteCommand(out, options, packageName),
+		newOneTimeProductsPurchaseOptionBatchPatchAvailabilityCommand(out, options, packageName),
 		newOneTimeProductsPurchaseOptionStateCommand(out, options, packageName, play.PurchaseOptionStateActionActivate),
 		newOneTimeProductsPurchaseOptionStateCommand(out, options, packageName, play.PurchaseOptionStateActionDeactivate),
 	)
 	return cmd
+}
+
+func newOneTimeProductsPurchaseOptionBatchPatchAvailabilityCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		patches          []string
+		regionsVersion   string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-patch-availability",
+		Short: "Batch patch one-time product purchase option availability",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			requests, err := parsePurchaseOptionAvailabilityPatches(patches)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			patchOptions := play.PurchaseOptionBatchPatchAvailabilityOptions{
+				PackageName:      typedPackageName,
+				Requests:         requests,
+				RegionsVersion:   regionsVersion,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.BatchPatchPurchaseOptionAvailability(cmd.Context(), nil, patchOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewPurchaseOptionBatchPatchAvailabilityPlan(patchOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchPatchPurchaseOptionAvailability(cmd.Context(), publisher, patchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringArrayVar(&patches, "availability", nil, "Availability patch as productId/purchaseOptionId/REGION:available|noLongerAvailable|availableIfReleased|availableForOffersOnly; repeatable")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by oneTimeProducts.batchUpdate")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the purchase option availability batch patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned purchase option availability batch patch without calling Google Play")
+	return cmd
+}
+
+func parsePurchaseOptionAvailabilityPatches(values []string) ([]play.PurchaseOptionAvailabilityPatchRequest, error) {
+	requests := make([]play.PurchaseOptionAvailabilityPatchRequest, 0, len(values))
+	for _, value := range values {
+		request, err := parsePurchaseOptionAvailabilityPatch(value)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, nil
+}
+
+func parsePurchaseOptionAvailabilityPatch(value string) (play.PurchaseOptionAvailabilityPatchRequest, error) {
+	path, availabilityValue, ok := strings.Cut(value, ":")
+	if !ok {
+		return play.PurchaseOptionAvailabilityPatchRequest{}, errPurchaseOptionAvailabilityFormat()
+	}
+	parts := strings.Split(path, "/")
+	if len(parts) != 3 {
+		return play.PurchaseOptionAvailabilityPatchRequest{}, errPurchaseOptionAvailabilityFormat()
+	}
+	productID, err := play.NewOneTimeProductID(parts[0])
+	if err != nil {
+		return play.PurchaseOptionAvailabilityPatchRequest{}, err
+	}
+	purchaseOptionID, err := play.NewOneTimeProductPurchaseOptionID(parts[1])
+	if err != nil {
+		return play.PurchaseOptionAvailabilityPatchRequest{}, err
+	}
+	availability := play.PurchaseOptionAvailability(availabilityValue)
+	if err := availability.Validate(); err != nil {
+		return play.PurchaseOptionAvailabilityPatchRequest{}, err
+	}
+	return play.PurchaseOptionAvailabilityPatchRequest{
+		ProductID:        productID,
+		PurchaseOptionID: purchaseOptionID,
+		RegionCode:       strings.ToUpper(parts[2]),
+		Availability:     availability,
+	}, nil
+}
+
+func errPurchaseOptionAvailabilityFormat() error {
+	return fmt.Errorf("purchase option availability must use productId/purchaseOptionId/REGION:available|noLongerAvailable|availableIfReleased|availableForOffersOnly")
 }
 
 func newOneTimeProductsPurchaseOptionBatchDeleteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {

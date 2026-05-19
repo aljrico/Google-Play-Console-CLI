@@ -712,6 +712,81 @@ func (p GooglePublisher) BatchDeletePurchaseOptions(ctx context.Context, options
 	return nil
 }
 
+func (p GooglePublisher) BatchPatchPurchaseOptionAvailability(ctx context.Context, options PurchaseOptionBatchPatchAvailabilityOptions) (PurchaseOptionBatchPatchAvailabilityResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return PurchaseOptionBatchPatchAvailabilityResult{}, err
+	}
+	requestsByProduct := purchaseOptionAvailabilityPatchRequestsByProduct(options.Requests)
+	request := &androidpublisher.BatchUpdateOneTimeProductsRequest{
+		Requests: make([]*androidpublisher.UpdateOneTimeProductRequest, 0, len(requestsByProduct)),
+	}
+	for _, productPatch := range requestsByProduct {
+		current, err := p.service.Monetization.Onetimeproducts.Get(options.PackageName.String(), productPatch.ProductID.String()).Context(ctx).Do()
+		if err != nil {
+			return PurchaseOptionBatchPatchAvailabilityResult{}, fmt.Errorf("get one-time product %s for %s before purchase option availability patch: %w", productPatch.ProductID, options.PackageName, err)
+		}
+		currentProduct, err := oneTimeProductFromGeneratedAPI(current)
+		if err != nil {
+			return PurchaseOptionBatchPatchAvailabilityResult{}, fmt.Errorf("decode one-time product %s for %s before purchase option availability patch: %w", productPatch.ProductID, options.PackageName, err)
+		}
+		mergedOptions, err := mergePurchaseOptionAvailabilityPatches(currentProduct.PurchaseOptions, productPatch.Requests)
+		if err != nil {
+			return PurchaseOptionBatchPatchAvailabilityResult{}, err
+		}
+		request.Requests = append(request.Requests, &androidpublisher.UpdateOneTimeProductRequest{
+			OneTimeProduct: &androidpublisher.OneTimeProduct{
+				PackageName:     options.PackageName.String(),
+				ProductId:       productPatch.ProductID.String(),
+				PurchaseOptions: oneTimeProductPurchaseOptionsToAPI(mergedOptions),
+			},
+			UpdateMask:       purchaseOptionAvailabilityUpdateMask,
+			RegionsVersion:   &androidpublisher.RegionsVersion{Version: options.RegionsVersion},
+			LatencyTolerance: productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+		})
+	}
+	response, err := p.service.Monetization.Onetimeproducts.BatchUpdate(options.PackageName.String(), request).Context(ctx).Do()
+	if err != nil {
+		return PurchaseOptionBatchPatchAvailabilityResult{}, fmt.Errorf("batch patch purchase option availability for %s: %w", options.PackageName, err)
+	}
+	products := make([]OneTimeProduct, 0)
+	if response != nil {
+		products = make([]OneTimeProduct, 0, len(response.OneTimeProducts))
+		for _, apiProduct := range response.OneTimeProducts {
+			product, err := oneTimeProductFromGeneratedAPI(apiProduct)
+			if err != nil {
+				return PurchaseOptionBatchPatchAvailabilityResult{}, err
+			}
+			products = append(products, product)
+		}
+	}
+	return PurchaseOptionBatchPatchAvailabilityResult{
+		PackageName: options.PackageName,
+		DryRun:      false,
+		Applied:     true,
+		Products:    products,
+	}, nil
+}
+
+type purchaseOptionAvailabilityPatchProduct struct {
+	ProductID OneTimeProductID
+	Requests  []PurchaseOptionAvailabilityPatchRequest
+}
+
+func purchaseOptionAvailabilityPatchRequestsByProduct(requests []PurchaseOptionAvailabilityPatchRequest) []purchaseOptionAvailabilityPatchProduct {
+	byProduct := map[OneTimeProductID]int{}
+	products := make([]purchaseOptionAvailabilityPatchProduct, 0)
+	for _, request := range requests {
+		index, ok := byProduct[request.ProductID]
+		if !ok {
+			byProduct[request.ProductID] = len(products)
+			products = append(products, purchaseOptionAvailabilityPatchProduct{ProductID: request.ProductID})
+			index = len(products) - 1
+		}
+		products[index].Requests = append(products[index].Requests, request)
+	}
+	return products
+}
+
 func (p GooglePublisher) UpdatePurchaseOptionState(ctx context.Context, options PurchaseOptionStateUpdateOptions) (OneTimeProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProduct{}, err
@@ -3224,6 +3299,51 @@ func oneTimeProductPurchaseOptionFromAPI(apiOption rawOneTimeProductPurchaseOpti
 	return option
 }
 
+func oneTimeProductPurchaseOptionsToAPI(options []OneTimeProductPurchaseOption) []*androidpublisher.OneTimeProductPurchaseOption {
+	apiOptions := make([]*androidpublisher.OneTimeProductPurchaseOption, 0, len(options))
+	for _, option := range options {
+		apiOptions = append(apiOptions, oneTimeProductPurchaseOptionToAPI(option))
+	}
+	return apiOptions
+}
+
+func oneTimeProductPurchaseOptionToAPI(option OneTimeProductPurchaseOption) *androidpublisher.OneTimeProductPurchaseOption {
+	apiOption := &androidpublisher.OneTimeProductPurchaseOption{
+		PurchaseOptionId:                      option.PurchaseOptionID,
+		OfferTags:                             offerTagsToAPI(option.OfferTags),
+		RegionalPricingAndAvailabilityConfigs: oneTimeProductRegionalConfigsToAPI(option.RegionalConfigs),
+		NewRegionsConfig:                      oneTimeProductNewRegionsConfigToAPI(option.NewRegionsConfig),
+		TaxAndComplianceSettings:              oneTimeProductPurchaseOptionTaxComplianceSettingsToAPI(option.TaxAndComplianceSettings),
+	}
+	switch option.Type {
+	case OneTimeProductPurchaseOptionTypeBuy:
+		apiOption.BuyOption = &androidpublisher.OneTimeProductBuyPurchaseOption{
+			LegacyCompatible:     option.LegacyCompatible,
+			MultiQuantityEnabled: option.MultiQuantityEnabled,
+		}
+		if option.LegacyCompatible {
+			apiOption.BuyOption.ForceSendFields = append(apiOption.BuyOption.ForceSendFields, "LegacyCompatible")
+		}
+		if option.MultiQuantityEnabled {
+			apiOption.BuyOption.ForceSendFields = append(apiOption.BuyOption.ForceSendFields, "MultiQuantityEnabled")
+		}
+	case OneTimeProductPurchaseOptionTypeRent:
+		apiOption.RentOption = &androidpublisher.OneTimeProductRentPurchaseOption{
+			RentalPeriod:     option.RentalPeriod,
+			ExpirationPeriod: option.ExpirationPeriod,
+		}
+	}
+	return apiOption
+}
+
+func offerTagsToAPI(tags []string) []*androidpublisher.OfferTag {
+	apiTags := make([]*androidpublisher.OfferTag, 0, len(tags))
+	for _, tag := range tags {
+		apiTags = append(apiTags, &androidpublisher.OfferTag{Tag: tag})
+	}
+	return apiTags
+}
+
 func oneTimeProductRegionalConfigsFromAPI(apiConfigs []rawOneTimeProductRegionalConfig) []OneTimeProductRegionalConfig {
 	if len(apiConfigs) == 0 {
 		return nil
@@ -3239,6 +3359,18 @@ func oneTimeProductRegionalConfigsFromAPI(apiConfigs []rawOneTimeProductRegional
 	return configs
 }
 
+func oneTimeProductRegionalConfigsToAPI(configs []OneTimeProductRegionalConfig) []*androidpublisher.OneTimeProductPurchaseOptionRegionalPricingAndAvailabilityConfig {
+	apiConfigs := make([]*androidpublisher.OneTimeProductPurchaseOptionRegionalPricingAndAvailabilityConfig, 0, len(configs))
+	for _, config := range configs {
+		apiConfigs = append(apiConfigs, &androidpublisher.OneTimeProductPurchaseOptionRegionalPricingAndAvailabilityConfig{
+			RegionCode:   config.RegionCode,
+			Availability: purchaseOptionAvailabilityToAPI(config.Availability),
+			Price:        moneyToAPI(config.Price),
+		})
+	}
+	return apiConfigs
+}
+
 func oneTimeProductNewRegionsConfigFromAPI(apiConfig *rawOneTimeProductNewRegionsConfig) *OneTimeProductNewRegionsPricingAndAvailability {
 	if apiConfig == nil {
 		return nil
@@ -3247,6 +3379,17 @@ func oneTimeProductNewRegionsConfigFromAPI(apiConfig *rawOneTimeProductNewRegion
 		Availability: apiConfig.Availability,
 		USDPrice:     rawMoneyFromAPI(apiConfig.USDPrice),
 		EURPrice:     rawMoneyFromAPI(apiConfig.EURPrice),
+	}
+}
+
+func oneTimeProductNewRegionsConfigToAPI(config *OneTimeProductNewRegionsPricingAndAvailability) *androidpublisher.OneTimeProductPurchaseOptionNewRegionsConfig {
+	if config == nil {
+		return nil
+	}
+	return &androidpublisher.OneTimeProductPurchaseOptionNewRegionsConfig{
+		Availability: purchaseOptionAvailabilityToAPI(config.Availability),
+		UsdPrice:     moneyToAPI(config.USDPrice),
+		EurPrice:     moneyToAPI(config.EURPrice),
 	}
 }
 
@@ -3298,6 +3441,77 @@ func oneTimeProductPurchaseOptionTaxComplianceSettingsFromAPI(apiSettings *rawPu
 	}
 	return &OneTimeProductPurchaseOptionTaxComplianceSettings{
 		WithdrawalRightType: apiSettings.WithdrawalRightType,
+	}
+}
+
+func oneTimeProductPurchaseOptionTaxComplianceSettingsToAPI(settings *OneTimeProductPurchaseOptionTaxComplianceSettings) *androidpublisher.PurchaseOptionTaxAndComplianceSettings {
+	if settings == nil {
+		return nil
+	}
+	return &androidpublisher.PurchaseOptionTaxAndComplianceSettings{
+		WithdrawalRightType: settings.WithdrawalRightType,
+	}
+}
+
+func mergePurchaseOptionAvailabilityPatches(current []OneTimeProductPurchaseOption, patches []PurchaseOptionAvailabilityPatchRequest) ([]OneTimeProductPurchaseOption, error) {
+	merged := append([]OneTimeProductPurchaseOption(nil), current...)
+	for _, patch := range patches {
+		next, err := mergePurchaseOptionAvailabilityPatch(merged, patch)
+		if err != nil {
+			return nil, err
+		}
+		merged = next
+	}
+	return merged, nil
+}
+
+func mergePurchaseOptionAvailabilityPatch(current []OneTimeProductPurchaseOption, patch PurchaseOptionAvailabilityPatchRequest) ([]OneTimeProductPurchaseOption, error) {
+	merged := make([]OneTimeProductPurchaseOption, 0, len(current))
+	for _, option := range current {
+		if option.PurchaseOptionID != patch.PurchaseOptionID.String() {
+			merged = append(merged, option)
+			continue
+		}
+		regionalConfigs, err := mergePurchaseOptionRegionalAvailabilityPatch(option.RegionalConfigs, patch)
+		if err != nil {
+			return nil, err
+		}
+		option.RegionalConfigs = regionalConfigs
+		merged = append(merged, option)
+		return append(merged, current[len(merged):]...), nil
+	}
+	return nil, fmt.Errorf("purchase option availability patch for %s/%s references a purchase option that is not already configured", patch.ProductID, patch.PurchaseOptionID)
+}
+
+func mergePurchaseOptionRegionalAvailabilityPatch(current []OneTimeProductRegionalConfig, patch PurchaseOptionAvailabilityPatchRequest) ([]OneTimeProductRegionalConfig, error) {
+	merged := make([]OneTimeProductRegionalConfig, 0, len(current))
+	for _, region := range current {
+		if region.RegionCode != patch.RegionCode {
+			merged = append(merged, region)
+			continue
+		}
+		if patch.Availability == PurchaseOptionAvailabilityNoLongerAvailable && region.Availability != "AVAILABLE" {
+			return nil, fmt.Errorf("purchase option availability patch for %s/%s/%s cannot set noLongerAvailable from current availability %q", patch.ProductID, patch.PurchaseOptionID, patch.RegionCode, region.Availability)
+		}
+		region.Availability = purchaseOptionAvailabilityToAPI(patch.Availability.String())
+		merged = append(merged, region)
+		return append(merged, current[len(merged):]...), nil
+	}
+	return nil, fmt.Errorf("purchase option availability patch for %s/%s/%s references a region that is not already configured; availability-only patches cannot add regional price data", patch.ProductID, patch.PurchaseOptionID, patch.RegionCode)
+}
+
+func purchaseOptionAvailabilityToAPI(availability string) string {
+	switch PurchaseOptionAvailability(availability) {
+	case PurchaseOptionAvailabilityAvailable:
+		return "AVAILABLE"
+	case PurchaseOptionAvailabilityNoLongerAvailable:
+		return "NO_LONGER_AVAILABLE"
+	case PurchaseOptionAvailabilityAvailableIfReleased:
+		return "AVAILABLE_IF_RELEASED"
+	case PurchaseOptionAvailabilityAvailableForOffersOnly:
+		return "AVAILABLE_FOR_OFFERS_ONLY"
+	default:
+		return availability
 	}
 }
 

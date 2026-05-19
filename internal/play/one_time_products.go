@@ -117,6 +117,31 @@ func (a PurchaseOptionStateAction) Validate() error {
 	}
 }
 
+type PurchaseOptionAvailability string
+
+const (
+	PurchaseOptionAvailabilityAvailable              PurchaseOptionAvailability = "available"
+	PurchaseOptionAvailabilityNoLongerAvailable      PurchaseOptionAvailability = "noLongerAvailable"
+	PurchaseOptionAvailabilityAvailableIfReleased    PurchaseOptionAvailability = "availableIfReleased"
+	PurchaseOptionAvailabilityAvailableForOffersOnly PurchaseOptionAvailability = "availableForOffersOnly"
+)
+
+func (a PurchaseOptionAvailability) String() string {
+	return string(a)
+}
+
+func (a PurchaseOptionAvailability) Validate() error {
+	switch a {
+	case PurchaseOptionAvailabilityAvailable,
+		PurchaseOptionAvailabilityNoLongerAvailable,
+		PurchaseOptionAvailabilityAvailableIfReleased,
+		PurchaseOptionAvailabilityAvailableForOffersOnly:
+		return nil
+	default:
+		return fmt.Errorf("unsupported purchase option availability %q", a)
+	}
+}
+
 type OneTimeProductRegionalConfig struct {
 	RegionCode   string `json:"regionCode"`
 	Availability string `json:"availability,omitempty"`
@@ -225,6 +250,10 @@ type OneTimeProductPatcher interface {
 
 type OneTimeProductBatchListingsPatcher interface {
 	BatchPatchOneTimeProductListings(ctx context.Context, options OneTimeProductBatchPatchListingsOptions) (OneTimeProductBatchPatchListingsResult, error)
+}
+
+type PurchaseOptionBatchAvailabilityPatcher interface {
+	BatchPatchPurchaseOptionAvailability(ctx context.Context, options PurchaseOptionBatchPatchAvailabilityOptions) (PurchaseOptionBatchPatchAvailabilityResult, error)
 }
 
 type OneTimeProductBatchDeleter interface {
@@ -999,6 +1028,22 @@ type PurchaseOptionStateUpdateOptions struct {
 	DryRun           bool                           `json:"dryRun"`
 }
 
+type PurchaseOptionAvailabilityPatchRequest struct {
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+	RegionCode       string                         `json:"regionCode"`
+	Availability     PurchaseOptionAvailability     `json:"availability"`
+}
+
+type PurchaseOptionBatchPatchAvailabilityOptions struct {
+	PackageName      PackageName                              `json:"packageName"`
+	Requests         []PurchaseOptionAvailabilityPatchRequest `json:"requests"`
+	RegionsVersion   string                                   `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance            `json:"latencyTolerance"`
+	Confirm          bool                                     `json:"confirm"`
+	DryRun           bool                                     `json:"dryRun"`
+}
+
 func (o PurchaseOptionStateUpdateOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
@@ -1022,6 +1067,73 @@ func (o PurchaseOptionStateUpdateOptions) Validate() error {
 		return fmt.Errorf("purchase option state update requires --confirm or --dry-run")
 	}
 	return nil
+}
+
+func (o PurchaseOptionBatchPatchAvailabilityOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if len(o.Requests) == 0 {
+		return fmt.Errorf("at least one purchase option availability patch is required")
+	}
+	seen := map[string]struct{}{}
+	seenProducts := map[OneTimeProductID]struct{}{}
+	for _, request := range o.Requests {
+		if _, err := NewOneTimeProductID(request.ProductID.String()); err != nil {
+			return err
+		}
+		if _, err := NewOneTimeProductPurchaseOptionID(request.PurchaseOptionID.String()); err != nil {
+			return err
+		}
+		if !isValidRegionCode(request.RegionCode) {
+			return fmt.Errorf("purchase option availability region must be a two-letter ISO 3166 code")
+		}
+		if err := request.Availability.Validate(); err != nil {
+			return err
+		}
+		key := purchaseOptionAvailabilityPatchKey(request.ProductID, request.PurchaseOptionID, request.RegionCode)
+		if _, ok := seen[key]; ok {
+			return fmt.Errorf("purchase option availability %s is duplicated", key)
+		}
+		seen[key] = struct{}{}
+		seenProducts[request.ProductID] = struct{}{}
+	}
+	if len(seenProducts) > 100 {
+		return fmt.Errorf("purchase option availability batch patch cannot exceed 100 products")
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("purchase option availability batch patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o PurchaseOptionBatchPatchAvailabilityOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live purchase option availability batch patch cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live purchase option availability batch patch requires --confirm")
+	}
+	return nil
+}
+
+func purchaseOptionAvailabilityPatchKey(productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, regionCode string) string {
+	return productID.String() + "/" + purchaseOptionID.String() + "/" + regionCode
 }
 
 func (o PurchaseOptionStateUpdateOptions) ValidateLive() error {
@@ -1056,6 +1168,42 @@ type PurchaseOptionStateUpdateResult struct {
 	Applied          bool                           `json:"applied"`
 	Product          *OneTimeProduct                `json:"product,omitempty"`
 	Plan             PurchaseOptionStateUpdatePlan  `json:"plan"`
+}
+
+type PurchaseOptionBatchPatchAvailabilityPlan struct {
+	PackageName      PackageName                              `json:"packageName"`
+	Requests         []PurchaseOptionAvailabilityPatchRequest `json:"requests"`
+	UpdateMask       string                                   `json:"updateMask"`
+	RegionsVersion   string                                   `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance            `json:"latencyTolerance"`
+	Confirm          bool                                     `json:"confirm"`
+	Steps            []string                                 `json:"steps"`
+}
+
+type PurchaseOptionBatchPatchAvailabilityDesiredProduct struct {
+	PackageName     PackageName                                         `json:"packageName"`
+	ProductID       OneTimeProductID                                    `json:"productId"`
+	PurchaseOptions []PurchaseOptionBatchPatchAvailabilityDesiredOption `json:"purchaseOptions"`
+}
+
+type PurchaseOptionBatchPatchAvailabilityDesiredOption struct {
+	PurchaseOptionID OneTimeProductPurchaseOptionID                      `json:"purchaseOptionId"`
+	RegionalConfigs  []PurchaseOptionBatchPatchAvailabilityDesiredRegion `json:"regionalConfigs"`
+}
+
+type PurchaseOptionBatchPatchAvailabilityDesiredRegion struct {
+	RegionCode   string                     `json:"regionCode"`
+	Availability PurchaseOptionAvailability `json:"availability"`
+}
+
+type PurchaseOptionBatchPatchAvailabilityResult struct {
+	PackageName PackageName                                          `json:"packageName"`
+	Requests    []PurchaseOptionAvailabilityPatchRequest             `json:"requests"`
+	DryRun      bool                                                 `json:"dryRun"`
+	Applied     bool                                                 `json:"applied"`
+	Products    []OneTimeProduct                                     `json:"products,omitempty"`
+	Desired     []PurchaseOptionBatchPatchAvailabilityDesiredProduct `json:"desiredProducts"`
+	Plan        PurchaseOptionBatchPatchAvailabilityPlan             `json:"plan"`
 }
 
 type PurchaseOptionStateUpdater interface {
@@ -1106,9 +1254,98 @@ func UpdatePurchaseOptionState(ctx context.Context, updater PurchaseOptionStateU
 	return result, nil
 }
 
+func NewPurchaseOptionBatchPatchAvailabilityPlan(options PurchaseOptionBatchPatchAvailabilityOptions) (PurchaseOptionBatchPatchAvailabilityPlan, error) {
+	if err := options.Validate(); err != nil {
+		return PurchaseOptionBatchPatchAvailabilityPlan{}, err
+	}
+	return PurchaseOptionBatchPatchAvailabilityPlan{
+		PackageName:      options.PackageName,
+		Requests:         append([]PurchaseOptionAvailabilityPatchRequest(nil), options.Requests...),
+		UpdateMask:       purchaseOptionAvailabilityUpdateMask,
+		RegionsVersion:   options.RegionsVersion,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            purchaseOptionBatchPatchAvailabilitySteps(options),
+	}, nil
+}
+
+func BatchPatchPurchaseOptionAvailability(ctx context.Context, patcher PurchaseOptionBatchAvailabilityPatcher, options PurchaseOptionBatchPatchAvailabilityOptions) (PurchaseOptionBatchPatchAvailabilityResult, error) {
+	plan, err := NewPurchaseOptionBatchPatchAvailabilityPlan(options)
+	if err != nil {
+		return PurchaseOptionBatchPatchAvailabilityResult{}, err
+	}
+	requests := append([]PurchaseOptionAvailabilityPatchRequest(nil), options.Requests...)
+	result := PurchaseOptionBatchPatchAvailabilityResult{
+		PackageName: options.PackageName,
+		Requests:    requests,
+		DryRun:      options.DryRun,
+		Desired:     desiredOneTimeProductsForPurchaseOptionAvailabilityPatch(options),
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if patcher == nil {
+		return PurchaseOptionBatchPatchAvailabilityResult{}, fmt.Errorf("purchase option availability batch patcher is required")
+	}
+	updated, err := patcher.BatchPatchPurchaseOptionAvailability(ctx, options)
+	if err != nil {
+		return PurchaseOptionBatchPatchAvailabilityResult{}, err
+	}
+	updated.PackageName = options.PackageName
+	updated.Requests = requests
+	updated.DryRun = false
+	updated.Applied = true
+	updated.Desired = result.Desired
+	updated.Plan = plan
+	return updated, nil
+}
+
+func desiredOneTimeProductsForPurchaseOptionAvailabilityPatch(options PurchaseOptionBatchPatchAvailabilityOptions) []PurchaseOptionBatchPatchAvailabilityDesiredProduct {
+	byProduct := map[OneTimeProductID]int{}
+	byOption := map[string]int{}
+	products := make([]PurchaseOptionBatchPatchAvailabilityDesiredProduct, 0)
+	for _, request := range options.Requests {
+		productIndex, ok := byProduct[request.ProductID]
+		if !ok {
+			byProduct[request.ProductID] = len(products)
+			products = append(products, PurchaseOptionBatchPatchAvailabilityDesiredProduct{
+				PackageName:     options.PackageName,
+				ProductID:       request.ProductID,
+				PurchaseOptions: []PurchaseOptionBatchPatchAvailabilityDesiredOption{},
+			})
+			productIndex = len(products) - 1
+		}
+		optionKey := request.ProductID.String() + "/" + request.PurchaseOptionID.String()
+		optionIndex, ok := byOption[optionKey]
+		if !ok {
+			byOption[optionKey] = len(products[productIndex].PurchaseOptions)
+			products[productIndex].PurchaseOptions = append(products[productIndex].PurchaseOptions, PurchaseOptionBatchPatchAvailabilityDesiredOption{
+				PurchaseOptionID: request.PurchaseOptionID,
+				RegionalConfigs:  []PurchaseOptionBatchPatchAvailabilityDesiredRegion{},
+			})
+			optionIndex = len(products[productIndex].PurchaseOptions) - 1
+		}
+		products[productIndex].PurchaseOptions[optionIndex].RegionalConfigs = append(products[productIndex].PurchaseOptions[optionIndex].RegionalConfigs, PurchaseOptionBatchPatchAvailabilityDesiredRegion{
+			RegionCode:   request.RegionCode,
+			Availability: request.Availability,
+		})
+	}
+	return products
+}
+
 func purchaseOptionStateUpdateSteps(options PurchaseOptionStateUpdateOptions) []string {
 	if options.DryRun {
 		return []string{fmt.Sprintf("plan %s purchase option", options.Action)}
 	}
 	return []string{fmt.Sprintf("%s purchase option", options.Action)}
+}
+
+const purchaseOptionAvailabilityUpdateMask = "purchaseOptions"
+
+func purchaseOptionBatchPatchAvailabilitySteps(options PurchaseOptionBatchPatchAvailabilityOptions) []string {
+	if options.DryRun {
+		return []string{"plan purchase option availability batch patch"}
+	}
+	return []string{"fetch current one-time products", "merge purchase option regional availability", "batch patch purchase option availability"}
 }

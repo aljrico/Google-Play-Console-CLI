@@ -135,6 +135,7 @@ gpc one-time-products batch-patch-listings --package com.example.app --listing '
 gpc one-time-products delete --package com.example.app --product-id coins_100 --dry-run
 gpc one-time-products batch-delete --package com.example.app --product-id coins_100 --product-id coins_500 --dry-run
 gpc one-time-products purchase-option batch-delete --package com.example.app --product-id - --purchase-option coins_100/buy --purchase-option coins_500/rent --dry-run
+gpc one-time-products purchase-option batch-patch-availability --package com.example.app --availability coins_100/buy/US:noLongerAvailable --regions-version 2026/05 --dry-run
 gpc one-time-products purchase-option deactivate --package com.example.app --product-id coins_100 --purchase-option-id buy --dry-run
 gpc one-time-product-offers list --package com.example.app --product-id coins_100 --purchase-option-id buy
 gpc one-time-product-offers get --package com.example.app --product-id coins_100 --purchase-option-id buy --offer-id intro

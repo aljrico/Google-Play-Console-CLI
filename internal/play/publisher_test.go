@@ -3935,6 +3935,144 @@ func TestGetOneTimeProductOfferUsesBatchGetEndpoint(t *testing.T) {
 	}
 }
 
+func TestBatchPatchPurchaseOptionAvailabilityMergesAndBatchUpdates(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100":
+			if r.Method != http.MethodGet {
+				t.Fatalf("method = %s, want GET product", r.Method)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"coins_100","listings":[{"languageCode":"en-US","title":"Coins","description":"Coins"}],"purchaseOptions":[{"purchaseOptionId":"buy","buyOption":{"legacyCompatible":true},"offerTags":[{"tag":"storefront"}],"newRegionsConfig":{"availability":"AVAILABLE","usdPrice":{"currencyCode":"USD","units":"1"},"eurPrice":{"currencyCode":"EUR","units":"1"}},"taxAndComplianceSettings":{"withdrawalRightType":"WITHDRAWAL_RIGHT_SERVICE"},"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","price":{"currencyCode":"USD","units":"1","nanos":990000000}},{"regionCode":"FR","availability":"AVAILABLE","price":{"currencyCode":"EUR","units":"1","nanos":990000000}}]},{"purchaseOptionId":"rent","rentOption":{"rentalPeriod":"P7D","expirationPeriod":"P30D"},"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE_IF_RELEASED","price":{"currencyCode":"USD","units":"2"}}]}]}`)
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts:batchUpdate":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchUpdate", r.Method)
+			}
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("ReadAll() error = %v", err)
+			}
+			var request androidpublisher.BatchUpdateOneTimeProductsRequest
+			if err := json.Unmarshal(body, &request); err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+			if len(request.Requests) != 1 {
+				t.Fatalf("len(Requests) = %d, want 1", len(request.Requests))
+			}
+			update := request.Requests[0]
+			if update.UpdateMask != "purchaseOptions" {
+				t.Fatalf("UpdateMask = %q, want purchaseOptions", update.UpdateMask)
+			}
+			if update.RegionsVersion == nil || update.RegionsVersion.Version != "2026/05" {
+				t.Fatalf("RegionsVersion = %#v, want 2026/05", update.RegionsVersion)
+			}
+			if update.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+				t.Fatalf("LatencyTolerance = %q, want tolerant", update.LatencyTolerance)
+			}
+			options := update.OneTimeProduct.PurchaseOptions
+			if len(options) != 2 {
+				t.Fatalf("len(PurchaseOptions) = %d, want preserved options", len(options))
+			}
+			if options[0].PurchaseOptionId != "buy" || options[0].BuyOption == nil || !options[0].BuyOption.LegacyCompatible {
+				t.Fatalf("first option = %#v, want preserved buy option", options[0])
+			}
+			if len(options[0].OfferTags) != 1 || options[0].OfferTags[0].Tag != "storefront" {
+				t.Fatalf("OfferTags = %#v, want preserved tag", options[0].OfferTags)
+			}
+			if options[0].NewRegionsConfig == nil || options[0].NewRegionsConfig.Availability != "AVAILABLE" || options[0].NewRegionsConfig.UsdPrice == nil {
+				t.Fatalf("NewRegionsConfig = %#v, want preserved new regions config", options[0].NewRegionsConfig)
+			}
+			if options[0].TaxAndComplianceSettings == nil || options[0].TaxAndComplianceSettings.WithdrawalRightType != "WITHDRAWAL_RIGHT_SERVICE" {
+				t.Fatalf("TaxAndComplianceSettings = %#v, want preserved withdrawal right", options[0].TaxAndComplianceSettings)
+			}
+			configs := options[0].RegionalPricingAndAvailabilityConfigs
+			if len(configs) != 2 {
+				t.Fatalf("len(RegionalPricingAndAvailabilityConfigs) = %d, want preserved regions", len(configs))
+			}
+			if configs[0].RegionCode != "US" || configs[0].Availability != "NO_LONGER_AVAILABLE" || configs[0].Price == nil || configs[0].Price.CurrencyCode != "USD" {
+				t.Fatalf("first config = %#v, want patched availability with preserved price", configs[0])
+			}
+			if options[1].PurchaseOptionId != "rent" || options[1].RentOption == nil {
+				t.Fatalf("second option = %#v, want preserved rent option", options[1])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProducts":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptions":[{"purchaseOptionId":"buy","buyOption":{"legacyCompatible":true},"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"NO_LONGER_AVAILABLE","price":{"currencyCode":"USD","units":"1","nanos":990000000}}]}]}]}`)
+		default:
+			t.Fatalf("unexpected path = %q", r.URL.Path)
+		}
+	}))
+
+	result, err := publisher.BatchPatchPurchaseOptionAvailability(context.Background(), PurchaseOptionBatchPatchAvailabilityOptions{
+		PackageName:    "com.example.app",
+		RegionsVersion: "2026/05",
+		Requests: []PurchaseOptionAvailabilityPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", RegionCode: "US", Availability: PurchaseOptionAvailabilityNoLongerAvailable},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchPurchaseOptionAvailability() error = %v", err)
+	}
+	if !result.Applied || len(result.Products) != 1 || result.Products[0].PurchaseOptions[0].RegionalConfigs[0].Availability != "NO_LONGER_AVAILABLE" {
+		t.Fatalf("result = %#v, want applied product with Google availability enum", result)
+	}
+}
+
+func TestBatchPatchPurchaseOptionAvailabilityRejectsMissingRegion(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100" {
+			t.Fatalf("path = %q, want product get only", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"coins_100","purchaseOptions":[{"purchaseOptionId":"buy","buyOption":{},"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","price":{"currencyCode":"USD","units":"1"}}]}]}`)
+	}))
+
+	_, err := publisher.BatchPatchPurchaseOptionAvailability(context.Background(), PurchaseOptionBatchPatchAvailabilityOptions{
+		PackageName:    "com.example.app",
+		RegionsVersion: "2026/05",
+		Requests: []PurchaseOptionAvailabilityPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", RegionCode: "FR", Availability: PurchaseOptionAvailabilityAvailable},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected missing region validation error")
+	}
+	if !strings.Contains(err.Error(), "not already configured") {
+		t.Fatalf("error = %v, want configured region message", err)
+	}
+}
+
+func TestBatchPatchPurchaseOptionAvailabilityRejectsInvalidNoLongerAvailableTransition(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100" {
+			t.Fatalf("path = %q, want product get only", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"coins_100","purchaseOptions":[{"purchaseOptionId":"buy","buyOption":{},"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE_IF_RELEASED","price":{"currencyCode":"USD","units":"1"}}]}]}`)
+	}))
+
+	_, err := publisher.BatchPatchPurchaseOptionAvailability(context.Background(), PurchaseOptionBatchPatchAvailabilityOptions{
+		PackageName:    "com.example.app",
+		RegionsVersion: "2026/05",
+		Requests: []PurchaseOptionAvailabilityPatchRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", RegionCode: "US", Availability: PurchaseOptionAvailabilityNoLongerAvailable},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected invalid no-longer-available transition error")
+	}
+	for _, want := range []string{"coins_100", "buy", "US", "AVAILABLE_IF_RELEASED"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %v, want %s", err, want)
+		}
+	}
+}
+
 func TestBatchGetOneTimeProductOffersUsesBatchGetEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/-/purchaseOptions/-/offers:batchGet" {
