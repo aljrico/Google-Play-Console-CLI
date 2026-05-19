@@ -115,6 +115,20 @@ func TestSendRejectsInsecureNonLoopbackWebhook(t *testing.T) {
 	}
 }
 
+func TestSendRejectsWebhookURLUserInfo(t *testing.T) {
+	_, err := Send(context.Background(), nil, SendOptions{
+		WebhookURL: "https://user:pass@example.com/hook",
+		Message:    "Release shipped",
+		DryRun:     true,
+	})
+	if err == nil {
+		t.Fatal("Send() error = nil, want userinfo validation")
+	}
+	if strings.Contains(err.Error(), "user:pass") || strings.Contains(err.Error(), "pass") {
+		t.Fatalf("error = %v, leaked userinfo", err)
+	}
+}
+
 func TestSendDoesNotFollowRedirects(t *testing.T) {
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("redirect target should not be called")
@@ -147,6 +161,19 @@ func TestRedactedErrorRemovesRawWebhookURL(t *testing.T) {
 	for _, leaked := range []string{"user", "pass", "T000", "B000", "SECRET", "token=secret", "fragment"} {
 		if strings.Contains(message, leaked) {
 			t.Fatalf("message = %q, leaked %q", message, leaked)
+		}
+	}
+}
+
+func TestWebhookSenderTransportErrorWithUserInfoDoesNotLeak(t *testing.T) {
+	rawURL := "https://user:pass@127.0.0.1:1/services/T000/B000/SECRET?token=secret#fragment"
+	_, err := WebhookSender{}.Send(context.Background(), rawURL, Payload{Message: "Release shipped"})
+	if err == nil {
+		t.Fatal("Send() error = nil, want transport error")
+	}
+	for _, leaked := range []string{"user", "pass", "T000", "B000", "SECRET", "token=secret", "fragment"} {
+		if strings.Contains(err.Error(), leaked) {
+			t.Fatalf("error = %v, leaked %s", err, leaked)
 		}
 	}
 }

@@ -13,12 +13,12 @@ import (
 func newSearchCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	var limit int
 	cmd := &cobra.Command{
-		Use:   "search QUERY",
+		Use:   "search QUERY...",
 		Short: "Search gpc commands and flags",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := commandsearch.Search(commandSearchDocuments(cmd.Root()), commandsearch.Options{
-				Query: args[0],
+				Query: strings.Join(args, " "),
 				Limit: limit,
 			})
 			if err != nil {
@@ -54,16 +54,32 @@ func collectCommandSearchDocuments(cmd *cobra.Command, documents *[]commandsearc
 
 func commandSearchFlagNames(cmd *cobra.Command) []string {
 	flags := []string{}
-	cmd.NonInheritedFlags().VisitAll(func(flag *pflag.Flag) {
+	seen := map[string]bool{}
+	visitCommandSearchFlags(cmd.NonInheritedFlags(), seen, &flags)
+	visitCommandSearchFlags(cmd.PersistentFlags(), seen, &flags)
+	return flags
+}
+
+func visitCommandSearchFlags(flagSet *pflag.FlagSet, seen map[string]bool, flags *[]string) {
+	flagSet.VisitAll(func(flag *pflag.Flag) {
 		if shouldDocumentFlag(flag) {
-			flags = append(flags, flag.Name)
+			appendCommandSearchFlag(flags, seen, flag.Name)
+			appendCommandSearchFlag(flags, seen, "--"+flag.Name)
 			if flag.Shorthand != "" {
-				flags = append(flags, flag.Shorthand)
+				appendCommandSearchFlag(flags, seen, flag.Shorthand)
+				appendCommandSearchFlag(flags, seen, "-"+flag.Shorthand)
 			}
 			if flag.Usage != "" {
-				flags = append(flags, strings.ToLower(flag.Usage))
+				appendCommandSearchFlag(flags, seen, strings.ToLower(flag.Usage))
 			}
 		}
 	})
-	return flags
+}
+
+func appendCommandSearchFlag(flags *[]string, seen map[string]bool, value string) {
+	if seen[value] {
+		return
+	}
+	seen[value] = true
+	*flags = append(*flags, value)
 }

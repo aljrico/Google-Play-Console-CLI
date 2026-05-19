@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -137,6 +138,9 @@ func (o SendOptions) ValidateWebhookURL(webhookURL string) error {
 			return fmt.Errorf("webhook URL must use https unless the host is loopback")
 		}
 	}
+	if parsedURL.User != nil {
+		return fmt.Errorf("webhook URL must not contain userinfo")
+	}
 	if parsedURL.Host == "" {
 		return fmt.Errorf("webhook URL host is required")
 	}
@@ -239,7 +243,14 @@ func RedactedError(rawURL string, err error) string {
 	if err == nil {
 		return ""
 	}
-	text := err.Error()
+	var urlError *url.Error
+	if errors.As(err, &urlError) {
+		return redactText(rawURL, urlError.Err.Error())
+	}
+	return redactText(rawURL, err.Error())
+}
+
+func redactText(rawURL string, text string) string {
 	text = strings.ReplaceAll(text, rawURL, RedactedURL(rawURL))
 	if parsedURL, parseErr := url.Parse(rawURL); parseErr == nil {
 		text = strings.ReplaceAll(text, parsedURL.String(), RedactedURL(rawURL))

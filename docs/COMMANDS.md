@@ -1331,7 +1331,7 @@ gpc schema [flags]
 Search gpc commands and flags
 
 ```sh
-gpc search QUERY [flags]
+gpc search QUERY... [flags]
 ```
 
 #### Flags

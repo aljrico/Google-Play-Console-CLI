@@ -20,13 +20,26 @@ func TestSearchRanksPathMatches(t *testing.T) {
 
 func TestSearchMatchesFlags(t *testing.T) {
 	result, err := Search([]Document{
-		{Path: "gpc notify send", Use: "gpc notify send [flags]", Short: "Send a webhook", Flags: []string{"webhook-url-env", "message"}},
-	}, Options{Query: "webhook-url-env"})
+		{Path: "gpc notify send", Use: "gpc notify send [flags]", Short: "Send a webhook", Flags: []string{"--webhook-url-env", "--message"}},
+	}, Options{Query: "--webhook-url-env"})
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
 	if len(result.Matches) != 1 {
 		t.Fatalf("matches = %#v, want flag match", result.Matches)
+	}
+}
+
+func TestSearchScoresExactFlagsAbovePathSubstrings(t *testing.T) {
+	result, err := Search([]Document{
+		{Path: "gpc one-o", Use: "gpc one-o", Short: "Hyphenated path"},
+		{Path: "gpc root", Use: "gpc root", Short: "Root command", Flags: []string{"-o", "--output"}},
+	}, Options{Query: "-o"})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(result.Matches) == 0 || result.Matches[0].Path != "gpc root" {
+		t.Fatalf("matches = %#v, want exact flag first", result.Matches)
 	}
 }
 

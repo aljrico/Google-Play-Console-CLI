@@ -83,6 +83,34 @@ func TestInspectRejectsSymlinkRoot(t *testing.T) {
 	}
 }
 
+func TestInspectRejectsSymlinkAncestor(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "outside")
+	directory := filepath.Join(target, "metadata", "android")
+	writeFile(t, filepath.Join(directory, "en-US", "title.txt"), "Example")
+	link := filepath.Join(root, "fastlane")
+	createSymlinkOrSkip(t, target, link)
+	previousWorkingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatalf("Chdir() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(previousWorkingDirectory); err != nil {
+			t.Fatalf("restore working directory: %v", err)
+		}
+	})
+	_, err = Inspect(context.Background(), InspectOptions{Directory: filepath.Join("fastlane", "metadata", "android")})
+	if err == nil {
+		t.Fatalf("Inspect() expected error")
+	}
+	if !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("error = %v, want symlink", err)
+	}
+}
+
 func TestInspectRejectsSymlinkLocale(t *testing.T) {
 	root := t.TempDir()
 	directory := filepath.Join(root, "metadata")

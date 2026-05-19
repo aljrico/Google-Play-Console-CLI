@@ -72,7 +72,7 @@ func scoreDocument(document Document, query string, terms []string) int {
 	path := strings.ToLower(document.Path)
 	use := strings.ToLower(document.Use)
 	short := strings.ToLower(document.Short)
-	flags := strings.ToLower(strings.Join(document.Flags, " "))
+	flags := normalizedFlags(document.Flags)
 	haystack := strings.Join([]string{path, use, short, flags}, " ")
 	for _, term := range terms {
 		if !strings.Contains(haystack, term) {
@@ -84,6 +84,9 @@ func scoreDocument(document Document, query string, terms []string) int {
 		score += 20
 	}
 	for _, term := range terms {
+		if exactFlagMatch(document.Flags, term) {
+			score += 100
+		}
 		if strings.Contains(path, term) {
 			score += 8
 		}
@@ -98,4 +101,24 @@ func scoreDocument(document Document, query string, terms []string) int {
 		}
 	}
 	return score
+}
+
+func normalizedFlags(flags []string) string {
+	normalized := make([]string, 0, len(flags)*2)
+	for _, flag := range flags {
+		lowerFlag := strings.ToLower(flag)
+		normalized = append(normalized, lowerFlag)
+		normalized = append(normalized, strings.TrimLeft(lowerFlag, "-"))
+	}
+	return strings.Join(normalized, " ")
+}
+
+func exactFlagMatch(flags []string, term string) bool {
+	normalizedTerm := strings.ToLower(term)
+	for _, flag := range flags {
+		if strings.ToLower(flag) == normalizedTerm {
+			return true
+		}
+	}
+	return false
 }

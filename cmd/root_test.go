@@ -582,7 +582,8 @@ func TestSearchFindsCommandsWithoutAuth(t *testing.T) {
 	cmd := newRootCommand(&buf)
 	cmd.SetArgs([]string{
 		"search",
-		"release upload",
+		"release",
+		"upload",
 		"--limit",
 		"3",
 		"--output",
@@ -604,6 +605,31 @@ func TestSearchFindsCommandsWithoutAuth(t *testing.T) {
 	}
 	if strings.Contains(output, "no active auth profile") {
 		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSearchFindsFlagsAsTyped(t *testing.T) {
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"search",
+		"--limit",
+		"5",
+		"--",
+		"--webhook-url-env",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"query":"--webhook-url-env"`,
+		`"path":"gpc notify send"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
 	}
 }
 

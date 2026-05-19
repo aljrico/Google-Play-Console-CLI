@@ -100,6 +100,9 @@ func Inspect(ctx context.Context, options InspectOptions) (Inventory, error) {
 }
 
 func validateDirectory(directory string) error {
+	if err := rejectSymlinkPathComponents(directory); err != nil {
+		return err
+	}
 	info, err := os.Lstat(directory)
 	switch {
 	case err == nil:
@@ -115,6 +118,33 @@ func validateDirectory(directory string) error {
 	default:
 		return fmt.Errorf("inspect supply metadata directory %s: %w", directory, err)
 	}
+}
+
+func rejectSymlinkPathComponents(path string) error {
+	cleanPath := filepath.Clean(path)
+	if filepath.IsAbs(cleanPath) {
+		return nil
+	}
+	currentPath := "."
+	remainingPath := cleanPath
+	separator := string(os.PathSeparator)
+	for _, part := range strings.Split(remainingPath, separator) {
+		if part == "" || part == "." {
+			continue
+		}
+		currentPath = filepath.Join(currentPath, part)
+		info, err := os.Lstat(currentPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return fmt.Errorf("inspect supply path component %s: %w", currentPath, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("supply metadata path component cannot be a symlink: %s", currentPath)
+		}
+	}
+	return nil
 }
 
 func inspectLocale(path string, language string) (Locale, error) {
