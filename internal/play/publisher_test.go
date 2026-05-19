@@ -2534,6 +2534,76 @@ func TestUpdatePurchaseOptionStateUsesBatchUpdateStatesEndpoint(t *testing.T) {
 	}
 }
 
+func TestUpdatePurchaseOptionStateRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	_, err := publisher.UpdatePurchaseOptionState(context.Background(), PurchaseOptionStateUpdateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Action:           PurchaseOptionStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot be a dry-run") {
+		t.Fatalf("error = %v, want dry-run validation", err)
+	}
+}
+
+func TestUpdatePurchaseOptionStateRequiresConfirmBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	_, err := publisher.UpdatePurchaseOptionState(context.Background(), PurchaseOptionStateUpdateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Action:           PurchaseOptionStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+	})
+	if err == nil {
+		t.Fatal("expected live confirmation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm") {
+		t.Fatalf("error = %v, want confirm validation", err)
+	}
+}
+
+func TestUpdatePurchaseOptionStateUsesActivateRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request androidpublisher.BatchUpdatePurchaseOptionStatesRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if len(request.Requests) != 1 || request.Requests[0].ActivatePurchaseOptionRequest == nil {
+			t.Fatalf("request = %#v, want activate request", request)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"oneTimeProducts":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptions":[{"purchaseOptionId":"buy","state":"ACTIVE","buyOption":{}}]}]}`)
+	}))
+
+	product, err := publisher.UpdatePurchaseOptionState(context.Background(), PurchaseOptionStateUpdateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Action:           PurchaseOptionStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("UpdatePurchaseOptionState() error = %v", err)
+	}
+	if len(product.PurchaseOptions) != 1 || product.PurchaseOptions[0].State != "ACTIVE" {
+		t.Fatalf("PurchaseOptions = %#v, want active", product.PurchaseOptions)
+	}
+}
+
 func TestListOneTimeProductOffersUsesMonetizationEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers" {
@@ -2802,6 +2872,79 @@ func TestUpdateBasePlanStateUsesDeactivateEndpoint(t *testing.T) {
 	}
 	if len(subscription.BasePlans) != 1 || subscription.BasePlans[0].State != SubscriptionStateInactive {
 		t.Fatalf("BasePlans = %#v, want inactive", subscription.BasePlans)
+	}
+}
+
+func TestUpdateBasePlanStateRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	_, err := publisher.UpdateBasePlanState(context.Background(), BasePlanStateUpdateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "premium",
+		BasePlanID:       "monthly",
+		Action:           BasePlanStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot be a dry-run") {
+		t.Fatalf("error = %v, want dry-run validation", err)
+	}
+}
+
+func TestUpdateBasePlanStateRequiresConfirmBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	_, err := publisher.UpdateBasePlanState(context.Background(), BasePlanStateUpdateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "premium",
+		BasePlanID:       "monthly",
+		Action:           BasePlanStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+	})
+	if err == nil {
+		t.Fatal("expected live confirmation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm") {
+		t.Fatalf("error = %v, want confirm validation", err)
+	}
+}
+
+func TestUpdateBasePlanStateUsesActivateEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium/basePlans/monthly:activate" {
+			t.Fatalf("path = %q, want base plan activate endpoint", r.URL.Path)
+		}
+		var request androidpublisher.ActivateBasePlanRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.BasePlanId != "monthly" {
+			t.Fatalf("request = %#v, want monthly base plan", request)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","basePlans":[{"basePlanId":"monthly","state":"ACTIVE"}]}`)
+	}))
+
+	subscription, err := publisher.UpdateBasePlanState(context.Background(), BasePlanStateUpdateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "premium",
+		BasePlanID:       "monthly",
+		Action:           BasePlanStateActionActivate,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateBasePlanState() error = %v", err)
+	}
+	if len(subscription.BasePlans) != 1 || subscription.BasePlans[0].State != SubscriptionStateActive {
+		t.Fatalf("BasePlans = %#v, want active", subscription.BasePlans)
 	}
 }
 

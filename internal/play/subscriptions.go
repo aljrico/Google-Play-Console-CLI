@@ -286,6 +286,19 @@ func (o BasePlanStateUpdateOptions) Validate() error {
 	return nil
 }
 
+func (o BasePlanStateUpdateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live base plan state update cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live base plan state update requires --confirm")
+	}
+	return nil
+}
+
 type BasePlanStateUpdatePlan struct {
 	PackageName      PackageName                   `json:"packageName"`
 	ProductID        SubscriptionProductID         `json:"productId"`

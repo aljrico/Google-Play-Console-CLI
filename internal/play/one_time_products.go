@@ -258,6 +258,19 @@ func (o PurchaseOptionStateUpdateOptions) Validate() error {
 	return nil
 }
 
+func (o PurchaseOptionStateUpdateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live purchase option state update cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live purchase option state update requires --confirm")
+	}
+	return nil
+}
+
 type PurchaseOptionStateUpdatePlan struct {
 	PackageName      PackageName                    `json:"packageName"`
 	ProductID        OneTimeProductID               `json:"productId"`

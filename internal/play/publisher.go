@@ -438,6 +438,9 @@ func (p GooglePublisher) GetOneTimeProduct(ctx context.Context, packageName Pack
 }
 
 func (p GooglePublisher) UpdatePurchaseOptionState(ctx context.Context, options PurchaseOptionStateUpdateOptions) (OneTimeProduct, error) {
+	if err := options.ValidateLive(); err != nil {
+		return OneTimeProduct{}, err
+	}
 	request := &androidpublisher.BatchUpdatePurchaseOptionStatesRequest{
 		Requests: []*androidpublisher.UpdatePurchaseOptionStateRequest{
 			purchaseOptionStateRequestToAPI(options),
@@ -548,6 +551,9 @@ func (p GooglePublisher) BatchGetSubscriptions(ctx context.Context, options Subs
 }
 
 func (p GooglePublisher) UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error) {
+	if err := options.ValidateLive(); err != nil {
+		return Subscription{}, err
+	}
 	latencyTolerance := productUpdateLatencyToleranceToAPI(options.LatencyTolerance)
 	var (
 		subscription *androidpublisher.Subscription
