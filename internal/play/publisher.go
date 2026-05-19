@@ -374,6 +374,9 @@ func (p GooglePublisher) GetInAppProduct(ctx context.Context, packageName Packag
 }
 
 func (p GooglePublisher) PatchInAppProduct(ctx context.Context, options InAppProductPatchOptions) (InAppProduct, error) {
+	if err := options.ValidateLive(); err != nil {
+		return InAppProduct{}, err
+	}
 	request := &androidpublisher.InAppProduct{
 		PackageName: options.PackageName.String(),
 		Sku:         options.SKU.String(),

@@ -50,6 +50,9 @@ func (s ProductStatus) String() string {
 }
 
 func (s ProductStatus) Validate() error {
+	if strings.TrimSpace(s.String()) != s.String() {
+		return fmt.Errorf("unsupported in-app product status %q; supported values: active, inactive", s.String())
+	}
 	_, err := NewProductStatus(s.String())
 	return err
 }
@@ -175,8 +178,24 @@ func (o InAppProductPatchOptions) Validate() error {
 	if err := o.Status.Validate(); err != nil {
 		return err
 	}
+	if o.DryRun && o.Confirm {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
 	if !o.DryRun && !o.Confirm {
 		return fmt.Errorf("in-app product patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o InAppProductPatchOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live in-app product patch cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live in-app product patch requires --confirm")
 	}
 	return nil
 }
@@ -230,6 +249,17 @@ func PatchInAppProduct(ctx context.Context, patcher InAppProductPatcher, options
 	}
 	if patcher == nil {
 		return InAppProductPatchResult{}, fmt.Errorf("in-app product patcher is required")
+	}
+	getter, ok := patcher.(InAppProductGetter)
+	if !ok {
+		return InAppProductPatchResult{}, fmt.Errorf("in-app product getter is required for live patch preflight")
+	}
+	current, err := getter.GetInAppProduct(ctx, options.PackageName, options.SKU)
+	if err != nil {
+		return InAppProductPatchResult{}, err
+	}
+	if current.PurchaseType == ProductPurchaseTypeSubscription {
+		return InAppProductPatchResult{}, fmt.Errorf("legacy subscription products cannot be patched with in-app-products; use subscriptions commands")
 	}
 	product, err := patcher.PatchInAppProduct(ctx, options)
 	if err != nil {

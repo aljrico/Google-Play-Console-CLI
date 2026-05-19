@@ -579,6 +579,37 @@ func TestGooglePublisherPatchInAppProductSendsStatusPatch(t *testing.T) {
 	}
 }
 
+func TestGooglePublisherPatchInAppProductRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	_, err := publisher.PatchInAppProduct(context.Background(), InAppProductPatchOptions{
+		PackageName: "com.example.app",
+		SKU:         "coins_100",
+		Status:      ProductStatusInactive,
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+}
+
+func TestGooglePublisherPatchInAppProductRequiresConfirmBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	_, err := publisher.PatchInAppProduct(context.Background(), InAppProductPatchOptions{
+		PackageName: "com.example.app",
+		SKU:         "coins_100",
+		Status:      ProductStatusInactive,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+}
+
 func TestSubscriptionFromAPIMapsListingsAndBasePlans(t *testing.T) {
 	subscription := subscriptionFromAPI(&androidpublisher.Subscription{
 		PackageName: "com.example.app",

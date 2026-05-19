@@ -2897,6 +2897,35 @@ func TestInAppProductsPatchRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestInAppProductsPatchRejectsConfirmAndDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"patch",
+		"--package",
+		"com.example.app",
+		"--sku",
+		"coins_100",
+		"--status",
+		"active",
+		"--confirm",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected mutually exclusive flag validation error")
+	}
+	if !strings.Contains(err.Error(), "cannot be used together") {
+		t.Fatalf("error = %v, want mutually exclusive validation", err)
+	}
+}
+
 func TestSubscriptionsListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

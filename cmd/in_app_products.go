@@ -102,7 +102,7 @@ func newInAppProductsPatchCommand(out io.Writer, options *globalOptions, package
 
 	cmd := &cobra.Command{
 		Use:   "patch",
-		Short: "Patch a legacy in-app product",
+		Short: "Patch a legacy managed in-app product",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, err := play.NewPackageName(*packageName)
@@ -129,8 +129,8 @@ func newInAppProductsPatchCommand(out io.Writer, options *globalOptions, package
 	}
 	cmd.Flags().StringVar(&sku, "sku", "", "In-app product SKU")
 	cmd.Flags().StringVar(&status, "status", "", "Product status: active or inactive")
-	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the in-app product patch")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned in-app product patch without calling Google Play")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the managed in-app product patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned managed in-app product patch without calling Google Play")
 	return cmd
 }
 

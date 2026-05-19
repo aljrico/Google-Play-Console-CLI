@@ -78,7 +78,7 @@ Sources:
 
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `iap` | `in-app-products` | `inappproducts` | tested | `gpc in-app-products list` and `get` cover legacy catalog inspection, while `patch --status` applies guarded active/inactive status changes. Broader catalog mutations remain planned. |
+| `iap` | `in-app-products` | `inappproducts` | tested | `gpc in-app-products list` and `get` cover legacy catalog inspection, while `patch --status` applies guarded active/inactive status changes for managed products. Legacy subscription patches are rejected; broader catalog mutations remain planned. |
 | `iap` | `one-time-products` / `one-time-product-offers` | `monetization.onetimeproducts` | tested | `gpc one-time-products list` and `get` cover read-only modern one-time product inspection; `gpc one-time-product-offers list` and `get` inspect discounted and pre-order offers. Mutations remain planned. |
 | `subscriptions` | `subscriptions` | `monetization.subscriptions`, `basePlans` | tested | `gpc subscriptions list` and `get` cover read-only subscriptions and embedded base plans. Mutations remain planned. |
 | `subscriptions` | `subscription-offers` | `monetization.subscriptions.basePlans.offers` | tested | `gpc subscription-offers list` and `get` cover read-only offer inspection, including Google wildcard list parents. Batch-get and mutations remain planned. |

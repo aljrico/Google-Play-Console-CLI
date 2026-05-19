@@ -138,7 +138,7 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 
 `notifications rtdn decode` expects a wrapped Pub/Sub push JSON body with `message.data` containing the base64-encoded Google Play `DeveloperNotification`; pass exactly one of `--file` or `--data`.
 
-`in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources.
+`in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; live status patches reject legacy subscription SKUs. `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources.
 
 ### First Publish Flow
 

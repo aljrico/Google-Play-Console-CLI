@@ -105,6 +105,41 @@ func TestPatchInAppProductRequiresConfirmOrDryRun(t *testing.T) {
 	}
 }
 
+func TestPatchInAppProductRejectsConfirmAndDryRun(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = PatchInAppProduct(context.Background(), nil, InAppProductPatchOptions{
+		PackageName: packageName,
+		SKU:         "coins_100",
+		Status:      ProductStatusActive,
+		Confirm:     true,
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected mutually exclusive flag validation error")
+	}
+}
+
+func TestPatchInAppProductRejectsNonCanonicalStatus(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = PatchInAppProduct(context.Background(), nil, InAppProductPatchOptions{
+		PackageName: packageName,
+		SKU:         "coins_100",
+		Status:      ProductStatus(" inactive "),
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected status validation error")
+	}
+}
+
 func TestPatchInAppProductPassesOptionsToPatcher(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -126,6 +161,29 @@ func TestPatchInAppProductPassesOptionsToPatcher(t *testing.T) {
 	}
 	if patcher.patchOptions.Status != ProductStatusInactive {
 		t.Fatalf("patchOptions = %#v", patcher.patchOptions)
+	}
+}
+
+func TestPatchInAppProductRejectsLegacySubscription(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	patcher := &fakeInAppProductClient{
+		product: InAppProduct{SKU: "premium", PurchaseType: ProductPurchaseTypeSubscription},
+	}
+
+	_, err = PatchInAppProduct(context.Background(), patcher, InAppProductPatchOptions{
+		PackageName: packageName,
+		SKU:         "premium",
+		Status:      ProductStatusInactive,
+		Confirm:     true,
+	})
+	if err == nil {
+		t.Fatal("expected legacy subscription rejection")
+	}
+	if patcher.patchOptions.SKU != "" {
+		t.Fatalf("patchOptions = %#v, did not expect patch after preflight", patcher.patchOptions)
 	}
 }
 
