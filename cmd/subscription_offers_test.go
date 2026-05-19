@@ -547,6 +547,7 @@ func TestSubscriptionOffersCreateBasicFreePhaseDryRunDoesNotRequireAuth(t *testi
 		"us",
 		"--free-region",
 		"FR",
+		"--other-regions-free",
 		"--phase-duration",
 		"P7D",
 		"--phase-recurrence",
@@ -569,11 +570,13 @@ func TestSubscriptionOffersCreateBasicFreePhaseDryRunDoesNotRequireAuth(t *testi
 		`"basePlanId":"monthly"`,
 		`"offerId":"intro"`,
 		`"offerTags":["trial"]`,
+		`"otherRegionsConfig":{"newSubscriberAvailability":true}`,
 		`"regionCode":"US"`,
 		`"regionCode":"FR"`,
 		`"newSubscriberAvailability":true`,
 		`"duration":"P7D"`,
 		`"recurrenceCount":1`,
+		`"otherRegionsConfig":{"free":true}`,
 		`"free":true`,
 	} {
 		if !strings.Contains(output, want) {

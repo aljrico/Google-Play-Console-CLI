@@ -138,6 +138,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 		prices            []string
 		relativeDiscounts []string
 		absoluteDiscounts []string
+		otherRegionsFree  bool
 		phaseDuration     string
 		phaseRecurrence   int64
 		regionsVersion    string
@@ -149,7 +150,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 		Use:   "create",
 		Short: "Create a draft subscription offer",
 		Long: "Create a draft subscription offer from a Google Play API SubscriptionOffer JSON body or gpc subscription offer JSON output. " +
-			"Basic flags build one free, paid-price, relative-discount, or absolute-discount phase across explicit regions; use JSON for multi-phase offers, targeting, or other-regions config. " +
+			"Basic flags build one free, paid-price, relative-discount, or absolute-discount phase across explicit regions, with optional free other-regions config; use JSON for multi-phase offers, targeting, or paid other-regions config. " +
 			"Immutable parent IDs come from flags and override the JSON body; output-only state is ignored because Google creates draft offers.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -176,6 +177,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 				Prices:            prices,
 				RelativeDiscounts: relativeDiscounts,
 				AbsoluteDiscounts: absoluteDiscounts,
+				OtherRegionsFree:  otherRegionsFree,
 				PhaseDuration:     phaseDuration,
 				PhaseRecurrence:   phaseRecurrence,
 				BasicFlagsSet: cmd.Flags().Changed("offer-tag") ||
@@ -183,6 +185,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 					cmd.Flags().Changed("price") ||
 					cmd.Flags().Changed("relative-discount") ||
 					cmd.Flags().Changed("absolute-discount") ||
+					cmd.Flags().Changed("other-regions-free") ||
 					cmd.Flags().Changed("phase-duration") ||
 					cmd.Flags().Changed("phase-recurrence"),
 			})
@@ -234,6 +237,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 	cmd.Flags().StringArrayVar(&prices, "price", nil, "Basic create regional phase price as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
 	cmd.Flags().StringArrayVar(&relativeDiscounts, "relative-discount", nil, "Basic create regional phase relative discount as REGION:0.5, where 0.5 means the user pays 50% of the base plan price; repeatable")
 	cmd.Flags().StringArrayVar(&absoluteDiscounts, "absolute-discount", nil, "Basic create regional phase absolute discount as REGION:CURRENCY:UNITS[:NANOS]; repeatable")
+	cmd.Flags().BoolVar(&otherRegionsFree, "other-regions-free", false, "Basic create free phase mode for other regions")
 	cmd.Flags().StringVar(&phaseDuration, "phase-duration", "", "Basic create phase duration as an ISO 8601 period, for example P7D or P1M")
 	cmd.Flags().Int64Var(&phaseRecurrence, "phase-recurrence", 1, "Basic create phase recurrence count")
 	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by subscriptionOffers.create")
@@ -249,6 +253,7 @@ type subscriptionOfferCreateBodyOptions struct {
 	Prices            []string
 	RelativeDiscounts []string
 	AbsoluteDiscounts []string
+	OtherRegionsFree  bool
 	PhaseDuration     string
 	PhaseRecurrence   int64
 	BasicFlagsSet     bool
@@ -268,13 +273,21 @@ func subscriptionOfferCreateBody(options subscriptionOfferCreateBodyOptions) (pl
 	if err != nil {
 		return play.SubscriptionOffer{}, err
 	}
+	var offerOtherRegionsConfig *play.SubscriptionOfferOtherRegionsConfig
+	var phaseOtherRegionsConfig *play.SubscriptionOfferPhaseOtherRegionsConfig
+	if options.OtherRegionsFree {
+		offerOtherRegionsConfig = &play.SubscriptionOfferOtherRegionsConfig{NewSubscriberAvailability: true}
+		phaseOtherRegionsConfig = &play.SubscriptionOfferPhaseOtherRegionsConfig{Free: true}
+	}
 	return play.SubscriptionOffer{
-		OfferTags:       append([]string(nil), options.OfferTags...),
-		RegionalConfigs: regionalConfigs,
+		OfferTags:          append([]string(nil), options.OfferTags...),
+		RegionalConfigs:    regionalConfigs,
+		OtherRegionsConfig: offerOtherRegionsConfig,
 		Phases: []play.SubscriptionOfferPhase{{
-			Duration:        options.PhaseDuration,
-			RecurrenceCount: options.PhaseRecurrence,
-			RegionalConfigs: phaseRegionalConfigs,
+			Duration:           options.PhaseDuration,
+			RecurrenceCount:    options.PhaseRecurrence,
+			RegionalConfigs:    phaseRegionalConfigs,
+			OtherRegionsConfig: phaseOtherRegionsConfig,
 		}},
 	}, nil
 }

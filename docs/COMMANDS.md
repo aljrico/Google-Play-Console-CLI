@@ -1078,6 +1078,7 @@ gpc metadata apply [flags]
 
 ##### Flags
 
+- `--changes-not-sent-for-review`: Commit without sending changes for review (required when the app is in an enforcement-required state) (default `false`)
 - `--confirm`: Commit the edit after validation (default `false`)
 - `--dry-run`: Print the planned metadata update without calling Google Play (default `false`)
 - `--file`: Path to metadata JSON
@@ -2636,6 +2637,7 @@ gpc subscription-offers create [flags]
 - `--from-json`: Path to a Google Play API or gpc JSON subscription offer body
 - `--offer-id`: Subscription offer ID
 - `--offer-tag`: Basic create offer tag; repeatable (default `[]`)
+- `--other-regions-free`: Basic create free phase mode for other regions (default `false`)
 - `--phase-duration`: Basic create phase duration as an ISO 8601 period, for example P7D or P1M
 - `--phase-recurrence`: Basic create phase recurrence count (default `1`)
 - `--price`: Basic create regional phase price as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
