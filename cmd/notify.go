@@ -13,7 +13,7 @@ func newNotifyCommand(out io.Writer, options *globalOptions) *cobra.Command {
 		Use:   "notify",
 		Short: "Send release workflow notifications",
 	}
-	cmd.AddCommand(newNotifySendCommand(out, options), newNotifyDiscordCommand(out, options), newNotifySlackCommand(out, options), newNotifyTeamsCommand(out, options))
+	cmd.AddCommand(newNotifySendCommand(out, options), newNotifyDiscordCommand(out, options), newNotifyGitHubCommand(out, options), newNotifySlackCommand(out, options), newNotifyTeamsCommand(out, options))
 	return cmd
 }
 
@@ -95,6 +95,34 @@ func newNotifyDiscordCommand(out io.Writer, options *globalOptions) *cobra.Comma
 		Confirm:        "Send the Discord webhook",
 		DryRun:         "Print the Discord payload without sending",
 	})
+	return cmd
+}
+
+func newNotifyGitHubCommand(out io.Writer, options *globalOptions) *cobra.Command {
+	sendOptions := newNotifySendOptions("notify github")
+	cmd := &cobra.Command{
+		Use:   "github",
+		Short: "Send a GitHub repository dispatch-shaped webhook notification",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := notify.SendGitHub(cmd.Context(), nil, sendOptions)
+			if result.Webhook == "" {
+				return err
+			}
+			if writeErr := output.Write(out, options.output, options.pretty, result); writeErr != nil {
+				return writeErr
+			}
+			return err
+		},
+	}
+	addNotifyFlags(cmd, &sendOptions, notifyFlagHelp{
+		WebhookURL:     "HTTPS GitHub repository dispatch webhook URL; http is allowed only for loopback hosts",
+		WebhookURLEnv:  "Environment variable containing the GitHub repository dispatch webhook URL",
+		WebhookURLFile: "File containing the GitHub repository dispatch webhook URL",
+		Confirm:        "Send the GitHub webhook",
+		DryRun:         "Print the GitHub payload without sending",
+	})
+	cmd.Flags().StringVar(&sendOptions.EventType, "event-type", "gpc.notify", "GitHub repository dispatch event_type")
 	return cmd
 }
 

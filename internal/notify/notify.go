@@ -47,6 +47,11 @@ type DiscordPayload struct {
 	AllowedMentions DiscordAllowedMentions `json:"allowed_mentions"`
 }
 
+type GitHubPayload struct {
+	EventType     string  `json:"event_type"`
+	ClientPayload Payload `json:"client_payload"`
+}
+
 type DiscordAllowedMentions struct {
 	Parse []string `json:"parse"`
 }
@@ -60,6 +65,7 @@ type SendOptions struct {
 	Message        string   `json:"message"`
 	Severity       string   `json:"severity,omitempty"`
 	Fields         []string `json:"fields,omitempty"`
+	EventType      string   `json:"eventType,omitempty"`
 	Confirm        bool     `json:"confirm"`
 	DryRun         bool     `json:"dryRun"`
 }
@@ -100,6 +106,15 @@ type DiscordSendResult struct {
 	Payload    DiscordPayload `json:"payload"`
 }
 
+type GitHubSendResult struct {
+	Webhook    string        `json:"webhook"`
+	Confirm    bool          `json:"confirm"`
+	DryRun     bool          `json:"dryRun"`
+	Delivered  bool          `json:"delivered"`
+	StatusCode int           `json:"statusCode,omitempty"`
+	Payload    GitHubPayload `json:"payload"`
+}
+
 type Sender interface {
 	Send(ctx context.Context, webhookURL string, payload Payload) (int, error)
 }
@@ -114,6 +129,10 @@ type TeamsSender interface {
 
 type DiscordSender interface {
 	SendDiscord(ctx context.Context, webhookURL string, payload DiscordPayload) (int, error)
+}
+
+type GitHubSender interface {
+	SendGitHub(ctx context.Context, webhookURL string, payload GitHubPayload) (int, error)
 }
 
 type WebhookSender struct {
@@ -248,6 +267,40 @@ func SendDiscord(ctx context.Context, sender DiscordSender, options SendOptions)
 		sender = WebhookSender{}
 	}
 	statusCode, err := sender.SendDiscord(ctx, resolvedURL, payload)
+	result.StatusCode = statusCode
+	if err != nil {
+		return result, err
+	}
+	result.Delivered = true
+	return result, nil
+}
+
+func SendGitHub(ctx context.Context, sender GitHubSender, options SendOptions) (GitHubSendResult, error) {
+	resolvedURL, err := options.ResolvedWebhookURL()
+	if err != nil {
+		return GitHubSendResult{}, err
+	}
+	if err := options.ValidateWebhookURL(resolvedURL); err != nil {
+		return GitHubSendResult{}, err
+	}
+	payload, err := options.GitHubPayload()
+	if err != nil {
+		return GitHubSendResult{}, err
+	}
+	result := GitHubSendResult{
+		Webhook:   RedactedURL(resolvedURL),
+		Confirm:   options.Confirm,
+		DryRun:    options.DryRun,
+		Delivered: false,
+		Payload:   payload,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if sender == nil {
+		sender = WebhookSender{}
+	}
+	statusCode, err := sender.SendGitHub(ctx, resolvedURL, payload)
 	result.StatusCode = statusCode
 	if err != nil {
 		return result, err
@@ -395,6 +448,24 @@ func (o SendOptions) TeamsPayload() (TeamsPayload, error) {
 	return teamsPayload, nil
 }
 
+func (o SendOptions) GitHubPayload() (GitHubPayload, error) {
+	payload, err := o.Payload()
+	if err != nil {
+		return GitHubPayload{}, err
+	}
+	eventType := strings.TrimSpace(o.EventType)
+	if eventType == "" {
+		eventType = "gpc.notify"
+	}
+	if eventType != o.EventType && o.EventType != "" {
+		return GitHubPayload{}, fmt.Errorf("GitHub event type cannot have leading or trailing whitespace")
+	}
+	if utf8.RuneCountInString(eventType) > 100 {
+		return GitHubPayload{}, fmt.Errorf("GitHub event type cannot exceed 100 characters")
+	}
+	return GitHubPayload{EventType: eventType, ClientPayload: payload}, nil
+}
+
 func SlackText(payload Payload) string {
 	var builder strings.Builder
 	if payload.Title != "" {
@@ -522,6 +593,10 @@ func (s WebhookSender) SendDiscord(ctx context.Context, webhookURL string, paylo
 		return 0, err
 	}
 	return s.sendJSON(ctx, waitURL, payload)
+}
+
+func (s WebhookSender) SendGitHub(ctx context.Context, webhookURL string, payload GitHubPayload) (int, error) {
+	return s.sendJSON(ctx, webhookURL, payload)
 }
 
 func (s WebhookSender) sendJSON(ctx context.Context, webhookURL string, payload any) (int, error) {

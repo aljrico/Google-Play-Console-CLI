@@ -351,6 +351,90 @@ func TestSendDiscordRejectsContentAboveDiscordLimit(t *testing.T) {
 	}
 }
 
+func TestSendGitHubDryRunBuildsRepositoryDispatchPayload(t *testing.T) {
+	sender := failingGitHubSender{}
+	result, err := SendGitHub(context.Background(), sender, SendOptions{
+		CommandPath: "notify github",
+		WebhookURL:  "https://api.github.com/repos/example/project/dispatches?token=secret#fragment-secret",
+		EventType:   "gpc.release",
+		Title:       "Release",
+		Message:     "Internal release staged",
+		Severity:    "info",
+		Fields:      []string{"track=internal", "version=42"},
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("SendGitHub() error = %v", err)
+	}
+	if result.Delivered {
+		t.Fatalf("Delivered = true, want false")
+	}
+	if result.Payload.EventType != "gpc.release" {
+		t.Fatalf("EventType = %q, want gpc.release", result.Payload.EventType)
+	}
+	if result.Payload.ClientPayload.Message != "Internal release staged" || result.Payload.ClientPayload.Fields[0].Name != "track" {
+		t.Fatalf("Payload = %#v, want client payload", result.Payload)
+	}
+	for _, leaked := range []string{"token=secret", "fragment-secret"} {
+		if strings.Contains(result.Webhook, leaked) {
+			t.Fatalf("Webhook = %q, leaked %q", result.Webhook, leaked)
+		}
+	}
+}
+
+func TestSendGitHubPostsRepositoryDispatchWebhook(t *testing.T) {
+	var gotPayload GitHubPayload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if got := r.Header.Get("Content-Type"); got != "application/json" {
+			t.Fatalf("Content-Type = %q, want application/json", got)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	result, err := SendGitHub(context.Background(), WebhookSender{Client: server.Client()}, SendOptions{
+		CommandPath: "notify github",
+		WebhookURL:  server.URL + "/repos/example/project/dispatches?token=secret",
+		EventType:   "gpc.release",
+		Message:     "Release shipped",
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("SendGitHub() error = %v", err)
+	}
+	if !result.Delivered || result.StatusCode != http.StatusNoContent {
+		t.Fatalf("result = %#v, want delivered 204", result)
+	}
+	if gotPayload.EventType != "gpc.release" || gotPayload.ClientPayload.Message != "Release shipped" {
+		t.Fatalf("payload = %#v, want repository dispatch payload", gotPayload)
+	}
+	if strings.Contains(result.Webhook, "secret") {
+		t.Fatalf("Webhook = %q, leaked query secret", result.Webhook)
+	}
+}
+
+func TestSendGitHubRejectsInvalidEventType(t *testing.T) {
+	_, err := SendGitHub(context.Background(), failingGitHubSender{}, SendOptions{
+		CommandPath: "notify github",
+		WebhookURL:  "https://api.github.com/repos/example/project/dispatches",
+		EventType:   " release",
+		Message:     "Release shipped",
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("SendGitHub() error = nil, want event type validation")
+	}
+	if !strings.Contains(err.Error(), "event type") {
+		t.Fatalf("error = %v, want event type validation", err)
+	}
+}
+
 func TestDiscordWebhookURLWithWaitPreservesAndOverridesQuery(t *testing.T) {
 	waitURL, err := DiscordWebhookURLWithWait("https://discord.com/api/webhooks/123/SECRET?thread_id=abc&wait=false")
 	if err != nil {
@@ -500,5 +584,11 @@ func (failingTeamsSender) SendTeams(context.Context, string, TeamsPayload) (int,
 type failingDiscordSender struct{}
 
 func (failingDiscordSender) SendDiscord(context.Context, string, DiscordPayload) (int, error) {
+	panic("sender should not be called")
+}
+
+type failingGitHubSender struct{}
+
+func (failingGitHubSender) SendGitHub(context.Context, string, GitHubPayload) (int, error) {
 	panic("sender should not be called")
 }

@@ -860,6 +860,106 @@ func TestNotifyDiscordPostsWebhook(t *testing.T) {
 	}
 }
 
+func TestNotifyGitHubDryRunOutputsRepositoryDispatchPayloadWithoutAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_NOTIFY_WEBHOOK_URL", "https://api.github.com/repos/example/project/dispatches?token=secret#fragment")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"notify",
+		"github",
+		"--event-type",
+		"gpc.release",
+		"--title",
+		"Release",
+		"--message",
+		"Internal release staged",
+		"--field",
+		"track=internal",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"delivered":false`,
+		`"event_type":"gpc.release"`,
+		`"client_payload":{"title":"Release","message":"Internal release staged"`,
+		`"name":"track"`,
+		`"value":"internal"`,
+		`redacted=true`,
+		`#redacted`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	for _, leaked := range []string{"token=secret", "fragment"} {
+		if strings.Contains(output, leaked) {
+			t.Fatalf("output = %s, leaked %s", output, leaked)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestNotifyGitHubPostsWebhook(t *testing.T) {
+	var gotPayload map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"notify",
+		"github",
+		"--webhook-url",
+		server.URL + "/repos/example/project/dispatches?token=secret",
+		"--event-type",
+		"gpc.release",
+		"--message",
+		"Release shipped",
+		"--confirm",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if gotPayload["event_type"] != "gpc.release" {
+		t.Fatalf("payload = %#v, want event type", gotPayload)
+	}
+	clientPayload, ok := gotPayload["client_payload"].(map[string]any)
+	if !ok || clientPayload["message"] != "Release shipped" {
+		t.Fatalf("payload = %#v, want client payload message", gotPayload)
+	}
+	output := buf.String()
+	for _, want := range []string{`"delivered":true`, `"statusCode":204`, `redacted=true`} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "secret") || strings.Contains(output, "/repos/example/project") {
+		t.Fatalf("output = %s, leaked webhook secret", output)
+	}
+}
+
 func TestNotifySendTransportErrorDoesNotLeakWebhookSecret(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

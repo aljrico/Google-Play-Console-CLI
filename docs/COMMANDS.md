@@ -1232,6 +1232,7 @@ gpc notify
 #### Commands
 
 - `gpc notify discord`: Send a Discord incoming webhook notification
+- `gpc notify github`: Send a GitHub repository dispatch-shaped webhook notification
 - `gpc notify send`: Send a JSON notification webhook
 - `gpc notify slack`: Send a Slack incoming webhook notification
 - `gpc notify teams`: Send a Microsoft Teams Workflows webhook notification
@@ -1255,6 +1256,27 @@ gpc notify discord [flags]
 - `--webhook-url`: HTTPS Discord incoming webhook URL; http is allowed only for loopback hosts
 - `--webhook-url-env`: Environment variable containing the Discord incoming webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
 - `--webhook-url-file`: File containing the Discord incoming webhook URL
+
+#### gpc notify github
+
+Send a GitHub repository dispatch-shaped webhook notification
+
+```sh
+gpc notify github [flags]
+```
+
+##### Flags
+
+- `--confirm`: Send the GitHub webhook (default `false`)
+- `--dry-run`: Print the GitHub payload without sending (default `false`)
+- `--event-type`: GitHub repository dispatch event_type (default `gpc.notify`)
+- `--field`: Notification field as name=value; repeatable (default `[]`)
+- `--message`: Notification message
+- `--severity`: Notification severity label
+- `--title`: Notification title
+- `--webhook-url`: HTTPS GitHub repository dispatch webhook URL; http is allowed only for loopback hosts
+- `--webhook-url-env`: Environment variable containing the GitHub repository dispatch webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-file`: File containing the GitHub repository dispatch webhook URL
 
 #### gpc notify send
 
