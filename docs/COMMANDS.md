@@ -2638,6 +2638,12 @@ gpc subscription-offers create [flags]
 - `--offer-id`: Subscription offer ID
 - `--offer-tag`: Basic create offer tag; repeatable (default `[]`)
 - `--other-regions-free`: Basic create free phase mode for other regions (default `false`)
+- `--phase-2-absolute-discount`: Basic create second phase regional absolute discount as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
+- `--phase-2-duration`: Basic create second phase duration as an ISO 8601 period, for example P1M
+- `--phase-2-free-region`: Basic create second phase region with a free price mode; repeatable (default `[]`)
+- `--phase-2-price`: Basic create second phase regional price as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
+- `--phase-2-recurrence`: Basic create second phase recurrence count (default `1`)
+- `--phase-2-relative-discount`: Basic create second phase regional relative discount as REGION:0.5; repeatable (default `[]`)
 - `--phase-duration`: Basic create phase duration as an ISO 8601 period, for example P7D or P1M
 - `--phase-recurrence`: Basic create phase recurrence count (default `1`)
 - `--price`: Basic create regional phase price as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)

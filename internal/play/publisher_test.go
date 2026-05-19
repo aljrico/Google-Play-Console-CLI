@@ -6316,6 +6316,62 @@ func TestCreateSubscriptionOfferSendsFreePhaseBody(t *testing.T) {
 	}
 }
 
+func TestCreateSubscriptionOfferSendsTwoPhaseBody(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		var request androidpublisher.SubscriptionOffer
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if len(request.Phases) != 2 {
+			t.Fatalf("Phases = %#v, want two phases", request.Phases)
+		}
+		first := request.Phases[0]
+		if first.Duration != "P7D" || len(first.RegionalConfigs) != 1 || first.RegionalConfigs[0].Free == nil {
+			t.Fatalf("first phase = %#v, want free trial phase", first)
+		}
+		second := request.Phases[1]
+		if second.Duration != "P1M" || second.RecurrenceCount != 2 || len(second.RegionalConfigs) != 1 || second.RegionalConfigs[0].Price == nil {
+			t.Fatalf("second phase = %#v, want paid price phase", second)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","basePlanId":"monthly","offerId":"intro","state":"DRAFT","regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}],"phases":[{"duration":"P7D","recurrenceCount":1,"regionalConfigs":[{"regionCode":"US","free":{}}]},{"duration":"P1M","recurrenceCount":2,"regionalConfigs":[{"regionCode":"US","price":{"currencyCode":"USD","units":"1","nanos":990000000}}]}]}`)
+	}))
+
+	result, err := publisher.CreateSubscriptionOffer(context.Background(), SubscriptionOfferCreateOptions{
+		PackageName: "com.example.app",
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		OfferID:     "intro",
+		Offer: SubscriptionOffer{
+			RegionalConfigs: []SubscriptionOfferRegionalConfig{{RegionCode: "US", NewSubscriberAvailability: true}},
+			Phases: []SubscriptionOfferPhase{
+				{
+					Duration:        "P7D",
+					RecurrenceCount: 1,
+					RegionalConfigs: []SubscriptionOfferPhaseRegionalConfig{{RegionCode: "US", Free: true}},
+				},
+				{
+					Duration:        "P1M",
+					RecurrenceCount: 2,
+					RegionalConfigs: []SubscriptionOfferPhaseRegionalConfig{{RegionCode: "US", Price: &Money{CurrencyCode: "USD", Units: 1, Nanos: 990000000}}},
+				},
+			},
+		},
+		RegionsVersion: "2026/05",
+		Confirm:        true,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubscriptionOffer() error = %v", err)
+	}
+	if len(result.Phases) != 2 || result.Phases[1].RegionalConfigs[0].Price == nil {
+		t.Fatalf("result = %#v, want created draft two-phase offer", result)
+	}
+}
+
 func TestCreateSubscriptionOfferSendsFreeOtherRegionsBody(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)

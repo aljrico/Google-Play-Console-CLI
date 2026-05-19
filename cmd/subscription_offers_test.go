@@ -778,6 +778,108 @@ func TestSubscriptionOffersCreateBasicPricePhaseDryRunDoesNotRequireAuth(t *test
 	}
 }
 
+func TestSubscriptionOffersCreateBasicTwoPhaseDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--free-region",
+		"US",
+		"--free-region",
+		"FR",
+		"--phase-duration",
+		"P7D",
+		"--other-regions-free",
+		"--phase-2-price",
+		"US:USD:1:990000000",
+		"--phase-2-price",
+		"FR:EUR:1:990000000",
+		"--phase-2-duration",
+		"P1M",
+		"--phase-2-recurrence",
+		"2",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"otherRegionsConfig":{"newSubscriberAvailability":true}`,
+		`"duration":"P7D"`,
+		`"free":true`,
+		`"duration":"P1M"`,
+		`"recurrenceCount":2`,
+		`"price":{"currencyCode":"USD","units":1,"nanos":990000000}`,
+		`"price":{"currencyCode":"EUR","units":1,"nanos":990000000}`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if count := strings.Count(output, `"otherRegionsConfig":{"free":true}`); count != 2 {
+		t.Fatalf("output = %s, want two free phase other-regions configs, got %d", output, count)
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersCreateRejectsTwoPhaseRegionMismatch(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--free-region",
+		"US",
+		"--phase-duration",
+		"P7D",
+		"--phase-2-price",
+		"FR:EUR:1:990000000",
+		"--phase-2-duration",
+		"P1M",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected second phase region validation error")
+	}
+	if !strings.Contains(err.Error(), "second phase region FR is not configured in the first phase") {
+		t.Fatalf("error = %v, want second phase region validation", err)
+	}
+}
+
 func TestSubscriptionOffersCreateBasicRelativeDiscountPhaseDryRunDoesNotRequireAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
