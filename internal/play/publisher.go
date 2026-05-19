@@ -2694,6 +2694,61 @@ func (p GooglePublisher) BatchPatchSubscriptionOfferPhasePrices(ctx context.Cont
 	}, nil
 }
 
+func (p GooglePublisher) BatchPatchSubscriptionOfferPhaseFree(ctx context.Context, options SubscriptionOfferBatchPatchPhaseFreeOptions) (SubscriptionOfferBatchPatchPhaseFreeResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return SubscriptionOfferBatchPatchPhaseFreeResult{}, err
+	}
+	requestsByOffer := subscriptionOfferPhaseFreePatchRequestsByOffer(options.Requests)
+	request := &androidpublisher.BatchUpdateSubscriptionOffersRequest{
+		Requests: make([]*androidpublisher.UpdateSubscriptionOfferRequest, 0, len(requestsByOffer)),
+	}
+	for _, offerPatch := range requestsByOffer {
+		current, err := p.service.Monetization.Subscriptions.BasePlans.Offers.Get(
+			options.PackageName.String(),
+			offerPatch.ProductID.String(),
+			offerPatch.BasePlanID.String(),
+			offerPatch.OfferID.String(),
+		).Context(ctx).Do()
+		if err != nil {
+			return SubscriptionOfferBatchPatchPhaseFreeResult{}, fmt.Errorf("get subscription offer %s for %s/%s/%s before phase free patch: %w", offerPatch.OfferID, options.PackageName, offerPatch.ProductID, offerPatch.BasePlanID, err)
+		}
+		phases := subscriptionOfferPhasesFromAPI(current.Phases)
+		mergedPhases := mergeSubscriptionOfferPhaseFreePatches(phases, offerPatch.Requests)
+		if mergedPhases == nil {
+			return SubscriptionOfferBatchPatchPhaseFreeResult{}, fmt.Errorf("subscription offer phase free patch for %s/%s/%s references a phase or region that is not already configured on the offer", offerPatch.ProductID, offerPatch.BasePlanID, offerPatch.OfferID)
+		}
+		request.Requests = append(request.Requests, &androidpublisher.UpdateSubscriptionOfferRequest{
+			SubscriptionOffer: &androidpublisher.SubscriptionOffer{
+				PackageName: options.PackageName.String(),
+				ProductId:   offerPatch.ProductID.String(),
+				BasePlanId:  offerPatch.BasePlanID.String(),
+				OfferId:     offerPatch.OfferID.String(),
+				Phases:      subscriptionOfferPhasesToAPI(mergedPhases),
+			},
+			UpdateMask:       subscriptionOfferPhasesUpdateMask,
+			RegionsVersion:   &androidpublisher.RegionsVersion{Version: options.RegionsVersion},
+			LatencyTolerance: productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+		})
+	}
+	response, err := p.service.Monetization.Subscriptions.BasePlans.Offers.BatchUpdate(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.BasePlanID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return SubscriptionOfferBatchPatchPhaseFreeResult{}, fmt.Errorf("batch patch subscription offer phase free for %s/%s/%s: %w", options.PackageName, options.ProductID, options.BasePlanID, err)
+	}
+	return SubscriptionOfferBatchPatchPhaseFreeResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		BasePlanID:  options.BasePlanID,
+		Requests:    append([]SubscriptionOfferPhaseFreePatchRequest(nil), options.Requests...),
+		Applied:     true,
+		Offers:      subscriptionOffersFromBatchUpdatePhaseFreeResponse(options, response),
+	}, nil
+}
+
 type subscriptionOfferAvailabilityPatchOffer struct {
 	ProductID  SubscriptionProductID
 	BasePlanID SubscriptionBasePlanID
@@ -2720,6 +2775,13 @@ type subscriptionOfferPhasePricePatchOffer struct {
 	BasePlanID SubscriptionBasePlanID
 	OfferID    SubscriptionOfferID
 	Requests   []SubscriptionOfferPhasePricePatchRequest
+}
+
+type subscriptionOfferPhaseFreePatchOffer struct {
+	ProductID  SubscriptionProductID
+	BasePlanID SubscriptionBasePlanID
+	OfferID    SubscriptionOfferID
+	Requests   []SubscriptionOfferPhaseFreePatchRequest
 }
 
 func subscriptionOfferAvailabilityPatchRequestsByOffer(requests []SubscriptionOfferAvailabilityPatchRequest) []subscriptionOfferAvailabilityPatchOffer {
@@ -2791,6 +2853,26 @@ func subscriptionOfferPhasePricePatchRequestsByOffer(requests []SubscriptionOffe
 		if !ok {
 			byOffer[key] = len(offers)
 			offers = append(offers, subscriptionOfferPhasePricePatchOffer{
+				ProductID:  request.ProductID,
+				BasePlanID: request.BasePlanID,
+				OfferID:    request.OfferID,
+			})
+			index = len(offers) - 1
+		}
+		offers[index].Requests = append(offers[index].Requests, request)
+	}
+	return offers
+}
+
+func subscriptionOfferPhaseFreePatchRequestsByOffer(requests []SubscriptionOfferPhaseFreePatchRequest) []subscriptionOfferPhaseFreePatchOffer {
+	byOffer := map[string]int{}
+	offers := make([]subscriptionOfferPhaseFreePatchOffer, 0)
+	for _, request := range requests {
+		key := subscriptionOfferKey(request.ProductID, request.BasePlanID, request.OfferID)
+		index, ok := byOffer[key]
+		if !ok {
+			byOffer[key] = len(offers)
+			offers = append(offers, subscriptionOfferPhaseFreePatchOffer{
 				ProductID:  request.ProductID,
 				BasePlanID: request.BasePlanID,
 				OfferID:    request.OfferID,
@@ -2932,6 +3014,49 @@ func subscriptionOffersFromBatchUpdatePhaseAbsoluteDiscountResponse(options Subs
 }
 
 func subscriptionOffersFromBatchUpdatePhasePriceResponse(options SubscriptionOfferBatchPatchPhasePricesOptions, response *androidpublisher.BatchUpdateSubscriptionOffersResponse) []SubscriptionOffer {
+	if response == nil {
+		return []SubscriptionOffer{}
+	}
+	byKey := make(map[string]SubscriptionOffer, len(response.SubscriptionOffers))
+	extras := make([]SubscriptionOffer, 0)
+	for _, apiOffer := range response.SubscriptionOffers {
+		offer := subscriptionOfferFromAPI(apiOffer)
+		key := subscriptionOfferKey(offer.ProductID, offer.BasePlanID, offer.OfferID)
+		if key == "//" {
+			continue
+		}
+		if _, ok := byKey[key]; ok {
+			extras = append(extras, offer)
+			continue
+		}
+		byKey[key] = offer
+	}
+	offers := make([]SubscriptionOffer, 0, len(response.SubscriptionOffers))
+	mutationRequests := make([]SubscriptionOfferBatchMutationRequest, 0, len(options.Requests))
+	for _, request := range options.Requests {
+		mutationRequests = append(mutationRequests, SubscriptionOfferBatchMutationRequest{
+			ProductID:  request.ProductID,
+			BasePlanID: request.BasePlanID,
+			OfferID:    request.OfferID,
+		})
+	}
+	for _, request := range deduplicateSubscriptionOfferMutationRequests(mutationRequests) {
+		key := subscriptionOfferKey(request.ProductID, request.BasePlanID, request.OfferID)
+		if offer, ok := byKey[key]; ok {
+			offers = append(offers, offer)
+			delete(byKey, key)
+		}
+	}
+	for _, offer := range byKey {
+		extras = append(extras, offer)
+	}
+	sort.Slice(extras, func(i, j int) bool {
+		return subscriptionOfferKey(extras[i].ProductID, extras[i].BasePlanID, extras[i].OfferID) < subscriptionOfferKey(extras[j].ProductID, extras[j].BasePlanID, extras[j].OfferID)
+	})
+	return append(offers, extras...)
+}
+
+func subscriptionOffersFromBatchUpdatePhaseFreeResponse(options SubscriptionOfferBatchPatchPhaseFreeOptions, response *androidpublisher.BatchUpdateSubscriptionOffersResponse) []SubscriptionOffer {
 	if response == nil {
 		return []SubscriptionOffer{}
 	}
@@ -5631,6 +5756,45 @@ func mergeSubscriptionOfferPhasePricePatch(current []SubscriptionOfferPhase, pat
 			config.AbsoluteDiscount = nil
 			config.RelativeDiscount = 0
 			config.Free = false
+			configs = append(configs, config)
+			replaced = true
+			continue
+		}
+		configs = append(configs, config)
+	}
+	if !replaced {
+		return nil
+	}
+	phase.RegionalConfigs = configs
+	merged[patch.PhaseIndex] = phase
+	return merged
+}
+
+func mergeSubscriptionOfferPhaseFreePatches(current []SubscriptionOfferPhase, patches []SubscriptionOfferPhaseFreePatchRequest) []SubscriptionOfferPhase {
+	merged := append([]SubscriptionOfferPhase(nil), current...)
+	for _, patch := range patches {
+		merged = mergeSubscriptionOfferPhaseFreePatch(merged, patch)
+		if merged == nil {
+			return nil
+		}
+	}
+	return merged
+}
+
+func mergeSubscriptionOfferPhaseFreePatch(current []SubscriptionOfferPhase, patch SubscriptionOfferPhaseFreePatchRequest) []SubscriptionOfferPhase {
+	if patch.PhaseIndex < 0 || patch.PhaseIndex >= len(current) {
+		return nil
+	}
+	merged := append([]SubscriptionOfferPhase(nil), current...)
+	phase := merged[patch.PhaseIndex]
+	configs := make([]SubscriptionOfferPhaseRegionalConfig, 0, len(phase.RegionalConfigs))
+	replaced := false
+	for _, config := range phase.RegionalConfigs {
+		if config.RegionCode == patch.RegionCode {
+			config.Free = true
+			config.Price = nil
+			config.AbsoluteDiscount = nil
+			config.RelativeDiscount = 0
 			configs = append(configs, config)
 			replaced = true
 			continue

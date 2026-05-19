@@ -1163,6 +1163,132 @@ func TestBatchPatchSubscriptionOfferPhasePricesPassesOptionsToPatcher(t *testing
 	}
 }
 
+func TestBatchPatchSubscriptionOfferPhaseFreeDryRunBuildsPlanWithoutPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchPatchSubscriptionOfferPhaseFree(context.Background(), nil, SubscriptionOfferBatchPatchPhaseFreeOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		RegionsVersion: "2026/05",
+		Requests: []SubscriptionOfferPhaseFreePatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "US"},
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 1, RegionCode: "FR"},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchSubscriptionOfferPhaseFree() error = %v", err)
+	}
+	if !result.DryRun || result.Applied {
+		t.Fatalf("result = %#v, want dry-run phase free patch", result)
+	}
+	if result.Plan.UpdateMask != subscriptionOfferPhasesUpdateMask {
+		t.Fatalf("UpdateMask = %q, want %q", result.Plan.UpdateMask, subscriptionOfferPhasesUpdateMask)
+	}
+	if len(result.Desired) != 1 || len(result.Desired[0].Phases) != 2 || !result.Desired[0].Phases[0].RegionalConfigs[0].Free {
+		t.Fatalf("Desired = %#v, want one offer with two free phase patches", result.Desired)
+	}
+}
+
+func TestBatchPatchSubscriptionOfferPhaseFreeRejectsInvalidPatch(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		request SubscriptionOfferPhaseFreePatchRequest
+	}{
+		{
+			name:    "negative phase index",
+			request: SubscriptionOfferPhaseFreePatchRequest{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: -1, RegionCode: "US"},
+		},
+		{
+			name:    "invalid region",
+			request: SubscriptionOfferPhaseFreePatchRequest{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "USA"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err = NewSubscriptionOfferBatchPatchPhaseFreePlan(SubscriptionOfferBatchPatchPhaseFreeOptions{
+				PackageName:      packageName,
+				ProductID:        "premium",
+				BasePlanID:       "monthly",
+				RegionsVersion:   "2026/05",
+				Requests:         []SubscriptionOfferPhaseFreePatchRequest{test.request},
+				LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+				DryRun:           true,
+			})
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
+func TestBatchPatchSubscriptionOfferPhaseFreeRejectsDuplicateOfferPhaseRegion(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewSubscriptionOfferBatchPatchPhaseFreePlan(SubscriptionOfferBatchPatchPhaseFreeOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		RegionsVersion: "2026/05",
+		Requests: []SubscriptionOfferPhaseFreePatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "US"},
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "US"},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate offer phase region validation error")
+	}
+}
+
+func TestBatchPatchSubscriptionOfferPhaseFreePassesOptionsToPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	patcher := &fakeSubscriptionOfferClient{
+		batchPhaseFreeResult: SubscriptionOfferBatchPatchPhaseFreeResult{
+			Offers: []SubscriptionOffer{{OfferID: "intro"}},
+		},
+	}
+	options := SubscriptionOfferBatchPatchPhaseFreeOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		RegionsVersion: "2026/05",
+		Requests: []SubscriptionOfferPhaseFreePatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", PhaseIndex: 0, RegionCode: "US"},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := BatchPatchSubscriptionOfferPhaseFree(context.Background(), patcher, options)
+	if err != nil {
+		t.Fatalf("BatchPatchSubscriptionOfferPhaseFree() error = %v", err)
+	}
+	if !result.Applied || len(result.Offers) != 1 {
+		t.Fatalf("result = %#v, want applied offer", result)
+	}
+	if !reflect.DeepEqual(patcher.batchPhaseFreeOptions, options) {
+		t.Fatalf("batchPhaseFreeOptions = %#v, want %#v", patcher.batchPhaseFreeOptions, options)
+	}
+}
+
 func TestDeleteSubscriptionOfferDryRunBuildsPlanWithoutDeleter(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -1290,6 +1416,8 @@ type fakeSubscriptionOfferClient struct {
 	batchPhaseAbsoluteDiscountResult  SubscriptionOfferBatchPatchPhaseAbsoluteDiscountsResult
 	batchPhasePriceOptions            SubscriptionOfferBatchPatchPhasePricesOptions
 	batchPhasePriceResult             SubscriptionOfferBatchPatchPhasePricesResult
+	batchPhaseFreeOptions             SubscriptionOfferBatchPatchPhaseFreeOptions
+	batchPhaseFreeResult              SubscriptionOfferBatchPatchPhaseFreeResult
 	createOptions                     SubscriptionOfferCreateOptions
 	deleteOptions                     SubscriptionOfferDeleteOptions
 	offerID                           SubscriptionOfferID
@@ -1340,6 +1468,11 @@ func (c *fakeSubscriptionOfferClient) BatchPatchSubscriptionOfferPhaseAbsoluteDi
 func (c *fakeSubscriptionOfferClient) BatchPatchSubscriptionOfferPhasePrices(ctx context.Context, options SubscriptionOfferBatchPatchPhasePricesOptions) (SubscriptionOfferBatchPatchPhasePricesResult, error) {
 	c.batchPhasePriceOptions = options
 	return c.batchPhasePriceResult, nil
+}
+
+func (c *fakeSubscriptionOfferClient) BatchPatchSubscriptionOfferPhaseFree(ctx context.Context, options SubscriptionOfferBatchPatchPhaseFreeOptions) (SubscriptionOfferBatchPatchPhaseFreeResult, error) {
+	c.batchPhaseFreeOptions = options
+	return c.batchPhaseFreeResult, nil
 }
 
 func (c *fakeSubscriptionOfferClient) DeleteSubscriptionOffer(ctx context.Context, options SubscriptionOfferDeleteOptions) error {

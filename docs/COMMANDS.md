@@ -2391,6 +2391,7 @@ gpc subscription-offers
 - `gpc subscription-offers batch-get`: Get multiple subscription offers
 - `gpc subscription-offers batch-patch-availability`: Batch patch subscription offer regional availability
 - `gpc subscription-offers batch-patch-phase-absolute-discounts`: Batch patch subscription offer phase absolute discounts
+- `gpc subscription-offers batch-patch-phase-free`: Batch patch subscription offer phases to free
 - `gpc subscription-offers batch-patch-phase-prices`: Batch patch subscription offer phase prices
 - `gpc subscription-offers batch-patch-phase-relative-discounts`: Batch patch subscription offer phase relative discounts
 - `gpc subscription-offers create`: Create a draft subscription offer
@@ -2496,6 +2497,24 @@ gpc subscription-offers batch-patch-phase-absolute-discounts [flags]
 - `--base-plan-id`: Parent subscription base plan ID, or - for offers across base plans; inferred when omitted
 - `--confirm`: Apply the subscription offer phase absolute discount batch patch (default `false`)
 - `--dry-run`: Print the planned subscription offer phase absolute discount batch patch without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
+- `--regions-version`: Google Play regions version required by subscriptionOffers.batchUpdate
+
+#### gpc subscription-offers batch-patch-phase-free
+
+Batch patch subscription offer phases to free
+
+```sh
+gpc subscription-offers batch-patch-phase-free [flags]
+```
+
+##### Flags
+
+- `--base-plan-id`: Parent subscription base plan ID, or - for offers across base plans; inferred when omitted
+- `--confirm`: Apply the subscription offer phase free batch patch (default `false`)
+- `--dry-run`: Print the planned subscription offer phase free batch patch without calling Google Play (default `false`)
+- `--free`: Phase free patch as productId/basePlanId/offerId/phaseIndex/REGION; phaseIndex is zero-based, so 0 is the first phase; repeatable (default `[]`)
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
 - `--regions-version`: Google Play regions version required by subscriptionOffers.batchUpdate

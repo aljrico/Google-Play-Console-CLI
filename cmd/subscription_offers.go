@@ -29,6 +29,7 @@ func newSubscriptionOffersCommand(out io.Writer, options *globalOptions) *cobra.
 		newSubscriptionOffersBatchPatchPhaseRelativeDiscountsCommand(out, options, &packageName),
 		newSubscriptionOffersBatchPatchPhaseAbsoluteDiscountsCommand(out, options, &packageName),
 		newSubscriptionOffersBatchPatchPhasePricesCommand(out, options, &packageName),
+		newSubscriptionOffersBatchPatchPhaseFreeCommand(out, options, &packageName),
 		newSubscriptionOffersBatchStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionActivate),
 		newSubscriptionOffersBatchStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionDeactivate),
 		newSubscriptionOffersStateCommand(out, options, &packageName, play.SubscriptionOfferStateActionActivate),
@@ -142,7 +143,7 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 		Short: "Create a draft subscription offer",
 		Long: "Create a draft subscription offer from a Google Play API SubscriptionOffer JSON body or gpc subscription offer JSON output. " +
 			"Immutable parent IDs come from flags and override the JSON body; output-only state is ignored because Google creates draft offers.",
-		Args:  cobra.NoArgs,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, err := play.NewPackageName(*packageName)
 			if err != nil {
@@ -477,6 +478,95 @@ func newSubscriptionOffersBatchPatchPhasePricesCommand(out io.Writer, options *g
 	return cmd
 }
 
+func newSubscriptionOffersBatchPatchPhaseFreeCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID        string
+		basePlanID       string
+		free             []string
+		regionsVersion   string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-patch-phase-free",
+		Short: "Batch patch subscription offer phases to free",
+		Long: "Batch patch subscription offer phases to free. Omit parent IDs to infer the narrowest valid parent path from --free values. " +
+			"Use --product-id - when the batch spans products, and --base-plan-id - when it spans base plans.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			requests, err := parseSubscriptionOfferPhaseFreePatches(free)
+			if err != nil {
+				return err
+			}
+			if len(requests) == 0 {
+				return play.SubscriptionOfferBatchPatchPhaseFreeOptions{PackageName: typedPackageName}.Validate()
+			}
+			mutationRequests := subscriptionOfferPhaseFreePatchesToMutationRequests(requests)
+			resolvedProductID, resolvedBasePlanID := inferSubscriptionOfferBatchParent(productID, basePlanID, mutationRequests)
+			typedProductID, err := play.NewSubscriptionOfferListProductID(resolvedProductID)
+			if err != nil {
+				return err
+			}
+			typedBasePlanID, err := play.NewSubscriptionOfferListBasePlanID(resolvedBasePlanID)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			patchOptions := play.SubscriptionOfferBatchPatchPhaseFreeOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				BasePlanID:       typedBasePlanID,
+				Requests:         requests,
+				RegionsVersion:   regionsVersion,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.BatchPatchSubscriptionOfferPhaseFree(cmd.Context(), nil, patchOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewSubscriptionOfferBatchPatchPhaseFreePlan(patchOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchPatchSubscriptionOfferPhaseFree(cmd.Context(), publisher, patchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	addSubscriptionOfferParentFlags(
+		cmd,
+		&productID,
+		&basePlanID,
+		"Parent subscription product ID, or - for offers across products; inferred when omitted",
+		"Parent subscription base plan ID, or - for offers across base plans; inferred when omitted",
+	)
+	cmd.Flags().StringArrayVar(&free, "free", nil, "Phase free patch as productId/basePlanId/offerId/phaseIndex/REGION; phaseIndex is zero-based, so 0 is the first phase; repeatable")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by subscriptionOffers.batchUpdate")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription offer phase free batch patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription offer phase free batch patch without calling Google Play")
+	return cmd
+}
+
 func parseSubscriptionOfferAvailabilityPatches(values []string) ([]play.SubscriptionOfferAvailabilityPatchRequest, error) {
 	requests := make([]play.SubscriptionOfferAvailabilityPatchRequest, 0, len(values))
 	for _, value := range values {
@@ -740,6 +830,64 @@ func errSubscriptionOfferPhasePriceFormat() error {
 }
 
 func subscriptionOfferPhasePricePatchesToMutationRequests(requests []play.SubscriptionOfferPhasePricePatchRequest) []play.SubscriptionOfferBatchMutationRequest {
+	mutations := make([]play.SubscriptionOfferBatchMutationRequest, 0, len(requests))
+	for _, request := range requests {
+		mutations = append(mutations, play.SubscriptionOfferBatchMutationRequest{
+			ProductID:  request.ProductID,
+			BasePlanID: request.BasePlanID,
+			OfferID:    request.OfferID,
+		})
+	}
+	return mutations
+}
+
+func parseSubscriptionOfferPhaseFreePatches(values []string) ([]play.SubscriptionOfferPhaseFreePatchRequest, error) {
+	requests := make([]play.SubscriptionOfferPhaseFreePatchRequest, 0, len(values))
+	for _, value := range values {
+		request, err := parseSubscriptionOfferPhaseFreePatch(value)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, nil
+}
+
+func parseSubscriptionOfferPhaseFreePatch(value string) (play.SubscriptionOfferPhaseFreePatchRequest, error) {
+	parts := strings.Split(strings.TrimSpace(value), "/")
+	if len(parts) != 5 {
+		return play.SubscriptionOfferPhaseFreePatchRequest{}, errSubscriptionOfferPhaseFreeFormat()
+	}
+	productID, err := play.NewSubscriptionProductID(parts[0])
+	if err != nil {
+		return play.SubscriptionOfferPhaseFreePatchRequest{}, err
+	}
+	basePlanID, err := play.NewSubscriptionBasePlanID(parts[1])
+	if err != nil {
+		return play.SubscriptionOfferPhaseFreePatchRequest{}, err
+	}
+	offerID, err := play.NewSubscriptionOfferID(parts[2])
+	if err != nil {
+		return play.SubscriptionOfferPhaseFreePatchRequest{}, err
+	}
+	phaseIndex, err := strconv.Atoi(strings.TrimSpace(parts[3]))
+	if err != nil {
+		return play.SubscriptionOfferPhaseFreePatchRequest{}, errSubscriptionOfferPhaseFreeFormat()
+	}
+	return play.SubscriptionOfferPhaseFreePatchRequest{
+		ProductID:  productID,
+		BasePlanID: basePlanID,
+		OfferID:    offerID,
+		PhaseIndex: phaseIndex,
+		RegionCode: strings.ToUpper(strings.TrimSpace(parts[4])),
+	}, nil
+}
+
+func errSubscriptionOfferPhaseFreeFormat() error {
+	return fmt.Errorf("subscription offer phase free patch must use productId/basePlanId/offerId/phaseIndex/REGION")
+}
+
+func subscriptionOfferPhaseFreePatchesToMutationRequests(requests []play.SubscriptionOfferPhaseFreePatchRequest) []play.SubscriptionOfferBatchMutationRequest {
 	mutations := make([]play.SubscriptionOfferBatchMutationRequest, 0, len(requests))
 	for _, request := range requests {
 		mutations = append(mutations, play.SubscriptionOfferBatchMutationRequest{
