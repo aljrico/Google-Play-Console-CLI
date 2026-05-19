@@ -6473,6 +6473,51 @@ func TestCreateSubscriptionOfferSendsPaidOtherRegionsBody(t *testing.T) {
 	}
 }
 
+func TestCreateSubscriptionOfferSendsRelativeOtherRegionsBody(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		var request androidpublisher.SubscriptionOffer
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if len(request.Phases) != 1 || request.Phases[0].OtherRegionsConfig == nil || request.Phases[0].OtherRegionsConfig.RelativeDiscount != 0.5 {
+			t.Fatalf("Phases = %#v, want relative other-regions phase price mode", request.Phases)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","basePlanId":"monthly","offerId":"intro","state":"DRAFT","regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true}],"otherRegionsConfig":{"otherRegionsNewSubscriberAvailability":true},"phases":[{"duration":"P1M","recurrenceCount":1,"regionalConfigs":[{"regionCode":"US","relativeDiscount":0.5}],"otherRegionsConfig":{"relativeDiscount":0.5}}]}`)
+	}))
+
+	result, err := publisher.CreateSubscriptionOffer(context.Background(), SubscriptionOfferCreateOptions{
+		PackageName: "com.example.app",
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		OfferID:     "intro",
+		Offer: SubscriptionOffer{
+			RegionalConfigs:    []SubscriptionOfferRegionalConfig{{RegionCode: "US", NewSubscriberAvailability: true}},
+			OtherRegionsConfig: &SubscriptionOfferOtherRegionsConfig{NewSubscriberAvailability: true},
+			Phases: []SubscriptionOfferPhase{{
+				Duration:        "P1M",
+				RecurrenceCount: 1,
+				RegionalConfigs: []SubscriptionOfferPhaseRegionalConfig{{RegionCode: "US", RelativeDiscount: 0.5}},
+				OtherRegionsConfig: &SubscriptionOfferPhaseOtherRegionsConfig{
+					RelativeDiscount: 0.5,
+				},
+			}},
+		},
+		RegionsVersion: "2026/05",
+		Confirm:        true,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubscriptionOffer() error = %v", err)
+	}
+	if result.Phases[0].OtherRegionsConfig == nil || result.Phases[0].OtherRegionsConfig.RelativeDiscount != 0.5 {
+		t.Fatalf("result = %#v, want created draft offer with relative other-regions config", result)
+	}
+}
+
 func TestCreateSubscriptionOfferSendsAcquisitionTargetingBody(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)

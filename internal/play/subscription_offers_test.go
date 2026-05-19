@@ -451,6 +451,14 @@ func TestCreateSubscriptionOfferRejectsInvalidOfferBody(t *testing.T) {
 			}(),
 		},
 		{
+			name: "nan other regions relative discount",
+			offer: func() SubscriptionOffer {
+				offer := validSubscriptionOfferForCreate()
+				offer.Phases[0].OtherRegionsConfig = &SubscriptionOfferPhaseOtherRegionsConfig{RelativeDiscount: math.NaN()}
+				return offer
+			}(),
+		},
+		{
 			name: "invalid acquisition specific scope",
 			offer: func() SubscriptionOffer {
 				offer := validSubscriptionOfferForCreate()

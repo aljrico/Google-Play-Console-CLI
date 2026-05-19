@@ -2637,13 +2637,19 @@ gpc subscription-offers create [flags]
 - `--from-json`: Path to a Google Play API or gpc JSON subscription offer body
 - `--offer-id`: Subscription offer ID
 - `--offer-tag`: Basic create offer tag; repeatable (default `[]`)
+- `--other-regions-absolute-eur-discount`: Basic create first phase other-regions absolute EUR discount as EUR:UNITS[:NANOS]
+- `--other-regions-absolute-usd-discount`: Basic create first phase other-regions absolute USD discount as USD:UNITS[:NANOS]
 - `--other-regions-eur-price`: Basic create first phase other-regions EUR price as EUR:UNITS[:NANOS]
 - `--other-regions-free`: Basic create free phase mode for other regions (default `false`)
+- `--other-regions-relative-discount`: Basic create first phase other-regions relative discount as 0.5
 - `--other-regions-usd-price`: Basic create first phase other-regions USD price as USD:UNITS[:NANOS]
 - `--phase-2-absolute-discount`: Basic create second phase regional absolute discount as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
 - `--phase-2-duration`: Basic create second phase duration as an ISO 8601 period, for example P1M
 - `--phase-2-free-region`: Basic create second phase region with a free price mode; repeatable (default `[]`)
+- `--phase-2-other-regions-absolute-eur-discount`: Basic create second phase other-regions absolute EUR discount as EUR:UNITS[:NANOS]
+- `--phase-2-other-regions-absolute-usd-discount`: Basic create second phase other-regions absolute USD discount as USD:UNITS[:NANOS]
 - `--phase-2-other-regions-eur-price`: Basic create second phase other-regions EUR price as EUR:UNITS[:NANOS]
+- `--phase-2-other-regions-relative-discount`: Basic create second phase other-regions relative discount as 0.5
 - `--phase-2-other-regions-usd-price`: Basic create second phase other-regions USD price as USD:UNITS[:NANOS]
 - `--phase-2-price`: Basic create second phase regional price as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
 - `--phase-2-recurrence`: Basic create second phase recurrence count (default `1`)

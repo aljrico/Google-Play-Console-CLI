@@ -1039,7 +1039,7 @@ func validateSubscriptionOfferPhaseRegionalPriceMode(config SubscriptionOfferPha
 		modes++
 	}
 	if config.RelativeDiscount != 0 {
-		if config.RelativeDiscount <= 0 || config.RelativeDiscount >= 1 {
+		if math.IsNaN(config.RelativeDiscount) || math.IsInf(config.RelativeDiscount, 0) || config.RelativeDiscount <= 0 || config.RelativeDiscount >= 1 {
 			return fmt.Errorf("relative discount must be greater than 0 and less than 1")
 		}
 		modes++
@@ -1068,7 +1068,7 @@ func validateSubscriptionOfferPhaseOtherRegionsPriceMode(config SubscriptionOffe
 		modes++
 	}
 	if config.RelativeDiscount != 0 {
-		if config.RelativeDiscount <= 0 || config.RelativeDiscount >= 1 {
+		if math.IsNaN(config.RelativeDiscount) || math.IsInf(config.RelativeDiscount, 0) || config.RelativeDiscount <= 0 || config.RelativeDiscount >= 1 {
 			return fmt.Errorf("relative discount must be greater than 0 and less than 1")
 		}
 		modes++

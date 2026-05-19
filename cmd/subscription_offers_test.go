@@ -899,6 +899,100 @@ func TestSubscriptionOffersCreateBasicTwoPhasePaidOtherRegionsDryRunDoesNotRequi
 	}
 }
 
+func TestSubscriptionOffersCreateBasicRelativeOtherRegionsDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro-relative",
+		"--relative-discount",
+		"US:0.5",
+		"--other-regions-relative-discount",
+		"0.5",
+		"--phase-duration",
+		"P1M",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"otherRegionsConfig":{"newSubscriberAvailability":true}`,
+		`"otherRegionsConfig":{"relativeDiscount":0.5}`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersCreateBasicAbsoluteOtherRegionsDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro-absolute",
+		"--absolute-discount",
+		"US:USD:1:990000000",
+		"--other-regions-absolute-usd-discount",
+		"USD:1:990000000",
+		"--other-regions-absolute-eur-discount",
+		"EUR:1:990000000",
+		"--phase-duration",
+		"P1M",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"otherRegionsConfig":{"newSubscriberAvailability":true}`,
+		`"absoluteDiscounts":{"usdPrice":{"currencyCode":"USD","units":1,"nanos":990000000},"eurPrice":{"currencyCode":"EUR","units":1,"nanos":990000000}}`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestSubscriptionOffersCreateRejectsIncompletePaidOtherRegions(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
@@ -972,8 +1066,84 @@ func TestSubscriptionOffersCreateRejectsMissingSecondPhasePaidOtherRegions(t *te
 	if err == nil {
 		t.Fatal("expected second phase paid other-regions validation error")
 	}
-	if !strings.Contains(err.Error(), "second phase other-regions prices are required") {
+	if !strings.Contains(err.Error(), "second phase other-regions price mode is required") {
 		t.Fatalf("error = %v, want second phase paid other-regions validation", err)
+	}
+}
+
+func TestSubscriptionOffersCreateRejectsMixedOtherRegionsPriceModes(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--price",
+		"US:USD:1:990000000",
+		"--phase-duration",
+		"P1M",
+		"--other-regions-usd-price",
+		"USD:1",
+		"--other-regions-eur-price",
+		"EUR:1",
+		"--other-regions-relative-discount",
+		"0.5",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected mixed other-regions price mode validation error")
+	}
+	if !strings.Contains(err.Error(), "requires exactly one of prices, relative discount, or absolute discounts") {
+		t.Fatalf("error = %v, want mixed other-regions price mode validation", err)
+	}
+}
+
+func TestSubscriptionOffersCreateRejectsNaNOtherRegionsRelativeDiscount(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--relative-discount",
+		"US:0.5",
+		"--phase-duration",
+		"P1M",
+		"--other-regions-relative-discount",
+		"NaN",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected NaN other-regions relative discount validation error")
+	}
+	if !strings.Contains(err.Error(), "other-regions relative discount must be greater than 0 and less than 1") {
+		t.Fatalf("error = %v, want NaN other-regions relative discount validation", err)
 	}
 }
 
@@ -1011,7 +1181,7 @@ func TestSubscriptionOffersCreateRejectsFreeAndPaidOtherRegions(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected free and paid other-regions validation error")
 	}
-	if !strings.Contains(err.Error(), "--other-regions-free cannot be combined with paid other-regions price flags") {
+	if !strings.Contains(err.Error(), "--other-regions-free cannot be combined with other-regions price mode flags") {
 		t.Fatalf("error = %v, want free and paid other-regions validation", err)
 	}
 }

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 
@@ -129,43 +130,49 @@ func newSubscriptionOffersBatchPatchAvailabilityCommand(out io.Writer, options *
 
 func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	var (
-		productID         string
-		basePlanID        string
-		offerID           string
-		fromJSON          string
-		offerTags         []string
-		freeRegions       []string
-		prices            []string
-		relativeDiscounts []string
-		absoluteDiscounts []string
-		phase2FreeRegions []string
-		phase2Prices      []string
-		phase2RelDiscount []string
-		phase2AbsDiscount []string
-		otherRegionsFree  bool
-		otherRegionsUSD   string
-		otherRegionsEUR   string
-		phase2OtherUSD    string
-		phase2OtherEUR    string
-		acquisitionScope  string
-		upgradeScope      string
-		upgradeProductID  string
-		upgradePeriod     string
-		upgradeOnce       bool
-		phaseDuration     string
-		phaseRecurrence   int64
-		phase2Duration    string
-		phase2Recurrence  int64
-		regionsVersion    string
-		confirm           bool
-		dryRun            bool
+		productID          string
+		basePlanID         string
+		offerID            string
+		fromJSON           string
+		offerTags          []string
+		freeRegions        []string
+		prices             []string
+		relativeDiscounts  []string
+		absoluteDiscounts  []string
+		phase2FreeRegions  []string
+		phase2Prices       []string
+		phase2RelDiscount  []string
+		phase2AbsDiscount  []string
+		otherRegionsFree   bool
+		otherRegionsUSD    string
+		otherRegionsEUR    string
+		otherRegionsRel    string
+		otherRegionsAbsUSD string
+		otherRegionsAbsEUR string
+		phase2OtherUSD     string
+		phase2OtherEUR     string
+		phase2OtherRel     string
+		phase2OtherAbsUSD  string
+		phase2OtherAbsEUR  string
+		acquisitionScope   string
+		upgradeScope       string
+		upgradeProductID   string
+		upgradePeriod      string
+		upgradeOnce        bool
+		phaseDuration      string
+		phaseRecurrence    int64
+		phase2Duration     string
+		phase2Recurrence   int64
+		regionsVersion     string
+		confirm            bool
+		dryRun             bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a draft subscription offer",
 		Long: "Create a draft subscription offer from a Google Play API SubscriptionOffer JSON body or gpc subscription offer JSON output. " +
-			"Basic flags build one or two free, paid-price, relative-discount, or absolute-discount phases across explicit regions, with optional free or paid-price other-regions config and acquisition or upgrade targeting; use JSON for other-regions relative or absolute discounts. " +
+			"Basic flags build one or two free, paid-price, relative-discount, or absolute-discount phases across explicit regions, with optional other-regions config and acquisition or upgrade targeting. " +
 			"Immutable parent IDs come from flags and override the JSON body; output-only state is ignored because Google creates draft offers.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -186,30 +193,36 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 				return err
 			}
 			offer, err := subscriptionOfferCreateBody(subscriptionOfferCreateBodyOptions{
-				FromJSON:          fromJSON,
-				OfferTags:         offerTags,
-				FreeRegions:       freeRegions,
-				Prices:            prices,
-				RelativeDiscounts: relativeDiscounts,
-				AbsoluteDiscounts: absoluteDiscounts,
-				Phase2FreeRegions: phase2FreeRegions,
-				Phase2Prices:      phase2Prices,
-				Phase2RelDiscount: phase2RelDiscount,
-				Phase2AbsDiscount: phase2AbsDiscount,
-				OtherRegionsFree:  otherRegionsFree,
-				OtherRegionsUSD:   otherRegionsUSD,
-				OtherRegionsEUR:   otherRegionsEUR,
-				Phase2OtherUSD:    phase2OtherUSD,
-				Phase2OtherEUR:    phase2OtherEUR,
-				AcquisitionScope:  acquisitionScope,
-				UpgradeScope:      upgradeScope,
-				UpgradeProductID:  upgradeProductID,
-				UpgradePeriod:     upgradePeriod,
-				UpgradeOnce:       upgradeOnce,
-				PhaseDuration:     phaseDuration,
-				PhaseRecurrence:   phaseRecurrence,
-				Phase2Duration:    phase2Duration,
-				Phase2Recurrence:  phase2Recurrence,
+				FromJSON:           fromJSON,
+				OfferTags:          offerTags,
+				FreeRegions:        freeRegions,
+				Prices:             prices,
+				RelativeDiscounts:  relativeDiscounts,
+				AbsoluteDiscounts:  absoluteDiscounts,
+				Phase2FreeRegions:  phase2FreeRegions,
+				Phase2Prices:       phase2Prices,
+				Phase2RelDiscount:  phase2RelDiscount,
+				Phase2AbsDiscount:  phase2AbsDiscount,
+				OtherRegionsFree:   otherRegionsFree,
+				OtherRegionsUSD:    otherRegionsUSD,
+				OtherRegionsEUR:    otherRegionsEUR,
+				OtherRegionsRel:    otherRegionsRel,
+				OtherRegionsAbsUSD: otherRegionsAbsUSD,
+				OtherRegionsAbsEUR: otherRegionsAbsEUR,
+				Phase2OtherUSD:     phase2OtherUSD,
+				Phase2OtherEUR:     phase2OtherEUR,
+				Phase2OtherRel:     phase2OtherRel,
+				Phase2OtherAbsUSD:  phase2OtherAbsUSD,
+				Phase2OtherAbsEUR:  phase2OtherAbsEUR,
+				AcquisitionScope:   acquisitionScope,
+				UpgradeScope:       upgradeScope,
+				UpgradeProductID:   upgradeProductID,
+				UpgradePeriod:      upgradePeriod,
+				UpgradeOnce:        upgradeOnce,
+				PhaseDuration:      phaseDuration,
+				PhaseRecurrence:    phaseRecurrence,
+				Phase2Duration:     phase2Duration,
+				Phase2Recurrence:   phase2Recurrence,
 				SecondPhaseFlagsSet: cmd.Flags().Changed("phase-2-free-region") ||
 					cmd.Flags().Changed("phase-2-price") ||
 					cmd.Flags().Changed("phase-2-relative-discount") ||
@@ -228,8 +241,14 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 					cmd.Flags().Changed("other-regions-free") ||
 					cmd.Flags().Changed("other-regions-usd-price") ||
 					cmd.Flags().Changed("other-regions-eur-price") ||
+					cmd.Flags().Changed("other-regions-relative-discount") ||
+					cmd.Flags().Changed("other-regions-absolute-usd-discount") ||
+					cmd.Flags().Changed("other-regions-absolute-eur-discount") ||
 					cmd.Flags().Changed("phase-2-other-regions-usd-price") ||
 					cmd.Flags().Changed("phase-2-other-regions-eur-price") ||
+					cmd.Flags().Changed("phase-2-other-regions-relative-discount") ||
+					cmd.Flags().Changed("phase-2-other-regions-absolute-usd-discount") ||
+					cmd.Flags().Changed("phase-2-other-regions-absolute-eur-discount") ||
 					cmd.Flags().Changed("targeting-acquisition-scope") ||
 					cmd.Flags().Changed("targeting-upgrade-scope") ||
 					cmd.Flags().Changed("targeting-upgrade-product-id") ||
@@ -295,8 +314,14 @@ func newSubscriptionOffersCreateCommand(out io.Writer, options *globalOptions, p
 	cmd.Flags().BoolVar(&otherRegionsFree, "other-regions-free", false, "Basic create free phase mode for other regions")
 	cmd.Flags().StringVar(&otherRegionsUSD, "other-regions-usd-price", "", "Basic create first phase other-regions USD price as USD:UNITS[:NANOS]")
 	cmd.Flags().StringVar(&otherRegionsEUR, "other-regions-eur-price", "", "Basic create first phase other-regions EUR price as EUR:UNITS[:NANOS]")
+	cmd.Flags().StringVar(&otherRegionsRel, "other-regions-relative-discount", "", "Basic create first phase other-regions relative discount as 0.5")
+	cmd.Flags().StringVar(&otherRegionsAbsUSD, "other-regions-absolute-usd-discount", "", "Basic create first phase other-regions absolute USD discount as USD:UNITS[:NANOS]")
+	cmd.Flags().StringVar(&otherRegionsAbsEUR, "other-regions-absolute-eur-discount", "", "Basic create first phase other-regions absolute EUR discount as EUR:UNITS[:NANOS]")
 	cmd.Flags().StringVar(&phase2OtherUSD, "phase-2-other-regions-usd-price", "", "Basic create second phase other-regions USD price as USD:UNITS[:NANOS]")
 	cmd.Flags().StringVar(&phase2OtherEUR, "phase-2-other-regions-eur-price", "", "Basic create second phase other-regions EUR price as EUR:UNITS[:NANOS]")
+	cmd.Flags().StringVar(&phase2OtherRel, "phase-2-other-regions-relative-discount", "", "Basic create second phase other-regions relative discount as 0.5")
+	cmd.Flags().StringVar(&phase2OtherAbsUSD, "phase-2-other-regions-absolute-usd-discount", "", "Basic create second phase other-regions absolute USD discount as USD:UNITS[:NANOS]")
+	cmd.Flags().StringVar(&phase2OtherAbsEUR, "phase-2-other-regions-absolute-eur-discount", "", "Basic create second phase other-regions absolute EUR discount as EUR:UNITS[:NANOS]")
 	cmd.Flags().StringVar(&acquisitionScope, "targeting-acquisition-scope", "", "Basic create acquisition targeting scope: any-subscription-in-app or this-subscription")
 	cmd.Flags().StringVar(&upgradeScope, "targeting-upgrade-scope", "", "Basic create upgrade targeting scope: this-subscription or specific-subscription-in-app")
 	cmd.Flags().StringVar(&upgradeProductID, "targeting-upgrade-product-id", "", "Basic create upgrade targeting subscription product ID when scope is specific-subscription-in-app")
@@ -326,8 +351,14 @@ type subscriptionOfferCreateBodyOptions struct {
 	OtherRegionsFree    bool
 	OtherRegionsUSD     string
 	OtherRegionsEUR     string
+	OtherRegionsRel     string
+	OtherRegionsAbsUSD  string
+	OtherRegionsAbsEUR  string
 	Phase2OtherUSD      string
 	Phase2OtherEUR      string
+	Phase2OtherRel      string
+	Phase2OtherAbsUSD   string
+	Phase2OtherAbsEUR   string
 	AcquisitionScope    string
 	UpgradeScope        string
 	UpgradeProductID    string
@@ -356,8 +387,8 @@ func subscriptionOfferCreateBody(options subscriptionOfferCreateBodyOptions) (pl
 		return play.SubscriptionOffer{}, err
 	}
 	var offerOtherRegionsConfig *play.SubscriptionOfferOtherRegionsConfig
-	if options.UsesPaidOtherRegionsFlags() && options.OtherRegionsFree {
-		return play.SubscriptionOffer{}, fmt.Errorf("--other-regions-free cannot be combined with paid other-regions price flags")
+	if options.UsesOtherRegionsPriceModeFlags() && options.OtherRegionsFree {
+		return play.SubscriptionOffer{}, fmt.Errorf("--other-regions-free cannot be combined with other-regions price mode flags")
 	}
 	if options.OtherRegionsFree {
 		offerOtherRegionsConfig = &play.SubscriptionOfferOtherRegionsConfig{NewSubscriberAvailability: true}
@@ -365,9 +396,9 @@ func subscriptionOfferCreateBody(options subscriptionOfferCreateBodyOptions) (pl
 			phases[index].OtherRegionsConfig = &play.SubscriptionOfferPhaseOtherRegionsConfig{Free: true}
 		}
 	}
-	if options.UsesPaidOtherRegionsFlags() {
+	if options.UsesOtherRegionsPriceModeFlags() {
 		offerOtherRegionsConfig = &play.SubscriptionOfferOtherRegionsConfig{NewSubscriberAvailability: true}
-		if err := setSubscriptionOfferCreatePaidOtherRegions(&phases, options); err != nil {
+		if err := setSubscriptionOfferCreateOtherRegionsPriceModes(&phases, options); err != nil {
 			return play.SubscriptionOffer{}, err
 		}
 	}
@@ -426,34 +457,110 @@ func (o subscriptionOfferCreateBodyOptions) UsesSecondPhaseFlags() bool {
 	return o.SecondPhaseFlagsSet
 }
 
-func (o subscriptionOfferCreateBodyOptions) UsesPaidOtherRegionsFlags() bool {
+func (o subscriptionOfferCreateBodyOptions) UsesOtherRegionsPriceModeFlags() bool {
 	return strings.TrimSpace(o.OtherRegionsUSD) != "" ||
 		strings.TrimSpace(o.OtherRegionsEUR) != "" ||
+		strings.TrimSpace(o.OtherRegionsRel) != "" ||
+		strings.TrimSpace(o.OtherRegionsAbsUSD) != "" ||
+		strings.TrimSpace(o.OtherRegionsAbsEUR) != "" ||
 		strings.TrimSpace(o.Phase2OtherUSD) != "" ||
-		strings.TrimSpace(o.Phase2OtherEUR) != ""
+		strings.TrimSpace(o.Phase2OtherEUR) != "" ||
+		strings.TrimSpace(o.Phase2OtherRel) != "" ||
+		strings.TrimSpace(o.Phase2OtherAbsUSD) != "" ||
+		strings.TrimSpace(o.Phase2OtherAbsEUR) != ""
 }
 
-func setSubscriptionOfferCreatePaidOtherRegions(phases *[]play.SubscriptionOfferPhase, options subscriptionOfferCreateBodyOptions) error {
-	firstConfig, err := subscriptionOfferCreateOtherRegionsPrices(options.OtherRegionsUSD, options.OtherRegionsEUR, "first phase")
+func setSubscriptionOfferCreateOtherRegionsPriceModes(phases *[]play.SubscriptionOfferPhase, options subscriptionOfferCreateBodyOptions) error {
+	firstConfig, err := subscriptionOfferCreateOtherRegionsPriceMode(subscriptionOfferCreateOtherRegionsPriceModeOptions{
+		USDPrice:         options.OtherRegionsUSD,
+		EURPrice:         options.OtherRegionsEUR,
+		RelativeDiscount: options.OtherRegionsRel,
+		AbsoluteUSD:      options.OtherRegionsAbsUSD,
+		AbsoluteEUR:      options.OtherRegionsAbsEUR,
+		PhaseLabel:       "first phase",
+	})
 	if err != nil {
 		return err
 	}
-	(*phases)[0].OtherRegionsConfig = &play.SubscriptionOfferPhaseOtherRegionsConfig{OtherRegionsPrices: firstConfig}
-	if strings.TrimSpace(options.Phase2OtherUSD) == "" && strings.TrimSpace(options.Phase2OtherEUR) == "" {
+	(*phases)[0].OtherRegionsConfig = firstConfig
+	if !options.UsesSecondPhaseOtherRegionsPriceModeFlags() {
 		if len(*phases) > 1 {
-			return fmt.Errorf("second phase other-regions prices are required when paid other-regions prices are used with two phases")
+			return fmt.Errorf("second phase other-regions price mode is required when other-regions price mode flags are used with two phases")
 		}
 		return nil
 	}
 	if len(*phases) < 2 {
-		return fmt.Errorf("second phase other-regions prices require second phase flags")
+		return fmt.Errorf("second phase other-regions price mode requires second phase flags")
 	}
-	secondConfig, err := subscriptionOfferCreateOtherRegionsPrices(options.Phase2OtherUSD, options.Phase2OtherEUR, "second phase")
+	secondConfig, err := subscriptionOfferCreateOtherRegionsPriceMode(subscriptionOfferCreateOtherRegionsPriceModeOptions{
+		USDPrice:         options.Phase2OtherUSD,
+		EURPrice:         options.Phase2OtherEUR,
+		RelativeDiscount: options.Phase2OtherRel,
+		AbsoluteUSD:      options.Phase2OtherAbsUSD,
+		AbsoluteEUR:      options.Phase2OtherAbsEUR,
+		PhaseLabel:       "second phase",
+	})
 	if err != nil {
 		return err
 	}
-	(*phases)[1].OtherRegionsConfig = &play.SubscriptionOfferPhaseOtherRegionsConfig{OtherRegionsPrices: secondConfig}
+	(*phases)[1].OtherRegionsConfig = secondConfig
 	return nil
+}
+
+func (o subscriptionOfferCreateBodyOptions) UsesSecondPhaseOtherRegionsPriceModeFlags() bool {
+	return strings.TrimSpace(o.Phase2OtherUSD) != "" ||
+		strings.TrimSpace(o.Phase2OtherEUR) != "" ||
+		strings.TrimSpace(o.Phase2OtherRel) != "" ||
+		strings.TrimSpace(o.Phase2OtherAbsUSD) != "" ||
+		strings.TrimSpace(o.Phase2OtherAbsEUR) != ""
+}
+
+type subscriptionOfferCreateOtherRegionsPriceModeOptions struct {
+	USDPrice         string
+	EURPrice         string
+	RelativeDiscount string
+	AbsoluteUSD      string
+	AbsoluteEUR      string
+	PhaseLabel       string
+}
+
+func subscriptionOfferCreateOtherRegionsPriceMode(options subscriptionOfferCreateOtherRegionsPriceModeOptions) (*play.SubscriptionOfferPhaseOtherRegionsConfig, error) {
+	hasPrices := strings.TrimSpace(options.USDPrice) != "" || strings.TrimSpace(options.EURPrice) != ""
+	hasRelativeDiscount := strings.TrimSpace(options.RelativeDiscount) != ""
+	hasAbsoluteDiscounts := strings.TrimSpace(options.AbsoluteUSD) != "" || strings.TrimSpace(options.AbsoluteEUR) != ""
+	modes := 0
+	if hasPrices {
+		modes++
+	}
+	if hasRelativeDiscount {
+		modes++
+	}
+	if hasAbsoluteDiscounts {
+		modes++
+	}
+	if modes != 1 {
+		return nil, fmt.Errorf("subscription offer create %s other-regions price mode requires exactly one of prices, relative discount, or absolute discounts", options.PhaseLabel)
+	}
+	switch {
+	case hasPrices:
+		prices, err := subscriptionOfferCreateOtherRegionsPrices(options.USDPrice, options.EURPrice, options.PhaseLabel)
+		if err != nil {
+			return nil, err
+		}
+		return &play.SubscriptionOfferPhaseOtherRegionsConfig{OtherRegionsPrices: prices}, nil
+	case hasRelativeDiscount:
+		relativeDiscount, err := strconv.ParseFloat(strings.TrimSpace(options.RelativeDiscount), 64)
+		if err != nil || math.IsNaN(relativeDiscount) || math.IsInf(relativeDiscount, 0) || relativeDiscount <= 0 || relativeDiscount >= 1 {
+			return nil, fmt.Errorf("subscription offer create %s other-regions relative discount must be greater than 0 and less than 1", options.PhaseLabel)
+		}
+		return &play.SubscriptionOfferPhaseOtherRegionsConfig{RelativeDiscount: relativeDiscount}, nil
+	default:
+		discounts, err := subscriptionOfferCreateOtherRegionsPrices(options.AbsoluteUSD, options.AbsoluteEUR, options.PhaseLabel)
+		if err != nil {
+			return nil, err
+		}
+		return &play.SubscriptionOfferPhaseOtherRegionsConfig{AbsoluteDiscounts: discounts}, nil
+	}
 }
 
 func subscriptionOfferCreateOtherRegionsPrices(rawUSDPrice string, rawEURPrice string, phaseLabel string) (*play.SubscriptionOfferOtherRegionsPrices, error) {
