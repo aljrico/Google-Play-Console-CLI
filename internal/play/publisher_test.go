@@ -4544,6 +4544,92 @@ func TestBatchUpdateSubscriptionOfferStatesUsesBatchUpdateEndpoint(t *testing.T)
 	}
 }
 
+func TestBatchPatchSubscriptionOfferAvailabilityMergesAndBatchUpdates(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium/basePlans/monthly/offers/intro" {
+				t.Fatalf("path = %q, want subscription offer get endpoint", r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{
+				"packageName":"com.example.app",
+				"productId":"premium",
+				"basePlanId":"monthly",
+				"offerId":"intro",
+				"regionalConfigs":[
+					{"regionCode":"US","newSubscriberAvailability":true},
+					{"regionCode":"DE","newSubscriberAvailability":true}
+				]
+			}`)
+		case http.MethodPost:
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium/basePlans/monthly/offers:batchUpdate" {
+				t.Fatalf("path = %q, want subscription offer batchUpdate endpoint", r.URL.Path)
+			}
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatalf("ReadAll() error = %v", err)
+			}
+			if !strings.Contains(string(body), `"newSubscriberAvailability":false`) {
+				t.Fatalf("body = %s, want explicit false availability", body)
+			}
+			var request androidpublisher.BatchUpdateSubscriptionOffersRequest
+			if err := json.Unmarshal(body, &request); err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+			if len(request.Requests) != 1 {
+				t.Fatalf("len(Requests) = %d, want 1", len(request.Requests))
+			}
+			update := request.Requests[0]
+			if update.UpdateMask != "regionalConfigs" {
+				t.Fatalf("UpdateMask = %q, want regionalConfigs", update.UpdateMask)
+			}
+			if update.RegionsVersion == nil || update.RegionsVersion.Version != "2026/05" {
+				t.Fatalf("RegionsVersion = %#v, want 2026/05", update.RegionsVersion)
+			}
+			if update.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+				t.Fatalf("LatencyTolerance = %q, want tolerant", update.LatencyTolerance)
+			}
+			configs := update.SubscriptionOffer.RegionalConfigs
+			if len(configs) != 3 {
+				t.Fatalf("len(RegionalConfigs) = %d, want preserved plus added configs", len(configs))
+			}
+			if configs[0].RegionCode != "US" || configs[0].NewSubscriberAvailability {
+				t.Fatalf("first config = %#v, want US false patch", configs[0])
+			}
+			if configs[1].RegionCode != "DE" || !configs[1].NewSubscriberAvailability {
+				t.Fatalf("second config = %#v, want preserved DE true", configs[1])
+			}
+			if configs[2].RegionCode != "FR" || !configs[2].NewSubscriberAvailability {
+				t.Fatalf("third config = %#v, want added FR true", configs[2])
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"subscriptionOffers":[{"packageName":"com.example.app","productId":"premium","basePlanId":"monthly","offerId":"intro","regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":false},{"regionCode":"FR","newSubscriberAvailability":true}]}]}`)
+		default:
+			t.Fatalf("method = %s, want GET or POST", r.Method)
+		}
+	}))
+
+	result, err := publisher.BatchPatchSubscriptionOfferAvailability(context.Background(), SubscriptionOfferBatchPatchAvailabilityOptions{
+		PackageName:    "com.example.app",
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		RegionsVersion: "2026/05",
+		Requests: []SubscriptionOfferAvailabilityPatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", RegionCode: "US", Availability: false},
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", RegionCode: "FR", Availability: true},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchSubscriptionOfferAvailability() error = %v", err)
+	}
+	if !result.Applied || len(result.Offers) != 1 || result.Offers[0].OfferID != "intro" {
+		t.Fatalf("result = %#v, want applied intro offer", result)
+	}
+}
+
 func TestBatchUpdateSubscriptionOfferStatesRejectsDryRunBeforeRequest(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)

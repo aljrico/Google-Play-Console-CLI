@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -381,6 +382,153 @@ func TestBatchUpdateSubscriptionOfferStatesPassesOptionsToUpdater(t *testing.T) 
 	}
 }
 
+func TestBatchPatchSubscriptionOfferAvailabilityDryRunBuildsPlanWithoutPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchPatchSubscriptionOfferAvailability(context.Background(), nil, SubscriptionOfferBatchPatchAvailabilityOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		RegionsVersion: "2026/05",
+		Requests: []SubscriptionOfferAvailabilityPatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", RegionCode: "US", Availability: false},
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", RegionCode: "FR", Availability: true},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchSubscriptionOfferAvailability() error = %v", err)
+	}
+	if !result.DryRun || result.Applied {
+		t.Fatalf("result = %#v, want dry-run availability patch", result)
+	}
+	if result.Plan.UpdateMask != subscriptionOfferAvailabilityUpdateMask {
+		t.Fatalf("UpdateMask = %q, want %q", result.Plan.UpdateMask, subscriptionOfferAvailabilityUpdateMask)
+	}
+	if len(result.Desired) != 1 || len(result.Desired[0].RegionalConfigs) != 2 {
+		t.Fatalf("Desired = %#v, want one offer with two regional configs", result.Desired)
+	}
+	if result.Desired[0].RegionalConfigs[0].NewSubscriberAvailability {
+		t.Fatalf("first availability = true, want explicit false")
+	}
+}
+
+func TestBatchPatchSubscriptionOfferAvailabilityRejectsDuplicateOfferRegion(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewSubscriptionOfferBatchPatchAvailabilityPlan(SubscriptionOfferBatchPatchAvailabilityOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		RegionsVersion: "2026/05",
+		Requests: []SubscriptionOfferAvailabilityPatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", RegionCode: "US", Availability: true},
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", RegionCode: "US", Availability: false},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate offer region validation error")
+	}
+}
+
+func TestBatchPatchSubscriptionOfferAvailabilityCountsDistinctOffersForBatchLimit(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	requests := []SubscriptionOfferAvailabilityPatchRequest{
+		{ProductID: "premium0", BasePlanID: "monthly", OfferID: "intro", RegionCode: "US", Availability: true},
+		{ProductID: "premium0", BasePlanID: "monthly", OfferID: "intro", RegionCode: "FR", Availability: false},
+	}
+	for index := 1; index < 100; index++ {
+		requests = append(requests, SubscriptionOfferAvailabilityPatchRequest{
+			ProductID:    SubscriptionProductID(fmt.Sprintf("premium%d", index)),
+			BasePlanID:   "monthly",
+			OfferID:      "intro",
+			RegionCode:   "US",
+			Availability: true,
+		})
+	}
+	_, err = NewSubscriptionOfferBatchPatchAvailabilityPlan(SubscriptionOfferBatchPatchAvailabilityOptions{
+		PackageName:      packageName,
+		ProductID:        "-",
+		BasePlanID:       "monthly",
+		RegionsVersion:   "2026/05",
+		Requests:         requests,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("NewSubscriptionOfferBatchPatchAvailabilityPlan() error = %v, want 101 patches across 100 offers allowed", err)
+	}
+
+	requests = requests[:0]
+	for index := 0; index < 101; index++ {
+		requests = append(requests, SubscriptionOfferAvailabilityPatchRequest{
+			ProductID:    SubscriptionProductID(fmt.Sprintf("premium%d", index)),
+			BasePlanID:   "monthly",
+			OfferID:      "intro",
+			RegionCode:   "US",
+			Availability: true,
+		})
+	}
+	_, err = NewSubscriptionOfferBatchPatchAvailabilityPlan(SubscriptionOfferBatchPatchAvailabilityOptions{
+		PackageName:      packageName,
+		ProductID:        "-",
+		BasePlanID:       "monthly",
+		RegionsVersion:   "2026/05",
+		Requests:         requests,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected over 100 distinct offers validation error")
+	}
+}
+
+func TestBatchPatchSubscriptionOfferAvailabilityPassesOptionsToPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	patcher := &fakeSubscriptionOfferClient{
+		batchAvailabilityResult: SubscriptionOfferBatchPatchAvailabilityResult{
+			Offers: []SubscriptionOffer{{OfferID: "intro"}},
+		},
+	}
+	options := SubscriptionOfferBatchPatchAvailabilityOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		BasePlanID:     "monthly",
+		RegionsVersion: "2026/05",
+		Requests: []SubscriptionOfferAvailabilityPatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", OfferID: "intro", RegionCode: "US", Availability: false},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := BatchPatchSubscriptionOfferAvailability(context.Background(), patcher, options)
+	if err != nil {
+		t.Fatalf("BatchPatchSubscriptionOfferAvailability() error = %v", err)
+	}
+	if !result.Applied || len(result.Offers) != 1 {
+		t.Fatalf("result = %#v, want applied offer", result)
+	}
+	if !reflect.DeepEqual(patcher.batchAvailabilityOptions, options) {
+		t.Fatalf("batchAvailabilityOptions = %#v, want %#v", patcher.batchAvailabilityOptions, options)
+	}
+}
+
 func TestDeleteSubscriptionOfferDryRunBuildsPlanWithoutDeleter(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -494,16 +642,18 @@ func TestUpdateSubscriptionOfferStatePassesOptionsToUpdater(t *testing.T) {
 }
 
 type fakeSubscriptionOfferClient struct {
-	listOptions       SubscriptionOfferListOptions
-	listResult        SubscriptionOfferListResult
-	batchOptions      SubscriptionOfferBatchGetOptions
-	batchResult       SubscriptionOfferBatchGetResult
-	batchStateOptions SubscriptionOfferBatchStateUpdateOptions
-	batchStateResult  SubscriptionOfferBatchStateUpdateResult
-	deleteOptions     SubscriptionOfferDeleteOptions
-	offerID           SubscriptionOfferID
-	offer             SubscriptionOffer
-	stateOptions      SubscriptionOfferStateUpdateOptions
+	listOptions              SubscriptionOfferListOptions
+	listResult               SubscriptionOfferListResult
+	batchOptions             SubscriptionOfferBatchGetOptions
+	batchResult              SubscriptionOfferBatchGetResult
+	batchStateOptions        SubscriptionOfferBatchStateUpdateOptions
+	batchStateResult         SubscriptionOfferBatchStateUpdateResult
+	batchAvailabilityOptions SubscriptionOfferBatchPatchAvailabilityOptions
+	batchAvailabilityResult  SubscriptionOfferBatchPatchAvailabilityResult
+	deleteOptions            SubscriptionOfferDeleteOptions
+	offerID                  SubscriptionOfferID
+	offer                    SubscriptionOffer
+	stateOptions             SubscriptionOfferStateUpdateOptions
 }
 
 func (c *fakeSubscriptionOfferClient) ListSubscriptionOffers(ctx context.Context, options SubscriptionOfferListOptions) (SubscriptionOfferListResult, error) {
@@ -524,6 +674,11 @@ func (c *fakeSubscriptionOfferClient) BatchGetSubscriptionOffers(ctx context.Con
 func (c *fakeSubscriptionOfferClient) BatchUpdateSubscriptionOfferStates(ctx context.Context, options SubscriptionOfferBatchStateUpdateOptions) (SubscriptionOfferBatchStateUpdateResult, error) {
 	c.batchStateOptions = options
 	return c.batchStateResult, nil
+}
+
+func (c *fakeSubscriptionOfferClient) BatchPatchSubscriptionOfferAvailability(ctx context.Context, options SubscriptionOfferBatchPatchAvailabilityOptions) (SubscriptionOfferBatchPatchAvailabilityResult, error) {
+	c.batchAvailabilityOptions = options
+	return c.batchAvailabilityResult, nil
 }
 
 func (c *fakeSubscriptionOfferClient) DeleteSubscriptionOffer(ctx context.Context, options SubscriptionOfferDeleteOptions) error {

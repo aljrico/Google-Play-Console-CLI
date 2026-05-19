@@ -313,6 +313,25 @@ type SubscriptionOfferBatchStateUpdateOptions struct {
 	DryRun           bool                                    `json:"dryRun"`
 }
 
+type SubscriptionOfferAvailabilityPatchRequest struct {
+	ProductID    SubscriptionProductID  `json:"productId"`
+	BasePlanID   SubscriptionBasePlanID `json:"basePlanId"`
+	OfferID      SubscriptionOfferID    `json:"offerId"`
+	RegionCode   string                 `json:"regionCode"`
+	Availability bool                   `json:"availability"`
+}
+
+type SubscriptionOfferBatchPatchAvailabilityOptions struct {
+	PackageName      PackageName                                 `json:"packageName"`
+	ProductID        SubscriptionProductID                       `json:"productId"`
+	BasePlanID       SubscriptionBasePlanID                      `json:"basePlanId"`
+	Requests         []SubscriptionOfferAvailabilityPatchRequest `json:"requests"`
+	RegionsVersion   string                                      `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance               `json:"latencyTolerance"`
+	Confirm          bool                                        `json:"confirm"`
+	DryRun           bool                                        `json:"dryRun"`
+}
+
 func (o SubscriptionOfferBatchGetOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
@@ -380,6 +399,31 @@ func (o SubscriptionOfferBatchStateUpdateOptions) Validate() error {
 	return nil
 }
 
+func (o SubscriptionOfferBatchPatchAvailabilityOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if err := validateSubscriptionOfferAvailabilityPatchParents(o.ProductID, o.BasePlanID, o.Requests); err != nil {
+		return err
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("subscription offer availability batch patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
 func (o SubscriptionOfferBatchStateUpdateOptions) ValidateLive() error {
 	if err := o.Validate(); err != nil {
 		return err
@@ -389,6 +433,19 @@ func (o SubscriptionOfferBatchStateUpdateOptions) ValidateLive() error {
 	}
 	if !o.Confirm {
 		return fmt.Errorf("live subscription offer batch state update requires --confirm")
+	}
+	return nil
+}
+
+func (o SubscriptionOfferBatchPatchAvailabilityOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live subscription offer availability batch patch cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live subscription offer availability batch patch requires --confirm")
 	}
 	return nil
 }
@@ -448,6 +505,44 @@ func validateSubscriptionOfferBatchMutationParents(productID SubscriptionProduct
 	return nil
 }
 
+func validateSubscriptionOfferAvailabilityPatchParents(productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, requests []SubscriptionOfferAvailabilityPatchRequest) error {
+	if len(requests) == 0 {
+		return fmt.Errorf("at least one subscription offer availability patch is required")
+	}
+	mutationRequests := make([]SubscriptionOfferBatchMutationRequest, 0, len(requests))
+	seenRegions := map[string]struct{}{}
+	for _, request := range requests {
+		if !isValidRegionCode(request.RegionCode) {
+			return fmt.Errorf("subscription offer availability region must be a two-letter ISO 3166 code")
+		}
+		key := subscriptionOfferKey(request.ProductID, request.BasePlanID, request.OfferID) + "/" + request.RegionCode
+		if _, ok := seenRegions[key]; ok {
+			return fmt.Errorf("subscription offer availability %s is duplicated", key)
+		}
+		seenRegions[key] = struct{}{}
+		mutationRequests = append(mutationRequests, SubscriptionOfferBatchMutationRequest{
+			ProductID:  request.ProductID,
+			BasePlanID: request.BasePlanID,
+			OfferID:    request.OfferID,
+		})
+	}
+	return validateSubscriptionOfferBatchMutationParents(productID, basePlanID, deduplicateSubscriptionOfferMutationRequests(mutationRequests), "availability batch patch")
+}
+
+func deduplicateSubscriptionOfferMutationRequests(requests []SubscriptionOfferBatchMutationRequest) []SubscriptionOfferBatchMutationRequest {
+	seen := map[string]struct{}{}
+	deduplicated := make([]SubscriptionOfferBatchMutationRequest, 0, len(requests))
+	for _, request := range requests {
+		key := subscriptionOfferKey(request.ProductID, request.BasePlanID, request.OfferID)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduplicated = append(deduplicated, request)
+	}
+	return deduplicated
+}
+
 type SubscriptionOfferBatchGetResult struct {
 	PackageName PackageName                      `json:"packageName"`
 	ProductID   SubscriptionProductID            `json:"productId"`
@@ -479,12 +574,53 @@ type SubscriptionOfferBatchStateUpdateResult struct {
 	Plan        SubscriptionOfferBatchStateUpdatePlan   `json:"plan"`
 }
 
+type SubscriptionOfferBatchPatchAvailabilityPlan struct {
+	PackageName      PackageName                                 `json:"packageName"`
+	ProductID        SubscriptionProductID                       `json:"productId"`
+	BasePlanID       SubscriptionBasePlanID                      `json:"basePlanId"`
+	Requests         []SubscriptionOfferAvailabilityPatchRequest `json:"requests"`
+	UpdateMask       string                                      `json:"updateMask"`
+	RegionsVersion   string                                      `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance               `json:"latencyTolerance"`
+	Confirm          bool                                        `json:"confirm"`
+	Steps            []string                                    `json:"steps"`
+}
+
+type SubscriptionOfferBatchPatchAvailabilityDesiredOffer struct {
+	PackageName     PackageName                                                    `json:"packageName"`
+	ProductID       SubscriptionProductID                                          `json:"productId"`
+	BasePlanID      SubscriptionBasePlanID                                         `json:"basePlanId"`
+	OfferID         SubscriptionOfferID                                            `json:"offerId"`
+	RegionalConfigs []SubscriptionOfferBatchPatchAvailabilityDesiredRegionalConfig `json:"regionalConfigs"`
+}
+
+type SubscriptionOfferBatchPatchAvailabilityDesiredRegionalConfig struct {
+	RegionCode                string `json:"regionCode"`
+	NewSubscriberAvailability bool   `json:"newSubscriberAvailability"`
+}
+
+type SubscriptionOfferBatchPatchAvailabilityResult struct {
+	PackageName PackageName                                           `json:"packageName"`
+	ProductID   SubscriptionProductID                                 `json:"productId"`
+	BasePlanID  SubscriptionBasePlanID                                `json:"basePlanId"`
+	Requests    []SubscriptionOfferAvailabilityPatchRequest           `json:"requests"`
+	DryRun      bool                                                  `json:"dryRun"`
+	Applied     bool                                                  `json:"applied"`
+	Offers      []SubscriptionOffer                                   `json:"offers,omitempty"`
+	Desired     []SubscriptionOfferBatchPatchAvailabilityDesiredOffer `json:"desiredOffers"`
+	Plan        SubscriptionOfferBatchPatchAvailabilityPlan           `json:"plan"`
+}
+
 type SubscriptionOfferBatchGetter interface {
 	BatchGetSubscriptionOffers(ctx context.Context, options SubscriptionOfferBatchGetOptions) (SubscriptionOfferBatchGetResult, error)
 }
 
 type SubscriptionOfferBatchStateUpdater interface {
 	BatchUpdateSubscriptionOfferStates(ctx context.Context, options SubscriptionOfferBatchStateUpdateOptions) (SubscriptionOfferBatchStateUpdateResult, error)
+}
+
+type SubscriptionOfferBatchAvailabilityPatcher interface {
+	BatchPatchSubscriptionOfferAvailability(ctx context.Context, options SubscriptionOfferBatchPatchAvailabilityOptions) (SubscriptionOfferBatchPatchAvailabilityResult, error)
 }
 
 type SubscriptionOfferDeleter interface {
@@ -543,6 +679,84 @@ func BatchUpdateSubscriptionOfferStates(ctx context.Context, updater Subscriptio
 	updated.DryRun = false
 	updated.Applied = true
 	return updated, nil
+}
+
+func BatchPatchSubscriptionOfferAvailability(ctx context.Context, patcher SubscriptionOfferBatchAvailabilityPatcher, options SubscriptionOfferBatchPatchAvailabilityOptions) (SubscriptionOfferBatchPatchAvailabilityResult, error) {
+	plan, err := NewSubscriptionOfferBatchPatchAvailabilityPlan(options)
+	if err != nil {
+		return SubscriptionOfferBatchPatchAvailabilityResult{}, err
+	}
+	requests := append([]SubscriptionOfferAvailabilityPatchRequest(nil), options.Requests...)
+	result := SubscriptionOfferBatchPatchAvailabilityResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		BasePlanID:  options.BasePlanID,
+		Requests:    requests,
+		DryRun:      options.DryRun,
+		Desired:     desiredSubscriptionOffersForAvailabilityPatch(options),
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if patcher == nil {
+		return SubscriptionOfferBatchPatchAvailabilityResult{}, fmt.Errorf("subscription offer availability batch patcher is required")
+	}
+	updated, err := patcher.BatchPatchSubscriptionOfferAvailability(ctx, options)
+	if err != nil {
+		return SubscriptionOfferBatchPatchAvailabilityResult{}, err
+	}
+	updated.PackageName = options.PackageName
+	updated.ProductID = options.ProductID
+	updated.BasePlanID = options.BasePlanID
+	updated.Requests = requests
+	updated.DryRun = false
+	updated.Applied = true
+	updated.Desired = result.Desired
+	updated.Plan = plan
+	return updated, nil
+}
+
+func NewSubscriptionOfferBatchPatchAvailabilityPlan(options SubscriptionOfferBatchPatchAvailabilityOptions) (SubscriptionOfferBatchPatchAvailabilityPlan, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionOfferBatchPatchAvailabilityPlan{}, err
+	}
+	return SubscriptionOfferBatchPatchAvailabilityPlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		BasePlanID:       options.BasePlanID,
+		Requests:         append([]SubscriptionOfferAvailabilityPatchRequest(nil), options.Requests...),
+		UpdateMask:       subscriptionOfferAvailabilityUpdateMask,
+		RegionsVersion:   options.RegionsVersion,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            subscriptionOfferBatchPatchAvailabilitySteps(options),
+	}, nil
+}
+
+func desiredSubscriptionOffersForAvailabilityPatch(options SubscriptionOfferBatchPatchAvailabilityOptions) []SubscriptionOfferBatchPatchAvailabilityDesiredOffer {
+	byOffer := map[string]int{}
+	offers := make([]SubscriptionOfferBatchPatchAvailabilityDesiredOffer, 0)
+	for _, request := range options.Requests {
+		key := subscriptionOfferKey(request.ProductID, request.BasePlanID, request.OfferID)
+		index, ok := byOffer[key]
+		if !ok {
+			byOffer[key] = len(offers)
+			offers = append(offers, SubscriptionOfferBatchPatchAvailabilityDesiredOffer{
+				PackageName:     options.PackageName,
+				ProductID:       request.ProductID,
+				BasePlanID:      request.BasePlanID,
+				OfferID:         request.OfferID,
+				RegionalConfigs: []SubscriptionOfferBatchPatchAvailabilityDesiredRegionalConfig{},
+			})
+			index = len(offers) - 1
+		}
+		offers[index].RegionalConfigs = append(offers[index].RegionalConfigs, SubscriptionOfferBatchPatchAvailabilityDesiredRegionalConfig{
+			RegionCode:                request.RegionCode,
+			NewSubscriberAvailability: request.Availability,
+		})
+	}
+	return offers
 }
 
 type SubscriptionOfferDeleteOptions struct {
@@ -777,4 +991,13 @@ func subscriptionOfferBatchStateUpdateSteps(options SubscriptionOfferBatchStateU
 		return []string{fmt.Sprintf("plan batch %s subscription offers", options.Action)}
 	}
 	return []string{fmt.Sprintf("batch %s subscription offers", options.Action)}
+}
+
+const subscriptionOfferAvailabilityUpdateMask = "regionalConfigs"
+
+func subscriptionOfferBatchPatchAvailabilitySteps(options SubscriptionOfferBatchPatchAvailabilityOptions) []string {
+	if options.DryRun {
+		return []string{"plan subscription offer availability batch patch"}
+	}
+	return []string{"fetch current subscription offers", "merge regional availability", "batch patch subscription offer availability"}
 }

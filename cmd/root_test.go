@@ -6311,6 +6311,147 @@ func TestSubscriptionOffersBatchDeactivateDryRunInfersParentsBeforeAuth(t *testi
 	}
 }
 
+func TestSubscriptionOffersBatchPatchAvailabilityDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-availability",
+		"--package",
+		"com.example.app",
+		"--availability",
+		"premium/monthly/intro/us: false",
+		"--availability",
+		"premium/annual/winback/FR:true",
+		"--regions-version",
+		"2026/05",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"productId":"premium"`,
+		`"basePlanId":"-"`,
+		`"offerId":"intro"`,
+		`"regionCode":"US"`,
+		`"availability":false`,
+		`"newSubscriberAvailability":false`,
+		`"updateMask":"regionalConfigs"`,
+		`"regionsVersion":"2026/05"`,
+		`"latencyTolerance":"latencyTolerant"`,
+		`"dryRun":true`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchAvailabilityRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-availability",
+		"--package",
+		"com.example.app",
+		"--availability",
+		"premium/monthly/intro/US:true",
+		"--regions-version",
+		"2026/05",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchAvailabilityRejectsMalformedPatchBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-availability",
+		"--package",
+		"com.example.app",
+		"--availability",
+		"premium/monthly/intro:true",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected availability format validation error")
+	}
+	if !strings.Contains(err.Error(), "productId/basePlanId/offerId/REGION:true|false") {
+		t.Fatalf("error = %v, want availability format validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
+func TestSubscriptionOffersBatchPatchAvailabilityRejectsInvalidBooleanBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-patch-availability",
+		"--package",
+		"com.example.app",
+		"--availability",
+		"premium/monthly/intro/US:notabool",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected availability boolean validation error")
+	}
+	if !strings.Contains(err.Error(), "productId/basePlanId/offerId/REGION:true|false") {
+		t.Fatalf("error = %v, want availability format validation", err)
+	}
+	if strings.Contains(err.Error(), "strconv.ParseBool") {
+		t.Fatalf("error = %v, did not expect raw strconv error", err)
+	}
+}
+
 func TestSubscriptionOffersBatchActivateRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

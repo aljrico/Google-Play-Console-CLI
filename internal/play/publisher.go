@@ -1779,6 +1779,127 @@ func (p GooglePublisher) BatchUpdateSubscriptionOfferStates(ctx context.Context,
 	}, nil
 }
 
+func (p GooglePublisher) BatchPatchSubscriptionOfferAvailability(ctx context.Context, options SubscriptionOfferBatchPatchAvailabilityOptions) (SubscriptionOfferBatchPatchAvailabilityResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return SubscriptionOfferBatchPatchAvailabilityResult{}, err
+	}
+	requestsByOffer := subscriptionOfferAvailabilityPatchRequestsByOffer(options.Requests)
+	request := &androidpublisher.BatchUpdateSubscriptionOffersRequest{
+		Requests: make([]*androidpublisher.UpdateSubscriptionOfferRequest, 0, len(requestsByOffer)),
+	}
+	for _, offerPatch := range requestsByOffer {
+		current, err := p.service.Monetization.Subscriptions.BasePlans.Offers.Get(
+			options.PackageName.String(),
+			offerPatch.ProductID.String(),
+			offerPatch.BasePlanID.String(),
+			offerPatch.OfferID.String(),
+		).Context(ctx).Do()
+		if err != nil {
+			return SubscriptionOfferBatchPatchAvailabilityResult{}, fmt.Errorf("get subscription offer %s for %s/%s/%s before availability patch: %w", offerPatch.OfferID, options.PackageName, offerPatch.ProductID, offerPatch.BasePlanID, err)
+		}
+		mergedRegionalConfigs := mergeSubscriptionOfferAvailabilityPatches(subscriptionOfferRegionalConfigsFromAPI(current.RegionalConfigs), offerPatch.Requests)
+		request.Requests = append(request.Requests, &androidpublisher.UpdateSubscriptionOfferRequest{
+			SubscriptionOffer: &androidpublisher.SubscriptionOffer{
+				PackageName:     options.PackageName.String(),
+				ProductId:       offerPatch.ProductID.String(),
+				BasePlanId:      offerPatch.BasePlanID.String(),
+				OfferId:         offerPatch.OfferID.String(),
+				RegionalConfigs: subscriptionOfferRegionalConfigsToAPI(mergedRegionalConfigs),
+			},
+			UpdateMask:       subscriptionOfferAvailabilityUpdateMask,
+			RegionsVersion:   &androidpublisher.RegionsVersion{Version: options.RegionsVersion},
+			LatencyTolerance: productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+		})
+	}
+	response, err := p.service.Monetization.Subscriptions.BasePlans.Offers.BatchUpdate(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.BasePlanID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return SubscriptionOfferBatchPatchAvailabilityResult{}, fmt.Errorf("batch patch subscription offer availability for %s/%s/%s: %w", options.PackageName, options.ProductID, options.BasePlanID, err)
+	}
+	return SubscriptionOfferBatchPatchAvailabilityResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		BasePlanID:  options.BasePlanID,
+		Requests:    append([]SubscriptionOfferAvailabilityPatchRequest(nil), options.Requests...),
+		Applied:     true,
+		Offers:      subscriptionOffersFromBatchUpdateResponse(options, response),
+	}, nil
+}
+
+type subscriptionOfferAvailabilityPatchOffer struct {
+	ProductID  SubscriptionProductID
+	BasePlanID SubscriptionBasePlanID
+	OfferID    SubscriptionOfferID
+	Requests   []SubscriptionOfferAvailabilityPatchRequest
+}
+
+func subscriptionOfferAvailabilityPatchRequestsByOffer(requests []SubscriptionOfferAvailabilityPatchRequest) []subscriptionOfferAvailabilityPatchOffer {
+	byOffer := map[string]int{}
+	offers := make([]subscriptionOfferAvailabilityPatchOffer, 0)
+	for _, request := range requests {
+		key := subscriptionOfferKey(request.ProductID, request.BasePlanID, request.OfferID)
+		index, ok := byOffer[key]
+		if !ok {
+			byOffer[key] = len(offers)
+			offers = append(offers, subscriptionOfferAvailabilityPatchOffer{
+				ProductID:  request.ProductID,
+				BasePlanID: request.BasePlanID,
+				OfferID:    request.OfferID,
+			})
+			index = len(offers) - 1
+		}
+		offers[index].Requests = append(offers[index].Requests, request)
+	}
+	return offers
+}
+
+func subscriptionOffersFromBatchUpdateResponse(options SubscriptionOfferBatchPatchAvailabilityOptions, response *androidpublisher.BatchUpdateSubscriptionOffersResponse) []SubscriptionOffer {
+	if response == nil {
+		return []SubscriptionOffer{}
+	}
+	byKey := make(map[string]SubscriptionOffer, len(response.SubscriptionOffers))
+	extras := make([]SubscriptionOffer, 0)
+	for _, apiOffer := range response.SubscriptionOffers {
+		offer := subscriptionOfferFromAPI(apiOffer)
+		key := subscriptionOfferKey(offer.ProductID, offer.BasePlanID, offer.OfferID)
+		if key == "//" {
+			continue
+		}
+		if _, ok := byKey[key]; ok {
+			extras = append(extras, offer)
+			continue
+		}
+		byKey[key] = offer
+	}
+	offers := make([]SubscriptionOffer, 0, len(response.SubscriptionOffers))
+	mutationRequests := make([]SubscriptionOfferBatchMutationRequest, 0, len(options.Requests))
+	for _, request := range options.Requests {
+		mutationRequests = append(mutationRequests, SubscriptionOfferBatchMutationRequest{
+			ProductID:  request.ProductID,
+			BasePlanID: request.BasePlanID,
+			OfferID:    request.OfferID,
+		})
+	}
+	for _, request := range deduplicateSubscriptionOfferMutationRequests(mutationRequests) {
+		key := subscriptionOfferKey(request.ProductID, request.BasePlanID, request.OfferID)
+		if offer, ok := byKey[key]; ok {
+			offers = append(offers, offer)
+			delete(byKey, key)
+		}
+	}
+	for _, offer := range byKey {
+		extras = append(extras, offer)
+	}
+	sort.Slice(extras, func(i, j int) bool {
+		return subscriptionOfferKey(extras[i].ProductID, extras[i].BasePlanID, extras[i].OfferID) < subscriptionOfferKey(extras[j].ProductID, extras[j].BasePlanID, extras[j].OfferID)
+	})
+	return append(offers, extras...)
+}
+
 func subscriptionOffersFromBatchStateUpdateResponse(options SubscriptionOfferBatchStateUpdateOptions, response *androidpublisher.BatchUpdateSubscriptionOfferStatesResponse) []SubscriptionOffer {
 	if response == nil {
 		return []SubscriptionOffer{}
@@ -3562,6 +3683,48 @@ func subscriptionOfferRegionalConfigsFromAPI(apiConfigs []*androidpublisher.Regi
 		})
 	}
 	return configs
+}
+
+func subscriptionOfferRegionalConfigsToAPI(configs []SubscriptionOfferRegionalConfig) []*androidpublisher.RegionalSubscriptionOfferConfig {
+	apiConfigs := make([]*androidpublisher.RegionalSubscriptionOfferConfig, 0, len(configs))
+	for _, config := range configs {
+		apiConfig := &androidpublisher.RegionalSubscriptionOfferConfig{
+			RegionCode:                config.RegionCode,
+			NewSubscriberAvailability: config.NewSubscriberAvailability,
+		}
+		apiConfig.ForceSendFields = append(apiConfig.ForceSendFields, "NewSubscriberAvailability")
+		apiConfigs = append(apiConfigs, apiConfig)
+	}
+	return apiConfigs
+}
+
+func mergeSubscriptionOfferAvailabilityPatches(current []SubscriptionOfferRegionalConfig, patches []SubscriptionOfferAvailabilityPatchRequest) []SubscriptionOfferRegionalConfig {
+	merged := append([]SubscriptionOfferRegionalConfig(nil), current...)
+	for _, patch := range patches {
+		merged = mergeSubscriptionOfferAvailabilityPatch(merged, patch)
+	}
+	return merged
+}
+
+func mergeSubscriptionOfferAvailabilityPatch(current []SubscriptionOfferRegionalConfig, patch SubscriptionOfferAvailabilityPatchRequest) []SubscriptionOfferRegionalConfig {
+	merged := make([]SubscriptionOfferRegionalConfig, 0, len(current)+1)
+	replaced := false
+	for _, config := range current {
+		if config.RegionCode == patch.RegionCode {
+			config.NewSubscriberAvailability = patch.Availability
+			merged = append(merged, config)
+			replaced = true
+			continue
+		}
+		merged = append(merged, config)
+	}
+	if !replaced {
+		merged = append(merged, SubscriptionOfferRegionalConfig{
+			RegionCode:                patch.RegionCode,
+			NewSubscriberAvailability: patch.Availability,
+		})
+	}
+	return merged
 }
 
 func subscriptionOfferOtherRegionsConfigFromAPI(apiConfig *androidpublisher.OtherRegionsSubscriptionOfferConfig) *SubscriptionOfferOtherRegionsConfig {

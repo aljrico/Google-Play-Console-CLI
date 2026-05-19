@@ -2198,6 +2198,7 @@ gpc subscription-offers
 - `gpc subscription-offers batch-activate`: activate multiple subscription offers
 - `gpc subscription-offers batch-deactivate`: deactivate multiple subscription offers
 - `gpc subscription-offers batch-get`: Get multiple subscription offers
+- `gpc subscription-offers batch-patch-availability`: Batch patch subscription offer regional availability
 - `gpc subscription-offers deactivate`: deactivate a subscription offer
 - `gpc subscription-offers delete`: Delete a draft subscription offer
 - `gpc subscription-offers get`: Get one subscription offer
@@ -2267,6 +2268,24 @@ gpc subscription-offers batch-get [flags]
 - `--base-plan-id`: Parent subscription base plan ID, or - for offers across base plans
 - `--offer`: Offer to fetch as productId/basePlanId/offerId; repeatable, up to 100 (default `[]`)
 - `--product-id`: Parent subscription product ID, or - for offers across products
+
+#### gpc subscription-offers batch-patch-availability
+
+Batch patch subscription offer regional availability
+
+```sh
+gpc subscription-offers batch-patch-availability [flags]
+```
+
+##### Flags
+
+- `--availability`: Availability patch as productId/basePlanId/offerId/REGION:true|false; repeatable (default `[]`)
+- `--base-plan-id`: Parent subscription base plan ID, or - for offers across base plans; inferred when omitted
+- `--confirm`: Apply the subscription offer availability batch patch (default `false`)
+- `--dry-run`: Print the planned subscription offer availability batch patch without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
+- `--regions-version`: Google Play regions version required by subscriptionOffers.batchUpdate
 
 #### gpc subscription-offers deactivate
 
