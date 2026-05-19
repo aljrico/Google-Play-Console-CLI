@@ -13,7 +13,7 @@ func newNotifyCommand(out io.Writer, options *globalOptions) *cobra.Command {
 		Use:   "notify",
 		Short: "Send release workflow notifications",
 	}
-	cmd.AddCommand(newNotifySendCommand(out, options), newNotifyDiscordCommand(out, options), newNotifyGitHubCommand(out, options), newNotifySlackCommand(out, options), newNotifyTeamsCommand(out, options))
+	cmd.AddCommand(newNotifySendCommand(out, options), newNotifyDiscordCommand(out, options), newNotifyGitHubCommand(out, options), newNotifyGoogleChatCommand(out, options), newNotifySlackCommand(out, options), newNotifyTeamsCommand(out, options))
 	return cmd
 }
 
@@ -123,6 +123,33 @@ func newNotifyGitHubCommand(out io.Writer, options *globalOptions) *cobra.Comman
 		DryRun:         "Print the GitHub payload without sending",
 	})
 	cmd.Flags().StringVar(&sendOptions.EventType, "event-type", "gpc.notify", "GitHub repository dispatch event_type")
+	return cmd
+}
+
+func newNotifyGoogleChatCommand(out io.Writer, options *globalOptions) *cobra.Command {
+	sendOptions := newNotifySendOptions("notify google-chat")
+	cmd := &cobra.Command{
+		Use:   "google-chat",
+		Short: "Send a Google Chat incoming webhook notification",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := notify.SendGoogleChat(cmd.Context(), nil, sendOptions)
+			if result.Webhook == "" {
+				return err
+			}
+			if writeErr := output.Write(out, options.output, options.pretty, result); writeErr != nil {
+				return writeErr
+			}
+			return err
+		},
+	}
+	addNotifyFlags(cmd, &sendOptions, notifyFlagHelp{
+		WebhookURL:     "HTTPS Google Chat incoming webhook URL; http is allowed only for loopback hosts",
+		WebhookURLEnv:  "Environment variable containing the Google Chat incoming webhook URL",
+		WebhookURLFile: "File containing the Google Chat incoming webhook URL",
+		Confirm:        "Send the Google Chat webhook",
+		DryRun:         "Print the Google Chat payload without sending",
+	})
 	return cmd
 }
 

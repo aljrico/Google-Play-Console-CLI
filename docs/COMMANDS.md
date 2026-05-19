@@ -1233,6 +1233,7 @@ gpc notify
 
 - `gpc notify discord`: Send a Discord incoming webhook notification
 - `gpc notify github`: Send a GitHub repository dispatch-shaped webhook notification
+- `gpc notify google-chat`: Send a Google Chat incoming webhook notification
 - `gpc notify send`: Send a JSON notification webhook
 - `gpc notify slack`: Send a Slack incoming webhook notification
 - `gpc notify teams`: Send a Microsoft Teams Workflows webhook notification
@@ -1277,6 +1278,26 @@ gpc notify github [flags]
 - `--webhook-url`: HTTPS GitHub repository dispatch webhook URL; http is allowed only for loopback hosts
 - `--webhook-url-env`: Environment variable containing the GitHub repository dispatch webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
 - `--webhook-url-file`: File containing the GitHub repository dispatch webhook URL
+
+#### gpc notify google-chat
+
+Send a Google Chat incoming webhook notification
+
+```sh
+gpc notify google-chat [flags]
+```
+
+##### Flags
+
+- `--confirm`: Send the Google Chat webhook (default `false`)
+- `--dry-run`: Print the Google Chat payload without sending (default `false`)
+- `--field`: Notification field as name=value; repeatable (default `[]`)
+- `--message`: Notification message
+- `--severity`: Notification severity label
+- `--title`: Notification title
+- `--webhook-url`: HTTPS Google Chat incoming webhook URL; http is allowed only for loopback hosts
+- `--webhook-url-env`: Environment variable containing the Google Chat incoming webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-file`: File containing the Google Chat incoming webhook URL
 
 #### gpc notify send
 

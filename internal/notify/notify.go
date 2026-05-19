@@ -42,6 +42,10 @@ type TeamsPayload struct {
 	Text string `json:"text"`
 }
 
+type GoogleChatPayload struct {
+	Text string `json:"text"`
+}
+
 type DiscordPayload struct {
 	Content         string                 `json:"content"`
 	AllowedMentions DiscordAllowedMentions `json:"allowed_mentions"`
@@ -97,6 +101,15 @@ type TeamsSendResult struct {
 	Payload    TeamsPayload `json:"payload"`
 }
 
+type GoogleChatSendResult struct {
+	Webhook    string            `json:"webhook"`
+	Confirm    bool              `json:"confirm"`
+	DryRun     bool              `json:"dryRun"`
+	Delivered  bool              `json:"delivered"`
+	StatusCode int               `json:"statusCode,omitempty"`
+	Payload    GoogleChatPayload `json:"payload"`
+}
+
 type DiscordSendResult struct {
 	Webhook    string         `json:"webhook"`
 	Confirm    bool           `json:"confirm"`
@@ -125,6 +138,10 @@ type SlackSender interface {
 
 type TeamsSender interface {
 	SendTeams(ctx context.Context, webhookURL string, payload TeamsPayload) (int, error)
+}
+
+type GoogleChatSender interface {
+	SendGoogleChat(ctx context.Context, webhookURL string, payload GoogleChatPayload) (int, error)
 }
 
 type DiscordSender interface {
@@ -233,6 +250,40 @@ func SendTeams(ctx context.Context, sender TeamsSender, options SendOptions) (Te
 		sender = WebhookSender{}
 	}
 	statusCode, err := sender.SendTeams(ctx, resolvedURL, payload)
+	result.StatusCode = statusCode
+	if err != nil {
+		return result, err
+	}
+	result.Delivered = true
+	return result, nil
+}
+
+func SendGoogleChat(ctx context.Context, sender GoogleChatSender, options SendOptions) (GoogleChatSendResult, error) {
+	resolvedURL, err := options.ResolvedWebhookURL()
+	if err != nil {
+		return GoogleChatSendResult{}, err
+	}
+	if err := options.ValidateWebhookURL(resolvedURL); err != nil {
+		return GoogleChatSendResult{}, err
+	}
+	payload, err := options.GoogleChatPayload()
+	if err != nil {
+		return GoogleChatSendResult{}, err
+	}
+	result := GoogleChatSendResult{
+		Webhook:   RedactedURL(resolvedURL),
+		Confirm:   options.Confirm,
+		DryRun:    options.DryRun,
+		Delivered: false,
+		Payload:   payload,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if sender == nil {
+		sender = WebhookSender{}
+	}
+	statusCode, err := sender.SendGoogleChat(ctx, resolvedURL, payload)
 	result.StatusCode = statusCode
 	if err != nil {
 		return result, err
@@ -448,6 +499,14 @@ func (o SendOptions) TeamsPayload() (TeamsPayload, error) {
 	return teamsPayload, nil
 }
 
+func (o SendOptions) GoogleChatPayload() (GoogleChatPayload, error) {
+	payload, err := o.Payload()
+	if err != nil {
+		return GoogleChatPayload{}, err
+	}
+	return GoogleChatPayload{Text: PlainText(payload)}, nil
+}
+
 func (o SendOptions) GitHubPayload() (GitHubPayload, error) {
 	payload, err := o.Payload()
 	if err != nil {
@@ -585,6 +644,10 @@ func (s WebhookSender) SendTeams(ctx context.Context, webhookURL string, payload
 		return statusCode, fmt.Errorf("Teams notification webhook returned status %d in response body", statusCode)
 	}
 	return response.StatusCode, nil
+}
+
+func (s WebhookSender) SendGoogleChat(ctx context.Context, webhookURL string, payload GoogleChatPayload) (int, error) {
+	return s.sendJSON(ctx, webhookURL, payload)
 }
 
 func (s WebhookSender) SendDiscord(ctx context.Context, webhookURL string, payload DiscordPayload) (int, error) {
