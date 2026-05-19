@@ -1031,7 +1031,7 @@ func TestGooglePublisherPatchSubscriptionMergesListingsBeforePatch(t *testing.T)
 				"productId": "premium",
 				"listings": [
 					{"languageCode": "en-US", "title": "Premium", "description": "Old English", "benefits": ["Old benefit"]},
-					{"languageCode": "es-ES", "title": "Premium ES", "description": "Spanish"}
+					{"languageCode": "es-ES", "title": "Premium ES", "description": "Spanish", "benefits": ["Beneficio anterior"]}
 				]
 			}`)
 		case 2:
@@ -1072,7 +1072,7 @@ func TestGooglePublisherPatchSubscriptionMergesListingsBeforePatch(t *testing.T)
 				"productId": "premium",
 				"listings": [
 					{"languageCode": "en-US", "title": "Premium Plus", "description": "Old English", "benefits": ["Old benefit"]},
-					{"languageCode": "es-ES", "title": "Premium ES", "description": "Spanish"}
+					{"languageCode": "es-ES", "title": "Premium ES", "description": "Spanish", "benefits": ["Beneficio anterior"]}
 				]
 			}`)
 		default:
@@ -1099,6 +1099,115 @@ func TestGooglePublisherPatchSubscriptionMergesListingsBeforePatch(t *testing.T)
 	}
 	if len(subscription.Listings) != 2 || subscription.Listings[0].Title != "Premium Plus" || subscription.Listings[0].Description != "Old English" {
 		t.Fatalf("Listings = %#v, want patched listing", subscription.Listings)
+	}
+}
+
+func TestGooglePublisherBatchPatchSubscriptionListingsUsesBatchUpdateEndpoint(t *testing.T) {
+	var requestCount int
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		switch requestCount {
+		case 1:
+			if r.Method != http.MethodGet {
+				t.Fatalf("method = %s, want GET", r.Method)
+			}
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium" {
+				t.Fatalf("path = %q, want premium get endpoint", r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{
+				"packageName": "com.example.app",
+				"productId": "premium",
+				"listings": [
+					{"languageCode": "en-US", "title": "Premium", "description": "Old English", "benefits": ["Old benefit"]},
+					{"languageCode": "es-ES", "title": "Premium ES", "description": "Spanish", "benefits": ["Beneficio anterior"]}
+				]
+			}`)
+		case 2:
+			if r.Method != http.MethodGet {
+				t.Fatalf("method = %s, want GET", r.Method)
+			}
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/vip" {
+				t.Fatalf("path = %q, want vip get endpoint", r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{
+				"packageName": "com.example.app",
+				"productId": "vip",
+				"listings": [{"languageCode": "en-US", "title": "VIP", "description": "Old VIP"}]
+			}`)
+		case 3:
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST", r.Method)
+			}
+			if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions:batchUpdate" {
+				t.Fatalf("path = %q, want subscriptions batchUpdate endpoint", r.URL.Path)
+			}
+			var request androidpublisher.BatchUpdateSubscriptionsRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatalf("Decode() error = %v", err)
+			}
+			if len(request.Requests) != 2 {
+				t.Fatalf("len(Requests) = %d, want 2", len(request.Requests))
+			}
+			first := request.Requests[0]
+			if first.UpdateMask != "listings" {
+				t.Fatalf("UpdateMask = %q, want listings", first.UpdateMask)
+			}
+			if first.RegionsVersion == nil || first.RegionsVersion.Version != "2026/05" {
+				t.Fatalf("RegionsVersion = %#v, want 2026/05", first.RegionsVersion)
+			}
+			if first.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+				t.Fatalf("LatencyTolerance = %q, want tolerant", first.LatencyTolerance)
+			}
+			if first.Subscription.ProductId != "premium" || len(first.Subscription.Listings) != 2 {
+				t.Fatalf("first subscription = %#v, want merged premium listings", first.Subscription)
+			}
+			if first.Subscription.Listings[0].Title != "Premium Plus" || first.Subscription.Listings[0].Description != "Full access" {
+				t.Fatalf("premium English listing = %#v, want patched listing", first.Subscription.Listings[0])
+			}
+			if !reflect.DeepEqual(first.Subscription.Listings[0].Benefits, []string{"Old benefit"}) {
+				t.Fatalf("premium English listing = %#v, want preserved benefits", first.Subscription.Listings[0])
+			}
+			if first.Subscription.Listings[1].LanguageCode != "es-ES" || first.Subscription.Listings[1].Title != "Premium Mas" {
+				t.Fatalf("premium listings = %#v, want patched Spanish listing", first.Subscription.Listings)
+			}
+			if !reflect.DeepEqual(first.Subscription.Listings[1].Benefits, []string{"Beneficio anterior"}) {
+				t.Fatalf("premium Spanish listing = %#v, want preserved benefits", first.Subscription.Listings[1])
+			}
+			second := request.Requests[1]
+			if second.Subscription.ProductId != "vip" || second.Subscription.Listings[0].Title != "VIP Plus" {
+				t.Fatalf("second subscription = %#v, want patched VIP listing", second.Subscription)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"subscriptions":[
+				{"packageName":"com.example.app","productId":"premium","listings":[{"languageCode":"en-US","title":"Premium Plus","description":"Full access"},{"languageCode":"es-ES","title":"Premium Mas","description":"Acceso completo"}]},
+				{"packageName":"com.example.app","productId":"vip","listings":[{"languageCode":"en-US","title":"VIP Plus","description":"All access"}]}
+			]}`)
+		default:
+			t.Fatalf("unexpected request %d: %s %s", requestCount, r.Method, r.URL.Path)
+		}
+	}))
+
+	result, err := publisher.BatchPatchSubscriptionListings(context.Background(), SubscriptionBatchPatchListingsOptions{
+		PackageName: "com.example.app",
+		Requests: []SubscriptionBatchPatchListingRequest{
+			{ProductID: "premium", Listing: SubscriptionListing{LanguageCode: "en-US", Title: "Premium Plus", Description: "Full access"}},
+			{ProductID: "premium", Listing: SubscriptionListing{LanguageCode: "es-ES", Title: "Premium Mas", Description: "Acceso completo"}},
+			{ProductID: "vip", Listing: SubscriptionListing{LanguageCode: "en-US", Title: "VIP Plus", Description: "All access"}},
+		},
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchSubscriptionListings() error = %v", err)
+	}
+	if requestCount != 3 {
+		t.Fatalf("requestCount = %d, want two gets plus batch update", requestCount)
+	}
+	if len(result.Subscriptions) != 2 || result.Subscriptions[0].ProductID != "premium" || result.Subscriptions[1].ProductID != "vip" {
+		t.Fatalf("Subscriptions = %#v, want updated subscriptions", result.Subscriptions)
 	}
 }
 

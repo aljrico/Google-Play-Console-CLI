@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/csv"
 	"fmt"
 	"io"
 	"strings"
@@ -23,10 +24,118 @@ func newSubscriptionsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 		newSubscriptionsGetCommand(out, options, &packageName),
 		newSubscriptionsBatchGetCommand(out, options, &packageName),
 		newSubscriptionsPatchCommand(out, options, &packageName),
+		newSubscriptionsBatchPatchListingsCommand(out, options, &packageName),
 		newSubscriptionsDeleteCommand(out, options, &packageName),
 		newSubscriptionsBasePlanCommand(out, options, &packageName),
 	)
 	return cmd
+}
+
+func newSubscriptionsBatchPatchListingsCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		listings         []string
+		regionsVersion   string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-patch-listings",
+		Short: "Batch patch localized subscription listings",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			requests, err := parseSubscriptionBatchListingPatches(listings)
+			if err != nil {
+				return err
+			}
+			patchOptions := play.SubscriptionBatchPatchListingsOptions{
+				PackageName:      typedPackageName,
+				Requests:         requests,
+				RegionsVersion:   regionsVersion,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.BatchPatchSubscriptionListings(cmd.Context(), nil, patchOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewSubscriptionBatchPatchListingsPlan(patchOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchPatchSubscriptionListings(cmd.Context(), publisher, patchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringArrayVar(&listings, "listing", nil, "CSV listing patch productId,language,title,description; repeat for multiple localized listings")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by subscriptions.batchUpdate")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the subscription listing batch patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription listing batch patch without calling Google Play")
+	return cmd
+}
+
+func parseSubscriptionBatchListingPatches(values []string) ([]play.SubscriptionBatchPatchListingRequest, error) {
+	requests := make([]play.SubscriptionBatchPatchListingRequest, 0, len(values))
+	for _, value := range values {
+		request, err := parseSubscriptionBatchListingPatch(value)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, nil
+}
+
+func parseSubscriptionBatchListingPatch(value string) (play.SubscriptionBatchPatchListingRequest, error) {
+	reader := csv.NewReader(strings.NewReader(value))
+	reader.TrimLeadingSpace = true
+	records, err := reader.ReadAll()
+	if err != nil {
+		return play.SubscriptionBatchPatchListingRequest{}, fmt.Errorf("parse subscription listing CSV: %w", err)
+	}
+	if len(records) != 1 {
+		return play.SubscriptionBatchPatchListingRequest{}, fmt.Errorf("subscription listing must contain exactly one CSV record")
+	}
+	fields := records[0]
+	if len(fields) != 4 {
+		return play.SubscriptionBatchPatchListingRequest{}, fmt.Errorf("subscription listing must be CSV productId,language,title,description")
+	}
+	productID, err := play.NewSubscriptionProductID(fields[0])
+	if err != nil {
+		return play.SubscriptionBatchPatchListingRequest{}, err
+	}
+	language, err := play.NewListingLanguage(fields[1])
+	if err != nil {
+		return play.SubscriptionBatchPatchListingRequest{}, err
+	}
+	return play.SubscriptionBatchPatchListingRequest{
+		ProductID: productID,
+		Listing: play.SubscriptionListing{
+			LanguageCode: language.String(),
+			Title:        fields[2],
+			Description:  fields[3],
+		},
+	}, nil
 }
 
 func newSubscriptionsBasePlanCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {

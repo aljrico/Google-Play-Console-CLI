@@ -415,6 +415,20 @@ type SubscriptionPatchOptions struct {
 	DryRun           bool                          `json:"dryRun"`
 }
 
+type SubscriptionBatchPatchListingRequest struct {
+	ProductID SubscriptionProductID `json:"productId"`
+	Listing   SubscriptionListing   `json:"listing"`
+}
+
+type SubscriptionBatchPatchListingsOptions struct {
+	PackageName      PackageName                            `json:"packageName"`
+	Requests         []SubscriptionBatchPatchListingRequest `json:"requests"`
+	RegionsVersion   string                                 `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance          `json:"latencyTolerance"`
+	Confirm          bool                                   `json:"confirm"`
+	DryRun           bool                                   `json:"dryRun"`
+}
+
 func (o SubscriptionPatchOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
@@ -454,6 +468,67 @@ func (o SubscriptionPatchOptions) ValidateLive() error {
 		return fmt.Errorf("live subscription patch requires --confirm")
 	}
 	return nil
+}
+
+func (o SubscriptionBatchPatchListingsOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if len(o.Requests) == 0 {
+		return fmt.Errorf("at least one subscription listing patch is required")
+	}
+	seenListings := map[string]struct{}{}
+	seenProducts := map[SubscriptionProductID]struct{}{}
+	for _, request := range o.Requests {
+		if _, err := NewSubscriptionProductID(request.ProductID.String()); err != nil {
+			return err
+		}
+		if err := validateSubscriptionListing(request.Listing); err != nil {
+			return err
+		}
+		key := subscriptionBatchPatchListingKey(request.ProductID, request.Listing.LanguageCode)
+		if _, ok := seenListings[key]; ok {
+			return fmt.Errorf("subscription listing %s is duplicated", key)
+		}
+		seenListings[key] = struct{}{}
+		seenProducts[request.ProductID] = struct{}{}
+	}
+	if len(seenProducts) > 100 {
+		return fmt.Errorf("subscription listing batch patch cannot exceed 100 subscriptions")
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("subscription listing batch patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o SubscriptionBatchPatchListingsOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live subscription listing batch patch cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live subscription listing batch patch requires --confirm")
+	}
+	return nil
+}
+
+func subscriptionBatchPatchListingKey(productID SubscriptionProductID, languageCode string) string {
+	return productID.String() + "/" + languageCode
 }
 
 func validateSubscriptionListing(listing SubscriptionListing) error {
@@ -778,6 +853,16 @@ type SubscriptionPatchPlan struct {
 	Steps            []string                      `json:"steps"`
 }
 
+type SubscriptionBatchPatchListingsPlan struct {
+	PackageName      PackageName                            `json:"packageName"`
+	Requests         []SubscriptionBatchPatchListingRequest `json:"requests"`
+	UpdateMask       string                                 `json:"updateMask"`
+	RegionsVersion   string                                 `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance          `json:"latencyTolerance"`
+	Confirm          bool                                   `json:"confirm"`
+	Steps            []string                               `json:"steps"`
+}
+
 type SubscriptionPatchResult struct {
 	PackageName  PackageName           `json:"packageName"`
 	ProductID    SubscriptionProductID `json:"productId"`
@@ -786,6 +871,15 @@ type SubscriptionPatchResult struct {
 	Desired      Subscription          `json:"desiredSubscription"`
 	Subscription *Subscription         `json:"subscription,omitempty"`
 	Plan         SubscriptionPatchPlan `json:"plan"`
+}
+
+type SubscriptionBatchPatchListingsResult struct {
+	PackageName   PackageName                        `json:"packageName"`
+	DryRun        bool                               `json:"dryRun"`
+	Applied       bool                               `json:"applied"`
+	Desired       []Subscription                     `json:"desiredSubscriptions"`
+	Subscriptions []Subscription                     `json:"subscriptions,omitempty"`
+	Plan          SubscriptionBatchPatchListingsPlan `json:"plan"`
 }
 
 type BasePlanStateUpdater interface {
@@ -804,6 +898,10 @@ type SubscriptionPatcher interface {
 	PatchSubscription(ctx context.Context, options SubscriptionPatchOptions) (Subscription, error)
 }
 
+type SubscriptionBatchListingsPatcher interface {
+	BatchPatchSubscriptionListings(ctx context.Context, options SubscriptionBatchPatchListingsOptions) (SubscriptionBatchPatchListingsResult, error)
+}
+
 func NewSubscriptionPatchPlan(options SubscriptionPatchOptions) (SubscriptionPatchPlan, error) {
 	if err := options.Validate(); err != nil {
 		return SubscriptionPatchPlan{}, err
@@ -819,6 +917,21 @@ func NewSubscriptionPatchPlan(options SubscriptionPatchOptions) (SubscriptionPat
 		LatencyTolerance: options.LatencyTolerance,
 		Confirm:          options.Confirm,
 		Steps:            subscriptionPatchSteps(options),
+	}, nil
+}
+
+func NewSubscriptionBatchPatchListingsPlan(options SubscriptionBatchPatchListingsOptions) (SubscriptionBatchPatchListingsPlan, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionBatchPatchListingsPlan{}, err
+	}
+	return SubscriptionBatchPatchListingsPlan{
+		PackageName:      options.PackageName,
+		Requests:         options.Requests,
+		UpdateMask:       subscriptionPatchUpdateMask,
+		RegionsVersion:   options.RegionsVersion,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            subscriptionBatchPatchListingsSteps(options),
 	}, nil
 }
 
@@ -853,6 +966,56 @@ func PatchSubscription(ctx context.Context, patcher SubscriptionPatcher, options
 	result.Applied = true
 	result.Subscription = &subscription
 	return result, nil
+}
+
+func BatchPatchSubscriptionListings(ctx context.Context, patcher SubscriptionBatchListingsPatcher, options SubscriptionBatchPatchListingsOptions) (SubscriptionBatchPatchListingsResult, error) {
+	plan, err := NewSubscriptionBatchPatchListingsPlan(options)
+	if err != nil {
+		return SubscriptionBatchPatchListingsResult{}, err
+	}
+	result := SubscriptionBatchPatchListingsResult{
+		PackageName: options.PackageName,
+		DryRun:      options.DryRun,
+		Applied:     false,
+		Desired:     desiredSubscriptionsForBatchListingPatch(options),
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if patcher == nil {
+		return SubscriptionBatchPatchListingsResult{}, fmt.Errorf("subscription listing batch patcher is required")
+	}
+	liveResult, err := patcher.BatchPatchSubscriptionListings(ctx, options)
+	if err != nil {
+		return SubscriptionBatchPatchListingsResult{}, err
+	}
+	liveResult.PackageName = options.PackageName
+	liveResult.DryRun = false
+	liveResult.Applied = true
+	liveResult.Desired = result.Desired
+	liveResult.Plan = plan
+	return liveResult, nil
+}
+
+func desiredSubscriptionsForBatchListingPatch(options SubscriptionBatchPatchListingsOptions) []Subscription {
+	byProduct := map[SubscriptionProductID]int{}
+	subscriptions := make([]Subscription, 0)
+	for _, request := range options.Requests {
+		index, ok := byProduct[request.ProductID]
+		if !ok {
+			byProduct[request.ProductID] = len(subscriptions)
+			subscriptions = append(subscriptions, Subscription{
+				PackageName: options.PackageName,
+				ProductID:   request.ProductID,
+				Listings:    []SubscriptionListing{},
+				BasePlans:   []SubscriptionBasePlan{},
+			})
+			index = len(subscriptions) - 1
+		}
+		subscriptions[index].Listings = append(subscriptions[index].Listings, request.Listing)
+	}
+	return subscriptions
 }
 
 func NewBasePlanStateUpdatePlan(options BasePlanStateUpdateOptions) (BasePlanStateUpdatePlan, error) {
@@ -1021,4 +1184,11 @@ func subscriptionPatchSteps(options SubscriptionPatchOptions) []string {
 		return []string{"plan subscription listing patch"}
 	}
 	return []string{"fetch current subscription", "merge localized listing", "patch subscription listings"}
+}
+
+func subscriptionBatchPatchListingsSteps(options SubscriptionBatchPatchListingsOptions) []string {
+	if options.DryRun {
+		return []string{"plan subscription listing batch patch"}
+	}
+	return []string{"fetch current subscriptions", "merge localized listings", "batch patch subscription listings"}
 }

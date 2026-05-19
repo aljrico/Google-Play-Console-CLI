@@ -2324,6 +2324,7 @@ gpc subscriptions
 
 - `gpc subscriptions base-plan`: Manage subscription base plans
 - `gpc subscriptions batch-get`: Get multiple monetization subscriptions
+- `gpc subscriptions batch-patch-listings`: Batch patch localized subscription listings
 - `gpc subscriptions delete`: Delete a draft-only monetization subscription
 - `gpc subscriptions get`: Get one monetization subscription
 - `gpc subscriptions list`: List monetization subscriptions
@@ -2440,6 +2441,22 @@ gpc subscriptions batch-get [flags]
 ##### Flags
 
 - `--product-id`: Subscription product ID; repeatable, up to 100 (default `[]`)
+
+#### gpc subscriptions batch-patch-listings
+
+Batch patch localized subscription listings
+
+```sh
+gpc subscriptions batch-patch-listings [flags]
+```
+
+##### Flags
+
+- `--confirm`: Apply the subscription listing batch patch (default `false`)
+- `--dry-run`: Print the planned subscription listing batch patch without calling Google Play (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--listing`: CSV listing patch productId,language,title,description; repeat for multiple localized listings (default `[]`)
+- `--regions-version`: Google Play regions version required by subscriptions.batchUpdate
 
 #### gpc subscriptions delete
 

@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -626,20 +627,138 @@ func TestPatchSubscriptionPassesOptionsToPatcher(t *testing.T) {
 	}
 }
 
+func TestBatchPatchSubscriptionListingsDryRunBuildsPlanWithoutPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchPatchSubscriptionListings(context.Background(), nil, SubscriptionBatchPatchListingsOptions{
+		PackageName: packageName,
+		Requests: []SubscriptionBatchPatchListingRequest{
+			{ProductID: "premium", Listing: SubscriptionListing{LanguageCode: "en-US", Title: "Premium", Description: "Full access"}},
+			{ProductID: "vip", Listing: SubscriptionListing{LanguageCode: "es-ES", Title: "VIP", Description: "Acceso completo"}},
+		},
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchSubscriptionListings() error = %v", err)
+	}
+	if !result.DryRun || result.Applied {
+		t.Fatalf("result = %#v, want dry-run batch patch", result)
+	}
+	if len(result.Desired) != 2 {
+		t.Fatalf("len(Desired) = %d, want 2", len(result.Desired))
+	}
+	wantSteps := []string{"plan subscription listing batch patch"}
+	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
+		t.Fatalf("steps = %#v, want %#v", result.Plan.Steps, wantSteps)
+	}
+}
+
+func TestBatchPatchSubscriptionListingsRejectsDuplicateProductLanguage(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = NewSubscriptionBatchPatchListingsPlan(SubscriptionBatchPatchListingsOptions{
+		PackageName: packageName,
+		Requests: []SubscriptionBatchPatchListingRequest{
+			{ProductID: "premium", Listing: SubscriptionListing{LanguageCode: "en-US", Title: "Premium", Description: "Full access"}},
+			{ProductID: "premium", Listing: SubscriptionListing{LanguageCode: "en-US", Title: "Premium 2", Description: "Full access"}},
+		},
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate listing validation error")
+	}
+}
+
+func TestBatchPatchSubscriptionListingsAllowsMoreThanOneHundredListingsAcrossFewerSubscriptions(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	requests := make([]SubscriptionBatchPatchListingRequest, 0, 102)
+	for productIndex := 0; productIndex < 51; productIndex++ {
+		productID := SubscriptionProductID(fmt.Sprintf("premium%d", productIndex))
+		requests = append(requests,
+			SubscriptionBatchPatchListingRequest{
+				ProductID: productID,
+				Listing:   SubscriptionListing{LanguageCode: "en-US", Title: "Premium", Description: "Full access"},
+			},
+			SubscriptionBatchPatchListingRequest{
+				ProductID: productID,
+				Listing:   SubscriptionListing{LanguageCode: "es-ES", Title: "Premium", Description: "Acceso completo"},
+			},
+		)
+	}
+
+	_, err = NewSubscriptionBatchPatchListingsPlan(SubscriptionBatchPatchListingsOptions{
+		PackageName:      packageName,
+		Requests:         requests,
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("NewSubscriptionBatchPatchListingsPlan() error = %v", err)
+	}
+}
+
+func TestBatchPatchSubscriptionListingsPassesOptionsToPatcher(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	patcher := &fakeSubscriptionClient{
+		batchPatchListingsResult: SubscriptionBatchPatchListingsResult{
+			Subscriptions: []Subscription{{ProductID: "premium"}},
+		},
+	}
+	options := SubscriptionBatchPatchListingsOptions{
+		PackageName: packageName,
+		Requests: []SubscriptionBatchPatchListingRequest{
+			{ProductID: "premium", Listing: SubscriptionListing{LanguageCode: "en-US", Title: "Premium", Description: "Full access"}},
+		},
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := BatchPatchSubscriptionListings(context.Background(), patcher, options)
+	if err != nil {
+		t.Fatalf("BatchPatchSubscriptionListings() error = %v", err)
+	}
+	if !result.Applied {
+		t.Fatal("Applied = false, want true")
+	}
+	if !reflect.DeepEqual(patcher.batchPatchListingsOptions, options) {
+		t.Fatalf("batchPatchListingsOptions = %#v, want %#v", patcher.batchPatchListingsOptions, options)
+	}
+}
+
 type fakeSubscriptionClient struct {
-	listOptions           SubscriptionListOptions
-	listResult            SubscriptionListResult
-	batchOptions          SubscriptionBatchGetOptions
-	batchResult           SubscriptionBatchGetResult
-	deleteOptions         SubscriptionDeleteOptions
-	patchOptions          SubscriptionPatchOptions
-	productID             SubscriptionProductID
-	subscription          Subscription
-	stateOptions          BasePlanStateUpdateOptions
-	batchStateOptions     BasePlanBatchStateUpdateOptions
-	batchStateResult      BasePlanBatchStateUpdateResult
-	priceMigrationOptions BasePlanBatchPriceMigrationOptions
-	priceMigrationResult  BasePlanBatchPriceMigrationResult
+	listOptions               SubscriptionListOptions
+	listResult                SubscriptionListResult
+	batchOptions              SubscriptionBatchGetOptions
+	batchResult               SubscriptionBatchGetResult
+	deleteOptions             SubscriptionDeleteOptions
+	patchOptions              SubscriptionPatchOptions
+	batchPatchListingsOptions SubscriptionBatchPatchListingsOptions
+	batchPatchListingsResult  SubscriptionBatchPatchListingsResult
+	productID                 SubscriptionProductID
+	subscription              Subscription
+	stateOptions              BasePlanStateUpdateOptions
+	batchStateOptions         BasePlanBatchStateUpdateOptions
+	batchStateResult          BasePlanBatchStateUpdateResult
+	priceMigrationOptions     BasePlanBatchPriceMigrationOptions
+	priceMigrationResult      BasePlanBatchPriceMigrationResult
 }
 
 func (c *fakeSubscriptionClient) ListSubscriptions(ctx context.Context, options SubscriptionListOptions) (SubscriptionListResult, error) {
@@ -680,4 +799,9 @@ func (c *fakeSubscriptionClient) BatchMigrateBasePlanPrices(ctx context.Context,
 func (c *fakeSubscriptionClient) PatchSubscription(ctx context.Context, options SubscriptionPatchOptions) (Subscription, error) {
 	c.patchOptions = options
 	return c.subscription, nil
+}
+
+func (c *fakeSubscriptionClient) BatchPatchSubscriptionListings(ctx context.Context, options SubscriptionBatchPatchListingsOptions) (SubscriptionBatchPatchListingsResult, error) {
+	c.batchPatchListingsOptions = options
+	return c.batchPatchListingsResult, nil
 }

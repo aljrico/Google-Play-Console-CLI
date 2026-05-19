@@ -963,6 +963,70 @@ func (p GooglePublisher) PatchSubscription(ctx context.Context, options Subscrip
 	return subscriptionFromAPI(subscription), nil
 }
 
+func (p GooglePublisher) BatchPatchSubscriptionListings(ctx context.Context, options SubscriptionBatchPatchListingsOptions) (SubscriptionBatchPatchListingsResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return SubscriptionBatchPatchListingsResult{}, err
+	}
+	requestsByProduct := subscriptionBatchListingPatchRequestsByProduct(options.Requests)
+	request := &androidpublisher.BatchUpdateSubscriptionsRequest{
+		Requests: make([]*androidpublisher.UpdateSubscriptionRequest, 0, len(requestsByProduct)),
+	}
+	for _, productPatch := range requestsByProduct {
+		current, err := p.service.Monetization.Subscriptions.Get(options.PackageName.String(), productPatch.ProductID.String()).Context(ctx).Do()
+		if err != nil {
+			return SubscriptionBatchPatchListingsResult{}, fmt.Errorf("get subscription %s for %s before batch patch: %w", productPatch.ProductID, options.PackageName, err)
+		}
+		mergedListings := mergeSubscriptionListingPatches(subscriptionListingsFromAPI(current.Listings), productPatch.Requests)
+		request.Requests = append(request.Requests, &androidpublisher.UpdateSubscriptionRequest{
+			Subscription: &androidpublisher.Subscription{
+				PackageName: options.PackageName.String(),
+				ProductId:   productPatch.ProductID.String(),
+				Listings:    subscriptionListingsToAPI(mergedListings),
+			},
+			UpdateMask:       subscriptionPatchUpdateMask,
+			RegionsVersion:   &androidpublisher.RegionsVersion{Version: options.RegionsVersion},
+			LatencyTolerance: productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+		})
+	}
+	response, err := p.service.Monetization.Subscriptions.BatchUpdate(options.PackageName.String(), request).Context(ctx).Do()
+	if err != nil {
+		return SubscriptionBatchPatchListingsResult{}, fmt.Errorf("batch patch subscription listings for %s: %w", options.PackageName, err)
+	}
+	subscriptions := make([]Subscription, 0)
+	if response != nil {
+		subscriptions = make([]Subscription, 0, len(response.Subscriptions))
+		for _, apiSubscription := range response.Subscriptions {
+			subscriptions = append(subscriptions, subscriptionFromAPI(apiSubscription))
+		}
+	}
+	return SubscriptionBatchPatchListingsResult{
+		PackageName:   options.PackageName,
+		DryRun:        false,
+		Applied:       true,
+		Subscriptions: subscriptions,
+	}, nil
+}
+
+type subscriptionBatchListingPatchProduct struct {
+	ProductID SubscriptionProductID
+	Requests  []SubscriptionBatchPatchListingRequest
+}
+
+func subscriptionBatchListingPatchRequestsByProduct(requests []SubscriptionBatchPatchListingRequest) []subscriptionBatchListingPatchProduct {
+	byProduct := map[SubscriptionProductID]int{}
+	products := make([]subscriptionBatchListingPatchProduct, 0)
+	for _, request := range requests {
+		index, ok := byProduct[request.ProductID]
+		if !ok {
+			byProduct[request.ProductID] = len(products)
+			products = append(products, subscriptionBatchListingPatchProduct{ProductID: request.ProductID})
+			index = len(products) - 1
+		}
+		products[index].Requests = append(products[index].Requests, request)
+	}
+	return products
+}
+
 func (p GooglePublisher) UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error) {
 	if err := options.ValidateLive(); err != nil {
 		return Subscription{}, err
@@ -3137,6 +3201,33 @@ func mergeSubscriptionListing(current SubscriptionListing, options SubscriptionP
 		current.Benefits = options.Listing.Benefits
 	}
 	return current
+}
+
+func mergeSubscriptionListingPatches(current []SubscriptionListing, patches []SubscriptionBatchPatchListingRequest) []SubscriptionListing {
+	merged := append([]SubscriptionListing(nil), current...)
+	for _, patch := range patches {
+		merged = mergeSubscriptionListingPatch(merged, patch.Listing)
+	}
+	return merged
+}
+
+func mergeSubscriptionListingPatch(current []SubscriptionListing, patch SubscriptionListing) []SubscriptionListing {
+	merged := make([]SubscriptionListing, 0, len(current)+1)
+	replaced := false
+	for _, listing := range current {
+		if listing.LanguageCode == patch.LanguageCode {
+			listing.Title = patch.Title
+			listing.Description = patch.Description
+			merged = append(merged, listing)
+			replaced = true
+			continue
+		}
+		merged = append(merged, listing)
+	}
+	if !replaced {
+		merged = append(merged, patch)
+	}
+	return merged
 }
 
 func subscriptionBasePlansFromAPI(apiBasePlans []*androidpublisher.BasePlan) []SubscriptionBasePlan {
