@@ -8,7 +8,7 @@ import (
 )
 
 func TestInternalSharingUploadDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -34,7 +34,7 @@ func TestInternalSharingUploadDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestInternalSharingUploadRejectsMissingArtifactBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -62,7 +62,7 @@ func TestInternalSharingUploadRejectsMissingArtifactBeforeAuth(t *testing.T) {
 }
 
 func TestInternalSharingUploadRejectsDirectoryArtifactBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	artifactPath := t.TempDir() + "/directory.apk"
 	if err := os.Mkdir(artifactPath, 0o755); err != nil {
 		t.Fatalf("Mkdir() error = %v", err)

@@ -41,7 +41,7 @@ func TestSendDryRunDoesNotCallSender(t *testing.T) {
 }
 
 func TestSendReadsWebhookURLFromEnvironment(t *testing.T) {
-	t.Setenv("PLAYPUB_NOTIFY_WEBHOOK_URL", "https://example.com/hook")
+	t.Setenv("GPC_NOTIFY_WEBHOOK_URL", "https://example.com/hook")
 	result, err := Send(context.Background(), failingSender{}, SendOptions{
 		Message: "Release staged",
 		DryRun:  true,
@@ -486,7 +486,7 @@ func TestSendGitHubDryRunBuildsRepositoryDispatchPayload(t *testing.T) {
 	result, err := SendGitHub(context.Background(), sender, SendOptions{
 		CommandPath: "notify github",
 		WebhookURL:  "https://api.github.com/repos/example/project/dispatches?token=secret#fragment-secret",
-		EventType:   "playpub.release",
+		EventType:   "gpc.release",
 		Title:       "Release",
 		Message:     "Internal release staged",
 		Severity:    "info",
@@ -499,8 +499,8 @@ func TestSendGitHubDryRunBuildsRepositoryDispatchPayload(t *testing.T) {
 	if result.Delivered {
 		t.Fatalf("Delivered = true, want false")
 	}
-	if result.Payload.EventType != "playpub.release" {
-		t.Fatalf("EventType = %q, want playpub.release", result.Payload.EventType)
+	if result.Payload.EventType != "gpc.release" {
+		t.Fatalf("EventType = %q, want gpc.release", result.Payload.EventType)
 	}
 	if result.Payload.ClientPayload.Message != "Internal release staged" || result.Payload.ClientPayload.Fields[0].Name != "track" {
 		t.Fatalf("Payload = %#v, want client payload", result.Payload)
@@ -531,7 +531,7 @@ func TestSendGitHubPostsRepositoryDispatchWebhook(t *testing.T) {
 	result, err := SendGitHub(context.Background(), WebhookSender{Client: server.Client()}, SendOptions{
 		CommandPath: "notify github",
 		WebhookURL:  server.URL + "/repos/example/project/dispatches?token=secret",
-		EventType:   "playpub.release",
+		EventType:   "gpc.release",
 		Message:     "Release shipped",
 		Confirm:     true,
 	})
@@ -541,7 +541,7 @@ func TestSendGitHubPostsRepositoryDispatchWebhook(t *testing.T) {
 	if !result.Delivered || result.StatusCode != http.StatusNoContent {
 		t.Fatalf("result = %#v, want delivered 204", result)
 	}
-	if gotPayload.EventType != "playpub.release" || gotPayload.ClientPayload.Message != "Release shipped" {
+	if gotPayload.EventType != "gpc.release" || gotPayload.ClientPayload.Message != "Release shipped" {
 		t.Fatalf("payload = %#v, want repository dispatch payload", gotPayload)
 	}
 	if strings.Contains(result.Webhook, "secret") {

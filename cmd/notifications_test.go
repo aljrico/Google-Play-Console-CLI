@@ -10,7 +10,7 @@ import (
 )
 
 func TestNotificationsRTDNDecodeOutputsKindWithoutAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	notification := `{"version":"1.0","packageName":"com.example.app","eventTimeMillis":1700000000000,"testNotification":{"version":"1.0"}}`
 	payload := fmt.Sprintf(`{"message":{"data":%q,"messageId":"136969346945"},"subscription":"projects/example/subscriptions/play-rtdn"}`, base64.StdEncoding.EncodeToString([]byte(notification)))
 	path := writeRootTestPathContent(t, filepath.Join(t.TempDir(), "pubsub.json"), payload)
@@ -47,7 +47,7 @@ func TestNotificationsRTDNDecodeOutputsKindWithoutAuth(t *testing.T) {
 }
 
 func TestNotificationsPubSubSetupDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -89,7 +89,7 @@ func TestNotificationsPubSubSetupDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestNotificationsPubSubPullRejectsAckWithoutConfirmBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

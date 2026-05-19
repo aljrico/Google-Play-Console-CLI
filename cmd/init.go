@@ -17,7 +17,7 @@ func newInitCommand(out io.Writer, options *globalOptions) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "Create a local playpub workspace",
+		Short: "Create a local gpc workspace",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			plan, err := project.Init(cmd.Context(), project.InitOptions{
@@ -31,8 +31,8 @@ func newInitCommand(out io.Writer, options *globalOptions) *cobra.Command {
 			return output.Write(out, options.output, options.pretty, plan)
 		},
 	}
-	cmd.Flags().StringVar(&directory, "directory", ".playpub", "Directory for playpub helper files")
-	cmd.Flags().BoolVar(&force, "force", false, "Overwrite existing playpub helper files")
+	cmd.Flags().StringVar(&directory, "directory", ".gpc", "Directory for gpc helper files")
+	cmd.Flags().BoolVar(&force, "force", false, "Overwrite existing gpc helper files")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned init files without writing")
 	return cmd
 }

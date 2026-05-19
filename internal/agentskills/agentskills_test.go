@@ -20,7 +20,7 @@ func TestListReturnsBundledSkills(t *testing.T) {
 			t.Fatalf("skill %s has empty description", skill.Name)
 		}
 	}
-	for _, want := range []string{"playpub-cli-usage", "playpub-metadata-workflow", "playpub-release-flow"} {
+	for _, want := range []string{"gpc-cli-usage", "gpc-metadata-workflow", "gpc-release-flow"} {
 		if !names[want] {
 			t.Fatalf("List() missing %s: %#v", want, skills)
 		}
@@ -31,7 +31,7 @@ func TestInstallDryRunDoesNotWriteFiles(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "skills")
 	result, err := Install(context.Background(), InstallOptions{
 		Directory: directory,
-		Skills:    []string{"playpub-cli-usage"},
+		Skills:    []string{"gpc-cli-usage"},
 		DryRun:    true,
 	})
 	if err != nil {
@@ -55,7 +55,7 @@ func TestInstallWritesSelectedSkill(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "skills")
 	result, err := Install(context.Background(), InstallOptions{
 		Directory: directory,
-		Skills:    []string{"playpub-release-flow"},
+		Skills:    []string{"gpc-release-flow"},
 	})
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
@@ -66,7 +66,7 @@ func TestInstallWritesSelectedSkill(t *testing.T) {
 	if !result.Skills[0].Written || result.Skills[0].Overwrote {
 		t.Fatalf("skill result = %#v, want written without overwrite", result.Skills[0])
 	}
-	content, err := os.ReadFile(filepath.Join(directory, "playpub-release-flow", "SKILL.md"))
+	content, err := os.ReadFile(filepath.Join(directory, "gpc-release-flow", "SKILL.md"))
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
@@ -80,7 +80,7 @@ func TestInstallWritesSelectedSkill(t *testing.T) {
 
 func TestInstallSkipsExistingWithoutForce(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "skills")
-	path := filepath.Join(directory, "playpub-cli-usage", "SKILL.md")
+	path := filepath.Join(directory, "gpc-cli-usage", "SKILL.md")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
@@ -89,7 +89,7 @@ func TestInstallSkipsExistingWithoutForce(t *testing.T) {
 	}
 	result, err := Install(context.Background(), InstallOptions{
 		Directory: directory,
-		Skills:    []string{"playpub-cli-usage"},
+		Skills:    []string{"gpc-cli-usage"},
 	})
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
@@ -108,7 +108,7 @@ func TestInstallSkipsExistingWithoutForce(t *testing.T) {
 
 func TestInstallForceOverwritesExisting(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "skills")
-	path := filepath.Join(directory, "playpub-cli-usage", "SKILL.md")
+	path := filepath.Join(directory, "gpc-cli-usage", "SKILL.md")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
@@ -117,7 +117,7 @@ func TestInstallForceOverwritesExisting(t *testing.T) {
 	}
 	result, err := Install(context.Background(), InstallOptions{
 		Directory: directory,
-		Skills:    []string{"playpub-cli-usage"},
+		Skills:    []string{"gpc-cli-usage"},
 		Force:     true,
 	})
 	if err != nil {
@@ -143,7 +143,7 @@ func TestInstallRejectsUnknownSkill(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Install() expected error")
 	}
-	if !strings.Contains(err.Error(), "playpub-cli-usage") {
+	if !strings.Contains(err.Error(), "gpc-cli-usage") {
 		t.Fatalf("error = %v, want valid skill names", err)
 	}
 }
@@ -174,12 +174,12 @@ func TestInstallRejectsSymlinkSkillDirectory(t *testing.T) {
 	if err := os.Mkdir(target, 0o755); err != nil {
 		t.Fatalf("Mkdir() error = %v", err)
 	}
-	if err := os.Symlink(target, filepath.Join(directory, "playpub-cli-usage")); err != nil {
+	if err := os.Symlink(target, filepath.Join(directory, "gpc-cli-usage")); err != nil {
 		t.Fatalf("Symlink() error = %v", err)
 	}
 	_, err := Install(context.Background(), InstallOptions{
 		Directory: directory,
-		Skills:    []string{"playpub-cli-usage"},
+		Skills:    []string{"gpc-cli-usage"},
 	})
 	if err == nil {
 		t.Fatalf("Install() expected error")
@@ -199,17 +199,17 @@ func TestInstallPreflightsBeforeWriting(t *testing.T) {
 	if err := os.Mkdir(target, 0o755); err != nil {
 		t.Fatalf("Mkdir() error = %v", err)
 	}
-	if err := os.Symlink(target, filepath.Join(directory, "playpub-release-flow")); err != nil {
+	if err := os.Symlink(target, filepath.Join(directory, "gpc-release-flow")); err != nil {
 		t.Fatalf("Symlink() error = %v", err)
 	}
 	_, err := Install(context.Background(), InstallOptions{
 		Directory: directory,
-		Skills:    []string{"playpub-cli-usage", "playpub-release-flow"},
+		Skills:    []string{"gpc-cli-usage", "gpc-release-flow"},
 	})
 	if err == nil {
 		t.Fatalf("Install() expected error")
 	}
-	if _, err := os.Stat(filepath.Join(directory, "playpub-cli-usage", "SKILL.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(directory, "gpc-cli-usage", "SKILL.md")); !os.IsNotExist(err) {
 		t.Fatalf("first skill was written before preflight completed or stat error = %v", err)
 	}
 }

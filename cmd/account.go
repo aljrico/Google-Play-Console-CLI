@@ -74,7 +74,7 @@ func buildAccountStatus() (accountStatusResult, error) {
 		Problems:   make([]string, 0),
 	}
 	if store.ActiveProfile == "" {
-		status.Problems = append(status.Problems, "no active auth profile; run playpub auth login")
+		status.Problems = append(status.Problems, "no active auth profile; run gpc auth login")
 		return status, nil
 	}
 	status.ActiveProfile = store.ActiveProfile

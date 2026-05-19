@@ -191,7 +191,7 @@ func NewPubSubSetupPlan(options PubSubSetupOptions) (PubSubSetupPlan, error) {
 	}
 	operatorSteps := []string{
 		fmt.Sprintf("In Play Console, set Real-time developer notifications for the app to %s.", topicName),
-		"Send a test notification from Play Console and inspect it with playpub notifications rtdn decode.",
+		"Send a test notification from Play Console and inspect it with gpc notifications rtdn decode.",
 	}
 	return PubSubSetupPlan{
 		ProjectID:          options.ProjectID,

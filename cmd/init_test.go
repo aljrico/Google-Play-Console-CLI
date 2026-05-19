@@ -7,14 +7,14 @@ import (
 )
 
 func TestInitDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
 	cmd.SetArgs([]string{
 		"init",
 		"--directory",
-		t.TempDir() + "/.playpub",
+		t.TempDir() + "/.gpc",
 		"--dry-run",
 		"--output",
 		"json",

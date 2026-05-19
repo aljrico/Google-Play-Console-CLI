@@ -10,7 +10,7 @@ import (
 )
 
 func TestAccountStatusReportsMissingProfileWithoutAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -35,12 +35,12 @@ func TestAccountStatusReportsServiceAccountMetadata(t *testing.T) {
 	root := t.TempDir()
 	configPath := root + "/config.json"
 	serviceAccountPath := root + "/service-account.json"
-	t.Setenv("PLAYPUB_CONFIG", configPath)
+	t.Setenv("GPC_CONFIG", configPath)
 	if err := os.WriteFile(serviceAccountPath, []byte(`{
   "type": "service_account",
   "project_id": "play-project",
   "private_key": "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n",
-  "client_email": "playpub@example.iam.gserviceaccount.com"
+  "client_email": "gpc@example.iam.gserviceaccount.com"
 }`), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -70,7 +70,7 @@ func TestAccountStatusReportsServiceAccountMetadata(t *testing.T) {
 		`"serviceAccountFileExists":true`,
 		`"serviceAccountReadable":true`,
 		`"serviceAccountJsonParsed":true`,
-		`"serviceAccountEmail":"playpub@example.iam.gserviceaccount.com"`,
+		`"serviceAccountEmail":"gpc@example.iam.gserviceaccount.com"`,
 		`"projectId":"play-project"`,
 		`"serviceAccountMetadataOk":true`,
 	} {
@@ -87,7 +87,7 @@ func TestAccountStatusReportsMalformedServiceAccountFileAsExisting(t *testing.T)
 	root := t.TempDir()
 	configPath := root + "/config.json"
 	serviceAccountPath := root + "/service-account.json"
-	t.Setenv("PLAYPUB_CONFIG", configPath)
+	t.Setenv("GPC_CONFIG", configPath)
 	if err := os.WriteFile(serviceAccountPath, []byte("{"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -125,7 +125,7 @@ func TestAccountStatusReportsMalformedServiceAccountFileAsExisting(t *testing.T)
 
 func TestAccountStatusReportsStaleActiveProfileAsUnconfigured(t *testing.T) {
 	configPath := t.TempDir() + "/config.json"
-	t.Setenv("PLAYPUB_CONFIG", configPath)
+	t.Setenv("GPC_CONFIG", configPath)
 	if err := config.Save(config.Store{
 		ActiveProfile: "missing",
 		Profiles: map[string]config.Profile{

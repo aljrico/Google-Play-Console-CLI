@@ -18,7 +18,7 @@ import (
 )
 
 const defaultHTTPTimeout = 30 * time.Second
-const DefaultWebhookURLEnv = "PLAYPUB_NOTIFY_WEBHOOK_URL"
+const DefaultWebhookURLEnv = "GPC_NOTIFY_WEBHOOK_URL"
 const maxTeamsWebhookPayloadBytes = 28 * 1024
 const maxTeamsWebhookResponseBytes = 32 * 1024
 
@@ -573,7 +573,7 @@ func (o SendOptions) GitHubPayload() (GitHubPayload, error) {
 	}
 	eventType := strings.TrimSpace(o.EventType)
 	if eventType == "" {
-		eventType = "playpub.notify"
+		eventType = "gpc.notify"
 	}
 	if eventType != o.EventType && o.EventType != "" {
 		return GitHubPayload{}, fmt.Errorf("GitHub event type cannot have leading or trailing whitespace")

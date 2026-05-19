@@ -1,25 +1,25 @@
 #!/bin/sh
 set -eu
 
-repository="${PLAYPUB_REPO:-aljrico/Google-Play-Console-CLI}"
-version="${PLAYPUB_VERSION:-latest}"
-install_dir="${PLAYPUB_INSTALL_DIR:-/usr/local/bin}"
-binary_name="playpub"
+repository="${GPC_REPO:-aljrico/Google-Play-Console-CLI}"
+version="${GPC_VERSION:-latest}"
+install_dir="${GPC_INSTALL_DIR:-/usr/local/bin}"
+binary_name="gpc"
 
 usage() {
 	cat <<'USAGE'
-Install playpub from GitHub Releases.
+Install gpc from GitHub Releases.
 
 Environment:
-  PLAYPUB_VERSION       Release tag to install, for example v0.1.0. Defaults to latest.
-  PLAYPUB_INSTALL_DIR  Directory for the playpub binary. Defaults to /usr/local/bin.
-  PLAYPUB_REPO         GitHub repository. Defaults to aljrico/Google-Play-Console-CLI.
-  PLAYPUB_BASE_URL     Override release asset URL base, mainly for tests.
+  GPC_VERSION       Release tag to install, for example v0.1.0. Defaults to latest.
+  GPC_INSTALL_DIR  Directory for the gpc binary. Defaults to /usr/local/bin.
+  GPC_REPO         GitHub repository. Defaults to aljrico/Google-Play-Console-CLI.
+  GPC_BASE_URL     Override release asset URL base, mainly for tests.
 USAGE
 }
 
 fail() {
-	printf 'playpub install: %s\n' "$1" >&2
+	printf 'gpc install: %s\n' "$1" >&2
 	exit 1
 }
 
@@ -127,8 +127,8 @@ if [ "$version" = "latest" ]; then
 	[ -n "$version" ] || fail "could not resolve latest release tag"
 fi
 
-archive="playpub_${version#v}_${os}_${arch}.tar.gz"
-base_url="${PLAYPUB_BASE_URL:-https://github.com/$repository/releases/download/$version}"
+archive="gpc_${version#v}_${os}_${arch}.tar.gz"
+base_url="${GPC_BASE_URL:-https://github.com/$repository/releases/download/$version}"
 
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT INT TERM
@@ -148,4 +148,4 @@ actual_checksum="$(sha256_file "$archive_path")"
 tar -xzf "$archive_path" -C "$work_dir" "$binary_name"
 install_binary "$work_dir/$binary_name" "$install_dir/$binary_name"
 
-printf 'playpub installed to %s\n' "$install_dir/$binary_name"
+printf 'gpc installed to %s\n' "$install_dir/$binary_name"

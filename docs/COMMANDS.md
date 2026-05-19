@@ -1,11 +1,11 @@
 # Command Reference
 
-## playpub
+## gpc
 
-Go CLI for Google Play Developer API workflows
+Fast, scriptable CLI for the Google Play Developer API
 
 ```sh
-playpub [flags]
+gpc [flags]
 ```
 
 ### Global Flags
@@ -15,99 +15,99 @@ playpub [flags]
 
 ### Commands
 
-- `playpub account`: Inspect local Google Play account configuration
-- `playpub analytics`: Summarize Google Play statistics reports
-- `playpub app-recovery`: Inspect and manage Google Play app recovery actions
-- `playpub apps`: Inspect Google Play apps
-- `playpub auth`: Manage Google Play API authentication
-- `playpub capabilities`: List playpub command parity and capability status
-- `playpub completion`: Generate the autocompletion script for the specified shell
-- `playpub data-safety`: Update Google Play data safety declarations
-- `playpub details`: Manage app-level Google Play details
-- `playpub device-tier-configs`: Inspect Google Play device tier configs
-- `playpub diff`: Compare local Google Play payloads
-- `playpub docs`: Print embedded playpub documentation
-- `playpub finance`: Summarize Google Play financial reports
-- `playpub generated-apks`: Inspect generated APK metadata for an App Bundle version
-- `playpub grants`: Manage Google Play app access grants
-- `playpub images`: Manage localized Google Play store images
-- `playpub in-app-products`: Inspect legacy Google Play in-app products
-- `playpub init`: Create a local playpub workspace
-- `playpub insights`: Summarize Google Play data exports
-- `playpub install-skills`: Install bundled playpub agent skills
-- `playpub internal-sharing`: Upload artifacts to Google Play internal app sharing
-- `playpub listings`: Manage localized Google Play store listings
-- `playpub metadata`: Apply app details and localized listings from a file
-- `playpub migrate`: Inspect local metadata for migration
-- `playpub notifications`: Inspect Google Play notification payloads
-- `playpub notify`: Send release workflow notifications
-- `playpub one-time-product-offers`: Inspect Google Play one-time product offers
-- `playpub one-time-products`: Inspect Google Play one-time products
-- `playpub orders`: Inspect and refund Google Play orders
-- `playpub pricing`: Build and inspect Google Play price conversions
-- `playpub publish`: Run high-level Google Play publishing workflows
-- `playpub purchases`: Inspect and manage Google Play purchase tokens
-- `playpub releases`: Upload and manage Google Play releases
-- `playpub reviews`: Read and reply to Google Play reviews
-- `playpub schema`: Print the Google Play discovery schema
-- `playpub search`: Search playpub commands and flags
-- `playpub snitch`: Report playpub friction
-- `playpub status`: Summarize Google Play release status
-- `playpub subscription-offers`: Inspect Google Play subscription offers
-- `playpub subscriptions`: Inspect Google Play monetization subscriptions
-- `playpub system-apks`: Inspect Google Play system APK variants
-- `playpub testers`: Manage Google Play track tester groups
-- `playpub tracks`: Manage Google Play release tracks
-- `playpub users`: Inspect and manage Google Play Console users
-- `playpub validate`: Validate a temporary Google Play edit
-- `playpub version`: Print version information
-- `playpub vitals`: Inspect Google Play Developer Reporting vitals
-- `playpub web`: Inspect Play Console browser automation support
-- `playpub workflow`: Run repo-local playpub workflows
+- `gpc account`: Inspect local Google Play account configuration
+- `gpc analytics`: Summarize Google Play statistics reports
+- `gpc app-recovery`: Inspect and manage Google Play app recovery actions
+- `gpc apps`: Inspect Google Play apps
+- `gpc auth`: Manage Google Play API authentication
+- `gpc capabilities`: List gpc command parity and capability status
+- `gpc completion`: Generate the autocompletion script for the specified shell
+- `gpc data-safety`: Update Google Play data safety declarations
+- `gpc details`: Manage app-level Google Play details
+- `gpc device-tier-configs`: Inspect Google Play device tier configs
+- `gpc diff`: Compare local Google Play payloads
+- `gpc docs`: Print embedded gpc documentation
+- `gpc finance`: Summarize Google Play financial reports
+- `gpc generated-apks`: Inspect generated APK metadata for an App Bundle version
+- `gpc grants`: Manage Google Play app access grants
+- `gpc images`: Manage localized Google Play store images
+- `gpc in-app-products`: Inspect legacy Google Play in-app products
+- `gpc init`: Create a local gpc workspace
+- `gpc insights`: Summarize Google Play data exports
+- `gpc install-skills`: Install bundled gpc agent skills
+- `gpc internal-sharing`: Upload artifacts to Google Play internal app sharing
+- `gpc listings`: Manage localized Google Play store listings
+- `gpc metadata`: Apply app details and localized listings from a file
+- `gpc migrate`: Inspect local metadata for migration
+- `gpc notifications`: Inspect Google Play notification payloads
+- `gpc notify`: Send release workflow notifications
+- `gpc one-time-product-offers`: Inspect Google Play one-time product offers
+- `gpc one-time-products`: Inspect Google Play one-time products
+- `gpc orders`: Inspect and refund Google Play orders
+- `gpc pricing`: Build and inspect Google Play price conversions
+- `gpc publish`: Run high-level Google Play publishing workflows
+- `gpc purchases`: Inspect and manage Google Play purchase tokens
+- `gpc releases`: Upload and manage Google Play releases
+- `gpc reviews`: Read and reply to Google Play reviews
+- `gpc schema`: Print the Google Play discovery schema
+- `gpc search`: Search gpc commands and flags
+- `gpc snitch`: Report gpc friction
+- `gpc status`: Summarize Google Play release status
+- `gpc subscription-offers`: Inspect Google Play subscription offers
+- `gpc subscriptions`: Inspect Google Play monetization subscriptions
+- `gpc system-apks`: Inspect Google Play system APK variants
+- `gpc testers`: Manage Google Play track tester groups
+- `gpc tracks`: Manage Google Play release tracks
+- `gpc users`: Inspect and manage Google Play Console users
+- `gpc validate`: Validate a temporary Google Play edit
+- `gpc version`: Print version information
+- `gpc vitals`: Inspect Google Play Developer Reporting vitals
+- `gpc web`: Inspect Play Console browser automation support
+- `gpc workflow`: Run repo-local gpc workflows
 
-### playpub account
+### gpc account
 
 Inspect local Google Play account configuration
 
 ```sh
-playpub account
+gpc account
 ```
 
 #### Commands
 
-- `playpub account status`: Summarize local account and service account metadata
+- `gpc account status`: Summarize local account and service account metadata
 
-### playpub analytics
+### gpc analytics
 
 Summarize Google Play statistics reports
 
 ```sh
-playpub analytics
+gpc analytics
 ```
 
 #### Commands
 
-- `playpub analytics stats`: Summarize downloaded Play statistics CSVs
+- `gpc analytics stats`: Summarize downloaded Play statistics CSVs
 
-#### playpub analytics stats
+#### gpc analytics stats
 
 Summarize downloaded Play statistics CSVs
 
 ```sh
-playpub analytics stats
+gpc analytics stats
 ```
 
 ##### Commands
 
-- `playpub analytics stats download`: Download a Play statistics report CSV from Google Cloud Storage
-- `playpub analytics stats summarize`: Summarize a Play statistics report CSV
+- `gpc analytics stats download`: Download a Play statistics report CSV from Google Cloud Storage
+- `gpc analytics stats summarize`: Summarize a Play statistics report CSV
 
-##### playpub analytics stats download
+##### gpc analytics stats download
 
 Download a Play statistics report CSV from Google Cloud Storage
 
 ```sh
-playpub analytics stats download [flags]
+gpc analytics stats download [flags]
 ```
 
 ###### Flags
@@ -118,24 +118,24 @@ playpub analytics stats download [flags]
 - `--force`: Overwrite the destination file (default `false`)
 - `--object`: Cloud Storage object path for the report
 
-##### playpub analytics stats summarize
+##### gpc analytics stats summarize
 
 Summarize a Play statistics report CSV
 
 ```sh
-playpub analytics stats summarize [flags]
+gpc analytics stats summarize [flags]
 ```
 
 ###### Flags
 
 - `--file`: Downloaded Google Play statistics report CSV
 
-### playpub app-recovery
+### gpc app-recovery
 
 Inspect and manage Google Play app recovery actions
 
 ```sh
-playpub app-recovery
+gpc app-recovery
 ```
 
 #### Flags
@@ -144,18 +144,18 @@ playpub app-recovery
 
 #### Commands
 
-- `playpub app-recovery add-targeting`: Add targeting to an app recovery action
-- `playpub app-recovery cancel`: Cancel an app recovery action
-- `playpub app-recovery create`: Create a draft remote in-app update recovery action
-- `playpub app-recovery deploy`: Deploy a draft app recovery action
-- `playpub app-recovery list`: List app recovery actions for a version code
+- `gpc app-recovery add-targeting`: Add targeting to an app recovery action
+- `gpc app-recovery cancel`: Cancel an app recovery action
+- `gpc app-recovery create`: Create a draft remote in-app update recovery action
+- `gpc app-recovery deploy`: Deploy a draft app recovery action
+- `gpc app-recovery list`: List app recovery actions for a version code
 
-#### playpub app-recovery add-targeting
+#### gpc app-recovery add-targeting
 
 Add targeting to an app recovery action
 
 ```sh
-playpub app-recovery add-targeting [flags]
+gpc app-recovery add-targeting [flags]
 ```
 
 ##### Flags
@@ -167,12 +167,12 @@ playpub app-recovery add-targeting [flags]
 - `--region`: ISO 3166-1 alpha-2 region code to add, repeatable (default `[]`)
 - `--sdk-level`: Android SDK level to add, repeatable (default `[]`)
 
-#### playpub app-recovery cancel
+#### gpc app-recovery cancel
 
 Cancel an app recovery action
 
 ```sh
-playpub app-recovery cancel [flags]
+gpc app-recovery cancel [flags]
 ```
 
 ##### Flags
@@ -181,12 +181,12 @@ playpub app-recovery cancel [flags]
 - `--dry-run`: Print the planned app recovery mutation without calling Google Play (default `false`)
 - `--id`: App recovery action ID
 
-#### playpub app-recovery create
+#### gpc app-recovery create
 
 Create a draft remote in-app update recovery action
 
 ```sh
-playpub app-recovery create [flags]
+gpc app-recovery create [flags]
 ```
 
 ##### Flags
@@ -200,12 +200,12 @@ playpub app-recovery create [flags]
 - `--version-code-end`: Highest app version code to target, inclusive (default `0`)
 - `--version-code-start`: Lowest app version code to target, inclusive (default `0`)
 
-#### playpub app-recovery deploy
+#### gpc app-recovery deploy
 
 Deploy a draft app recovery action
 
 ```sh
-playpub app-recovery deploy [flags]
+gpc app-recovery deploy [flags]
 ```
 
 ##### Flags
@@ -214,50 +214,50 @@ playpub app-recovery deploy [flags]
 - `--dry-run`: Print the planned app recovery mutation without calling Google Play (default `false`)
 - `--id`: App recovery action ID
 
-#### playpub app-recovery list
+#### gpc app-recovery list
 
 List app recovery actions for a version code
 
 ```sh
-playpub app-recovery list [flags]
+gpc app-recovery list [flags]
 ```
 
 ##### Flags
 
 - `--version-code`: Version code targeted by recovery actions (default `0`)
 
-### playpub apps
+### gpc apps
 
 Inspect Google Play apps
 
 ```sh
-playpub apps
+gpc apps
 ```
 
 #### Commands
 
-- `playpub apps list`: List apps visible to the active service account
+- `gpc apps list`: List apps visible to the active service account
 
-### playpub auth
+### gpc auth
 
 Manage Google Play API authentication
 
 ```sh
-playpub auth
+gpc auth
 ```
 
 #### Commands
 
-- `playpub auth doctor`: Validate the active auth profile
-- `playpub auth login`: Store a service account profile
-- `playpub auth status`: Show the active auth profile
+- `gpc auth doctor`: Validate the active auth profile
+- `gpc auth login`: Store a service account profile
+- `gpc auth status`: Show the active auth profile
 
-#### playpub auth login
+#### gpc auth login
 
 Store a service account profile
 
 ```sh
-playpub auth login [flags]
+gpc auth login [flags]
 ```
 
 ##### Flags
@@ -265,12 +265,12 @@ playpub auth login [flags]
 - `--name`: Profile name
 - `--service-account`: Path to a Google service account JSON key
 
-### playpub capabilities
+### gpc capabilities
 
-List playpub command parity and capability status
+List gpc command parity and capability status
 
 ```sh
-playpub capabilities [flags]
+gpc capabilities [flags]
 ```
 
 #### Flags
@@ -278,75 +278,75 @@ playpub capabilities [flags]
 - `--section`: Filter by parity matrix section
 - `--status`: Filter by status: planned, implemented, tested, documented, blocked, not applicable
 
-### playpub completion
+### gpc completion
 
 Generate the autocompletion script for the specified shell
 
 ```sh
-playpub completion
+gpc completion
 ```
 
 #### Commands
 
-- `playpub completion bash`: Generate the autocompletion script for bash
-- `playpub completion fish`: Generate the autocompletion script for fish
-- `playpub completion powershell`: Generate the autocompletion script for powershell
-- `playpub completion zsh`: Generate the autocompletion script for zsh
+- `gpc completion bash`: Generate the autocompletion script for bash
+- `gpc completion fish`: Generate the autocompletion script for fish
+- `gpc completion powershell`: Generate the autocompletion script for powershell
+- `gpc completion zsh`: Generate the autocompletion script for zsh
 
-#### playpub completion bash
+#### gpc completion bash
 
 Generate the autocompletion script for bash
 
 ```sh
-playpub completion bash
+gpc completion bash
 ```
 
 ##### Flags
 
 - `--no-descriptions`: disable completion descriptions (default `false`)
 
-#### playpub completion fish
+#### gpc completion fish
 
 Generate the autocompletion script for fish
 
 ```sh
-playpub completion fish [flags]
+gpc completion fish [flags]
 ```
 
 ##### Flags
 
 - `--no-descriptions`: disable completion descriptions (default `false`)
 
-#### playpub completion powershell
+#### gpc completion powershell
 
 Generate the autocompletion script for powershell
 
 ```sh
-playpub completion powershell [flags]
+gpc completion powershell [flags]
 ```
 
 ##### Flags
 
 - `--no-descriptions`: disable completion descriptions (default `false`)
 
-#### playpub completion zsh
+#### gpc completion zsh
 
 Generate the autocompletion script for zsh
 
 ```sh
-playpub completion zsh [flags]
+gpc completion zsh [flags]
 ```
 
 ##### Flags
 
 - `--no-descriptions`: disable completion descriptions (default `false`)
 
-### playpub data-safety
+### gpc data-safety
 
 Update Google Play data safety declarations
 
 ```sh
-playpub data-safety
+gpc data-safety
 ```
 
 #### Flags
@@ -355,14 +355,14 @@ playpub data-safety
 
 #### Commands
 
-- `playpub data-safety update`: Upload a data safety CSV declaration
+- `gpc data-safety update`: Upload a data safety CSV declaration
 
-#### playpub data-safety update
+#### gpc data-safety update
 
 Upload a data safety CSV declaration
 
 ```sh
-playpub data-safety update [flags]
+gpc data-safety update [flags]
 ```
 
 ##### Flags
@@ -371,12 +371,12 @@ playpub data-safety update [flags]
 - `--csv`: Path to the data safety CSV export
 - `--dry-run`: Print the planned data safety update without calling Google Play (default `false`)
 
-### playpub details
+### gpc details
 
 Manage app-level Google Play details
 
 ```sh
-playpub details
+gpc details
 ```
 
 #### Flags
@@ -385,15 +385,15 @@ playpub details
 
 #### Commands
 
-- `playpub details get`: Get app-level details
-- `playpub details update`: Patch app-level details
+- `gpc details get`: Get app-level details
+- `gpc details update`: Patch app-level details
 
-#### playpub details update
+#### gpc details update
 
 Patch app-level details
 
 ```sh
-playpub details update [flags]
+gpc details update [flags]
 ```
 
 ##### Flags
@@ -405,12 +405,12 @@ playpub details update [flags]
 - `--default-language`: Default BCP-47 language, for example en-US
 - `--dry-run`: Print the planned details update without calling Google Play (default `false`)
 
-### playpub device-tier-configs
+### gpc device-tier-configs
 
 Inspect Google Play device tier configs
 
 ```sh
-playpub device-tier-configs
+gpc device-tier-configs
 ```
 
 #### Flags
@@ -419,27 +419,27 @@ playpub device-tier-configs
 
 #### Commands
 
-- `playpub device-tier-configs get`: Get one device tier config
-- `playpub device-tier-configs list`: List device tier configs
+- `gpc device-tier-configs get`: Get one device tier config
+- `gpc device-tier-configs list`: List device tier configs
 
-#### playpub device-tier-configs get
+#### gpc device-tier-configs get
 
 Get one device tier config
 
 ```sh
-playpub device-tier-configs get [flags]
+gpc device-tier-configs get [flags]
 ```
 
 ##### Flags
 
 - `--id`: Device tier config ID (default `0`)
 
-#### playpub device-tier-configs list
+#### gpc device-tier-configs list
 
 List device tier configs
 
 ```sh
-playpub device-tier-configs list [flags]
+gpc device-tier-configs list [flags]
 ```
 
 ##### Flags
@@ -447,74 +447,74 @@ playpub device-tier-configs list [flags]
 - `--page-size`: Maximum configs to return, 0 uses the Google default (default `0`)
 - `--page-token`: Pagination token from a previous response
 
-### playpub diff
+### gpc diff
 
 Compare local Google Play payloads
 
 ```sh
-playpub diff
+gpc diff
 ```
 
 #### Commands
 
-- `playpub diff json`: Compare two JSON files with stable JSON Pointer paths
+- `gpc diff json`: Compare two JSON files with stable JSON Pointer paths
 
-#### playpub diff json
+#### gpc diff json
 
 Compare two JSON files with stable JSON Pointer paths
 
 ```sh
-playpub diff json FROM TO [flags]
+gpc diff json FROM TO [flags]
 ```
 
 ##### Flags
 
 - `--fail-on-change`: Exit nonzero when the JSON files differ (default `false`)
 
-### playpub docs
+### gpc docs
 
-Print embedded playpub documentation
+Print embedded gpc documentation
 
 ```sh
-playpub docs [flags]
+gpc docs [flags]
 ```
 
 #### Commands
 
-- `playpub docs commands`: Print generated command reference
-- `playpub docs parity`: Print the asc-to-playpub parity matrix
+- `gpc docs commands`: Print generated command reference
+- `gpc docs parity`: Print the asc-to-gpc parity matrix
 
-### playpub finance
+### gpc finance
 
 Summarize Google Play financial reports
 
 ```sh
-playpub finance
+gpc finance
 ```
 
 #### Commands
 
-- `playpub finance reports`: Summarize downloaded Play financial report CSVs
+- `gpc finance reports`: Summarize downloaded Play financial report CSVs
 
-#### playpub finance reports
+#### gpc finance reports
 
 Summarize downloaded Play financial report CSVs
 
 ```sh
-playpub finance reports
+gpc finance reports
 ```
 
 ##### Commands
 
-- `playpub finance reports download`: Download a Play financial report ZIP from Google Cloud Storage
-- `playpub finance reports summarize`: Summarize a Play financial report CSV
+- `gpc finance reports download`: Download a Play financial report ZIP from Google Cloud Storage
+- `gpc finance reports summarize`: Summarize a Play financial report CSV
 
-##### playpub finance reports download
+##### gpc finance reports download
 
 Download a Play financial report ZIP from Google Cloud Storage
 
 ```sh
-playpub finance reports download [flags]
+gpc finance reports download [flags]
 ```
 
 ###### Flags
@@ -525,24 +525,24 @@ playpub finance reports download [flags]
 - `--force`: Overwrite the destination file (default `false`)
 - `--object`: Cloud Storage object path for the report
 
-##### playpub finance reports summarize
+##### gpc finance reports summarize
 
 Summarize a Play financial report CSV
 
 ```sh
-playpub finance reports summarize [flags]
+gpc finance reports summarize [flags]
 ```
 
 ###### Flags
 
 - `--file`: Downloaded Google Play earnings or estimated-sales CSV
 
-### playpub generated-apks
+### gpc generated-apks
 
 Inspect generated APK metadata for an App Bundle version
 
 ```sh
-playpub generated-apks
+gpc generated-apks
 ```
 
 #### Flags
@@ -551,15 +551,15 @@ playpub generated-apks
 
 #### Commands
 
-- `playpub generated-apks download`: Download one generated APK by download ID
-- `playpub generated-apks list`: List generated APKs for a version code
+- `gpc generated-apks download`: Download one generated APK by download ID
+- `gpc generated-apks list`: List generated APKs for a version code
 
-#### playpub generated-apks download
+#### gpc generated-apks download
 
 Download one generated APK by download ID
 
 ```sh
-playpub generated-apks download [flags]
+gpc generated-apks download [flags]
 ```
 
 ##### Flags
@@ -570,38 +570,38 @@ playpub generated-apks download [flags]
 - `--force`: Overwrite the destination file (default `false`)
 - `--version-code`: App Bundle version code (default `0`)
 
-#### playpub generated-apks list
+#### gpc generated-apks list
 
 List generated APKs for a version code
 
 ```sh
-playpub generated-apks list [flags]
+gpc generated-apks list [flags]
 ```
 
 ##### Flags
 
 - `--version-code`: App Bundle version code (default `0`)
 
-### playpub grants
+### gpc grants
 
 Manage Google Play app access grants
 
 ```sh
-playpub grants
+gpc grants
 ```
 
 #### Commands
 
-- `playpub grants create`: Create app-level access for a Play Console user
-- `playpub grants delete`: Delete an app-level access grant
-- `playpub grants patch`: Replace app-level permissions for an access grant
+- `gpc grants create`: Create app-level access for a Play Console user
+- `gpc grants delete`: Delete an app-level access grant
+- `gpc grants patch`: Replace app-level permissions for an access grant
 
-#### playpub grants create
+#### gpc grants create
 
 Create app-level access for a Play Console user
 
 ```sh
-playpub grants create [flags]
+gpc grants create [flags]
 ```
 
 ##### Flags
@@ -613,12 +613,12 @@ playpub grants create [flags]
 - `--permission`: App-level grant permission, repeatable (default `[]`)
 - `--user-email`: Play Console user email
 
-#### playpub grants delete
+#### gpc grants delete
 
 Delete an app-level access grant
 
 ```sh
-playpub grants delete [flags]
+gpc grants delete [flags]
 ```
 
 ##### Flags
@@ -627,12 +627,12 @@ playpub grants delete [flags]
 - `--dry-run`: Print the planned grant deletion without calling Google Play (default `false`)
 - `--name`: Grant resource name, developers/{developer}/users/{email}/grants/{package}
 
-#### playpub grants patch
+#### gpc grants patch
 
 Replace app-level permissions for an access grant
 
 ```sh
-playpub grants patch [flags]
+gpc grants patch [flags]
 ```
 
 ##### Flags
@@ -642,12 +642,12 @@ playpub grants patch [flags]
 - `--name`: Grant resource name, developers/{developer}/users/{email}/grants/{package}
 - `--permission`: App-level grant permission, repeatable (default `[]`)
 
-### playpub images
+### gpc images
 
 Manage localized Google Play store images
 
 ```sh
-playpub images
+gpc images
 ```
 
 #### Flags
@@ -656,17 +656,17 @@ playpub images
 
 #### Commands
 
-- `playpub images delete`: Delete one store image
-- `playpub images delete-all`: Delete all store images for one language and image type
-- `playpub images list`: List store images for one language and image type
-- `playpub images upload`: Upload one store image
+- `gpc images delete`: Delete one store image
+- `gpc images delete-all`: Delete all store images for one language and image type
+- `gpc images list`: List store images for one language and image type
+- `gpc images upload`: Upload one store image
 
-#### playpub images delete
+#### gpc images delete
 
 Delete one store image
 
 ```sh
-playpub images delete [flags]
+gpc images delete [flags]
 ```
 
 ##### Flags
@@ -677,12 +677,12 @@ playpub images delete [flags]
 - `--language`: BCP-47 listing language, for example en-US
 - `--type`: Image type: icon, featureGraphic, phoneScreenshots, sevenInchScreenshots, tenInchScreenshots, tvBanner, tvScreenshots, wearScreenshots
 
-#### playpub images delete-all
+#### gpc images delete-all
 
 Delete all store images for one language and image type
 
 ```sh
-playpub images delete-all [flags]
+gpc images delete-all [flags]
 ```
 
 ##### Flags
@@ -692,12 +692,12 @@ playpub images delete-all [flags]
 - `--language`: BCP-47 listing language, for example en-US
 - `--type`: Image type: icon, featureGraphic, phoneScreenshots, sevenInchScreenshots, tenInchScreenshots, tvBanner, tvScreenshots, wearScreenshots
 
-#### playpub images list
+#### gpc images list
 
 List store images for one language and image type
 
 ```sh
-playpub images list [flags]
+gpc images list [flags]
 ```
 
 ##### Flags
@@ -705,12 +705,12 @@ playpub images list [flags]
 - `--language`: BCP-47 listing language, for example en-US
 - `--type`: Image type: icon, featureGraphic, phoneScreenshots, sevenInchScreenshots, tenInchScreenshots, tvBanner, tvScreenshots, wearScreenshots
 
-#### playpub images upload
+#### gpc images upload
 
 Upload one store image
 
 ```sh
-playpub images upload [flags]
+gpc images upload [flags]
 ```
 
 ##### Flags
@@ -721,12 +721,12 @@ playpub images upload [flags]
 - `--language`: BCP-47 listing language, for example en-US
 - `--type`: Image type: icon, featureGraphic, phoneScreenshots, sevenInchScreenshots, tenInchScreenshots, tvBanner, tvScreenshots, wearScreenshots
 
-### playpub in-app-products
+### gpc in-app-products
 
 Inspect legacy Google Play in-app products
 
 ```sh
-playpub in-app-products
+gpc in-app-products
 ```
 
 #### Flags
@@ -735,20 +735,20 @@ playpub in-app-products
 
 #### Commands
 
-- `playpub in-app-products batch-delete`: Delete multiple legacy managed in-app products
-- `playpub in-app-products batch-get`: Get multiple legacy in-app products
-- `playpub in-app-products create`: Create a legacy managed in-app product
-- `playpub in-app-products delete`: Delete a legacy managed in-app product
-- `playpub in-app-products get`: Get one legacy in-app product
-- `playpub in-app-products list`: List legacy in-app products
-- `playpub in-app-products patch`: Patch a legacy managed in-app product
+- `gpc in-app-products batch-delete`: Delete multiple legacy managed in-app products
+- `gpc in-app-products batch-get`: Get multiple legacy in-app products
+- `gpc in-app-products create`: Create a legacy managed in-app product
+- `gpc in-app-products delete`: Delete a legacy managed in-app product
+- `gpc in-app-products get`: Get one legacy in-app product
+- `gpc in-app-products list`: List legacy in-app products
+- `gpc in-app-products patch`: Patch a legacy managed in-app product
 
-#### playpub in-app-products batch-delete
+#### gpc in-app-products batch-delete
 
 Delete multiple legacy managed in-app products
 
 ```sh
-playpub in-app-products batch-delete [flags]
+gpc in-app-products batch-delete [flags]
 ```
 
 ##### Flags
@@ -758,24 +758,24 @@ playpub in-app-products batch-delete [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--sku`: In-app product SKU; repeatable, up to 100 (default `[]`)
 
-#### playpub in-app-products batch-get
+#### gpc in-app-products batch-get
 
 Get multiple legacy in-app products
 
 ```sh
-playpub in-app-products batch-get [flags]
+gpc in-app-products batch-get [flags]
 ```
 
 ##### Flags
 
 - `--sku`: In-app product SKU; repeatable (default `[]`)
 
-#### playpub in-app-products create
+#### gpc in-app-products create
 
 Create a legacy managed in-app product
 
 ```sh
-playpub in-app-products create [flags]
+gpc in-app-products create [flags]
 ```
 
 ##### Flags
@@ -789,12 +789,12 @@ playpub in-app-products create [flags]
 - `--status`: Initial product status: active or inactive (default `inactive`)
 - `--title`: Default listing title
 
-#### playpub in-app-products delete
+#### gpc in-app-products delete
 
 Delete a legacy managed in-app product
 
 ```sh
-playpub in-app-products delete [flags]
+gpc in-app-products delete [flags]
 ```
 
 ##### Flags
@@ -804,36 +804,36 @@ playpub in-app-products delete [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--sku`: In-app product SKU
 
-#### playpub in-app-products get
+#### gpc in-app-products get
 
 Get one legacy in-app product
 
 ```sh
-playpub in-app-products get [flags]
+gpc in-app-products get [flags]
 ```
 
 ##### Flags
 
 - `--sku`: In-app product SKU
 
-#### playpub in-app-products list
+#### gpc in-app-products list
 
 List legacy in-app products
 
 ```sh
-playpub in-app-products list [flags]
+gpc in-app-products list [flags]
 ```
 
 ##### Flags
 
 - `--token`: Pagination token from a previous response
 
-#### playpub in-app-products patch
+#### gpc in-app-products patch
 
 Patch a legacy managed in-app product
 
 ```sh
-playpub in-app-products patch [flags]
+gpc in-app-products patch [flags]
 ```
 
 ##### Flags
@@ -853,75 +853,75 @@ playpub in-app-products patch [flags]
 - `--title`: Default listing title
 - `--tokenized-digital-asset`: Whether the managed product represents a tokenized digital asset: true or false
 
-### playpub init
+### gpc init
 
-Create a local playpub workspace
+Create a local gpc workspace
 
 ```sh
-playpub init [flags]
+gpc init [flags]
 ```
 
 #### Flags
 
-- `--directory`: Directory for playpub helper files (default `.playpub`)
+- `--directory`: Directory for gpc helper files (default `.gpc`)
 - `--dry-run`: Print the planned init files without writing (default `false`)
-- `--force`: Overwrite existing playpub helper files (default `false`)
+- `--force`: Overwrite existing gpc helper files (default `false`)
 
-### playpub insights
+### gpc insights
 
 Summarize Google Play data exports
 
 ```sh
-playpub insights
+gpc insights
 ```
 
 #### Commands
 
-- `playpub insights anomalies`: Summarize Android vitals anomalies
-- `playpub insights reports`: Summarize finance and analytics report insights
+- `gpc insights anomalies`: Summarize Android vitals anomalies
+- `gpc insights reports`: Summarize finance and analytics report insights
 
-#### playpub insights anomalies
+#### gpc insights anomalies
 
 Summarize Android vitals anomalies
 
 ```sh
-playpub insights anomalies
+gpc insights anomalies
 ```
 
 ##### Commands
 
-- `playpub insights anomalies summarize`: Summarize a vitals anomalies JSON export
+- `gpc insights anomalies summarize`: Summarize a vitals anomalies JSON export
 
-##### playpub insights anomalies summarize
+##### gpc insights anomalies summarize
 
 Summarize a vitals anomalies JSON export
 
 ```sh
-playpub insights anomalies summarize [flags]
+gpc insights anomalies summarize [flags]
 ```
 
 ###### Flags
 
-- `--file`: JSON output from playpub vitals anomalies list
+- `--file`: JSON output from gpc vitals anomalies list
 
-#### playpub insights reports
+#### gpc insights reports
 
 Summarize finance and analytics report insights
 
 ```sh
-playpub insights reports
+gpc insights reports
 ```
 
 ##### Commands
 
-- `playpub insights reports summarize`: Summarize Play finance and statistics report insights
+- `gpc insights reports summarize`: Summarize Play finance and statistics report insights
 
-##### playpub insights reports summarize
+##### gpc insights reports summarize
 
 Summarize Play finance and statistics report insights
 
 ```sh
-playpub insights reports summarize [flags]
+gpc insights reports summarize [flags]
 ```
 
 ###### Flags
@@ -929,12 +929,12 @@ playpub insights reports summarize [flags]
 - `--finance-file`: Downloaded Google Play earnings or estimated-sales CSV; repeatable (default `[]`)
 - `--stats-file`: Downloaded Google Play statistics CSV; repeatable (default `[]`)
 
-### playpub install-skills
+### gpc install-skills
 
-Install bundled playpub agent skills
+Install bundled gpc agent skills
 
 ```sh
-playpub install-skills [flags]
+gpc install-skills [flags]
 ```
 
 #### Flags
@@ -946,26 +946,26 @@ playpub install-skills [flags]
 
 #### Commands
 
-- `playpub install-skills list`: List bundled playpub agent skills
+- `gpc install-skills list`: List bundled gpc agent skills
 
-### playpub internal-sharing
+### gpc internal-sharing
 
 Upload artifacts to Google Play internal app sharing
 
 ```sh
-playpub internal-sharing
+gpc internal-sharing
 ```
 
 #### Commands
 
-- `playpub internal-sharing upload`: Upload an APK or Android App Bundle to internal app sharing
+- `gpc internal-sharing upload`: Upload an APK or Android App Bundle to internal app sharing
 
-#### playpub internal-sharing upload
+#### gpc internal-sharing upload
 
 Upload an APK or Android App Bundle to internal app sharing
 
 ```sh
-playpub internal-sharing upload [flags]
+gpc internal-sharing upload [flags]
 ```
 
 ##### Flags
@@ -975,12 +975,12 @@ playpub internal-sharing upload [flags]
 - `--dry-run`: Print the planned internal sharing upload without calling Google Play (default `false`)
 - `--package`: Android package name, for example com.example.app
 
-### playpub listings
+### gpc listings
 
 Manage localized Google Play store listings
 
 ```sh
-playpub listings
+gpc listings
 ```
 
 #### Flags
@@ -989,18 +989,18 @@ playpub listings
 
 #### Commands
 
-- `playpub listings delete`: Delete one localized store listing
-- `playpub listings delete-all`: Delete all localized store listings
-- `playpub listings get`: Get one localized store listing
-- `playpub listings list`: List localized store listings
-- `playpub listings update`: Create or update one localized store listing
+- `gpc listings delete`: Delete one localized store listing
+- `gpc listings delete-all`: Delete all localized store listings
+- `gpc listings get`: Get one localized store listing
+- `gpc listings list`: List localized store listings
+- `gpc listings update`: Create or update one localized store listing
 
-#### playpub listings delete
+#### gpc listings delete
 
 Delete one localized store listing
 
 ```sh
-playpub listings delete [flags]
+gpc listings delete [flags]
 ```
 
 ##### Flags
@@ -1009,12 +1009,12 @@ playpub listings delete [flags]
 - `--dry-run`: Print the planned listing deletion without calling Google Play (default `false`)
 - `--language`: BCP-47 listing language, for example en-US
 
-#### playpub listings delete-all
+#### gpc listings delete-all
 
 Delete all localized store listings
 
 ```sh
-playpub listings delete-all [flags]
+gpc listings delete-all [flags]
 ```
 
 ##### Flags
@@ -1022,24 +1022,24 @@ playpub listings delete-all [flags]
 - `--confirm`: Commit the edit after validation (default `false`)
 - `--dry-run`: Print the planned listing deletion without calling Google Play (default `false`)
 
-#### playpub listings get
+#### gpc listings get
 
 Get one localized store listing
 
 ```sh
-playpub listings get [flags]
+gpc listings get [flags]
 ```
 
 ##### Flags
 
 - `--language`: BCP-47 listing language, for example en-US
 
-#### playpub listings update
+#### gpc listings update
 
 Create or update one localized store listing
 
 ```sh
-playpub listings update [flags]
+gpc listings update [flags]
 ```
 
 ##### Flags
@@ -1052,12 +1052,12 @@ playpub listings update [flags]
 - `--title`: Localized app title
 - `--video`: Promotional YouTube video URL
 
-### playpub metadata
+### gpc metadata
 
 Apply app details and localized listings from a file
 
 ```sh
-playpub metadata
+gpc metadata
 ```
 
 #### Flags
@@ -1066,14 +1066,14 @@ playpub metadata
 
 #### Commands
 
-- `playpub metadata apply`: Apply a JSON metadata file through one Google Play edit
+- `gpc metadata apply`: Apply a JSON metadata file through one Google Play edit
 
-#### playpub metadata apply
+#### gpc metadata apply
 
 Apply a JSON metadata file through one Google Play edit
 
 ```sh
-playpub metadata apply [flags]
+gpc metadata apply [flags]
 ```
 
 ##### Flags
@@ -1083,39 +1083,39 @@ playpub metadata apply [flags]
 - `--dry-run`: Print the planned metadata update without calling Google Play (default `false`)
 - `--file`: Path to metadata JSON
 
-### playpub migrate
+### gpc migrate
 
 Inspect local metadata for migration
 
 ```sh
-playpub migrate
+gpc migrate
 ```
 
 #### Commands
 
-- `playpub migrate supply`: Inspect fastlane supply metadata
+- `gpc migrate supply`: Inspect fastlane supply metadata
 
-#### playpub migrate supply
+#### gpc migrate supply
 
 Inspect fastlane supply metadata
 
 ```sh
-playpub migrate supply
+gpc migrate supply
 ```
 
 ##### Commands
 
-- `playpub migrate supply changelogs`: Convert fastlane supply changelogs to release-note payloads
-- `playpub migrate supply convert`: Convert fastlane supply listings to playpub metadata JSON
-- `playpub migrate supply images`: Convert fastlane supply images to image upload payloads
-- `playpub migrate supply inspect`: Inventory a fastlane supply metadata directory
+- `gpc migrate supply changelogs`: Convert fastlane supply changelogs to release-note payloads
+- `gpc migrate supply convert`: Convert fastlane supply listings to gpc metadata JSON
+- `gpc migrate supply images`: Convert fastlane supply images to image upload payloads
+- `gpc migrate supply inspect`: Inventory a fastlane supply metadata directory
 
-##### playpub migrate supply changelogs
+##### gpc migrate supply changelogs
 
 Convert fastlane supply changelogs to release-note payloads
 
 ```sh
-playpub migrate supply changelogs [flags]
+gpc migrate supply changelogs [flags]
 ```
 
 ###### Flags
@@ -1123,24 +1123,24 @@ playpub migrate supply changelogs [flags]
 - `--directory`: fastlane supply metadata directory (default `fastlane/metadata/android`)
 - `--version-code`: Only include changelogs for this version code (default `0`)
 
-##### playpub migrate supply convert
+##### gpc migrate supply convert
 
-Convert fastlane supply listings to playpub metadata JSON
+Convert fastlane supply listings to gpc metadata JSON
 
 ```sh
-playpub migrate supply convert [flags]
+gpc migrate supply convert [flags]
 ```
 
 ###### Flags
 
 - `--directory`: fastlane supply metadata directory (default `fastlane/metadata/android`)
 
-##### playpub migrate supply images
+##### gpc migrate supply images
 
 Convert fastlane supply images to image upload payloads
 
 ```sh
-playpub migrate supply images [flags]
+gpc migrate supply images [flags]
 ```
 
 ###### Flags
@@ -1149,50 +1149,50 @@ playpub migrate supply images [flags]
 - `--language`: Only include images for this BCP-47 listing language
 - `--type`: Only include this image type
 
-##### playpub migrate supply inspect
+##### gpc migrate supply inspect
 
 Inventory a fastlane supply metadata directory
 
 ```sh
-playpub migrate supply inspect [flags]
+gpc migrate supply inspect [flags]
 ```
 
 ###### Flags
 
 - `--directory`: fastlane supply metadata directory (default `fastlane/metadata/android`)
 
-### playpub notifications
+### gpc notifications
 
 Inspect Google Play notification payloads
 
 ```sh
-playpub notifications
+gpc notifications
 ```
 
 #### Commands
 
-- `playpub notifications pubsub`: Set up Google Cloud Pub/Sub for Play notifications
-- `playpub notifications rtdn`: Inspect real-time developer notifications
+- `gpc notifications pubsub`: Set up Google Cloud Pub/Sub for Play notifications
+- `gpc notifications rtdn`: Inspect real-time developer notifications
 
-#### playpub notifications pubsub
+#### gpc notifications pubsub
 
 Set up Google Cloud Pub/Sub for Play notifications
 
 ```sh
-playpub notifications pubsub
+gpc notifications pubsub
 ```
 
 ##### Commands
 
-- `playpub notifications pubsub pull`: Pull Pub/Sub messages for Play notifications
-- `playpub notifications pubsub setup`: Create Pub/Sub resources for Play real-time developer notifications
+- `gpc notifications pubsub pull`: Pull Pub/Sub messages for Play notifications
+- `gpc notifications pubsub setup`: Create Pub/Sub resources for Play real-time developer notifications
 
-##### playpub notifications pubsub pull
+##### gpc notifications pubsub pull
 
 Pull Pub/Sub messages for Play notifications
 
 ```sh
-playpub notifications pubsub pull [flags]
+gpc notifications pubsub pull [flags]
 ```
 
 ###### Flags
@@ -1204,12 +1204,12 @@ playpub notifications pubsub pull [flags]
 - `--project`: Google Cloud project ID that owns the Pub/Sub subscription
 - `--subscription`: Pub/Sub subscription ID to pull from
 
-##### playpub notifications pubsub setup
+##### gpc notifications pubsub setup
 
 Create Pub/Sub resources for Play real-time developer notifications
 
 ```sh
-playpub notifications pubsub setup [flags]
+gpc notifications pubsub setup [flags]
 ```
 
 ###### Flags
@@ -1222,24 +1222,24 @@ playpub notifications pubsub setup [flags]
 - `--subscription`: Pub/Sub subscription ID to create
 - `--topic`: Pub/Sub topic ID to create
 
-#### playpub notifications rtdn
+#### gpc notifications rtdn
 
 Inspect real-time developer notifications
 
 ```sh
-playpub notifications rtdn
+gpc notifications rtdn
 ```
 
 ##### Commands
 
-- `playpub notifications rtdn decode`: Decode a Pub/Sub RTDN push payload
+- `gpc notifications rtdn decode`: Decode a Pub/Sub RTDN push payload
 
-##### playpub notifications rtdn decode
+##### gpc notifications rtdn decode
 
 Decode a Pub/Sub RTDN push payload
 
 ```sh
-playpub notifications rtdn decode [flags]
+gpc notifications rtdn decode [flags]
 ```
 
 ###### Flags
@@ -1248,30 +1248,30 @@ playpub notifications rtdn decode [flags]
 - `--file`: RTDN JSON payload file; required unless --data is set
 - `--unwrapped`: Decode an unwrapped push payload containing the developer notification directly (default `false`)
 
-### playpub notify
+### gpc notify
 
 Send release workflow notifications
 
 ```sh
-playpub notify
+gpc notify
 ```
 
 #### Commands
 
-- `playpub notify discord`: Send a Discord incoming webhook notification
-- `playpub notify github`: Send a GitHub repository dispatch-shaped webhook notification
-- `playpub notify google-chat`: Send a Google Chat incoming webhook notification
-- `playpub notify mattermost`: Send a Mattermost incoming webhook notification
-- `playpub notify send`: Send a JSON notification webhook
-- `playpub notify slack`: Send a Slack incoming webhook notification
-- `playpub notify teams`: Send a Microsoft Teams Workflows webhook notification
+- `gpc notify discord`: Send a Discord incoming webhook notification
+- `gpc notify github`: Send a GitHub repository dispatch-shaped webhook notification
+- `gpc notify google-chat`: Send a Google Chat incoming webhook notification
+- `gpc notify mattermost`: Send a Mattermost incoming webhook notification
+- `gpc notify send`: Send a JSON notification webhook
+- `gpc notify slack`: Send a Slack incoming webhook notification
+- `gpc notify teams`: Send a Microsoft Teams Workflows webhook notification
 
-#### playpub notify discord
+#### gpc notify discord
 
 Send a Discord incoming webhook notification
 
 ```sh
-playpub notify discord [flags]
+gpc notify discord [flags]
 ```
 
 ##### Flags
@@ -1283,36 +1283,36 @@ playpub notify discord [flags]
 - `--severity`: Notification severity label
 - `--title`: Notification title
 - `--webhook-url`: HTTPS Discord incoming webhook URL; http is allowed only for loopback hosts
-- `--webhook-url-env`: Environment variable containing the Discord incoming webhook URL (default `PLAYPUB_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-env`: Environment variable containing the Discord incoming webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
 - `--webhook-url-file`: File containing the Discord incoming webhook URL
 
-#### playpub notify github
+#### gpc notify github
 
 Send a GitHub repository dispatch-shaped webhook notification
 
 ```sh
-playpub notify github [flags]
+gpc notify github [flags]
 ```
 
 ##### Flags
 
 - `--confirm`: Send the GitHub webhook (default `false`)
 - `--dry-run`: Print the GitHub payload without sending (default `false`)
-- `--event-type`: GitHub repository dispatch event_type (default `playpub.notify`)
+- `--event-type`: GitHub repository dispatch event_type (default `gpc.notify`)
 - `--field`: Notification field as name=value; repeatable (default `[]`)
 - `--message`: Notification message
 - `--severity`: Notification severity label
 - `--title`: Notification title
 - `--webhook-url`: HTTPS GitHub repository dispatch webhook URL; http is allowed only for loopback hosts
-- `--webhook-url-env`: Environment variable containing the GitHub repository dispatch webhook URL (default `PLAYPUB_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-env`: Environment variable containing the GitHub repository dispatch webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
 - `--webhook-url-file`: File containing the GitHub repository dispatch webhook URL
 
-#### playpub notify google-chat
+#### gpc notify google-chat
 
 Send a Google Chat incoming webhook notification
 
 ```sh
-playpub notify google-chat [flags]
+gpc notify google-chat [flags]
 ```
 
 ##### Flags
@@ -1324,15 +1324,15 @@ playpub notify google-chat [flags]
 - `--severity`: Notification severity label
 - `--title`: Notification title
 - `--webhook-url`: HTTPS Google Chat incoming webhook URL; http is allowed only for loopback hosts
-- `--webhook-url-env`: Environment variable containing the Google Chat incoming webhook URL (default `PLAYPUB_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-env`: Environment variable containing the Google Chat incoming webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
 - `--webhook-url-file`: File containing the Google Chat incoming webhook URL
 
-#### playpub notify mattermost
+#### gpc notify mattermost
 
 Send a Mattermost incoming webhook notification
 
 ```sh
-playpub notify mattermost [flags]
+gpc notify mattermost [flags]
 ```
 
 ##### Flags
@@ -1344,15 +1344,15 @@ playpub notify mattermost [flags]
 - `--severity`: Notification severity label
 - `--title`: Notification title
 - `--webhook-url`: HTTPS Mattermost incoming webhook URL; http is allowed only for loopback hosts
-- `--webhook-url-env`: Environment variable containing the Mattermost incoming webhook URL (default `PLAYPUB_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-env`: Environment variable containing the Mattermost incoming webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
 - `--webhook-url-file`: File containing the Mattermost incoming webhook URL
 
-#### playpub notify send
+#### gpc notify send
 
 Send a JSON notification webhook
 
 ```sh
-playpub notify send [flags]
+gpc notify send [flags]
 ```
 
 ##### Flags
@@ -1364,15 +1364,15 @@ playpub notify send [flags]
 - `--severity`: Notification severity label
 - `--title`: Notification title
 - `--webhook-url`: HTTPS webhook URL; http is allowed only for loopback hosts
-- `--webhook-url-env`: Environment variable containing the webhook URL (default `PLAYPUB_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-env`: Environment variable containing the webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
 - `--webhook-url-file`: File containing the webhook URL
 
-#### playpub notify slack
+#### gpc notify slack
 
 Send a Slack incoming webhook notification
 
 ```sh
-playpub notify slack [flags]
+gpc notify slack [flags]
 ```
 
 ##### Flags
@@ -1384,15 +1384,15 @@ playpub notify slack [flags]
 - `--severity`: Notification severity label
 - `--title`: Notification title
 - `--webhook-url`: HTTPS Slack incoming webhook URL; http is allowed only for loopback hosts
-- `--webhook-url-env`: Environment variable containing the Slack incoming webhook URL (default `PLAYPUB_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-env`: Environment variable containing the Slack incoming webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
 - `--webhook-url-file`: File containing the Slack incoming webhook URL
 
-#### playpub notify teams
+#### gpc notify teams
 
 Send a Microsoft Teams Workflows webhook notification
 
 ```sh
-playpub notify teams [flags]
+gpc notify teams [flags]
 ```
 
 ##### Flags
@@ -1404,15 +1404,15 @@ playpub notify teams [flags]
 - `--severity`: Notification severity label
 - `--title`: Notification title
 - `--webhook-url`: HTTPS Microsoft Teams Workflows webhook URL; legacy incoming connector URLs are also supported; http is allowed only for loopback hosts
-- `--webhook-url-env`: Environment variable containing the Microsoft Teams Workflows webhook URL (default `PLAYPUB_NOTIFY_WEBHOOK_URL`)
+- `--webhook-url-env`: Environment variable containing the Microsoft Teams Workflows webhook URL (default `GPC_NOTIFY_WEBHOOK_URL`)
 - `--webhook-url-file`: File containing the Microsoft Teams Workflows webhook URL
 
-### playpub one-time-product-offers
+### gpc one-time-product-offers
 
 Inspect Google Play one-time product offers
 
 ```sh
-playpub one-time-product-offers
+gpc one-time-product-offers
 ```
 
 #### Flags
@@ -1421,28 +1421,28 @@ playpub one-time-product-offers
 
 #### Commands
 
-- `playpub one-time-product-offers activate`: activate a one-time product offer
-- `playpub one-time-product-offers batch-activate`: activate multiple one-time product offers
-- `playpub one-time-product-offers batch-cancel`: Cancel multiple pre-order one-time product offers and pending orders
-- `playpub one-time-product-offers batch-deactivate`: deactivate multiple one-time product offers
-- `playpub one-time-product-offers batch-delete`: Delete multiple one-time product offers
-- `playpub one-time-product-offers batch-get`: Get multiple one-time product offers
-- `playpub one-time-product-offers batch-patch-absolute-discounts`: Batch patch one-time product offer absolute discounts
-- `playpub one-time-product-offers batch-patch-availability`: Batch patch one-time product offer regional availability
-- `playpub one-time-product-offers batch-patch-no-overrides`: Batch reset one-time product offer regional discounts to no override
-- `playpub one-time-product-offers batch-patch-relative-discounts`: Batch patch one-time product offer relative discounts
-- `playpub one-time-product-offers cancel`: cancel a one-time product offer
-- `playpub one-time-product-offers create`: Create a one-time product offer
-- `playpub one-time-product-offers deactivate`: deactivate a one-time product offer
-- `playpub one-time-product-offers get`: Get a one-time product offer
-- `playpub one-time-product-offers list`: List one-time product offers
+- `gpc one-time-product-offers activate`: activate a one-time product offer
+- `gpc one-time-product-offers batch-activate`: activate multiple one-time product offers
+- `gpc one-time-product-offers batch-cancel`: Cancel multiple pre-order one-time product offers and pending orders
+- `gpc one-time-product-offers batch-deactivate`: deactivate multiple one-time product offers
+- `gpc one-time-product-offers batch-delete`: Delete multiple one-time product offers
+- `gpc one-time-product-offers batch-get`: Get multiple one-time product offers
+- `gpc one-time-product-offers batch-patch-absolute-discounts`: Batch patch one-time product offer absolute discounts
+- `gpc one-time-product-offers batch-patch-availability`: Batch patch one-time product offer regional availability
+- `gpc one-time-product-offers batch-patch-no-overrides`: Batch reset one-time product offer regional discounts to no override
+- `gpc one-time-product-offers batch-patch-relative-discounts`: Batch patch one-time product offer relative discounts
+- `gpc one-time-product-offers cancel`: cancel a one-time product offer
+- `gpc one-time-product-offers create`: Create a one-time product offer
+- `gpc one-time-product-offers deactivate`: deactivate a one-time product offer
+- `gpc one-time-product-offers get`: Get a one-time product offer
+- `gpc one-time-product-offers list`: List one-time product offers
 
-#### playpub one-time-product-offers activate
+#### gpc one-time-product-offers activate
 
 activate a one-time product offer
 
 ```sh
-playpub one-time-product-offers activate [flags]
+gpc one-time-product-offers activate [flags]
 ```
 
 ##### Flags
@@ -1454,12 +1454,12 @@ playpub one-time-product-offers activate [flags]
 - `--product-id`: Parent one-time product ID
 - `--purchase-option-id`: Parent one-time product purchase option ID
 
-#### playpub one-time-product-offers batch-activate
+#### gpc one-time-product-offers batch-activate
 
 activate multiple one-time product offers
 
 ```sh
-playpub one-time-product-offers batch-activate [flags]
+gpc one-time-product-offers batch-activate [flags]
 ```
 
 ##### Flags
@@ -1471,12 +1471,12 @@ playpub one-time-product-offers batch-activate [flags]
 - `--product-id`: Parent one-time product ID, or - for offers across products; inferred when omitted
 - `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
 
-#### playpub one-time-product-offers batch-cancel
+#### gpc one-time-product-offers batch-cancel
 
 Cancel multiple pre-order one-time product offers and pending orders
 
 ```sh
-playpub one-time-product-offers batch-cancel [flags]
+gpc one-time-product-offers batch-cancel [flags]
 ```
 
 ##### Flags
@@ -1488,12 +1488,12 @@ playpub one-time-product-offers batch-cancel [flags]
 - `--product-id`: Parent one-time product ID, or - for offers across products; inferred when omitted
 - `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
 
-#### playpub one-time-product-offers batch-deactivate
+#### gpc one-time-product-offers batch-deactivate
 
 deactivate multiple one-time product offers
 
 ```sh
-playpub one-time-product-offers batch-deactivate [flags]
+gpc one-time-product-offers batch-deactivate [flags]
 ```
 
 ##### Flags
@@ -1505,12 +1505,12 @@ playpub one-time-product-offers batch-deactivate [flags]
 - `--product-id`: Parent one-time product ID, or - for offers across products; inferred when omitted
 - `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
 
-#### playpub one-time-product-offers batch-delete
+#### gpc one-time-product-offers batch-delete
 
 Delete multiple one-time product offers
 
 ```sh
-playpub one-time-product-offers batch-delete [flags]
+gpc one-time-product-offers batch-delete [flags]
 ```
 
 ##### Flags
@@ -1522,12 +1522,12 @@ playpub one-time-product-offers batch-delete [flags]
 - `--product-id`: Parent one-time product ID, or - for offers across products; inferred when omitted
 - `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
 
-#### playpub one-time-product-offers batch-get
+#### gpc one-time-product-offers batch-get
 
 Get multiple one-time product offers
 
 ```sh
-playpub one-time-product-offers batch-get [flags]
+gpc one-time-product-offers batch-get [flags]
 ```
 
 ##### Flags
@@ -1536,12 +1536,12 @@ playpub one-time-product-offers batch-get [flags]
 - `--product-id`: Parent one-time product ID, or - for offers across products
 - `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options
 
-#### playpub one-time-product-offers batch-patch-absolute-discounts
+#### gpc one-time-product-offers batch-patch-absolute-discounts
 
 Batch patch one-time product offer absolute discounts
 
 ```sh
-playpub one-time-product-offers batch-patch-absolute-discounts [flags]
+gpc one-time-product-offers batch-patch-absolute-discounts [flags]
 ```
 
 ##### Flags
@@ -1554,12 +1554,12 @@ playpub one-time-product-offers batch-patch-absolute-discounts [flags]
 - `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
 - `--regions-version`: Google Play regions version required by oneTimeProductOffers.batchUpdate
 
-#### playpub one-time-product-offers batch-patch-availability
+#### gpc one-time-product-offers batch-patch-availability
 
 Batch patch one-time product offer regional availability
 
 ```sh
-playpub one-time-product-offers batch-patch-availability [flags]
+gpc one-time-product-offers batch-patch-availability [flags]
 ```
 
 ##### Flags
@@ -1572,12 +1572,12 @@ playpub one-time-product-offers batch-patch-availability [flags]
 - `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
 - `--regions-version`: Google Play regions version required by oneTimeProductOffers.batchUpdate
 
-#### playpub one-time-product-offers batch-patch-no-overrides
+#### gpc one-time-product-offers batch-patch-no-overrides
 
 Batch reset one-time product offer regional discounts to no override
 
 ```sh
-playpub one-time-product-offers batch-patch-no-overrides [flags]
+gpc one-time-product-offers batch-patch-no-overrides [flags]
 ```
 
 ##### Flags
@@ -1590,12 +1590,12 @@ playpub one-time-product-offers batch-patch-no-overrides [flags]
 - `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options; inferred when omitted
 - `--regions-version`: Google Play regions version required by oneTimeProductOffers.batchUpdate
 
-#### playpub one-time-product-offers batch-patch-relative-discounts
+#### gpc one-time-product-offers batch-patch-relative-discounts
 
 Batch patch one-time product offer relative discounts
 
 ```sh
-playpub one-time-product-offers batch-patch-relative-discounts [flags]
+gpc one-time-product-offers batch-patch-relative-discounts [flags]
 ```
 
 ##### Flags
@@ -1608,12 +1608,12 @@ playpub one-time-product-offers batch-patch-relative-discounts [flags]
 - `--regions-version`: Google Play regions version required by oneTimeProductOffers.batchUpdate
 - `--relative-discount`: Relative discount patch as productId/purchaseOptionId/offerId/REGION:0.75, where 0.75 means the user pays 75% of the purchase option price; repeatable (default `[]`)
 
-#### playpub one-time-product-offers cancel
+#### gpc one-time-product-offers cancel
 
 cancel a one-time product offer
 
 ```sh
-playpub one-time-product-offers cancel [flags]
+gpc one-time-product-offers cancel [flags]
 ```
 
 ##### Flags
@@ -1625,12 +1625,12 @@ playpub one-time-product-offers cancel [flags]
 - `--product-id`: Parent one-time product ID
 - `--purchase-option-id`: Parent one-time product purchase option ID
 
-#### playpub one-time-product-offers create
+#### gpc one-time-product-offers create
 
 Create a one-time product offer
 
 ```sh
-playpub one-time-product-offers create [flags]
+gpc one-time-product-offers create [flags]
 ```
 
 ##### Flags
@@ -1639,7 +1639,7 @@ playpub one-time-product-offers create [flags]
 - `--confirm`: Create the one-time product offer (default `false`)
 - `--dry-run`: Print the planned one-time product offer creation without calling Google Play (default `false`)
 - `--end-time`: Basic offer end time as RFC3339
-- `--from-json`: Path to a Google Play API or playpub JSON one-time product offer body
+- `--from-json`: Path to a Google Play API or gpc JSON one-time product offer body
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--no-override`: Basic create regional no-override price mode as REGION; repeatable (default `[]`)
 - `--offer-id`: One-time product offer ID
@@ -1654,12 +1654,12 @@ playpub one-time-product-offers create [flags]
 - `--release-time`: Basic pre-order offer release time as RFC3339
 - `--start-time`: Basic offer start time as RFC3339
 
-#### playpub one-time-product-offers deactivate
+#### gpc one-time-product-offers deactivate
 
 deactivate a one-time product offer
 
 ```sh
-playpub one-time-product-offers deactivate [flags]
+gpc one-time-product-offers deactivate [flags]
 ```
 
 ##### Flags
@@ -1671,12 +1671,12 @@ playpub one-time-product-offers deactivate [flags]
 - `--product-id`: Parent one-time product ID
 - `--purchase-option-id`: Parent one-time product purchase option ID
 
-#### playpub one-time-product-offers get
+#### gpc one-time-product-offers get
 
 Get a one-time product offer
 
 ```sh
-playpub one-time-product-offers get [flags]
+gpc one-time-product-offers get [flags]
 ```
 
 ##### Flags
@@ -1685,12 +1685,12 @@ playpub one-time-product-offers get [flags]
 - `--product-id`: Parent one-time product ID
 - `--purchase-option-id`: Parent one-time product purchase option ID
 
-#### playpub one-time-product-offers list
+#### gpc one-time-product-offers list
 
 List one-time product offers
 
 ```sh
-playpub one-time-product-offers list [flags]
+gpc one-time-product-offers list [flags]
 ```
 
 ##### Flags
@@ -1700,12 +1700,12 @@ playpub one-time-product-offers list [flags]
 - `--product-id`: Parent one-time product ID, or - for all products
 - `--purchase-option-id`: Parent one-time product purchase option ID, or - for all purchase options
 
-### playpub one-time-products
+### gpc one-time-products
 
 Inspect Google Play one-time products
 
 ```sh
-playpub one-time-products
+gpc one-time-products
 ```
 
 #### Flags
@@ -1714,22 +1714,22 @@ playpub one-time-products
 
 #### Commands
 
-- `playpub one-time-products batch-delete`: Delete multiple one-time products
-- `playpub one-time-products batch-get`: Get multiple one-time products
-- `playpub one-time-products batch-patch-listings`: Batch patch localized one-time product listings
-- `playpub one-time-products create`: Create a one-time product
-- `playpub one-time-products delete`: Delete a one-time product
-- `playpub one-time-products get`: Get a one-time product
-- `playpub one-time-products list`: List one-time products
-- `playpub one-time-products patch`: Patch a one-time product listing
-- `playpub one-time-products purchase-option`: Manage one-time product purchase options
+- `gpc one-time-products batch-delete`: Delete multiple one-time products
+- `gpc one-time-products batch-get`: Get multiple one-time products
+- `gpc one-time-products batch-patch-listings`: Batch patch localized one-time product listings
+- `gpc one-time-products create`: Create a one-time product
+- `gpc one-time-products delete`: Delete a one-time product
+- `gpc one-time-products get`: Get a one-time product
+- `gpc one-time-products list`: List one-time products
+- `gpc one-time-products patch`: Patch a one-time product listing
+- `gpc one-time-products purchase-option`: Manage one-time product purchase options
 
-#### playpub one-time-products batch-delete
+#### gpc one-time-products batch-delete
 
 Delete multiple one-time products
 
 ```sh
-playpub one-time-products batch-delete [flags]
+gpc one-time-products batch-delete [flags]
 ```
 
 ##### Flags
@@ -1739,24 +1739,24 @@ playpub one-time-products batch-delete [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--product-id`: One-time product ID; repeatable, up to 100 (default `[]`)
 
-#### playpub one-time-products batch-get
+#### gpc one-time-products batch-get
 
 Get multiple one-time products
 
 ```sh
-playpub one-time-products batch-get [flags]
+gpc one-time-products batch-get [flags]
 ```
 
 ##### Flags
 
 - `--product-id`: One-time product ID; repeatable, up to 100 (default `[]`)
 
-#### playpub one-time-products batch-patch-listings
+#### gpc one-time-products batch-patch-listings
 
 Batch patch localized one-time product listings
 
 ```sh
-playpub one-time-products batch-patch-listings [flags]
+gpc one-time-products batch-patch-listings [flags]
 ```
 
 ##### Flags
@@ -1767,19 +1767,19 @@ playpub one-time-products batch-patch-listings [flags]
 - `--listing`: CSV listing patch productId,language,title,description; repeat for multiple localized listings (default `[]`)
 - `--regions-version`: Google Play regions version required by oneTimeProducts.batchUpdate
 
-#### playpub one-time-products create
+#### gpc one-time-products create
 
 Create a one-time product
 
 ```sh
-playpub one-time-products create [flags]
+gpc one-time-products create [flags]
 ```
 
 ##### Flags
 
 - `--confirm`: Create the one-time product (default `false`)
 - `--dry-run`: Print the planned one-time product creation without calling Google Play (default `false`)
-- `--from-json`: Path to a Google Play API or playpub JSON one-time product body
+- `--from-json`: Path to a Google Play API or gpc JSON one-time product body
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--legacy-compatible`: Mark the basic buy purchase option as legacy compatible (default `true`)
 - `--listing`: Basic create listing as CSV language,title,description; repeatable (default `[]`)
@@ -1790,12 +1790,12 @@ playpub one-time-products create [flags]
 - `--purchase-option-id`: Basic create purchase option ID (default `buy`)
 - `--regions-version`: Google Play regions version required by oneTimeProducts.patch
 
-#### playpub one-time-products delete
+#### gpc one-time-products delete
 
 Delete a one-time product
 
 ```sh
-playpub one-time-products delete [flags]
+gpc one-time-products delete [flags]
 ```
 
 ##### Flags
@@ -1805,24 +1805,24 @@ playpub one-time-products delete [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--product-id`: One-time product ID
 
-#### playpub one-time-products get
+#### gpc one-time-products get
 
 Get a one-time product
 
 ```sh
-playpub one-time-products get [flags]
+gpc one-time-products get [flags]
 ```
 
 ##### Flags
 
 - `--product-id`: One-time product ID
 
-#### playpub one-time-products list
+#### gpc one-time-products list
 
 List one-time products
 
 ```sh
-playpub one-time-products list [flags]
+gpc one-time-products list [flags]
 ```
 
 ##### Flags
@@ -1830,12 +1830,12 @@ playpub one-time-products list [flags]
 - `--page-size`: Maximum one-time products to return, capped at 1000 (default `0`)
 - `--page-token`: Pagination token from a previous response
 
-#### playpub one-time-products patch
+#### gpc one-time-products patch
 
 Patch a one-time product listing
 
 ```sh
-playpub one-time-products patch [flags]
+gpc one-time-products patch [flags]
 ```
 
 ##### Flags
@@ -1849,28 +1849,28 @@ playpub one-time-products patch [flags]
 - `--regions-version`: Google Play regions version required by oneTimeProducts.patch
 - `--title`: Localized one-time product title
 
-#### playpub one-time-products purchase-option
+#### gpc one-time-products purchase-option
 
 Manage one-time product purchase options
 
 ```sh
-playpub one-time-products purchase-option
+gpc one-time-products purchase-option
 ```
 
 ##### Commands
 
-- `playpub one-time-products purchase-option activate`: activate a one-time product purchase option
-- `playpub one-time-products purchase-option batch-delete`: Delete one-time product purchase options
-- `playpub one-time-products purchase-option batch-patch-availability`: Batch patch one-time product purchase option availability
-- `playpub one-time-products purchase-option batch-patch-prices`: Batch patch one-time product purchase option regional prices
-- `playpub one-time-products purchase-option deactivate`: deactivate a one-time product purchase option
+- `gpc one-time-products purchase-option activate`: activate a one-time product purchase option
+- `gpc one-time-products purchase-option batch-delete`: Delete one-time product purchase options
+- `gpc one-time-products purchase-option batch-patch-availability`: Batch patch one-time product purchase option availability
+- `gpc one-time-products purchase-option batch-patch-prices`: Batch patch one-time product purchase option regional prices
+- `gpc one-time-products purchase-option deactivate`: deactivate a one-time product purchase option
 
-##### playpub one-time-products purchase-option activate
+##### gpc one-time-products purchase-option activate
 
 activate a one-time product purchase option
 
 ```sh
-playpub one-time-products purchase-option activate [flags]
+gpc one-time-products purchase-option activate [flags]
 ```
 
 ###### Flags
@@ -1881,12 +1881,12 @@ playpub one-time-products purchase-option activate [flags]
 - `--product-id`: One-time product ID
 - `--purchase-option-id`: One-time product purchase option ID
 
-##### playpub one-time-products purchase-option batch-delete
+##### gpc one-time-products purchase-option batch-delete
 
 Delete one-time product purchase options
 
 ```sh
-playpub one-time-products purchase-option batch-delete [flags]
+gpc one-time-products purchase-option batch-delete [flags]
 ```
 
 ###### Flags
@@ -1898,12 +1898,12 @@ playpub one-time-products purchase-option batch-delete [flags]
 - `--product-id`: Parent one-time product ID, or - when deleting across products; inferred when omitted
 - `--purchase-option`: Purchase option to delete as productId/purchaseOptionId; repeatable, up to 100 (default `[]`)
 
-##### playpub one-time-products purchase-option batch-patch-availability
+##### gpc one-time-products purchase-option batch-patch-availability
 
 Batch patch one-time product purchase option availability
 
 ```sh
-playpub one-time-products purchase-option batch-patch-availability [flags]
+gpc one-time-products purchase-option batch-patch-availability [flags]
 ```
 
 ###### Flags
@@ -1914,12 +1914,12 @@ playpub one-time-products purchase-option batch-patch-availability [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--regions-version`: Google Play regions version required by oneTimeProducts.batchUpdate
 
-##### playpub one-time-products purchase-option batch-patch-prices
+##### gpc one-time-products purchase-option batch-patch-prices
 
 Batch patch one-time product purchase option regional prices
 
 ```sh
-playpub one-time-products purchase-option batch-patch-prices [flags]
+gpc one-time-products purchase-option batch-patch-prices [flags]
 ```
 
 ###### Flags
@@ -1930,12 +1930,12 @@ playpub one-time-products purchase-option batch-patch-prices [flags]
 - `--price`: Regional price patch as productId/purchaseOptionId/REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
 - `--regions-version`: Google Play regions version required by oneTimeProducts.batchUpdate
 
-##### playpub one-time-products purchase-option deactivate
+##### gpc one-time-products purchase-option deactivate
 
 deactivate a one-time product purchase option
 
 ```sh
-playpub one-time-products purchase-option deactivate [flags]
+gpc one-time-products purchase-option deactivate [flags]
 ```
 
 ###### Flags
@@ -1946,12 +1946,12 @@ playpub one-time-products purchase-option deactivate [flags]
 - `--product-id`: One-time product ID
 - `--purchase-option-id`: One-time product purchase option ID
 
-### playpub orders
+### gpc orders
 
 Inspect and refund Google Play orders
 
 ```sh
-playpub orders
+gpc orders
 ```
 
 #### Flags
@@ -1960,40 +1960,40 @@ playpub orders
 
 #### Commands
 
-- `playpub orders batch-get`: Get multiple Google Play orders
-- `playpub orders get`: Get one Google Play order
-- `playpub orders refund`: Refund one Google Play order
+- `gpc orders batch-get`: Get multiple Google Play orders
+- `gpc orders get`: Get one Google Play order
+- `gpc orders refund`: Refund one Google Play order
 
-#### playpub orders batch-get
+#### gpc orders batch-get
 
 Get multiple Google Play orders
 
 ```sh
-playpub orders batch-get [flags]
+gpc orders batch-get [flags]
 ```
 
 ##### Flags
 
 - `--order-id`: Google Play order ID, repeatable (default `[]`)
 
-#### playpub orders get
+#### gpc orders get
 
 Get one Google Play order
 
 ```sh
-playpub orders get [flags]
+gpc orders get [flags]
 ```
 
 ##### Flags
 
 - `--order-id`: Google Play order ID
 
-#### playpub orders refund
+#### gpc orders refund
 
 Refund one Google Play order
 
 ```sh
-playpub orders refund [flags]
+gpc orders refund [flags]
 ```
 
 ##### Flags
@@ -2003,12 +2003,12 @@ playpub orders refund [flags]
 - `--order-id`: Google Play order ID
 - `--revoke`: Revoke the purchased item after refunding (default `false`)
 
-### playpub pricing
+### gpc pricing
 
 Build and inspect Google Play price conversions
 
 ```sh
-playpub pricing
+gpc pricing
 ```
 
 #### Flags
@@ -2017,21 +2017,21 @@ playpub pricing
 
 #### Commands
 
-- `playpub pricing build-price-patches`: Build regional price patch arguments from converted Play prices
-- `playpub pricing convert-region-prices`: Convert one source price into Play region prices
+- `gpc pricing build-price-patches`: Build regional price patch arguments from converted Play prices
+- `gpc pricing convert-region-prices`: Convert one source price into Play region prices
 
-#### playpub pricing build-price-patches
+#### gpc pricing build-price-patches
 
 Build regional price patch arguments from converted Play prices
 
 ```sh
-playpub pricing build-price-patches [flags]
+gpc pricing build-price-patches [flags]
 ```
 
 ##### Flags
 
 - `--base-plan-id`: Base plan ID for subscription targets
-- `--from-json`: Path to playpub pricing convert-region-prices JSON output
+- `--from-json`: Path to gpc pricing convert-region-prices JSON output
 - `--offer-id`: Offer ID for --target subscription-offer-phase
 - `--phase-index`: Zero-based offer phase index for --target subscription-offer-phase (default `-1`)
 - `--product-id`: One-time product or subscription product ID
@@ -2039,12 +2039,12 @@ playpub pricing build-price-patches [flags]
 - `--sku`: In-app product SKU for --target in-app-product
 - `--target`: Patch target: in-app-product, one-time-product, subscription-base-plan, or subscription-offer-phase
 
-#### playpub pricing convert-region-prices
+#### gpc pricing convert-region-prices
 
 Convert one source price into Play region prices
 
 ```sh
-playpub pricing convert-region-prices [flags]
+gpc pricing convert-region-prices [flags]
 ```
 
 ##### Flags
@@ -2053,24 +2053,24 @@ playpub pricing convert-region-prices [flags]
 - `--nanos`: Fractional source price nanos, 0 to 999999999 (default `0`)
 - `--units`: Whole source price units (default `0`)
 
-### playpub publish
+### gpc publish
 
 Run high-level Google Play publishing workflows
 
 ```sh
-playpub publish
+gpc publish
 ```
 
 #### Commands
 
-- `playpub publish internal`: Publish an Android App Bundle to the internal track
+- `gpc publish internal`: Publish an Android App Bundle to the internal track
 
-#### playpub publish internal
+#### gpc publish internal
 
 Publish an Android App Bundle to the internal track
 
 ```sh
-playpub publish internal [flags]
+gpc publish internal [flags]
 ```
 
 ##### Flags
@@ -2084,12 +2084,12 @@ playpub publish internal [flags]
 - `--status`: Release status: completed, draft, halted, inProgress (default `completed`)
 - `--user-fraction`: Staged rollout fraction for inProgress or halted releases (default `0`)
 
-### playpub purchases
+### gpc purchases
 
 Inspect and manage Google Play purchase tokens
 
 ```sh
-playpub purchases
+gpc purchases
 ```
 
 #### Flags
@@ -2098,16 +2098,16 @@ playpub purchases
 
 #### Commands
 
-- `playpub purchases product`: Get or mutate one in-app product purchase
-- `playpub purchases subscription`: Get or mutate one subscription purchase
-- `playpub purchases voided`: Inspect voided Google Play purchases
+- `gpc purchases product`: Get or mutate one in-app product purchase
+- `gpc purchases subscription`: Get or mutate one subscription purchase
+- `gpc purchases voided`: Inspect voided Google Play purchases
 
-#### playpub purchases product
+#### gpc purchases product
 
 Get or mutate one in-app product purchase
 
 ```sh
-playpub purchases product [flags]
+gpc purchases product [flags]
 ```
 
 ##### Flags
@@ -2117,15 +2117,15 @@ playpub purchases product [flags]
 
 ##### Commands
 
-- `playpub purchases product acknowledge`: Acknowledge an in-app product purchase
-- `playpub purchases product consume`: Consume an in-app product purchase
+- `gpc purchases product acknowledge`: Acknowledge an in-app product purchase
+- `gpc purchases product consume`: Consume an in-app product purchase
 
-##### playpub purchases product acknowledge
+##### gpc purchases product acknowledge
 
 Acknowledge an in-app product purchase
 
 ```sh
-playpub purchases product acknowledge [flags]
+gpc purchases product acknowledge [flags]
 ```
 
 ###### Flags
@@ -2136,12 +2136,12 @@ playpub purchases product acknowledge [flags]
 - `--product-id`: In-app product ID
 - `--token`: Purchase token
 
-##### playpub purchases product consume
+##### gpc purchases product consume
 
 Consume an in-app product purchase
 
 ```sh
-playpub purchases product consume [flags]
+gpc purchases product consume [flags]
 ```
 
 ###### Flags
@@ -2151,12 +2151,12 @@ playpub purchases product consume [flags]
 - `--product-id`: In-app product ID
 - `--token`: Purchase token
 
-#### playpub purchases subscription
+#### gpc purchases subscription
 
 Get or mutate one subscription purchase
 
 ```sh
-playpub purchases subscription [flags]
+gpc purchases subscription [flags]
 ```
 
 ##### Flags
@@ -2165,16 +2165,16 @@ playpub purchases subscription [flags]
 
 ##### Commands
 
-- `playpub purchases subscription acknowledge`: Acknowledge a subscription purchase through the legacy subscriptions API
-- `playpub purchases subscription cancel`: Cancel a subscription purchase through the subscriptions v2 API
-- `playpub purchases subscription revoke`: Revoke a subscription purchase
+- `gpc purchases subscription acknowledge`: Acknowledge a subscription purchase through the legacy subscriptions API
+- `gpc purchases subscription cancel`: Cancel a subscription purchase through the subscriptions v2 API
+- `gpc purchases subscription revoke`: Revoke a subscription purchase
 
-##### playpub purchases subscription acknowledge
+##### gpc purchases subscription acknowledge
 
 Acknowledge a subscription purchase through the legacy subscriptions API
 
 ```sh
-playpub purchases subscription acknowledge [flags]
+gpc purchases subscription acknowledge [flags]
 ```
 
 ###### Flags
@@ -2185,12 +2185,12 @@ playpub purchases subscription acknowledge [flags]
 - `--subscription-id`: Legacy subscription product ID
 - `--token`: Purchase token
 
-##### playpub purchases subscription cancel
+##### gpc purchases subscription cancel
 
 Cancel a subscription purchase through the subscriptions v2 API
 
 ```sh
-playpub purchases subscription cancel [flags]
+gpc purchases subscription cancel [flags]
 ```
 
 ###### Flags
@@ -2200,12 +2200,12 @@ playpub purchases subscription cancel [flags]
 - `--dry-run`: Print the planned subscription purchase mutation without calling Google Play (default `false`)
 - `--token`: Purchase token
 
-##### playpub purchases subscription revoke
+##### gpc purchases subscription revoke
 
 Revoke a subscription purchase
 
 ```sh
-playpub purchases subscription revoke [flags]
+gpc purchases subscription revoke [flags]
 ```
 
 ###### Flags
@@ -2216,24 +2216,24 @@ playpub purchases subscription revoke [flags]
 - `--refund-product-id`: Subscription product ID to refund when --refund item is used
 - `--token`: Purchase token
 
-#### playpub purchases voided
+#### gpc purchases voided
 
 Inspect voided Google Play purchases
 
 ```sh
-playpub purchases voided
+gpc purchases voided
 ```
 
 ##### Commands
 
-- `playpub purchases voided list`: List voided purchases
+- `gpc purchases voided list`: List voided purchases
 
-##### playpub purchases voided list
+##### gpc purchases voided list
 
 List voided purchases
 
 ```sh
-playpub purchases voided list [flags]
+gpc purchases voided list [flags]
 ```
 
 ###### Flags
@@ -2246,12 +2246,12 @@ playpub purchases voided list [flags]
 - `--token`: Pagination token from a previous response
 - `--type`: Voided purchase type: 0 for products, 1 for products and subscriptions (default `0`)
 
-### playpub releases
+### gpc releases
 
 Upload and manage Google Play releases
 
 ```sh
-playpub releases
+gpc releases
 ```
 
 #### Flags
@@ -2260,18 +2260,18 @@ playpub releases
 
 #### Commands
 
-- `playpub releases halt`: Halt a staged release
-- `playpub releases list`: List releases for a track
-- `playpub releases promote`: Promote a release from one track to another
-- `playpub releases resume`: Resume a staged release
-- `playpub releases upload`: Upload an APK or Android App Bundle to a track
+- `gpc releases halt`: Halt a staged release
+- `gpc releases list`: List releases for a track
+- `gpc releases promote`: Promote a release from one track to another
+- `gpc releases resume`: Resume a staged release
+- `gpc releases upload`: Upload an APK or Android App Bundle to a track
 
-#### playpub releases halt
+#### gpc releases halt
 
 Halt a staged release
 
 ```sh
-playpub releases halt [flags]
+gpc releases halt [flags]
 ```
 
 ##### Flags
@@ -2281,24 +2281,24 @@ playpub releases halt [flags]
 - `--track`: Track name (default `production`)
 - `--version-code`: Version code to halt (default `0`)
 
-#### playpub releases list
+#### gpc releases list
 
 List releases for a track
 
 ```sh
-playpub releases list [flags]
+gpc releases list [flags]
 ```
 
 ##### Flags
 
 - `--track`: Track name, for example internal, alpha, beta, or production (default `internal`)
 
-#### playpub releases promote
+#### gpc releases promote
 
 Promote a release from one track to another
 
 ```sh
-playpub releases promote [flags]
+gpc releases promote [flags]
 ```
 
 ##### Flags
@@ -2312,12 +2312,12 @@ playpub releases promote [flags]
 - `--user-fraction`: Staged rollout fraction for inProgress or halted releases (default `0`)
 - `--version-code`: Version code to promote (default `0`)
 
-#### playpub releases resume
+#### gpc releases resume
 
 Resume a staged release
 
 ```sh
-playpub releases resume [flags]
+gpc releases resume [flags]
 ```
 
 ##### Flags
@@ -2329,12 +2329,12 @@ playpub releases resume [flags]
 - `--user-fraction`: Staged rollout fraction when status is inProgress (default `0`)
 - `--version-code`: Version code to resume (default `0`)
 
-#### playpub releases upload
+#### gpc releases upload
 
 Upload an APK or Android App Bundle to a track
 
 ```sh
-playpub releases upload [flags]
+gpc releases upload [flags]
 ```
 
 ##### Flags
@@ -2349,12 +2349,12 @@ playpub releases upload [flags]
 - `--track`: Track name, for example internal, alpha, beta, or production (default `internal`)
 - `--user-fraction`: Staged rollout fraction for inProgress or halted releases (default `0`)
 
-### playpub reviews
+### gpc reviews
 
 Read and reply to Google Play reviews
 
 ```sh
-playpub reviews
+gpc reviews
 ```
 
 #### Flags
@@ -2363,16 +2363,16 @@ playpub reviews
 
 #### Commands
 
-- `playpub reviews get`: Get one Google Play review
-- `playpub reviews list`: List Google Play reviews
-- `playpub reviews reply`: Reply to a Google Play review
+- `gpc reviews get`: Get one Google Play review
+- `gpc reviews list`: List Google Play reviews
+- `gpc reviews reply`: Reply to a Google Play review
 
-#### playpub reviews get
+#### gpc reviews get
 
 Get one Google Play review
 
 ```sh
-playpub reviews get [flags]
+gpc reviews get [flags]
 ```
 
 ##### Flags
@@ -2380,12 +2380,12 @@ playpub reviews get [flags]
 - `--review-id`: Google Play review ID
 - `--translation-language`: Language localization code for translated review text
 
-#### playpub reviews list
+#### gpc reviews list
 
 List Google Play reviews
 
 ```sh
-playpub reviews list [flags]
+gpc reviews list [flags]
 ```
 
 ##### Flags
@@ -2395,12 +2395,12 @@ playpub reviews list [flags]
 - `--token`: Pagination token from a previous response
 - `--translation-language`: Language localization code for translated reviews
 
-#### playpub reviews reply
+#### gpc reviews reply
 
 Reply to a Google Play review
 
 ```sh
-playpub reviews reply [flags]
+gpc reviews reply [flags]
 ```
 
 ##### Flags
@@ -2410,12 +2410,12 @@ playpub reviews reply [flags]
 - `--review-id`: Google Play review ID
 - `--text`: Public developer reply text
 
-### playpub schema
+### gpc schema
 
 Print the Google Play discovery schema
 
 ```sh
-playpub schema [flags]
+gpc schema [flags]
 ```
 
 #### Flags
@@ -2423,52 +2423,52 @@ playpub schema [flags]
 - `--method`: Filter by discovery method name or ID, for example list or androidpublisher.edits.tracks.list
 - `--resource`: Filter by dotted discovery resource path, for example edits.tracks
 
-### playpub search
+### gpc search
 
-Search playpub commands and flags
+Search gpc commands and flags
 
 ```sh
-playpub search QUERY... [flags]
+gpc search QUERY... [flags]
 ```
 
 #### Flags
 
 - `--limit`: Maximum number of matches; 0 returns all matches (default `20`)
 
-### playpub snitch
+### gpc snitch
 
-Report playpub friction
+Report gpc friction
 
 ```sh
-playpub snitch
+gpc snitch
 ```
 
 #### Commands
 
-- `playpub snitch report`: Generate a GitHub issue URL for CLI friction
+- `gpc snitch report`: Generate a GitHub issue URL for CLI friction
 
-#### playpub snitch report
+#### gpc snitch report
 
 Generate a GitHub issue URL for CLI friction
 
 ```sh
-playpub snitch report [flags]
+gpc snitch report [flags]
 ```
 
 ##### Flags
 
 - `--body`: Issue body
-- `--command`: playpub command or workflow that caused friction
+- `--command`: gpc command or workflow that caused friction
 - `--label`: GitHub issue label; repeatable (default `[]`)
 - `--repo`: GitHub repository as owner/name (default `aljrico/Google-Play-Console-CLI`)
 - `--title`: Short issue title
 
-### playpub status
+### gpc status
 
 Summarize Google Play release status
 
 ```sh
-playpub status [flags]
+gpc status [flags]
 ```
 
 #### Flags
@@ -2476,12 +2476,12 @@ playpub status [flags]
 - `--include-draft`: Include draft releases in the status summary (default `false`)
 - `--package`: Android package name, for example com.example.app
 
-### playpub subscription-offers
+### gpc subscription-offers
 
 Inspect Google Play subscription offers
 
 ```sh
-playpub subscription-offers
+gpc subscription-offers
 ```
 
 #### Flags
@@ -2490,27 +2490,27 @@ playpub subscription-offers
 
 #### Commands
 
-- `playpub subscription-offers activate`: activate a subscription offer
-- `playpub subscription-offers batch-activate`: activate multiple subscription offers
-- `playpub subscription-offers batch-deactivate`: deactivate multiple subscription offers
-- `playpub subscription-offers batch-get`: Get multiple subscription offers
-- `playpub subscription-offers batch-patch-availability`: Batch patch subscription offer regional availability
-- `playpub subscription-offers batch-patch-phase-absolute-discounts`: Batch patch subscription offer phase absolute discounts
-- `playpub subscription-offers batch-patch-phase-free`: Batch patch subscription offer phases to free
-- `playpub subscription-offers batch-patch-phase-prices`: Batch patch subscription offer phase prices
-- `playpub subscription-offers batch-patch-phase-relative-discounts`: Batch patch subscription offer phase relative discounts
-- `playpub subscription-offers create`: Create a draft subscription offer
-- `playpub subscription-offers deactivate`: deactivate a subscription offer
-- `playpub subscription-offers delete`: Delete a draft subscription offer
-- `playpub subscription-offers get`: Get one subscription offer
-- `playpub subscription-offers list`: List subscription offers
+- `gpc subscription-offers activate`: activate a subscription offer
+- `gpc subscription-offers batch-activate`: activate multiple subscription offers
+- `gpc subscription-offers batch-deactivate`: deactivate multiple subscription offers
+- `gpc subscription-offers batch-get`: Get multiple subscription offers
+- `gpc subscription-offers batch-patch-availability`: Batch patch subscription offer regional availability
+- `gpc subscription-offers batch-patch-phase-absolute-discounts`: Batch patch subscription offer phase absolute discounts
+- `gpc subscription-offers batch-patch-phase-free`: Batch patch subscription offer phases to free
+- `gpc subscription-offers batch-patch-phase-prices`: Batch patch subscription offer phase prices
+- `gpc subscription-offers batch-patch-phase-relative-discounts`: Batch patch subscription offer phase relative discounts
+- `gpc subscription-offers create`: Create a draft subscription offer
+- `gpc subscription-offers deactivate`: deactivate a subscription offer
+- `gpc subscription-offers delete`: Delete a draft subscription offer
+- `gpc subscription-offers get`: Get one subscription offer
+- `gpc subscription-offers list`: List subscription offers
 
-#### playpub subscription-offers activate
+#### gpc subscription-offers activate
 
 activate a subscription offer
 
 ```sh
-playpub subscription-offers activate [flags]
+gpc subscription-offers activate [flags]
 ```
 
 ##### Flags
@@ -2522,12 +2522,12 @@ playpub subscription-offers activate [flags]
 - `--offer-id`: Subscription offer ID
 - `--product-id`: Parent subscription product ID
 
-#### playpub subscription-offers batch-activate
+#### gpc subscription-offers batch-activate
 
 activate multiple subscription offers
 
 ```sh
-playpub subscription-offers batch-activate [flags]
+gpc subscription-offers batch-activate [flags]
 ```
 
 ##### Flags
@@ -2539,12 +2539,12 @@ playpub subscription-offers batch-activate [flags]
 - `--offer`: Offer to update as productId/basePlanId/offerId; repeatable, up to 100 (default `[]`)
 - `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
 
-#### playpub subscription-offers batch-deactivate
+#### gpc subscription-offers batch-deactivate
 
 deactivate multiple subscription offers
 
 ```sh
-playpub subscription-offers batch-deactivate [flags]
+gpc subscription-offers batch-deactivate [flags]
 ```
 
 ##### Flags
@@ -2556,12 +2556,12 @@ playpub subscription-offers batch-deactivate [flags]
 - `--offer`: Offer to update as productId/basePlanId/offerId; repeatable, up to 100 (default `[]`)
 - `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
 
-#### playpub subscription-offers batch-get
+#### gpc subscription-offers batch-get
 
 Get multiple subscription offers
 
 ```sh
-playpub subscription-offers batch-get [flags]
+gpc subscription-offers batch-get [flags]
 ```
 
 ##### Flags
@@ -2570,12 +2570,12 @@ playpub subscription-offers batch-get [flags]
 - `--offer`: Offer to fetch as productId/basePlanId/offerId; repeatable, up to 100 (default `[]`)
 - `--product-id`: Parent subscription product ID, or - for offers across products
 
-#### playpub subscription-offers batch-patch-availability
+#### gpc subscription-offers batch-patch-availability
 
 Batch patch subscription offer regional availability
 
 ```sh
-playpub subscription-offers batch-patch-availability [flags]
+gpc subscription-offers batch-patch-availability [flags]
 ```
 
 ##### Flags
@@ -2588,12 +2588,12 @@ playpub subscription-offers batch-patch-availability [flags]
 - `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
 - `--regions-version`: Google Play regions version required by subscriptionOffers.batchUpdate
 
-#### playpub subscription-offers batch-patch-phase-absolute-discounts
+#### gpc subscription-offers batch-patch-phase-absolute-discounts
 
 Batch patch subscription offer phase absolute discounts
 
 ```sh
-playpub subscription-offers batch-patch-phase-absolute-discounts [flags]
+gpc subscription-offers batch-patch-phase-absolute-discounts [flags]
 ```
 
 ##### Flags
@@ -2606,12 +2606,12 @@ playpub subscription-offers batch-patch-phase-absolute-discounts [flags]
 - `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
 - `--regions-version`: Google Play regions version required by subscriptionOffers.batchUpdate
 
-#### playpub subscription-offers batch-patch-phase-free
+#### gpc subscription-offers batch-patch-phase-free
 
 Batch patch subscription offer phases to free
 
 ```sh
-playpub subscription-offers batch-patch-phase-free [flags]
+gpc subscription-offers batch-patch-phase-free [flags]
 ```
 
 ##### Flags
@@ -2624,12 +2624,12 @@ playpub subscription-offers batch-patch-phase-free [flags]
 - `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
 - `--regions-version`: Google Play regions version required by subscriptionOffers.batchUpdate
 
-#### playpub subscription-offers batch-patch-phase-prices
+#### gpc subscription-offers batch-patch-phase-prices
 
 Batch patch subscription offer phase prices
 
 ```sh
-playpub subscription-offers batch-patch-phase-prices [flags]
+gpc subscription-offers batch-patch-phase-prices [flags]
 ```
 
 ##### Flags
@@ -2642,12 +2642,12 @@ playpub subscription-offers batch-patch-phase-prices [flags]
 - `--product-id`: Parent subscription product ID, or - for offers across products; inferred when omitted
 - `--regions-version`: Google Play regions version required by subscriptionOffers.batchUpdate
 
-#### playpub subscription-offers batch-patch-phase-relative-discounts
+#### gpc subscription-offers batch-patch-phase-relative-discounts
 
 Batch patch subscription offer phase relative discounts
 
 ```sh
-playpub subscription-offers batch-patch-phase-relative-discounts [flags]
+gpc subscription-offers batch-patch-phase-relative-discounts [flags]
 ```
 
 ##### Flags
@@ -2660,12 +2660,12 @@ playpub subscription-offers batch-patch-phase-relative-discounts [flags]
 - `--regions-version`: Google Play regions version required by subscriptionOffers.batchUpdate
 - `--relative-discount`: Phase relative discount patch as productId/basePlanId/offerId/phaseIndex/REGION:0.75; phaseIndex is zero-based, so 0 is the first phase; 0.75 means the user pays 75% of the base plan price prorated over the phase duration; repeatable (default `[]`)
 
-#### playpub subscription-offers create
+#### gpc subscription-offers create
 
 Create a draft subscription offer
 
 ```sh
-playpub subscription-offers create [flags]
+gpc subscription-offers create [flags]
 ```
 
 ##### Flags
@@ -2675,7 +2675,7 @@ playpub subscription-offers create [flags]
 - `--confirm`: Create the draft subscription offer (default `false`)
 - `--dry-run`: Print the planned subscription offer creation without calling Google Play (default `false`)
 - `--free-region`: Basic create region with new-subscriber availability and a free phase price mode; repeatable (default `[]`)
-- `--from-json`: Path to a Google Play API or playpub JSON subscription offer body
+- `--from-json`: Path to a Google Play API or gpc JSON subscription offer body
 - `--offer-id`: Subscription offer ID
 - `--offer-tag`: Basic create offer tag; repeatable (default `[]`)
 - `--other-regions-absolute-eur-discount`: Basic create first phase other-regions absolute EUR discount as EUR:UNITS[:NANOS]
@@ -2707,12 +2707,12 @@ playpub subscription-offers create [flags]
 - `--targeting-upgrade-product-id`: Basic create upgrade targeting subscription product ID when scope is specific-subscription-in-app
 - `--targeting-upgrade-scope`: Basic create upgrade targeting scope: this-subscription or specific-subscription-in-app
 
-#### playpub subscription-offers deactivate
+#### gpc subscription-offers deactivate
 
 deactivate a subscription offer
 
 ```sh
-playpub subscription-offers deactivate [flags]
+gpc subscription-offers deactivate [flags]
 ```
 
 ##### Flags
@@ -2724,12 +2724,12 @@ playpub subscription-offers deactivate [flags]
 - `--offer-id`: Subscription offer ID
 - `--product-id`: Parent subscription product ID
 
-#### playpub subscription-offers delete
+#### gpc subscription-offers delete
 
 Delete a draft subscription offer
 
 ```sh
-playpub subscription-offers delete [flags]
+gpc subscription-offers delete [flags]
 ```
 
 ##### Flags
@@ -2740,12 +2740,12 @@ playpub subscription-offers delete [flags]
 - `--offer-id`: Subscription offer ID
 - `--product-id`: Parent subscription product ID
 
-#### playpub subscription-offers get
+#### gpc subscription-offers get
 
 Get one subscription offer
 
 ```sh
-playpub subscription-offers get [flags]
+gpc subscription-offers get [flags]
 ```
 
 ##### Flags
@@ -2754,12 +2754,12 @@ playpub subscription-offers get [flags]
 - `--offer-id`: Subscription offer ID
 - `--product-id`: Parent subscription product ID
 
-#### playpub subscription-offers list
+#### gpc subscription-offers list
 
 List subscription offers
 
 ```sh
-playpub subscription-offers list [flags]
+gpc subscription-offers list [flags]
 ```
 
 ##### Flags
@@ -2769,12 +2769,12 @@ playpub subscription-offers list [flags]
 - `--page-token`: Pagination token from a previous response
 - `--product-id`: Parent subscription product ID, or - for all products
 
-### playpub subscriptions
+### gpc subscriptions
 
 Inspect Google Play monetization subscriptions
 
 ```sh
-playpub subscriptions
+gpc subscriptions
 ```
 
 #### Flags
@@ -2783,39 +2783,39 @@ playpub subscriptions
 
 #### Commands
 
-- `playpub subscriptions base-plan`: Manage subscription base plans
-- `playpub subscriptions batch-get`: Get multiple monetization subscriptions
-- `playpub subscriptions batch-patch-listings`: Batch patch localized subscription listings
-- `playpub subscriptions create`: Create a draft subscription
-- `playpub subscriptions delete`: Delete a draft-only monetization subscription
-- `playpub subscriptions get`: Get one monetization subscription
-- `playpub subscriptions list`: List monetization subscriptions
-- `playpub subscriptions patch`: Patch a subscription listing
+- `gpc subscriptions base-plan`: Manage subscription base plans
+- `gpc subscriptions batch-get`: Get multiple monetization subscriptions
+- `gpc subscriptions batch-patch-listings`: Batch patch localized subscription listings
+- `gpc subscriptions create`: Create a draft subscription
+- `gpc subscriptions delete`: Delete a draft-only monetization subscription
+- `gpc subscriptions get`: Get one monetization subscription
+- `gpc subscriptions list`: List monetization subscriptions
+- `gpc subscriptions patch`: Patch a subscription listing
 
-#### playpub subscriptions base-plan
+#### gpc subscriptions base-plan
 
 Manage subscription base plans
 
 ```sh
-playpub subscriptions base-plan
+gpc subscriptions base-plan
 ```
 
 ##### Commands
 
-- `playpub subscriptions base-plan activate`: activate a subscription base plan
-- `playpub subscriptions base-plan batch-activate`: Batch activate subscription base plans
-- `playpub subscriptions base-plan batch-deactivate`: Batch deactivate subscription base plans
-- `playpub subscriptions base-plan batch-migrate-prices`: Batch migrate subscription base plan prices
-- `playpub subscriptions base-plan batch-patch-prices`: Batch patch subscription base plan regional prices
-- `playpub subscriptions base-plan deactivate`: deactivate a subscription base plan
-- `playpub subscriptions base-plan delete`: Delete a draft-only subscription base plan
+- `gpc subscriptions base-plan activate`: activate a subscription base plan
+- `gpc subscriptions base-plan batch-activate`: Batch activate subscription base plans
+- `gpc subscriptions base-plan batch-deactivate`: Batch deactivate subscription base plans
+- `gpc subscriptions base-plan batch-migrate-prices`: Batch migrate subscription base plan prices
+- `gpc subscriptions base-plan batch-patch-prices`: Batch patch subscription base plan regional prices
+- `gpc subscriptions base-plan deactivate`: deactivate a subscription base plan
+- `gpc subscriptions base-plan delete`: Delete a draft-only subscription base plan
 
-##### playpub subscriptions base-plan activate
+##### gpc subscriptions base-plan activate
 
 activate a subscription base plan
 
 ```sh
-playpub subscriptions base-plan activate [flags]
+gpc subscriptions base-plan activate [flags]
 ```
 
 ###### Flags
@@ -2826,12 +2826,12 @@ playpub subscriptions base-plan activate [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--product-id`: Subscription product ID
 
-##### playpub subscriptions base-plan batch-activate
+##### gpc subscriptions base-plan batch-activate
 
 Batch activate subscription base plans
 
 ```sh
-playpub subscriptions base-plan batch-activate [flags]
+gpc subscriptions base-plan batch-activate [flags]
 ```
 
 ###### Flags
@@ -2843,12 +2843,12 @@ playpub subscriptions base-plan batch-activate [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--product-id`: Subscription product ID, or - for base plans across subscriptions; inferred when --base-plan is used
 
-##### playpub subscriptions base-plan batch-deactivate
+##### gpc subscriptions base-plan batch-deactivate
 
 Batch deactivate subscription base plans
 
 ```sh
-playpub subscriptions base-plan batch-deactivate [flags]
+gpc subscriptions base-plan batch-deactivate [flags]
 ```
 
 ###### Flags
@@ -2860,12 +2860,12 @@ playpub subscriptions base-plan batch-deactivate [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--product-id`: Subscription product ID, or - for base plans across subscriptions; inferred when --base-plan is used
 
-##### playpub subscriptions base-plan batch-migrate-prices
+##### gpc subscriptions base-plan batch-migrate-prices
 
 Batch migrate subscription base plan prices
 
 ```sh
-playpub subscriptions base-plan batch-migrate-prices [flags]
+gpc subscriptions base-plan batch-migrate-prices [flags]
 ```
 
 ###### Flags
@@ -2878,12 +2878,12 @@ playpub subscriptions base-plan batch-migrate-prices [flags]
 - `--product-id`: Subscription product ID, or - for migrations across subscriptions; inferred from --migration values
 - `--regions-version`: Google Play regions version required by batchMigratePrices
 
-##### playpub subscriptions base-plan batch-patch-prices
+##### gpc subscriptions base-plan batch-patch-prices
 
 Batch patch subscription base plan regional prices
 
 ```sh
-playpub subscriptions base-plan batch-patch-prices [flags]
+gpc subscriptions base-plan batch-patch-prices [flags]
 ```
 
 ###### Flags
@@ -2895,12 +2895,12 @@ playpub subscriptions base-plan batch-patch-prices [flags]
 - `--product-id`: Subscription product ID, or - for price patches across subscriptions; inferred from --price values
 - `--regions-version`: Google Play regions version required by subscriptions.batchUpdate
 
-##### playpub subscriptions base-plan deactivate
+##### gpc subscriptions base-plan deactivate
 
 deactivate a subscription base plan
 
 ```sh
-playpub subscriptions base-plan deactivate [flags]
+gpc subscriptions base-plan deactivate [flags]
 ```
 
 ###### Flags
@@ -2911,12 +2911,12 @@ playpub subscriptions base-plan deactivate [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--product-id`: Subscription product ID
 
-##### playpub subscriptions base-plan delete
+##### gpc subscriptions base-plan delete
 
 Delete a draft-only subscription base plan
 
 ```sh
-playpub subscriptions base-plan delete [flags]
+gpc subscriptions base-plan delete [flags]
 ```
 
 ###### Flags
@@ -2926,24 +2926,24 @@ playpub subscriptions base-plan delete [flags]
 - `--dry-run`: Print the planned base plan deletion without calling Google Play (default `false`)
 - `--product-id`: Subscription product ID
 
-#### playpub subscriptions batch-get
+#### gpc subscriptions batch-get
 
 Get multiple monetization subscriptions
 
 ```sh
-playpub subscriptions batch-get [flags]
+gpc subscriptions batch-get [flags]
 ```
 
 ##### Flags
 
 - `--product-id`: Subscription product ID; repeatable, up to 100 (default `[]`)
 
-#### playpub subscriptions batch-patch-listings
+#### gpc subscriptions batch-patch-listings
 
 Batch patch localized subscription listings
 
 ```sh
-playpub subscriptions batch-patch-listings [flags]
+gpc subscriptions batch-patch-listings [flags]
 ```
 
 ##### Flags
@@ -2954,12 +2954,12 @@ playpub subscriptions batch-patch-listings [flags]
 - `--listing`: CSV listing patch productId,language,title,description; repeat for multiple localized listings (default `[]`)
 - `--regions-version`: Google Play regions version required by subscriptions.batchUpdate
 
-#### playpub subscriptions create
+#### gpc subscriptions create
 
 Create a draft subscription
 
 ```sh
-playpub subscriptions create [flags]
+gpc subscriptions create [flags]
 ```
 
 ##### Flags
@@ -2970,7 +2970,7 @@ playpub subscriptions create [flags]
 - `--confirm`: Create the draft subscription (default `false`)
 - `--dry-run`: Print the planned subscription creation without calling Google Play (default `false`)
 - `--eea-withdrawal-right-type`: Basic create EEA withdrawal right type: WITHDRAWAL_RIGHT_DIGITAL_CONTENT or WITHDRAWAL_RIGHT_SERVICE
-- `--from-json`: Path to a Google Play API or playpub JSON subscription body
+- `--from-json`: Path to a Google Play API or gpc JSON subscription body
 - `--installments`: Build a basic installments base plan instead of an auto-renewing base plan (default `false`)
 - `--legacy-compatible`: Mark the basic auto-renewing base plan as legacy compatible (default `true`)
 - `--listing`: Basic create listing as CSV language,title,description; repeatable (default `[]`)
@@ -2986,12 +2986,12 @@ playpub subscriptions create [flags]
 - `--time-extension`: Basic prepaid time extension: TIME_EXTENSION_ACTIVE or TIME_EXTENSION_INACTIVE
 - `--tokenized-digital-asset`: Basic create tokenized digital asset declaration: true or false
 
-#### playpub subscriptions delete
+#### gpc subscriptions delete
 
 Delete a draft-only monetization subscription
 
 ```sh
-playpub subscriptions delete [flags]
+gpc subscriptions delete [flags]
 ```
 
 ##### Flags
@@ -3000,24 +3000,24 @@ playpub subscriptions delete [flags]
 - `--dry-run`: Print the planned subscription deletion without calling Google Play (default `false`)
 - `--product-id`: Subscription product ID
 
-#### playpub subscriptions get
+#### gpc subscriptions get
 
 Get one monetization subscription
 
 ```sh
-playpub subscriptions get [flags]
+gpc subscriptions get [flags]
 ```
 
 ##### Flags
 
 - `--product-id`: Subscription product ID
 
-#### playpub subscriptions list
+#### gpc subscriptions list
 
 List monetization subscriptions
 
 ```sh
-playpub subscriptions list [flags]
+gpc subscriptions list [flags]
 ```
 
 ##### Flags
@@ -3026,12 +3026,12 @@ playpub subscriptions list [flags]
 - `--page-token`: Pagination token from a previous response
 - `--show-archived`: Deprecated by Google; subscription archiving is no longer supported (default `false`)
 
-#### playpub subscriptions patch
+#### gpc subscriptions patch
 
 Patch a subscription listing
 
 ```sh
-playpub subscriptions patch [flags]
+gpc subscriptions patch [flags]
 ```
 
 ##### Flags
@@ -3046,12 +3046,12 @@ playpub subscriptions patch [flags]
 - `--regions-version`: Google Play regions version required by subscriptions.patch
 - `--title`: Localized subscription title
 
-### playpub system-apks
+### gpc system-apks
 
 Inspect Google Play system APK variants
 
 ```sh
-playpub system-apks
+gpc system-apks
 ```
 
 #### Flags
@@ -3060,38 +3060,38 @@ playpub system-apks
 
 #### Commands
 
-- `playpub system-apks variants`: Inspect generated system APK variants
+- `gpc system-apks variants`: Inspect generated system APK variants
 
-#### playpub system-apks variants
+#### gpc system-apks variants
 
 Inspect generated system APK variants
 
 ```sh
-playpub system-apks variants
+gpc system-apks variants
 ```
 
 ##### Commands
 
-- `playpub system-apks variants list`: List system APK variants for an App Bundle version
+- `gpc system-apks variants list`: List system APK variants for an App Bundle version
 
-##### playpub system-apks variants list
+##### gpc system-apks variants list
 
 List system APK variants for an App Bundle version
 
 ```sh
-playpub system-apks variants list [flags]
+gpc system-apks variants list [flags]
 ```
 
 ###### Flags
 
 - `--version-code`: App Bundle version code (default `0`)
 
-### playpub testers
+### gpc testers
 
 Manage Google Play track tester groups
 
 ```sh
-playpub testers
+gpc testers
 ```
 
 #### Flags
@@ -3100,27 +3100,27 @@ playpub testers
 
 #### Commands
 
-- `playpub testers get`: Get Google Groups configured as testers for a track
-- `playpub testers update`: Replace Google Groups configured as testers for a track
+- `gpc testers get`: Get Google Groups configured as testers for a track
+- `gpc testers update`: Replace Google Groups configured as testers for a track
 
-#### playpub testers get
+#### gpc testers get
 
 Get Google Groups configured as testers for a track
 
 ```sh
-playpub testers get [flags]
+gpc testers get [flags]
 ```
 
 ##### Flags
 
 - `--track`: Track name, for example internal, alpha, beta, or production (default `internal`)
 
-#### playpub testers update
+#### gpc testers update
 
 Replace Google Groups configured as testers for a track
 
 ```sh
-playpub testers update [flags]
+gpc testers update [flags]
 ```
 
 ##### Flags
@@ -3131,12 +3131,12 @@ playpub testers update [flags]
 - `--google-group`: Testing Google Group email address, repeatable (default `[]`)
 - `--track`: Track name, for example internal, alpha, beta, or production (default `internal`)
 
-### playpub tracks
+### gpc tracks
 
 Manage Google Play release tracks
 
 ```sh
-playpub tracks
+gpc tracks
 ```
 
 #### Flags
@@ -3145,29 +3145,29 @@ playpub tracks
 
 #### Commands
 
-- `playpub tracks list`: List release tracks
+- `gpc tracks list`: List release tracks
 
-### playpub users
+### gpc users
 
 Inspect and manage Google Play Console users
 
 ```sh
-playpub users
+gpc users
 ```
 
 #### Commands
 
-- `playpub users create`: Grant developer-account access to a user
-- `playpub users delete`: Remove all developer-account access for a user
-- `playpub users list`: List users with access to a developer account
-- `playpub users patch`: Replace developer-account access fields for a user
+- `gpc users create`: Grant developer-account access to a user
+- `gpc users delete`: Remove all developer-account access for a user
+- `gpc users list`: List users with access to a developer account
+- `gpc users patch`: Replace developer-account access fields for a user
 
-#### playpub users create
+#### gpc users create
 
 Grant developer-account access to a user
 
 ```sh
-playpub users create [flags]
+gpc users create [flags]
 ```
 
 ##### Flags
@@ -3179,12 +3179,12 @@ playpub users create [flags]
 - `--permission`: Developer-account permission, repeatable (default `[]`)
 - `--user-email`: Play Console user email
 
-#### playpub users delete
+#### gpc users delete
 
 Remove all developer-account access for a user
 
 ```sh
-playpub users delete [flags]
+gpc users delete [flags]
 ```
 
 ##### Flags
@@ -3195,12 +3195,12 @@ playpub users delete [flags]
 - `--name`: User resource name, developers/{developer}/users/{email}
 - `--user-email`: Play Console user email
 
-#### playpub users list
+#### gpc users list
 
 List users with access to a developer account
 
 ```sh
-playpub users list [flags]
+gpc users list [flags]
 ```
 
 ##### Flags
@@ -3209,12 +3209,12 @@ playpub users list [flags]
 - `--page-size`: Maximum users to return; use -1 to disable pagination (default `0`)
 - `--page-token`: Pagination token from a previous response
 
-#### playpub users patch
+#### gpc users patch
 
 Replace developer-account access fields for a user
 
 ```sh
-playpub users patch [flags]
+gpc users patch [flags]
 ```
 
 ##### Flags
@@ -3227,24 +3227,24 @@ playpub users patch [flags]
 - `--permission`: Developer-account permission, repeatable; replaces the account-level permission list when provided (default `[]`)
 - `--user-email`: Play Console user email
 
-### playpub validate
+### gpc validate
 
 Validate a temporary Google Play edit
 
 ```sh
-playpub validate [flags]
+gpc validate [flags]
 ```
 
 #### Flags
 
 - `--package`: Android package name, for example com.example.app
 
-### playpub vitals
+### gpc vitals
 
 Inspect Google Play Developer Reporting vitals
 
 ```sh
-playpub vitals
+gpc vitals
 ```
 
 #### Flags
@@ -3253,28 +3253,28 @@ playpub vitals
 
 #### Commands
 
-- `playpub vitals anomalies`: List Android vitals anomalies
-- `playpub vitals errors`: Search Android vitals errors
-- `playpub vitals metric-set`: Inspect Android vitals metric set metadata
+- `gpc vitals anomalies`: List Android vitals anomalies
+- `gpc vitals errors`: Search Android vitals errors
+- `gpc vitals metric-set`: Inspect Android vitals metric set metadata
 
-#### playpub vitals anomalies
+#### gpc vitals anomalies
 
 List Android vitals anomalies
 
 ```sh
-playpub vitals anomalies
+gpc vitals anomalies
 ```
 
 ##### Commands
 
-- `playpub vitals anomalies list`: List Android vitals anomalies
+- `gpc vitals anomalies list`: List Android vitals anomalies
 
-##### playpub vitals anomalies list
+##### gpc vitals anomalies list
 
 List Android vitals anomalies
 
 ```sh
-playpub vitals anomalies list [flags]
+gpc vitals anomalies list [flags]
 ```
 
 ###### Flags
@@ -3283,37 +3283,37 @@ playpub vitals anomalies list [flags]
 - `--page-size`: Maximum anomalies to return, capped by Google at 100 (default `0`)
 - `--page-token`: Pagination token from a previous response
 
-#### playpub vitals errors
+#### gpc vitals errors
 
 Search Android vitals errors
 
 ```sh
-playpub vitals errors
+gpc vitals errors
 ```
 
 ##### Commands
 
-- `playpub vitals errors issues`: Search grouped Android vitals error issues
-- `playpub vitals errors reports`: Search Android vitals error reports
+- `gpc vitals errors issues`: Search grouped Android vitals error issues
+- `gpc vitals errors reports`: Search Android vitals error reports
 
-##### playpub vitals errors issues
+##### gpc vitals errors issues
 
 Search grouped Android vitals error issues
 
 ```sh
-playpub vitals errors issues
+gpc vitals errors issues
 ```
 
 ###### Commands
 
-- `playpub vitals errors issues search`: Search grouped Android vitals error issues
+- `gpc vitals errors issues search`: Search grouped Android vitals error issues
 
-###### playpub vitals errors issues search
+###### gpc vitals errors issues search
 
 Search grouped Android vitals error issues
 
 ```sh
-playpub vitals errors issues search [flags]
+gpc vitals errors issues search [flags]
 ```
 
 ###### Flags
@@ -3327,24 +3327,24 @@ playpub vitals errors issues search [flags]
 - `--start-date`: Start date, inclusive, in YYYY-MM-DD format
 - `--time-zone`: Time zone for the interval; only UTC is supported when set
 
-##### playpub vitals errors reports
+##### gpc vitals errors reports
 
 Search Android vitals error reports
 
 ```sh
-playpub vitals errors reports
+gpc vitals errors reports
 ```
 
 ###### Commands
 
-- `playpub vitals errors reports search`: Search individual Android vitals error reports
+- `gpc vitals errors reports search`: Search individual Android vitals error reports
 
-###### playpub vitals errors reports search
+###### gpc vitals errors reports search
 
 Search individual Android vitals error reports
 
 ```sh
-playpub vitals errors reports search [flags]
+gpc vitals errors reports search [flags]
 ```
 
 ###### Flags
@@ -3356,37 +3356,37 @@ playpub vitals errors reports search [flags]
 - `--start-date`: Start date, inclusive, in YYYY-MM-DD format
 - `--time-zone`: Time zone for the interval; only UTC is supported when set
 
-#### playpub vitals metric-set
+#### gpc vitals metric-set
 
 Inspect Android vitals metric set metadata
 
 ```sh
-playpub vitals metric-set
+gpc vitals metric-set
 ```
 
 ##### Commands
 
-- `playpub vitals metric-set get`: Get Android vitals metric set freshness
-- `playpub vitals metric-set query`: Query Android vitals metric rows
+- `gpc vitals metric-set get`: Get Android vitals metric set freshness
+- `gpc vitals metric-set query`: Query Android vitals metric rows
 
-##### playpub vitals metric-set get
+##### gpc vitals metric-set get
 
 Get Android vitals metric set freshness
 
 ```sh
-playpub vitals metric-set get [flags]
+gpc vitals metric-set get [flags]
 ```
 
 ###### Flags
 
 - `--metric-set`: Vitals metric set: anr-rate, crash-rate, error-count, excessive-wakeup-rate, lmk-rate, slow-rendering-rate, slow-start-rate, stuck-background-wakelock-rate
 
-##### playpub vitals metric-set query
+##### gpc vitals metric-set query
 
 Query Android vitals metric rows
 
 ```sh
-playpub vitals metric-set query [flags]
+gpc vitals metric-set query [flags]
 ```
 
 ###### Flags
@@ -3403,41 +3403,41 @@ playpub vitals metric-set query [flags]
 - `--time-zone`: IANA time zone for daily aggregation, for example America/Los_Angeles
 - `--user-cohort`: User cohort where supported: OS_PUBLIC, OS_BETA, or APP_TESTERS
 
-### playpub web
+### gpc web
 
 Inspect Play Console browser automation support
 
 ```sh
-playpub web
+gpc web
 ```
 
 #### Commands
 
-- `playpub web status`: Explain the Play Console browser automation boundary
+- `gpc web status`: Explain the Play Console browser automation boundary
 
-### playpub workflow
+### gpc workflow
 
-Run repo-local playpub workflows
+Run repo-local gpc workflows
 
 ```sh
-playpub workflow
+gpc workflow
 ```
 
 #### Flags
 
-- `--file`: Workflow JSON file (default `.playpub/workflow.json`)
+- `--file`: Workflow JSON file (default `.gpc/workflow.json`)
 
 #### Commands
 
-- `playpub workflow list`: List configured workflows
-- `playpub workflow run`: Run one configured workflow
+- `gpc workflow list`: List configured workflows
+- `gpc workflow run`: Run one configured workflow
 
-#### playpub workflow run
+#### gpc workflow run
 
 Run one configured workflow
 
 ```sh
-playpub workflow run NAME [flags]
+gpc workflow run NAME [flags]
 ```
 
 ##### Flags

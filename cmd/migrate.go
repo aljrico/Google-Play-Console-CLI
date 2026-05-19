@@ -35,7 +35,7 @@ func newMigrateSupplyConvertCommand(out io.Writer, options *globalOptions) *cobr
 	var directory string
 	cmd := &cobra.Command{
 		Use:   "convert",
-		Short: "Convert fastlane supply listings to playpub metadata JSON",
+		Short: "Convert fastlane supply listings to gpc metadata JSON",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			metadata, err := supply.Convert(cmd.Context(), supply.ConvertOptions{Directory: directory})

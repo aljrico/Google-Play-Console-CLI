@@ -22,7 +22,7 @@ func DecodeOneTimeProductOfferCreateJSON(data []byte) (OneTimeProductOffer, erro
 		return offer, nil
 	}
 
-	return OneTimeProductOffer{}, fmt.Errorf("one-time product offer JSON must use Google Play API JSON or playpub one-time product offer JSON")
+	return OneTimeProductOffer{}, fmt.Errorf("one-time product offer JSON must use Google Play API JSON or gpc one-time product offer JSON")
 }
 
 func validateOneTimeProductOfferCreateJSONKeys(data []byte) error {

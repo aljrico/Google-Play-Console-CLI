@@ -1,12 +1,12 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 version: 2
 
-project_name: playpub
+project_name: gpc
 
 builds:
-  - id: playpub
+  - id: gpc
     main: .
-    binary: playpub
+    binary: gpc
     env:
       - CGO_ENABLED=0
     goos:
@@ -25,9 +25,9 @@ builds:
       - -X github.com/aljrico/Google-Play-Console-CLI/cmd.date={{ .CommitDate }}
 
 archives:
-  - id: playpub
+  - id: gpc
     ids:
-      - playpub
+      - gpc
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
@@ -62,16 +62,16 @@ release:
     name: Google-Play-Console-CLI
 
 brews:
-  - name: playpub
+  - name: gpc
     ids:
-      - playpub
+      - gpc
     repository:
       owner: aljrico
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: https://github.com/aljrico/Google-Play-Console-CLI
-    description: Go CLI for Google Play Developer API workflows
+    description: Fast, scriptable CLI for the Google Play Developer API
     license: MIT
     test: |
-      system "#{bin}/playpub", "version"
+      system "#{bin}/gpc", "version"

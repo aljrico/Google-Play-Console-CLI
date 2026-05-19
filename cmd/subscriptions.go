@@ -61,7 +61,7 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a draft subscription",
-		Long: "Create a draft subscription from a Google Play API Subscription JSON body or playpub subscription JSON output. " +
+		Long: "Create a draft subscription from a Google Play API Subscription JSON body or gpc subscription JSON output. " +
 			"Basic flags build one auto-renewing, prepaid, or installments base plan; use JSON for compliance or other advanced fields. " +
 			"Immutable package and product IDs come from flags and override JSON bodies; output-only subscription and base-plan state is ignored.",
 		Args: cobra.NoArgs,
@@ -146,7 +146,7 @@ func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packag
 		},
 	}
 	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID")
-	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or playpub JSON subscription body")
+	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or gpc JSON subscription body")
 	cmd.Flags().BoolVar(&prepaid, "prepaid", false, "Build a basic prepaid base plan instead of an auto-renewing base plan")
 	cmd.Flags().BoolVar(&installments, "installments", false, "Build a basic installments base plan instead of an auto-renewing base plan")
 	cmd.Flags().StringArrayVar(&listings, "listing", nil, "Basic create listing as CSV language,title,description; repeatable")

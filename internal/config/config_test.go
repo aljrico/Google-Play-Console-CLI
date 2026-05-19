@@ -8,7 +8,7 @@ import (
 )
 
 func TestLoadMissingConfigReturnsEmptyStore(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", filepath.Join(t.TempDir(), "missing.json"))
+	t.Setenv("GPC_CONFIG", filepath.Join(t.TempDir(), "missing.json"))
 
 	store, err := Load()
 	if err != nil {
@@ -24,7 +24,7 @@ func TestLoadMissingConfigReturnsEmptyStore(t *testing.T) {
 
 func TestSaveAndLoadRoundTrip(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "nested", "config.json")
-	t.Setenv("PLAYPUB_CONFIG", configPath)
+	t.Setenv("GPC_CONFIG", configPath)
 
 	want := Store{
 		ActiveProfile: "default",
@@ -53,7 +53,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 
 func TestSaveUsesPrivatePermissions(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "nested", "config.json")
-	t.Setenv("PLAYPUB_CONFIG", configPath)
+	t.Setenv("GPC_CONFIG", configPath)
 
 	store := Store{
 		ActiveProfile: "default",
@@ -87,7 +87,7 @@ func TestSaveUsesPrivatePermissions(t *testing.T) {
 
 func TestLoadCorruptConfigIncludesPath(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
-	t.Setenv("PLAYPUB_CONFIG", configPath)
+	t.Setenv("GPC_CONFIG", configPath)
 	if err := os.WriteFile(configPath, []byte("{"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}

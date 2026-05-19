@@ -22,7 +22,7 @@ func DecodeSubscriptionCreateJSON(data []byte) (Subscription, error) {
 		return subscription, nil
 	}
 
-	return Subscription{}, fmt.Errorf("subscription JSON must use Google Play API JSON or playpub subscription JSON")
+	return Subscription{}, fmt.Errorf("subscription JSON must use Google Play API JSON or gpc subscription JSON")
 }
 
 func validateSubscriptionCreateJSONKeys(data []byte) error {

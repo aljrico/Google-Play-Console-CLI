@@ -5,7 +5,7 @@ import "testing"
 func TestNewPackageNameValidatesShape(t *testing.T) {
 	validValues := []string{
 		"com.example.app",
-		"io.playpub.cli_1",
+		"io.gpc.cli_1",
 	}
 	for _, value := range validValues {
 		if _, err := NewPackageName(value); err != nil {

@@ -18,7 +18,7 @@ func newInstallSkillsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 
 	cmd := &cobra.Command{
 		Use:   "install-skills",
-		Short: "Install bundled playpub agent skills",
+		Short: "Install bundled gpc agent skills",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := agentskills.Install(cmd.Context(), agentskills.InstallOptions{
@@ -44,7 +44,7 @@ func newInstallSkillsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 func newInstallSkillsListCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: "List bundled playpub agent skills",
+		Short: "List bundled gpc agent skills",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return output.Write(out, options.output, options.pretty, agentskills.List())

@@ -7,7 +7,7 @@ import (
 )
 
 func TestMetadataApplyDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	metadataPath := writeRootTestContent(t, "metadata.json", `{
   "details": {
     "contactEmail": "support@example.com"
@@ -54,7 +54,7 @@ func TestMetadataApplyDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestMetadataApplyRejectsUnknownFileFieldsBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	metadataPath := writeRootTestContent(t, "metadata.json", `{"details":{"contactEmail":"support@example.com"},"surprise":true}`)
 
 	var buf bytes.Buffer
@@ -84,7 +84,7 @@ func TestMetadataApplyRejectsUnknownFileFieldsBeforeAuth(t *testing.T) {
 }
 
 func TestMetadataApplyRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	metadataPath := writeRootTestContent(t, "metadata.json", `{"details":{"contactEmail":"support@example.com"}}`)
 
 	var buf bytes.Buffer
@@ -113,7 +113,7 @@ func TestMetadataApplyRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
 }
 
 func TestMetadataApplyRejectsConfirmAndDryRunBeforeFileRead(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

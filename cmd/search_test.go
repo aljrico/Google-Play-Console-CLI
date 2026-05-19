@@ -7,7 +7,7 @@ import (
 )
 
 func TestSearchFindsCommandsWithoutAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -28,7 +28,7 @@ func TestSearchFindsCommandsWithoutAuth(t *testing.T) {
 	for _, want := range []string{
 		`"query":"release upload"`,
 		`"limit":3`,
-		`"path":"playpub releases upload"`,
+		`"path":"gpc releases upload"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
@@ -56,7 +56,7 @@ func TestSearchFindsFlagsAsTyped(t *testing.T) {
 	output := buf.String()
 	for _, want := range []string{
 		`"query":"--webhook-url-env"`,
-		`"path":"playpub notify send"`,
+		`"path":"gpc notify send"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)

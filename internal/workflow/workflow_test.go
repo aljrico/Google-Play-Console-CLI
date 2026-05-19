@@ -193,7 +193,7 @@ func TestRunRejectsConfirmAndDryRunTogether(t *testing.T) {
 
 func TestRunDefaultsWorkDirToWorkflowRoot(t *testing.T) {
 	root := t.TempDir()
-	file := filepath.Join(root, ".playpub", "workflow.json")
+	file := filepath.Join(root, ".gpc", "workflow.json")
 	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}

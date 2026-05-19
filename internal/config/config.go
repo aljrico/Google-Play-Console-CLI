@@ -19,14 +19,14 @@ type Profile struct {
 }
 
 func Path() string {
-	if override := os.Getenv("PLAYPUB_CONFIG"); override != "" {
+	if override := os.Getenv("GPC_CONFIG"); override != "" {
 		return override
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ".playpub/config.json"
+		return ".gpc/config.json"
 	}
-	return filepath.Join(home, ".playpub", "config.json")
+	return filepath.Join(home, ".gpc", "config.json")
 }
 
 func Load() (Store, error) {

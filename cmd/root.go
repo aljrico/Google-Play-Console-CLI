@@ -23,8 +23,8 @@ type globalOptions struct {
 func newRootCommand(out io.Writer) *cobra.Command {
 	options := &globalOptions{}
 	cmd := &cobra.Command{
-		Use:           "playpub",
-		Short:         "Go CLI for Google Play Developer API workflows",
+		Use:           "gpc",
+		Short:         "Fast, scriptable CLI for the Google Play Developer API",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}

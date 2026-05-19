@@ -58,16 +58,16 @@ jobs:
             x86_64 | amd64) install_arch="x86_64" ;;
             *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
           esac
-          archive="$(find dist -name "playpub_*_Darwin_${install_arch}.tar.gz" -print -quit)"
+          archive="$(find dist -name "gpc_*_Darwin_${install_arch}.tar.gz" -print -quit)"
           test -n "$archive"
-          version="${archive##*/playpub_}"
+          version="${archive##*/gpc_}"
           version="${version%_Darwin_*}"
-          install_dir="$RUNNER_TEMP/playpub-bin"
-          PLAYPUB_VERSION="v$version" \
-            PLAYPUB_BASE_URL="file://$PWD/dist" \
-            PLAYPUB_INSTALL_DIR="$install_dir" \
+          install_dir="$RUNNER_TEMP/gpc-bin"
+          GPC_VERSION="v$version" \
+            GPC_BASE_URL="file://$PWD/dist" \
+            GPC_INSTALL_DIR="$install_dir" \
             sh scripts/install.sh
-          "$install_dir/playpub" version
+          "$install_dir/gpc" version
 
       - name: Reject corrupted install script checksums
         run: |
@@ -76,15 +76,15 @@ jobs:
             x86_64 | amd64) install_arch="x86_64" ;;
             *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
           esac
-          archive="$(find dist -name "playpub_*_Darwin_${install_arch}.tar.gz" -print -quit)"
+          archive="$(find dist -name "gpc_*_Darwin_${install_arch}.tar.gz" -print -quit)"
           test -n "$archive"
-          version="${archive##*/playpub_}"
+          version="${archive##*/gpc_}"
           version="${version%_Darwin_*}"
           broken_release="$RUNNER_TEMP/broken-release"
           mkdir -p "$broken_release"
           cp "$archive" "$broken_release/"
           sed 's/^[0-9a-f][0-9a-f]*/0000000000000000000000000000000000000000000000000000000000000000/' dist/checksums.txt > "$broken_release/checksums.txt"
-          if PLAYPUB_VERSION="v$version" PLAYPUB_BASE_URL="file://$broken_release" PLAYPUB_INSTALL_DIR="$RUNNER_TEMP/broken-bin" sh scripts/install.sh 2> "$RUNNER_TEMP/broken-install.log"; then
+          if GPC_VERSION="v$version" GPC_BASE_URL="file://$broken_release" GPC_INSTALL_DIR="$RUNNER_TEMP/broken-bin" sh scripts/install.sh 2> "$RUNNER_TEMP/broken-install.log"; then
             echo "expected checksum verification to fail" >&2
             exit 1
           fi
@@ -92,7 +92,7 @@ jobs:
 
       - name: Smoke test generated Homebrew formula
         run: |
-          formula_file="$(find dist -path '*/Formula/playpub.rb' -print -quit)"
+          formula_file="$(find dist -path '*/Formula/gpc.rb' -print -quit)"
           test -n "$formula_file"
           ruby - "$formula_file" "$PWD/dist" <<'RUBY'
           formula_file, dist_dir = ARGV
@@ -102,21 +102,21 @@ jobs:
           end
           File.write(formula_file, content)
           RUBY
-          tap_name="playpub/local"
+          tap_name="gpc/local"
           brew untap "$tap_name" >/dev/null 2>&1 || true
           cleanup() {
-            brew uninstall --formula --force "$tap_name/playpub" >/dev/null 2>&1 || true
+            brew uninstall --formula --force "$tap_name/gpc" >/dev/null 2>&1 || true
             brew untap "$tap_name" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
           brew tap-new "$tap_name" --no-git
           tap_dir="$(brew --repo "$tap_name")"
           mkdir -p "$tap_dir/Formula"
-          cp "$formula_file" "$tap_dir/Formula/playpub.rb"
-          brew audit --formula "$tap_name/playpub"
-          brew install --formula "$tap_name/playpub"
-          brew test "$tap_name/playpub"
-          playpub version
+          cp "$formula_file" "$tap_dir/Formula/gpc.rb"
+          brew audit --formula "$tap_name/gpc"
+          brew install --formula "$tap_name/gpc"
+          brew test "$tap_name/gpc"
+          gpc version
 
   goreleaser:
     name: GoReleaser

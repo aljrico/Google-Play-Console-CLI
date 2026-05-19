@@ -12,7 +12,7 @@ import (
 )
 
 func TestOneTimeProductOffersListRejectsInvalidWildcardParentBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -39,7 +39,7 @@ func TestOneTimeProductOffersListRejectsInvalidWildcardParentBeforeAuth(t *testi
 }
 
 func TestOneTimeProductOffersGetRejectsInvalidOfferIDBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -68,7 +68,7 @@ func TestOneTimeProductOffersGetRejectsInvalidOfferIDBeforeAuth(t *testing.T) {
 }
 
 func TestOneTimeProductOffersBatchGetRejectsMissingOfferBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -98,7 +98,7 @@ func TestOneTimeProductOffersBatchGetRejectsMissingOfferBeforeAuth(t *testing.T)
 }
 
 func TestOneTimeProductOffersBatchGetRejectsParentMismatchBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -130,7 +130,7 @@ func TestOneTimeProductOffersBatchGetRejectsParentMismatchBeforeAuth(t *testing.
 }
 
 func TestOneTimeProductOffersBatchGetRejectsInvalidOfferIDBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -162,7 +162,7 @@ func TestOneTimeProductOffersBatchGetRejectsInvalidOfferIDBeforeAuth(t *testing.
 }
 
 func TestOneTimeProductOffersCreateDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "offer.json")
 	if err := os.WriteFile(bodyPath, []byte(`{
 		"packageName":"ignored.by.flags",
@@ -227,7 +227,7 @@ func TestOneTimeProductOffersCreateDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestOneTimeProductOffersCreateBasicRelativeDiscountDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -288,7 +288,7 @@ func TestOneTimeProductOffersCreateBasicRelativeDiscountDryRunDoesNotRequireAuth
 }
 
 func TestOneTimeProductOffersCreateBasicAbsoluteDiscountDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -338,7 +338,7 @@ func TestOneTimeProductOffersCreateBasicAbsoluteDiscountDryRunDoesNotRequireAuth
 }
 
 func TestOneTimeProductOffersCreateBasicNoOverrideDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -388,7 +388,7 @@ func TestOneTimeProductOffersCreateBasicNoOverrideDryRunDoesNotRequireAuth(t *te
 }
 
 func TestOneTimeProductOffersCreateBasicPreOrderDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -444,7 +444,7 @@ func TestOneTimeProductOffersCreateBasicPreOrderDryRunDoesNotRequireAuth(t *test
 }
 
 func TestOneTimeProductOffersCreateBasicMixedDiscountModesDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -494,7 +494,7 @@ func TestOneTimeProductOffersCreateBasicMixedDiscountModesDryRunDoesNotRequireAu
 }
 
 func TestOneTimeProductOffersCreateBasicFlagsRejectsDuplicateDiscountRegionBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -533,7 +533,7 @@ func TestOneTimeProductOffersCreateBasicFlagsRejectsDuplicateDiscountRegionBefor
 }
 
 func TestOneTimeProductOffersCreateBasicFlagsRejectsReleaseTimeWithoutPreOrderBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -572,7 +572,7 @@ func TestOneTimeProductOffersCreateBasicFlagsRejectsReleaseTimeWithoutPreOrderBe
 }
 
 func TestOneTimeProductOffersCreateBasicFlagsRejectsRedemptionLimitWithPreOrderBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -620,7 +620,7 @@ func TestOneTimeProductOffersCreateBasicFlagsRejectsRedemptionLimitWithPreOrderB
 }
 
 func TestOneTimeProductOffersCreateBasicFlagsRejectsPriceBehaviorWithoutPreOrderBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -658,7 +658,7 @@ func TestOneTimeProductOffersCreateBasicFlagsRejectsPriceBehaviorWithoutPreOrder
 }
 
 func TestOneTimeProductOffersCreateRejectsJSONWithBasicFlagsBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "offer.json")
 	if err := os.WriteFile(bodyPath, []byte(`{
 		"discountedOffer":{"startTime":"2026-06-01T00:00:00Z","endTime":"2026-07-01T00:00:00Z"},
@@ -704,7 +704,7 @@ func TestOneTimeProductOffersCreateRejectsJSONWithBasicFlagsBeforeAuth(t *testin
 }
 
 func TestOneTimeProductOffersCreateBasicFlagsRejectsInvalidTimeBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	for _, tc := range []struct {
 		name string
@@ -753,7 +753,7 @@ func TestOneTimeProductOffersCreateBasicFlagsRejectsInvalidTimeBeforeAuth(t *tes
 }
 
 func TestOneTimeProductOffersCreateBasicFlagsRejectsInvalidRelativeDiscountBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -793,7 +793,7 @@ func TestOneTimeProductOffersCreateBasicFlagsRejectsInvalidRelativeDiscountBefor
 }
 
 func TestOneTimeProductOffersCreateBasicFlagsRejectsMalformedAbsoluteDiscountBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -833,7 +833,7 @@ func TestOneTimeProductOffersCreateBasicFlagsRejectsMalformedAbsoluteDiscountBef
 }
 
 func TestOneTimeProductOffersCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	bodyPath := filepath.Join(t.TempDir(), "offer.json")
 	if err := os.WriteFile(bodyPath, []byte(`{"discountedOffer":{}}`), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -874,7 +874,7 @@ func TestOneTimeProductOffersCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
 }
 
 func TestOneTimeProductOffersBatchDeleteDryRunInfersParentsBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -916,7 +916,7 @@ func TestOneTimeProductOffersBatchDeleteDryRunInfersParentsBeforeAuth(t *testing
 }
 
 func TestOneTimeProductOffersBatchDeleteRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -944,7 +944,7 @@ func TestOneTimeProductOffersBatchDeleteRequiresConfirmOrDryRunBeforeAuth(t *tes
 }
 
 func TestOneTimeProductOffersBatchDeleteInfersOmittedPurchaseOptionBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -975,7 +975,7 @@ func TestOneTimeProductOffersBatchDeleteInfersOmittedPurchaseOptionBeforeAuth(t 
 }
 
 func TestOneTimeProductOffersBatchPatchAvailabilityDryRunInfersParentsBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1023,7 +1023,7 @@ func TestOneTimeProductOffersBatchPatchAvailabilityDryRunInfersParentsBeforeAuth
 }
 
 func TestOneTimeProductOffersBatchPatchAvailabilityRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1053,7 +1053,7 @@ func TestOneTimeProductOffersBatchPatchAvailabilityRequiresConfirmOrDryRunBefore
 }
 
 func TestOneTimeProductOffersBatchPatchAvailabilityRejectsMalformedPatchBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1084,7 +1084,7 @@ func TestOneTimeProductOffersBatchPatchAvailabilityRejectsMalformedPatchBeforeAu
 }
 
 func TestOneTimeProductOffersBatchPatchRelativeDiscountsDryRunInfersParentsBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1132,7 +1132,7 @@ func TestOneTimeProductOffersBatchPatchRelativeDiscountsDryRunInfersParentsBefor
 }
 
 func TestOneTimeProductOffersBatchPatchRelativeDiscountsRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1162,7 +1162,7 @@ func TestOneTimeProductOffersBatchPatchRelativeDiscountsRequiresConfirmOrDryRunB
 }
 
 func TestOneTimeProductOffersBatchPatchRelativeDiscountsRejectsMalformedPatchBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1193,7 +1193,7 @@ func TestOneTimeProductOffersBatchPatchRelativeDiscountsRejectsMalformedPatchBef
 }
 
 func TestOneTimeProductOffersBatchPatchAbsoluteDiscountsDryRunInfersParentsBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1243,7 +1243,7 @@ func TestOneTimeProductOffersBatchPatchAbsoluteDiscountsDryRunInfersParentsBefor
 }
 
 func TestOneTimeProductOffersBatchPatchAbsoluteDiscountsRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1273,7 +1273,7 @@ func TestOneTimeProductOffersBatchPatchAbsoluteDiscountsRequiresConfirmOrDryRunB
 }
 
 func TestOneTimeProductOffersBatchPatchAbsoluteDiscountsRejectsMalformedPatchBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1304,7 +1304,7 @@ func TestOneTimeProductOffersBatchPatchAbsoluteDiscountsRejectsMalformedPatchBef
 }
 
 func TestOneTimeProductOffersBatchPatchAbsoluteDiscountsRejectsMalformedMoneyBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1338,7 +1338,7 @@ func TestOneTimeProductOffersBatchPatchAbsoluteDiscountsRejectsMalformedMoneyBef
 }
 
 func TestOneTimeProductOffersBatchPatchNoOverridesDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1386,7 +1386,7 @@ func TestOneTimeProductOffersBatchPatchNoOverridesDryRunDoesNotRequireAuth(t *te
 }
 
 func TestOneTimeProductOffersBatchPatchNoOverridesRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1416,7 +1416,7 @@ func TestOneTimeProductOffersBatchPatchNoOverridesRequiresConfirmOrDryRunBeforeA
 }
 
 func TestOneTimeProductOffersBatchDeactivateDryRunInfersParentsBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1459,7 +1459,7 @@ func TestOneTimeProductOffersBatchDeactivateDryRunInfersParentsBeforeAuth(t *tes
 }
 
 func TestOneTimeProductOffersBatchActivateRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1487,7 +1487,7 @@ func TestOneTimeProductOffersBatchActivateRequiresConfirmOrDryRunBeforeAuth(t *t
 }
 
 func TestOneTimeProductOffersBatchCancelDryRunCallsOutPendingOrders(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1516,7 +1516,7 @@ func TestOneTimeProductOffersBatchCancelDryRunCallsOutPendingOrders(t *testing.T
 }
 
 func TestOneTimeProductOffersDeactivateDryRunPrintsPlanBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -1552,7 +1552,7 @@ func TestOneTimeProductOffersDeactivateDryRunPrintsPlanBeforeAuth(t *testing.T) 
 }
 
 func TestOneTimeProductOffersCancelRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

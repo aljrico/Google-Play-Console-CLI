@@ -8,7 +8,7 @@ import (
 )
 
 func TestInitWritesWorkspaceFiles(t *testing.T) {
-	directory := filepath.Join(t.TempDir(), ".playpub")
+	directory := filepath.Join(t.TempDir(), ".gpc")
 
 	plan, err := Init(context.Background(), InitOptions{Directory: directory})
 	if err != nil {
@@ -28,7 +28,7 @@ func TestInitWritesWorkspaceFiles(t *testing.T) {
 }
 
 func TestInitSkipsExistingFilesWithoutForce(t *testing.T) {
-	directory := filepath.Join(t.TempDir(), ".playpub")
+	directory := filepath.Join(t.TempDir(), ".gpc")
 	readme := filepath.Join(directory, "README.md")
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
@@ -56,7 +56,7 @@ func TestInitSkipsExistingFilesWithoutForce(t *testing.T) {
 }
 
 func TestInitDryRunDoesNotWriteFiles(t *testing.T) {
-	directory := filepath.Join(t.TempDir(), ".playpub")
+	directory := filepath.Join(t.TempDir(), ".gpc")
 
 	plan, err := Init(context.Background(), InitOptions{Directory: directory, DryRun: true})
 	if err != nil {
@@ -76,7 +76,7 @@ func TestInitDryRunDoesNotWriteFiles(t *testing.T) {
 }
 
 func TestInitForceOverwritesExistingFiles(t *testing.T) {
-	directory := filepath.Join(t.TempDir(), ".playpub")
+	directory := filepath.Join(t.TempDir(), ".gpc")
 	readme := filepath.Join(directory, "README.md")
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
@@ -122,7 +122,7 @@ func TestInitRejectsSymlinkedDirectory(t *testing.T) {
 
 func TestInitRejectsSymlinkedFileEvenWithForce(t *testing.T) {
 	root := t.TempDir()
-	directory := filepath.Join(root, ".playpub")
+	directory := filepath.Join(root, ".gpc")
 	target := filepath.Join(root, "outside.md")
 	link := filepath.Join(directory, "README.md")
 	if err := os.MkdirAll(directory, 0o755); err != nil {

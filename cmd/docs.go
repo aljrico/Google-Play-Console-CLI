@@ -46,7 +46,7 @@ type commandReferenceFlag struct {
 func newDocsCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "docs",
-		Short: "Print embedded playpub documentation",
+		Short: "Print embedded gpc documentation",
 	}
 	cmd.AddCommand(
 		newDocsParityCommand(out, options),
@@ -58,7 +58,7 @@ func newDocsCommand(out io.Writer, options *globalOptions) *cobra.Command {
 func newDocsParityCommand(out io.Writer, options *globalOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "parity",
-		Short: "Print the asc-to-playpub parity matrix",
+		Short: "Print the asc-to-gpc parity matrix",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if options.output == output.Markdown {

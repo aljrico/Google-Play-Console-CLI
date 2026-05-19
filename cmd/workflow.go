@@ -13,7 +13,7 @@ func newWorkflowCommand(out io.Writer, options *globalOptions) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "workflow",
-		Short: "Run repo-local playpub workflows",
+		Short: "Run repo-local gpc workflows",
 	}
 	cmd.PersistentFlags().StringVar(&file, "file", workflow.DefaultFile, "Workflow JSON file")
 	cmd.AddCommand(

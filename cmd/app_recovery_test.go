@@ -7,7 +7,7 @@ import (
 )
 
 func TestAppRecoveryListRejectsMissingVersionCodeBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -30,7 +30,7 @@ func TestAppRecoveryListRejectsMissingVersionCodeBeforeAuth(t *testing.T) {
 }
 
 func TestAppRecoveryDeployDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -61,7 +61,7 @@ func TestAppRecoveryDeployDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestAppRecoveryCreateDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -94,7 +94,7 @@ func TestAppRecoveryCreateDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestAppRecoveryCreateRejectsMissingTargetingBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -121,7 +121,7 @@ func TestAppRecoveryCreateRejectsMissingTargetingBeforeAuth(t *testing.T) {
 }
 
 func TestAppRecoveryAddTargetingDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -154,7 +154,7 @@ func TestAppRecoveryAddTargetingDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestAppRecoveryAddTargetingRejectsMissingTargetBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -183,7 +183,7 @@ func TestAppRecoveryAddTargetingRejectsMissingTargetBeforeAuth(t *testing.T) {
 }
 
 func TestAppRecoveryCancelRejectsMissingConfirmBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

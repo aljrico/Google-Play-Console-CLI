@@ -10,8 +10,8 @@ import (
 )
 
 func TestNotifySendDryRunOutputsPayloadWithoutAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
-	t.Setenv("PLAYPUB_NOTIFY_WEBHOOK_URL", "https://hooks.example.com/services/T000/B000/SECRET?token=secret#fragment")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_NOTIFY_WEBHOOK_URL", "https://hooks.example.com/services/T000/B000/SECRET?token=secret#fragment")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -101,8 +101,8 @@ func TestNotifySendPostsWebhook(t *testing.T) {
 }
 
 func TestNotifySlackDryRunOutputsSlackPayloadWithoutAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
-	t.Setenv("PLAYPUB_NOTIFY_WEBHOOK_URL", "https://hooks.slack.com/services/T000/B000/SECRET?token=secret#fragment")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_NOTIFY_WEBHOOK_URL", "https://hooks.slack.com/services/T000/B000/SECRET?token=secret#fragment")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -190,8 +190,8 @@ func TestNotifySlackPostsWebhook(t *testing.T) {
 }
 
 func TestNotifyMattermostDryRunOutputsMattermostPayloadWithoutAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
-	t.Setenv("PLAYPUB_NOTIFY_WEBHOOK_URL", "https://mattermost.example.com/hooks/SECRET?token=secret#fragment")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_NOTIFY_WEBHOOK_URL", "https://mattermost.example.com/hooks/SECRET?token=secret#fragment")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -279,8 +279,8 @@ func TestNotifyMattermostPostsWebhook(t *testing.T) {
 }
 
 func TestNotifyTeamsDryRunOutputsTeamsPayloadWithoutAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
-	t.Setenv("PLAYPUB_NOTIFY_WEBHOOK_URL", "https://example.webhook.office.com/webhookb2/SECRET?token=secret#fragment")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_NOTIFY_WEBHOOK_URL", "https://example.webhook.office.com/webhookb2/SECRET?token=secret#fragment")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -368,8 +368,8 @@ func TestNotifyTeamsPostsWebhook(t *testing.T) {
 }
 
 func TestNotifyGoogleChatDryRunOutputsGoogleChatPayloadWithoutAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
-	t.Setenv("PLAYPUB_NOTIFY_WEBHOOK_URL", "https://chat.googleapis.com/v1/spaces/SPACE/messages?key=key-secret&token=token-secret#fragment")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_NOTIFY_WEBHOOK_URL", "https://chat.googleapis.com/v1/spaces/SPACE/messages?key=key-secret&token=token-secret#fragment")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -457,8 +457,8 @@ func TestNotifyGoogleChatPostsWebhook(t *testing.T) {
 }
 
 func TestNotifyDiscordDryRunOutputsDiscordPayloadWithoutAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
-	t.Setenv("PLAYPUB_NOTIFY_WEBHOOK_URL", "https://discord.com/api/webhooks/123/SECRET?token=secret#fragment")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_NOTIFY_WEBHOOK_URL", "https://discord.com/api/webhooks/123/SECRET?token=secret#fragment")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -550,8 +550,8 @@ func TestNotifyDiscordPostsWebhook(t *testing.T) {
 }
 
 func TestNotifyGitHubDryRunOutputsRepositoryDispatchPayloadWithoutAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
-	t.Setenv("PLAYPUB_NOTIFY_WEBHOOK_URL", "https://api.github.com/repos/example/project/dispatches?token=secret#fragment")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_NOTIFY_WEBHOOK_URL", "https://api.github.com/repos/example/project/dispatches?token=secret#fragment")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -559,7 +559,7 @@ func TestNotifyGitHubDryRunOutputsRepositoryDispatchPayloadWithoutAuth(t *testin
 		"notify",
 		"github",
 		"--event-type",
-		"playpub.release",
+		"gpc.release",
 		"--title",
 		"Release",
 		"--message",
@@ -578,7 +578,7 @@ func TestNotifyGitHubDryRunOutputsRepositoryDispatchPayloadWithoutAuth(t *testin
 	for _, want := range []string{
 		`"dryRun":true`,
 		`"delivered":false`,
-		`"event_type":"playpub.release"`,
+		`"event_type":"gpc.release"`,
 		`"client_payload":{"title":"Release","message":"Internal release staged"`,
 		`"name":"track"`,
 		`"value":"internal"`,
@@ -620,7 +620,7 @@ func TestNotifyGitHubPostsWebhook(t *testing.T) {
 		"--webhook-url",
 		server.URL + "/repos/example/project/dispatches?token=secret",
 		"--event-type",
-		"playpub.release",
+		"gpc.release",
 		"--message",
 		"Release shipped",
 		"--confirm",
@@ -631,7 +631,7 @@ func TestNotifyGitHubPostsWebhook(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if gotPayload["event_type"] != "playpub.release" {
+	if gotPayload["event_type"] != "gpc.release" {
 		t.Fatalf("payload = %#v, want event type", gotPayload)
 	}
 	clientPayload, ok := gotPayload["client_payload"].(map[string]any)
@@ -650,7 +650,7 @@ func TestNotifyGitHubPostsWebhook(t *testing.T) {
 }
 
 func TestNotifySendTransportErrorDoesNotLeakWebhookSecret(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

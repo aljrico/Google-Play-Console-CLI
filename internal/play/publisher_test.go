@@ -1717,8 +1717,8 @@ func TestAcknowledgeSubscriptionPurchaseUsesLegacyEndpoint(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatalf("Decode() error = %v", err)
 		}
-		if request.DeveloperPayload != "handled-by-playpub" {
-			t.Fatalf("DeveloperPayload = %q, want handled-by-playpub", request.DeveloperPayload)
+		if request.DeveloperPayload != "handled-by-gpc" {
+			t.Fatalf("DeveloperPayload = %q, want handled-by-gpc", request.DeveloperPayload)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{}`))
@@ -1729,7 +1729,7 @@ func TestAcknowledgeSubscriptionPurchaseUsesLegacyEndpoint(t *testing.T) {
 		SubscriptionID:   "premium_monthly",
 		Token:            "token-123",
 		Action:           SubscriptionPurchaseMutationActionAcknowledge,
-		DeveloperPayload: "handled-by-playpub",
+		DeveloperPayload: "handled-by-gpc",
 		Confirm:          true,
 	})
 	if err != nil {

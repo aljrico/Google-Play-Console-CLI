@@ -11,7 +11,7 @@ import (
 )
 
 func TestActiveProfileHTTPClientRejectsMissingProfile(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", filepath.Join(t.TempDir(), "config.json"))
+	t.Setenv("GPC_CONFIG", filepath.Join(t.TempDir(), "config.json"))
 
 	_, err := ActiveProfileHTTPClient(context.Background(), "scope")
 	if err == nil {
@@ -28,7 +28,7 @@ func TestActiveProfileHTTPClientWrapsInvalidServiceAccount(t *testing.T) {
 	if err := os.WriteFile(serviceAccountFile, []byte(`{"not":"a service account"}`), 0o600); err != nil {
 		t.Fatalf("write service account: %v", err)
 	}
-	t.Setenv("PLAYPUB_CONFIG", filepath.Join(tempDir, "config.json"))
+	t.Setenv("GPC_CONFIG", filepath.Join(tempDir, "config.json"))
 	if err := config.Save(config.Store{
 		ActiveProfile: "default",
 		Profiles: map[string]config.Profile{

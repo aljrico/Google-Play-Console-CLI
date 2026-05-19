@@ -7,7 +7,7 @@ import (
 )
 
 func TestPurchasesProductRejectsMissingTokenBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -32,7 +32,7 @@ func TestPurchasesProductRejectsMissingTokenBeforeAuth(t *testing.T) {
 }
 
 func TestPurchasesProductAllowsTokenOnlyBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -57,7 +57,7 @@ func TestPurchasesProductAllowsTokenOnlyBeforeAuth(t *testing.T) {
 }
 
 func TestPurchasesProductAcknowledgeDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -93,7 +93,7 @@ func TestPurchasesProductAcknowledgeDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestPurchasesProductConsumeRejectsMissingConfirmBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -124,7 +124,7 @@ func TestPurchasesProductConsumeRejectsMissingConfirmBeforeAuth(t *testing.T) {
 }
 
 func TestPurchasesVoidedListRejectsNegativeMaxResultsBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -150,7 +150,7 @@ func TestPurchasesVoidedListRejectsNegativeMaxResultsBeforeAuth(t *testing.T) {
 }
 
 func TestPurchasesVoidedListRejectsInvalidTypeBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -176,7 +176,7 @@ func TestPurchasesVoidedListRejectsInvalidTypeBeforeAuth(t *testing.T) {
 }
 
 func TestPurchasesVoidedListRejectsTokenWithTimeBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -204,7 +204,7 @@ func TestPurchasesVoidedListRejectsTokenWithTimeBeforeAuth(t *testing.T) {
 }
 
 func TestPurchasesVoidedListRejectsFutureEndTimeBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -230,7 +230,7 @@ func TestPurchasesVoidedListRejectsFutureEndTimeBeforeAuth(t *testing.T) {
 }
 
 func TestPurchasesSubscriptionRejectsMissingTokenBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -253,7 +253,7 @@ func TestPurchasesSubscriptionRejectsMissingTokenBeforeAuth(t *testing.T) {
 }
 
 func TestPurchasesSubscriptionRevokeDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -287,7 +287,7 @@ func TestPurchasesSubscriptionRevokeDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestPurchasesSubscriptionRevokeItemRefundDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -323,7 +323,7 @@ func TestPurchasesSubscriptionRevokeItemRefundDryRunDoesNotRequireAuth(t *testin
 }
 
 func TestPurchasesSubscriptionRevokeRejectsMissingRefundBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -353,7 +353,7 @@ func TestPurchasesSubscriptionRevokeRejectsMissingRefundBeforeAuth(t *testing.T)
 }
 
 func TestPurchasesSubscriptionAcknowledgeDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -368,7 +368,7 @@ func TestPurchasesSubscriptionAcknowledgeDryRunDoesNotRequireAuth(t *testing.T) 
 		"--token",
 		"token-123",
 		"--developer-payload",
-		"handled-by-playpub",
+		"handled-by-gpc",
 		"--dry-run",
 		"--output",
 		"json",
@@ -378,7 +378,7 @@ func TestPurchasesSubscriptionAcknowledgeDryRunDoesNotRequireAuth(t *testing.T) 
 		t.Fatalf("Execute() error = %v", err)
 	}
 	output := buf.String()
-	for _, want := range []string{`"action":"acknowledge"`, `"subscriptionId":"premium_monthly"`, `"developerPayload":"handled-by-playpub"`, `"dryRun":true`, `"applied":false`} {
+	for _, want := range []string{`"action":"acknowledge"`, `"subscriptionId":"premium_monthly"`, `"developerPayload":"handled-by-gpc"`, `"dryRun":true`, `"applied":false`} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
 		}
@@ -389,7 +389,7 @@ func TestPurchasesSubscriptionAcknowledgeDryRunDoesNotRequireAuth(t *testing.T) 
 }
 
 func TestPurchasesSubscriptionCancelRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -420,7 +420,7 @@ func TestPurchasesSubscriptionCancelRequiresConfirmOrDryRunBeforeAuth(t *testing
 }
 
 func TestPurchasesSubscriptionCancelDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

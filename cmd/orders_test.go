@@ -8,7 +8,7 @@ import (
 )
 
 func TestOrdersGetRejectsMissingOrderIDBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -31,7 +31,7 @@ func TestOrdersGetRejectsMissingOrderIDBeforeAuth(t *testing.T) {
 }
 
 func TestOrdersBatchGetRejectsDuplicateOrderIDBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -58,7 +58,7 @@ func TestOrdersBatchGetRejectsDuplicateOrderIDBeforeAuth(t *testing.T) {
 }
 
 func TestOrdersRefundDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -96,7 +96,7 @@ func TestOrdersRefundDryRunDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestOrdersRefundRequiresConfirmBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -124,7 +124,7 @@ func TestOrdersRefundRequiresConfirmBeforeAuth(t *testing.T) {
 }
 
 func TestOrdersRefundRejectsConfirmDryRunBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

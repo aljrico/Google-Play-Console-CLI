@@ -1,6 +1,6 @@
 # Parity Matrix
 
-This matrix maps the `asc` command families from App Store Connect CLI to the closest `playpub` command shape for Google Play Console automation.
+This matrix maps the `asc` command families from App Store Connect CLI to the closest `gpc` command shape for Google Play Console automation.
 
 Status values:
 
@@ -18,52 +18,52 @@ Sources:
 
 ## Getting Started
 
-| `asc` family | Closest `playpub` family | Google Play API coverage | Status | Notes |
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `auth` | `auth` | OAuth/service account credentials | implemented | Scaffold supports service account profile storage and validation. |
 | `doctor` | `auth doctor` | OAuth/service account credentials | implemented | Validates the configured service account JSON. |
-| `install-skills` | `install-skills` | N/A | tested | Lists and installs bundled playpub agent skills with frontmatter validation, dry-run, selection, and force modes. |
-| `init` | `init` | N/A | tested | `playpub init` creates `.playpub/` helper docs and a starter workflow template, with dry-run and force modes. |
-| `docs` | `docs` | N/A | tested | `playpub docs parity` prints the embedded parity matrix, `playpub docs commands` generates a command reference from the Cobra command tree as JSON or markdown, and `docs/COMMANDS.md` is checked in with `make docs-check`. Release packaging is covered by GoReleaser config, Homebrew formula smoke checks, checksum-verifying install script, and README install docs. |
+| `install-skills` | `install-skills` | N/A | tested | Lists and installs bundled gpc agent skills with frontmatter validation, dry-run, selection, and force modes. |
+| `init` | `init` | N/A | tested | `gpc init` creates `.gpc/` helper docs and a starter workflow template, with dry-run and force modes. |
+| `docs` | `docs` | N/A | tested | `gpc docs parity` prints the embedded parity matrix, `gpc docs commands` generates a command reference from the Cobra command tree as JSON or markdown, and `docs/COMMANDS.md` is checked in with `make docs-check`. Release packaging is covered by GoReleaser config, Homebrew formula smoke checks, checksum-verifying install script, and README install docs. |
 | `version` | `version` | N/A | implemented | Prints build metadata. |
 | `completion` | `completion` | N/A | implemented | Cobra generates shell completions for supported shells. |
 
 ## Apps And Releases
 
-| `asc` family | Closest `playpub` family | Google Play API coverage | Status | Notes |
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `apps` | `apps` | Limited; most Play APIs require package name | blocked | Google Play has no broad app list equivalent in the Android Publisher API; `playpub apps list` returns an explicit unsupported-surface error without requiring auth. |
-| `versions` | `releases` | `applications.tracks.releases`, `edits.tracks` | implemented | `playpub releases list` reads releases for a track through `edits.tracks`; upload, promote, halt, and resume cover the first mutation workflows. |
-| `builds` | `artifacts` / `releases upload` | `edits.apks`, `edits.bundles`, `generatedapks` | tested | `playpub releases upload` uploads APKs or AABs through an edit and assigns the uploaded version code to the requested track. |
-| `build-bundles` | `generated-apks` / `releases upload` | `edits.bundles`, `generatedapks` | tested | `playpub releases upload` uploads AABs, `playpub generated-apks list` inspects generated APK download metadata, and `playpub generated-apks download` downloads a selected generated APK by download ID with overwrite protection. |
-| `release` | `releases` | `edits`, `edits.tracks`, `applications.tracks.releases` | implemented | `playpub releases upload`, `promote`, `halt`, and `resume` insert edits, update tracks, validate, and commit only with `--confirm`; promotion requires an explicit version code, defaults target status to draft, and can replace localized target release notes. |
-| `publish` | `publish` | `edits`, `edits.tracks` | implemented | `playpub publish internal` supports AAB upload planning and live validate/commit flow, appending through the raw Google track model to preserve existing release metadata. |
-| `status` | `status` | `applications.tracks.releases`, `edits.tracks` | tested | `playpub status` summarizes non-draft releases by track and can include draft releases on request. |
+| `apps` | `apps` | Limited; most Play APIs require package name | blocked | Google Play has no broad app list equivalent in the Android Publisher API; `gpc apps list` returns an explicit unsupported-surface error without requiring auth. |
+| `versions` | `releases` | `applications.tracks.releases`, `edits.tracks` | implemented | `gpc releases list` reads releases for a track through `edits.tracks`; upload, promote, halt, and resume cover the first mutation workflows. |
+| `builds` | `artifacts` / `releases upload` | `edits.apks`, `edits.bundles`, `generatedapks` | tested | `gpc releases upload` uploads APKs or AABs through an edit and assigns the uploaded version code to the requested track. |
+| `build-bundles` | `generated-apks` / `releases upload` | `edits.bundles`, `generatedapks` | tested | `gpc releases upload` uploads AABs, `gpc generated-apks list` inspects generated APK download metadata, and `gpc generated-apks download` downloads a selected generated APK by download ID with overwrite protection. |
+| `release` | `releases` | `edits`, `edits.tracks`, `applications.tracks.releases` | implemented | `gpc releases upload`, `promote`, `halt`, and `resume` insert edits, update tracks, validate, and commit only with `--confirm`; promotion requires an explicit version code, defaults target status to draft, and can replace localized target release notes. |
+| `publish` | `publish` | `edits`, `edits.tracks` | implemented | `gpc publish internal` supports AAB upload planning and live validate/commit flow, appending through the raw Google track model to preserve existing release metadata. |
+| `status` | `status` | `applications.tracks.releases`, `edits.tracks` | tested | `gpc status` summarizes non-draft releases by track and can include draft releases on request. |
 | `submit` | `publish` / `releases` | `edits.commit`, `edits.validate` | implemented | Release upload and promotion validate by default and commit only with `--confirm`. |
-| `validate` | `validate` | `edits.validate` | tested | `playpub validate` creates a temporary edit, validates it, and deletes the edit afterwards. |
+| `validate` | `validate` | `edits.validate` | tested | `gpc validate` creates a temporary edit, validates it, and deletes the edit afterwards. |
 | `release-notes` | `releases --release-note` | `edits.tracks.releases.releaseNotes` | tested | Upload and promote accept repeatable localized `language=text` release notes and map them to Play track releases. |
 
 ## Tracks, Testing, And Distribution
 
-| `asc` family | Closest `playpub` family | Google Play API coverage | Status | Notes |
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `testflight` | `tracks` / `testers` | `edits.tracks`, `edits.testers` | tested | `playpub tracks list` lists Play tracks through a temporary edit; `playpub testers get` reads track tester Google Groups, and `playpub testers update` replaces them with dry-run/confirm edit gating. |
+| `testflight` | `tracks` / `testers` | `edits.tracks`, `edits.testers` | tested | `gpc tracks list` lists Play tracks through a temporary edit; `gpc testers get` reads track tester Google Groups, and `gpc testers update` replaces them with dry-run/confirm edit gating. |
 | `sandbox` | N/A | N/A | not applicable | Apple sandbox testers are App Store-specific. |
 | `xcode` | N/A | N/A | not applicable | Local Xcode helpers do not belong in a Play Console CLI. |
 | `xcode-cloud` | N/A | N/A | not applicable | Apple CI service. |
-| `devices` | `device-tier-configs` / `system-apks` | `applications.deviceTierConfigs`, `systemapks.variants` | tested | `playpub device-tier-configs list` and `get` inspect app device tier configs; `playpub system-apks variants list` inspects generated system APK variants for a version code. |
-| `apprecovery` | `app-recovery` | `apprecovery` | tested | `playpub app-recovery list` inspects recovery actions for a package/version code; `create` drafts remote in-app update recovery actions for explicit version codes; `add-targeting`, `deploy`, and `cancel` apply guarded recovery mutations only with `--confirm`, with dry-run planning. |
-| `internalappsharingartifacts` | `internal-sharing` | `internalappsharingartifacts` | tested | `playpub internal-sharing upload` uploads APKs or AABs to internal app sharing, with dry-run and local file preflight. |
+| `devices` | `device-tier-configs` / `system-apks` | `applications.deviceTierConfigs`, `systemapks.variants` | tested | `gpc device-tier-configs list` and `get` inspect app device tier configs; `gpc system-apks variants list` inspects generated system APK variants for a version code. |
+| `apprecovery` | `app-recovery` | `apprecovery` | tested | `gpc app-recovery list` inspects recovery actions for a package/version code; `create` drafts remote in-app update recovery actions for explicit version codes; `add-targeting`, `deploy`, and `cancel` apply guarded recovery mutations only with `--confirm`, with dry-run planning. |
+| `internalappsharingartifacts` | `internal-sharing` | `internalappsharingartifacts` | tested | `gpc internal-sharing upload` uploads APKs or AABs to internal app sharing, with dry-run and local file preflight. |
 
 ## Metadata And Store Listing
 
-| `asc` family | Closest `playpub` family | Google Play API coverage | Status | Notes |
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `localizations` | `listings` | `edits.listings` | tested | `playpub listings list`, `get`, partial `update`, `delete`, and `delete-all` cover localized store listing records. |
-| `metadata` | `metadata` | `edits.details`, `edits.listings` | tested | `playpub metadata apply` applies app details and localized listings from one strict JSON file through a single edit with dry-run/confirm gating. |
-| `screenshots` | `images` | `edits.images` | tested | `playpub images list`, `upload`, `delete`, and `delete-all` manage localized screenshots/images with dry-run/confirm edit gating for mutations. |
+| `localizations` | `listings` | `edits.listings` | tested | `gpc listings list`, `get`, partial `update`, `delete`, and `delete-all` cover localized store listing records. |
+| `metadata` | `metadata` | `edits.details`, `edits.listings` | tested | `gpc metadata apply` applies app details and localized listings from one strict JSON file through a single edit with dry-run/confirm gating. |
+| `screenshots` | `images` | `edits.images` | tested | `gpc images list`, `upload`, `delete`, and `delete-all` manage localized screenshots/images with dry-run/confirm edit gating for mutations. |
 | `video-previews` | `videos` | Not clearly exposed in Android Publisher API | blocked | Play video preview management may require Console UI or another API surface. |
-| `background-assets` | `images` | `edits.images` | tested | Feature graphics, icons, TV banners, and screenshots are covered by `playpub images list`, `upload`, `delete`, and `delete-all`. |
+| `background-assets` | `images` | `edits.images` | tested | Feature graphics, icons, TV banners, and screenshots are covered by `gpc images list`, `upload`, `delete`, and `delete-all`. |
 | `product-pages` | N/A | N/A | not applicable | App Store custom product pages do not have a direct Play equivalent. |
 | `routing-coverage` | N/A | N/A | not applicable | Apple Maps routing coverage is Apple-specific. |
 | `app-tags` | N/A | N/A | not applicable | Apple-generated discoverability tags are Apple-specific. |
@@ -72,45 +72,45 @@ Sources:
 | `accessibility` | `details` / `data-safety` | Partial | blocked | Needs API verification before command design. |
 | `encryption` | N/A | N/A | not applicable | Apple export compliance workflow. |
 | `eula` | N/A | N/A | not applicable | No direct Play equivalent. |
-| `data-safety` | `data-safety` | `applications.dataSafety` | tested | `playpub data-safety update` uploads a Play data safety CSV only with `--confirm`; dry-run previews are local. |
+| `data-safety` | `data-safety` | `applications.dataSafety` | tested | `gpc data-safety update` uploads a Play data safety CSV only with `--confirm`; dry-run previews are local. |
 
 ## Monetization
 
-| `asc` family | Closest `playpub` family | Google Play API coverage | Status | Notes |
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `iap` | `in-app-products` | `inappproducts` | tested | `playpub in-app-products list`, `get`, and `batch-get` cover legacy catalog inspection; `create` applies guarded managed product creation with default-price regional auto-conversion; `patch` applies guarded status, default price, regional price, EEA/tokenized/tax-rate compliance fields, default language, and default listing changes for managed products; `delete` and `batch-delete` apply guarded managed product deletion with live preflight. Legacy subscription patches and deletes are rejected. |
-| `iap` | `one-time-products` / `one-time-product-offers` | `monetization.onetimeproducts` | tested | `playpub one-time-products list`, `get`, and `batch-get` cover modern one-time product inspection; `create` applies guarded creation from a typed JSON body or basic buy-product flags through Google's patch-with-allowMissing create surface; `patch` and `batch-patch-listings` apply guarded localized listing updates with live merge preflight; `delete` and `batch-delete` apply guarded product deletion; `purchase-option activate` and `deactivate` apply guarded state changes; `purchase-option batch-delete` applies guarded purchase option deletion with optional forced offer deletion; `purchase-option batch-patch-availability` and `batch-patch-prices` fetch current products and apply guarded regional availability/price patches without adding missing regional config. `playpub one-time-product-offers list`, `get`, and `batch-get` inspect discounted and pre-order offers; `create` applies guarded offer creation from a typed JSON body or basic discounted/pre-order flags through Google's batchUpdate-with-allowMissing surface; `batch-delete`, `activate`, `deactivate`, `cancel`, `batch-activate`, `batch-deactivate`, and `batch-cancel` apply guarded offer mutations; `batch-patch-availability`, `batch-patch-relative-discounts`, `batch-patch-absolute-discounts`, and `batch-patch-no-overrides` fetch current offers and apply guarded regional availability/discount-mode patches through `batchUpdate`. |
-| `subscriptions` | `subscriptions` | `monetization.subscriptions`, `basePlans` | tested | `playpub subscriptions list`, `get`, and `batch-get` cover subscription inspection; `create` applies guarded draft subscription creation from a typed JSON body or basic auto-renewing/prepaid/installments base-plan, restricted-country, and tax-compliance flags; `patch` and `batch-patch-listings` apply guarded localized listing updates with live merge preflight; `delete` applies guarded deletion for subscriptions that have never had a base plan published; `base-plan delete` applies guarded deletion for draft-only base plans; `base-plan activate`, `deactivate`, `batch-activate`, and `batch-deactivate` apply guarded base plan state changes; `base-plan batch-migrate-prices` applies guarded regional legacy-price cohort migrations; `base-plan batch-patch-prices` fetches current subscriptions and applies guarded direct base-plan regional price patches without adding missing regional config. |
-| `subscriptions` | `subscription-offers` | `monetization.subscriptions.basePlans.offers` | tested | `playpub subscription-offers list`, `get`, and `batch-get` cover offer inspection; `create` applies guarded draft offer creation from a typed JSON body or basic one- or two-phase free/paid-price/relative-discount/absolute-discount flags, including free, paid-price, relative-discount, and absolute-discount other-regions config, acquisition targeting, and upgrade targeting; `delete` applies guarded deletion for draft offers; `activate`, `deactivate`, `batch-activate`, and `batch-deactivate` apply guarded offer state changes; `batch-patch-availability` fetches current offers and applies guarded regional subscriber-availability patches through `batchUpdate`; `batch-patch-phase-relative-discounts`, `batch-patch-phase-absolute-discounts`, `batch-patch-phase-prices`, and `batch-patch-phase-free` fetch current offers and apply guarded phase-level regional pricing patches. |
-| `pricing` | `pricing` | `monetization.convertRegionPrices`, product/subscription pricing APIs | tested | `playpub pricing convert-region-prices` calculates Play regional prices from an explicit source price; `playpub pricing build-price-patches` turns conversion JSON into deterministic patch arguments and suggested dry-run commands for `in-app-products patch`, `one-time-products purchase-option batch-patch-prices`, `subscriptions base-plan batch-patch-prices`, and `subscription-offers batch-patch-phase-prices`; subscription base-plan price migrations are covered under `subscriptions base-plan batch-migrate-prices`. |
-| `finance` | `finance reports` | Play financial reports via downloaded ZIP/CSV exports | tested | `playpub finance reports download` fetches explicit report ZIP objects from the Google Play reports Cloud Storage bucket with dry-run/force safeguards, and `summarize` summarizes extracted Play earnings and estimated-sales CSVs by status/type and currency amount. |
-| `analytics` | `analytics stats` | Play statistics reports via downloaded CSV/GCS exports | tested | `playpub analytics stats download` fetches explicit report CSV objects from the Google Play reports Cloud Storage bucket with dry-run/force safeguards, and `summarize` summarizes downloaded Play statistics CSVs by numeric metric columns, summing additive metrics and averaging rate-like metrics. |
-| `insights` | `insights anomalies summarize` / `insights reports summarize` | Built from reports | tested | `playpub insights anomalies summarize` derives local summaries from `playpub vitals anomalies list` JSON output and marks paginated inputs as partial. `playpub insights reports summarize` composes downloaded finance and statistics CSVs into one local summary with typed highlights and derived KPIs, including net revenue by report type/currency, store listing acquisitions, acquisition rate, and net revenue per acquisition when matching finance and stats columns are present. |
-| `orders` | `orders` | `orders` | tested | `playpub orders get` and `batch-get` inspect order details by ID; `refund` applies guarded refunds only with `--confirm`, with optional revoke and dry-run planning. |
-| `purchases` | `purchases` | `purchases.products`, `purchases.productsv2`, `purchases.subscriptions`, `purchases.subscriptionsv2`, `voidedpurchases` | tested | `playpub purchases product` and `subscription` cover read-only purchase-token status, `playpub purchases product acknowledge` and `consume` apply guarded product purchase mutations, `playpub purchases subscription acknowledge` covers legacy acknowledgement, `playpub purchases subscription cancel` uses v2 cancellation with an explicit cancellation type, `playpub purchases subscription revoke` handles guarded full, prorated, and item-based v2 revocation, and `playpub purchases voided list` covers voided purchase reporting. |
+| `iap` | `in-app-products` | `inappproducts` | tested | `gpc in-app-products list`, `get`, and `batch-get` cover legacy catalog inspection; `create` applies guarded managed product creation with default-price regional auto-conversion; `patch` applies guarded status, default price, regional price, EEA/tokenized/tax-rate compliance fields, default language, and default listing changes for managed products; `delete` and `batch-delete` apply guarded managed product deletion with live preflight. Legacy subscription patches and deletes are rejected. |
+| `iap` | `one-time-products` / `one-time-product-offers` | `monetization.onetimeproducts` | tested | `gpc one-time-products list`, `get`, and `batch-get` cover modern one-time product inspection; `create` applies guarded creation from a typed JSON body or basic buy-product flags through Google's patch-with-allowMissing create surface; `patch` and `batch-patch-listings` apply guarded localized listing updates with live merge preflight; `delete` and `batch-delete` apply guarded product deletion; `purchase-option activate` and `deactivate` apply guarded state changes; `purchase-option batch-delete` applies guarded purchase option deletion with optional forced offer deletion; `purchase-option batch-patch-availability` and `batch-patch-prices` fetch current products and apply guarded regional availability/price patches without adding missing regional config. `gpc one-time-product-offers list`, `get`, and `batch-get` inspect discounted and pre-order offers; `create` applies guarded offer creation from a typed JSON body or basic discounted/pre-order flags through Google's batchUpdate-with-allowMissing surface; `batch-delete`, `activate`, `deactivate`, `cancel`, `batch-activate`, `batch-deactivate`, and `batch-cancel` apply guarded offer mutations; `batch-patch-availability`, `batch-patch-relative-discounts`, `batch-patch-absolute-discounts`, and `batch-patch-no-overrides` fetch current offers and apply guarded regional availability/discount-mode patches through `batchUpdate`. |
+| `subscriptions` | `subscriptions` | `monetization.subscriptions`, `basePlans` | tested | `gpc subscriptions list`, `get`, and `batch-get` cover subscription inspection; `create` applies guarded draft subscription creation from a typed JSON body or basic auto-renewing/prepaid/installments base-plan, restricted-country, and tax-compliance flags; `patch` and `batch-patch-listings` apply guarded localized listing updates with live merge preflight; `delete` applies guarded deletion for subscriptions that have never had a base plan published; `base-plan delete` applies guarded deletion for draft-only base plans; `base-plan activate`, `deactivate`, `batch-activate`, and `batch-deactivate` apply guarded base plan state changes; `base-plan batch-migrate-prices` applies guarded regional legacy-price cohort migrations; `base-plan batch-patch-prices` fetches current subscriptions and applies guarded direct base-plan regional price patches without adding missing regional config. |
+| `subscriptions` | `subscription-offers` | `monetization.subscriptions.basePlans.offers` | tested | `gpc subscription-offers list`, `get`, and `batch-get` cover offer inspection; `create` applies guarded draft offer creation from a typed JSON body or basic one- or two-phase free/paid-price/relative-discount/absolute-discount flags, including free, paid-price, relative-discount, and absolute-discount other-regions config, acquisition targeting, and upgrade targeting; `delete` applies guarded deletion for draft offers; `activate`, `deactivate`, `batch-activate`, and `batch-deactivate` apply guarded offer state changes; `batch-patch-availability` fetches current offers and applies guarded regional subscriber-availability patches through `batchUpdate`; `batch-patch-phase-relative-discounts`, `batch-patch-phase-absolute-discounts`, `batch-patch-phase-prices`, and `batch-patch-phase-free` fetch current offers and apply guarded phase-level regional pricing patches. |
+| `pricing` | `pricing` | `monetization.convertRegionPrices`, product/subscription pricing APIs | tested | `gpc pricing convert-region-prices` calculates Play regional prices from an explicit source price; `gpc pricing build-price-patches` turns conversion JSON into deterministic patch arguments and suggested dry-run commands for `in-app-products patch`, `one-time-products purchase-option batch-patch-prices`, `subscriptions base-plan batch-patch-prices`, and `subscription-offers batch-patch-phase-prices`; subscription base-plan price migrations are covered under `subscriptions base-plan batch-migrate-prices`. |
+| `finance` | `finance reports` | Play financial reports via downloaded ZIP/CSV exports | tested | `gpc finance reports download` fetches explicit report ZIP objects from the Google Play reports Cloud Storage bucket with dry-run/force safeguards, and `summarize` summarizes extracted Play earnings and estimated-sales CSVs by status/type and currency amount. |
+| `analytics` | `analytics stats` | Play statistics reports via downloaded CSV/GCS exports | tested | `gpc analytics stats download` fetches explicit report CSV objects from the Google Play reports Cloud Storage bucket with dry-run/force safeguards, and `summarize` summarizes downloaded Play statistics CSVs by numeric metric columns, summing additive metrics and averaging rate-like metrics. |
+| `insights` | `insights anomalies summarize` / `insights reports summarize` | Built from reports | tested | `gpc insights anomalies summarize` derives local summaries from `gpc vitals anomalies list` JSON output and marks paginated inputs as partial. `gpc insights reports summarize` composes downloaded finance and statistics CSVs into one local summary with typed highlights and derived KPIs, including net revenue by report type/currency, store listing acquisitions, acquisition rate, and net revenue per acquisition when matching finance and stats columns are present. |
+| `orders` | `orders` | `orders` | tested | `gpc orders get` and `batch-get` inspect order details by ID; `refund` applies guarded refunds only with `--confirm`, with optional revoke and dry-run planning. |
+| `purchases` | `purchases` | `purchases.products`, `purchases.productsv2`, `purchases.subscriptions`, `purchases.subscriptionsv2`, `voidedpurchases` | tested | `gpc purchases product` and `subscription` cover read-only purchase-token status, `gpc purchases product acknowledge` and `consume` apply guarded product purchase mutations, `gpc purchases subscription acknowledge` covers legacy acknowledgement, `gpc purchases subscription cancel` uses v2 cancellation with an explicit cancellation type, `gpc purchases subscription revoke` handles guarded full, prorated, and item-based v2 revocation, and `gpc purchases voided list` covers voided purchase reporting. |
 
 ## Review, Quality, And Feedback
 
-| `asc` family | Closest `playpub` family | Google Play API coverage | Status | Notes |
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `review` | `review` | No clear public review-submission lifecycle API | blocked | Track/release state is available, but review queue control appears limited. |
-| `reviews` | `reviews` | `reviews` | tested | `playpub reviews list`, `get`, and guarded `reply` cover Play review reading and developer replies. Google limits this API to recent reviews with comments; reply text is capped at 350 characters and requires review-reply access. |
-| `performance` | `vitals` | Play Developer Reporting API | tested | `playpub vitals metric-set get` inspects Android vitals metric-set metadata and freshness windows; `playpub vitals metric-set query` fetches metric rows with explicit metrics, dimensions, filters, timeline, cohort, and pagination; `playpub vitals anomalies list` lists detected metric anomalies. |
-| `crashes` | `vitals` | Play Developer Reporting API | tested | `playpub vitals metric-set get --metric-set crash-rate` and `error-count` cover crash/error metric-set metadata, `playpub vitals metric-set query` can query crash/error metric rows, `playpub vitals errors issues search` searches grouped issues, and `playpub vitals errors reports search` searches individual crash/ANR/non-fatal reports. |
+| `reviews` | `reviews` | `reviews` | tested | `gpc reviews list`, `get`, and guarded `reply` cover Play review reading and developer replies. Google limits this API to recent reviews with comments; reply text is capped at 350 characters and requires review-reply access. |
+| `performance` | `vitals` | Play Developer Reporting API | tested | `gpc vitals metric-set get` inspects Android vitals metric-set metadata and freshness windows; `gpc vitals metric-set query` fetches metric rows with explicit metrics, dimensions, filters, timeline, cohort, and pagination; `gpc vitals anomalies list` lists detected metric anomalies. |
+| `crashes` | `vitals` | Play Developer Reporting API | tested | `gpc vitals metric-set get --metric-set crash-rate` and `error-count` cover crash/error metric-set metadata, `gpc vitals metric-set query` can query crash/error metric rows, `gpc vitals errors issues search` searches grouped issues, and `gpc vitals errors reports search` searches individual crash/ANR/non-fatal reports. |
 
 ## Team And Access
 
-| `asc` family | Closest `playpub` family | Google Play API coverage | Status | Notes |
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `account` | `account` | Local auth/config inspection | tested | `playpub account status` summarizes active profile and service-account metadata without making live Google Play calls or exposing private keys. |
-| `users` | `users` | `users` | tested | `playpub users list` covers developer account user inspection with pagination, `create` grants account-level access, `patch` replaces account-level fields, and `delete` removes all account access with dry-run/confirm gating. App-level access is handled through `grants`. |
-| `actors` | `users` / `grants` | `users`, `grants` | tested | `playpub users list` exposes account users and embedded per-app grants; `playpub grants` manages app-level grants with dry-run/confirm gating. |
+| `account` | `account` | Local auth/config inspection | tested | `gpc account status` summarizes active profile and service-account metadata without making live Google Play calls or exposing private keys. |
+| `users` | `users` | `users` | tested | `gpc users list` covers developer account user inspection with pagination, `create` grants account-level access, `patch` replaces account-level fields, and `delete` removes all account access with dry-run/confirm gating. App-level access is handled through `grants`. |
+| `actors` | `users` / `grants` | `users`, `grants` | tested | `gpc users list` exposes account users and embedded per-app grants; `gpc grants` manages app-level grants with dry-run/confirm gating. |
 | `agreements` | N/A | N/A | blocked | Play agreement state may not be exposed through public APIs. |
-| `grants` | `grants` | `grants` | tested | `playpub grants create`, `patch`, and `delete` manage app-level user grants with dry-run/confirm gating. Listing remains covered through `users list`. |
+| `grants` | `grants` | `grants` | tested | `gpc grants create`, `patch`, and `delete` manage app-level user grants with dry-run/confirm gating. Listing remains covered through `users list`. |
 
 ## Signing And Platform-Specific Apple Features
 
-| `asc` family | Closest `playpub` family | Google Play API coverage | Status | Notes |
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `signing` | N/A | N/A | not applicable | Android signing belongs to local build tooling and Play App Signing, not ASC-style cert/profile APIs. |
 | `bundle-ids` | N/A | N/A | not applicable | Android package names are app identifiers but not managed like Apple bundle IDs. |
@@ -129,17 +129,17 @@ Sources:
 
 ## Automation And Utility
 
-| `asc` family | Closest `playpub` family | Google Play API coverage | Status | Notes |
+| `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `workflow` | `workflow` | N/A | tested | `playpub workflow list` reads `.playpub/workflow.json`; `playpub workflow run NAME` executes steps sequentially or prints the plan with `--dry-run`. |
-| `webhooks` | `notifications` | Pub/Sub and Real-time developer notifications | tested | `playpub notifications pubsub setup` creates the Google Cloud topic/subscription and grants the Google Play publisher IAM binding with dry-run/confirm gating; Play Console app-level RTDN topic selection remains an operator step. `playpub notifications pubsub pull` reads pull subscriptions, optionally decodes RTDN payloads, and acknowledges messages after successful output only with `--ack --confirm`. `playpub notifications rtdn decode` decodes wrapped Pub/Sub push payloads and unwrapped push payloads containing Google Play real-time developer notifications. |
-| `notify` | `notify` | N/A | tested | `playpub notify send` posts generic JSON webhook notifications with dry-run/confirm gating and redacted endpoint output; `playpub notify discord`, `github`, `google-chat`, `mattermost`, `slack`, and `teams` post service-specific incoming webhook payloads through the same guarded delivery path. |
-| `migrate` | `migrate` | N/A | tested | `playpub migrate supply inspect` inventories fastlane supply metadata directories; `playpub migrate supply convert` emits `playpub metadata apply` compatible JSON for localized listing text; `playpub migrate supply changelogs` groups fastlane changelog files into release-note payloads and `--release-note` argument values; `playpub migrate supply images` validates fastlane image files and emits `playpub images upload` argument lists. |
-| `diff` | `diff` | N/A | tested | `playpub diff json FROM TO` compares local JSON payloads with deterministic JSON Pointer paths and optional `--fail-on-change` CI behavior. |
-| `capabilities` | `capabilities` | N/A | tested | `playpub capabilities` exposes this parity matrix as structured CLI output with status and section filters. |
-| `search` | `search` | N/A | tested | `playpub search QUERY` searches command paths, descriptions, and flag names for agent-oriented command discovery. |
-| `schema` | `schema` | Discovery document | tested | `playpub schema` fetches the Android Publisher discovery document and emits a stable resource/method summary, with resource and method filters. |
-| `snitch` | `snitch` | N/A | tested | `playpub snitch report` generates a deterministic GitHub issue URL for CLI friction without network or auth side effects. |
+| `workflow` | `workflow` | N/A | tested | `gpc workflow list` reads `.gpc/workflow.json`; `gpc workflow run NAME` executes steps sequentially or prints the plan with `--dry-run`. |
+| `webhooks` | `notifications` | Pub/Sub and Real-time developer notifications | tested | `gpc notifications pubsub setup` creates the Google Cloud topic/subscription and grants the Google Play publisher IAM binding with dry-run/confirm gating; Play Console app-level RTDN topic selection remains an operator step. `gpc notifications pubsub pull` reads pull subscriptions, optionally decodes RTDN payloads, and acknowledges messages after successful output only with `--ack --confirm`. `gpc notifications rtdn decode` decodes wrapped Pub/Sub push payloads and unwrapped push payloads containing Google Play real-time developer notifications. |
+| `notify` | `notify` | N/A | tested | `gpc notify send` posts generic JSON webhook notifications with dry-run/confirm gating and redacted endpoint output; `gpc notify discord`, `github`, `google-chat`, `mattermost`, `slack`, and `teams` post service-specific incoming webhook payloads through the same guarded delivery path. |
+| `migrate` | `migrate` | N/A | tested | `gpc migrate supply inspect` inventories fastlane supply metadata directories; `gpc migrate supply convert` emits `gpc metadata apply` compatible JSON for localized listing text; `gpc migrate supply changelogs` groups fastlane changelog files into release-note payloads and `--release-note` argument values; `gpc migrate supply images` validates fastlane image files and emits `gpc images upload` argument lists. |
+| `diff` | `diff` | N/A | tested | `gpc diff json FROM TO` compares local JSON payloads with deterministic JSON Pointer paths and optional `--fail-on-change` CI behavior. |
+| `capabilities` | `capabilities` | N/A | tested | `gpc capabilities` exposes this parity matrix as structured CLI output with status and section filters. |
+| `search` | `search` | N/A | tested | `gpc search QUERY` searches command paths, descriptions, and flag names for agent-oriented command discovery. |
+| `schema` | `schema` | Discovery document | tested | `gpc schema` fetches the Android Publisher discovery document and emits a stable resource/method summary, with resource and method filters. |
+| `snitch` | `snitch` | N/A | tested | `gpc snitch report` generates a deterministic GitHub issue URL for CLI friction without network or auth side effects. |
 | `web` | `web status` | N/A | blocked | Boundary command is tested; Play Console browser automation remains blocked from the Go CLI until there is a stable, testable automation contract. Console-only workflows should use explicit operator-driven browser automation outside the CLI. |
 
 ## First Vertical Slice
@@ -147,7 +147,7 @@ Sources:
 The first API-backed slice should be:
 
 ```sh
-playpub publish internal \
+gpc publish internal \
   --package com.example.app \
   --aab ./app-release.aab \
   --release-name "1.2.3" \

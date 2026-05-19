@@ -10,7 +10,7 @@ func TestBuildReportCreatesDeterministicIssueURL(t *testing.T) {
 	report, err := BuildReport(ReportOptions{
 		Title:   "Confusing release output",
 		Body:    "The track summary was hard to read.",
-		Command: "playpub releases list --package com.example.app",
+		Command: "gpc releases list --package com.example.app",
 		Labels:  []string{"ux", "snitch", "bug"},
 	})
 	if err != nil {
@@ -30,7 +30,7 @@ func TestBuildReportCreatesDeterministicIssueURL(t *testing.T) {
 	if query.Get("title") != "Confusing release output" {
 		t.Fatalf("title query = %q", query.Get("title"))
 	}
-	if !strings.Contains(query.Get("body"), "playpub releases list") {
+	if !strings.Contains(query.Get("body"), "gpc releases list") {
 		t.Fatalf("body query = %q, want command", query.Get("body"))
 	}
 	if query.Get("labels") != "bug,snitch,ux" {

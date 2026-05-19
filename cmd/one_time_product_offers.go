@@ -66,7 +66,7 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a one-time product offer",
-		Long: "Create a one-time product offer from a Google Play API OneTimeProductOffer JSON body or playpub one-time product offer JSON output. " +
+		Long: "Create a one-time product offer from a Google Play API OneTimeProductOffer JSON body or gpc one-time product offer JSON output. " +
 			"Basic flags build one discounted or pre-order offer with regional relative discounts, absolute discounts, or no-override regions. " +
 			"Parent IDs come from flags and override the JSON body; output-only state and regionsVersion are ignored.",
 		Args: cobra.NoArgs,
@@ -155,7 +155,7 @@ func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions,
 	cmd.Flags().StringVar(&productID, "product-id", "", "Parent one-time product ID")
 	cmd.Flags().StringVar(&purchaseOptionID, "purchase-option-id", "", "Parent one-time product purchase option ID")
 	cmd.Flags().StringVar(&offerID, "offer-id", "", "One-time product offer ID")
-	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or playpub JSON one-time product offer body")
+	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or gpc JSON one-time product offer body")
 	cmd.Flags().BoolVar(&preOrder, "pre-order", false, "Build a basic pre-order offer instead of a discounted offer")
 	cmd.Flags().StringArrayVar(&offerTags, "offer-tag", nil, "Basic create offer tag; repeatable")
 	cmd.Flags().StringVar(&startTime, "start-time", "", "Basic offer start time as RFC3339")

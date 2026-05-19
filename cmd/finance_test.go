@@ -8,7 +8,7 @@ import (
 )
 
 func TestFinanceReportsSummarizeOutputsTotalsWithoutAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	file := writeRootTestPathContent(t, filepath.Join(t.TempDir(), "earnings.csv"), "Transaction Type,Merchant Currency,Amount (Merchant Currency)\nCharge,USD,9.99\nCharge,USD,1.01\nGoogle fee,USD,-1.50\n")
 
 	var buf bytes.Buffer
@@ -44,7 +44,7 @@ func TestFinanceReportsSummarizeOutputsTotalsWithoutAuth(t *testing.T) {
 }
 
 func TestFinanceReportsDownloadDryRunDoesNotRequireAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 	outputPath := filepath.Join(t.TempDir(), "earnings.zip")
 
 	var buf bytes.Buffer

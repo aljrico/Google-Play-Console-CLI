@@ -7,7 +7,7 @@ import (
 )
 
 func TestVitalsMetricSetGetRejectsUnsupportedMetricSetBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -33,7 +33,7 @@ func TestVitalsMetricSetGetRejectsUnsupportedMetricSetBeforeAuth(t *testing.T) {
 }
 
 func TestVitalsMetricSetGetRejectsMissingMetricSetBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -57,7 +57,7 @@ func TestVitalsMetricSetGetRejectsMissingMetricSetBeforeAuth(t *testing.T) {
 }
 
 func TestVitalsMetricSetQueryRejectsMissingMetricBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -89,7 +89,7 @@ func TestVitalsMetricSetQueryRejectsMissingMetricBeforeAuth(t *testing.T) {
 }
 
 func TestVitalsMetricSetQueryRejectsInvalidStartDateBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -123,7 +123,7 @@ func TestVitalsMetricSetQueryRejectsInvalidStartDateBeforeAuth(t *testing.T) {
 }
 
 func TestVitalsMetricSetQueryRejectsInvalidRangeBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -157,7 +157,7 @@ func TestVitalsMetricSetQueryRejectsInvalidRangeBeforeAuth(t *testing.T) {
 }
 
 func TestVitalsMetricSetQueryRejectsUnsupportedAggregationBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -191,7 +191,7 @@ func TestVitalsMetricSetQueryRejectsUnsupportedAggregationBeforeAuth(t *testing.
 }
 
 func TestVitalsErrorsIssuesSearchRejectsInvalidRangeBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -220,7 +220,7 @@ func TestVitalsErrorsIssuesSearchRejectsInvalidRangeBeforeAuth(t *testing.T) {
 }
 
 func TestVitalsErrorsReportsSearchRejectsUnsupportedTimeZoneBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -251,7 +251,7 @@ func TestVitalsErrorsReportsSearchRejectsUnsupportedTimeZoneBeforeAuth(t *testin
 }
 
 func TestVitalsAnomaliesListRejectsNegativePageSizeBeforeAuth(t *testing.T) {
-	t.Setenv("PLAYPUB_CONFIG", t.TempDir()+"/missing-config.json")
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)

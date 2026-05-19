@@ -43,7 +43,7 @@ Good modularity means each package has a job:
 
 ## CLI Contract
 
-`playpub` should stay friendly to terminals and ruthless for automation:
+`gpc` should stay friendly to terminals and ruthless for automation:
 
 - No interactive prompts by default.
 - JSON output must be stable enough for scripts.
