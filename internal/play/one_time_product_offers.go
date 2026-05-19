@@ -337,6 +337,18 @@ type OneTimeProductOfferBatchPatchAbsoluteDiscountsOptions struct {
 	DryRun           bool                                              `json:"dryRun"`
 }
 
+type OneTimeProductOfferCreateOptions struct {
+	PackageName      PackageName                    `json:"packageName"`
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+	OfferID          OneTimeProductOfferID          `json:"offerId"`
+	Offer            OneTimeProductOffer            `json:"offer"`
+	RegionsVersion   string                         `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance  `json:"latencyTolerance"`
+	Confirm          bool                           `json:"confirm"`
+	DryRun           bool                           `json:"dryRun"`
+}
+
 func (o OneTimeProductOfferGetOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
@@ -396,6 +408,37 @@ func (o OneTimeProductOfferBatchGetOptions) Validate() error {
 		seen[key] = struct{}{}
 	}
 	return nil
+}
+
+func (o OneTimeProductOfferCreateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductPurchaseOptionID(o.PurchaseOptionID.String()); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductOfferID(o.OfferID.String()); err != nil {
+		return err
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("one-time product offer creation requires --confirm or --dry-run")
+	}
+	return validateOneTimeProductOfferForCreate(oneTimeProductOfferCreateDesiredOffer(o))
 }
 
 func (o OneTimeProductOfferBatchDeleteOptions) Validate() error {
@@ -510,6 +553,19 @@ func (o OneTimeProductOfferBatchPatchAbsoluteDiscountsOptions) Validate() error 
 	}
 	if !o.Confirm && !o.DryRun {
 		return fmt.Errorf("one-time product offer absolute discount batch patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o OneTimeProductOfferCreateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live one-time product offer creation cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live one-time product offer creation requires --confirm")
 	}
 	return nil
 }
@@ -732,8 +788,136 @@ func validateOneTimeProductOfferBatchMutationParents(productID OneTimeProductID,
 	return nil
 }
 
+func validateOneTimeProductOfferForCreate(offer OneTimeProductOffer) error {
+	if _, err := NewOneTimeProductID(offer.ProductID.String()); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductPurchaseOptionID(offer.PurchaseOptionID.String()); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductOfferID(offer.OfferID.String()); err != nil {
+		return err
+	}
+	if len(offer.OfferTags) > 20 {
+		return fmt.Errorf("one-time product offer create supports at most 20 offer tags")
+	}
+	seenTags := map[string]struct{}{}
+	for _, tag := range offer.OfferTags {
+		if err := validateSubscriptionOfferTag(tag); err != nil {
+			return err
+		}
+		if _, ok := seenTags[tag]; ok {
+			return fmt.Errorf("one-time product offer create offer tag %q is duplicated", tag)
+		}
+		seenTags[tag] = struct{}{}
+	}
+	switch offer.Type {
+	case OneTimeProductOfferTypeDiscounted:
+		if offer.DiscountedOffer == nil {
+			return fmt.Errorf("discounted one-time product offer requires discountedOffer")
+		}
+		if offer.PreOrderOffer != nil {
+			return fmt.Errorf("discounted one-time product offer cannot set preOrderOffer")
+		}
+		if err := validateOneTimeProductDiscountedOfferForCreate(*offer.DiscountedOffer); err != nil {
+			return err
+		}
+	case OneTimeProductOfferTypePreOrder:
+		if offer.PreOrderOffer == nil {
+			return fmt.Errorf("pre-order one-time product offer requires preOrderOffer")
+		}
+		if offer.DiscountedOffer != nil {
+			return fmt.Errorf("pre-order one-time product offer cannot set discountedOffer")
+		}
+		if err := validateOneTimeProductPreOrderOfferForCreate(*offer.PreOrderOffer); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("one-time product offer type must be discounted or preOrder")
+	}
+	if len(offer.RegionalConfigs) == 0 {
+		return fmt.Errorf("one-time product offer create requires at least one regional config")
+	}
+	seenRegions := map[string]struct{}{}
+	for _, config := range offer.RegionalConfigs {
+		if !isValidRegionCode(config.RegionCode) {
+			return fmt.Errorf("one-time product offer create region must be a two-letter ISO 3166 code")
+		}
+		if _, ok := seenRegions[config.RegionCode]; ok {
+			return fmt.Errorf("one-time product offer create region %s is duplicated", config.RegionCode)
+		}
+		seenRegions[config.RegionCode] = struct{}{}
+		if strings.TrimSpace(config.Availability) == "" {
+			return fmt.Errorf("one-time product offer create region %s requires availability", config.RegionCode)
+		}
+		if err := OneTimeProductOfferAvailability(apiOneTimeProductOfferAvailabilityToCLI(config.Availability)).Validate(); err != nil {
+			return err
+		}
+		priceModes := 0
+		if config.AbsoluteDiscount != nil {
+			priceModes++
+			if err := validateMoney(*config.AbsoluteDiscount); err != nil {
+				return fmt.Errorf("one-time product offer create region %s absolute discount: %w", config.RegionCode, err)
+			}
+		}
+		if config.RelativeDiscount != 0 {
+			priceModes++
+			if math.IsNaN(config.RelativeDiscount) || math.IsInf(config.RelativeDiscount, 0) || config.RelativeDiscount <= 0 || config.RelativeDiscount >= 1 {
+				return fmt.Errorf("one-time product offer create region %s relative discount must be greater than 0 and less than 1", config.RegionCode)
+			}
+		}
+		if config.NoOverride {
+			priceModes++
+		}
+		if priceModes != 1 {
+			return fmt.Errorf("one-time product offer create region %s requires exactly one of absoluteDiscount, relativeDiscount, or noOverride", config.RegionCode)
+		}
+	}
+	return nil
+}
+
+func validateOneTimeProductDiscountedOfferForCreate(offer OneTimeProductDiscountedOffer) error {
+	if offer.RedemptionLimit < 0 || offer.RedemptionLimit > 50 {
+		return fmt.Errorf("one-time product discounted offer redemption limit must be between 0 and 50")
+	}
+	return nil
+}
+
+func validateOneTimeProductPreOrderOfferForCreate(offer OneTimeProductPreOrderOffer) error {
+	if strings.TrimSpace(offer.StartTime) == "" {
+		return fmt.Errorf("one-time product pre-order offer requires start time")
+	}
+	if strings.TrimSpace(offer.EndTime) == "" {
+		return fmt.Errorf("one-time product pre-order offer requires end time")
+	}
+	if strings.TrimSpace(offer.ReleaseTime) == "" {
+		return fmt.Errorf("one-time product pre-order offer requires release time")
+	}
+	switch offer.PriceChangeBehavior {
+	case "PRE_ORDER_PRICE_CHANGE_BEHAVIOR_TWO_POINT_LOWEST", "PRE_ORDER_PRICE_CHANGE_BEHAVIOR_NEW_ORDERS_ONLY":
+		return nil
+	default:
+		return fmt.Errorf("one-time product pre-order offer price change behavior must be PRE_ORDER_PRICE_CHANGE_BEHAVIOR_TWO_POINT_LOWEST or PRE_ORDER_PRICE_CHANGE_BEHAVIOR_NEW_ORDERS_ONLY")
+	}
+}
+
+func apiOneTimeProductOfferAvailabilityToCLI(value string) string {
+	switch value {
+	case "AVAILABLE":
+		return OneTimeProductOfferAvailabilityAvailable.String()
+	case "NO_LONGER_AVAILABLE":
+		return OneTimeProductOfferAvailabilityNoLongerAvailable.String()
+	default:
+		return value
+	}
+}
+
 type OneTimeProductOfferGetter interface {
 	GetOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error)
+}
+
+type OneTimeProductOfferCreator interface {
+	CreateOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferCreateOptions) (OneTimeProductOffer, error)
 }
 
 type OneTimeProductOfferBatchGetter interface {
@@ -766,6 +950,29 @@ type OneTimeProductOfferBatchGetResult struct {
 	PurchaseOptionID OneTimeProductPurchaseOptionID     `json:"purchaseOptionId"`
 	Offers           []OneTimeProductOffer              `json:"offers"`
 	Options          OneTimeProductOfferBatchGetOptions `json:"options"`
+}
+
+type OneTimeProductOfferCreatePlan struct {
+	PackageName      PackageName                    `json:"packageName"`
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+	OfferID          OneTimeProductOfferID          `json:"offerId"`
+	RegionsVersion   string                         `json:"regionsVersion"`
+	LatencyTolerance ProductUpdateLatencyTolerance  `json:"latencyTolerance"`
+	Confirm          bool                           `json:"confirm"`
+	Steps            []string                       `json:"steps"`
+}
+
+type OneTimeProductOfferCreateResult struct {
+	PackageName      PackageName                    `json:"packageName"`
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+	OfferID          OneTimeProductOfferID          `json:"offerId"`
+	DryRun           bool                           `json:"dryRun"`
+	Created          bool                           `json:"created"`
+	Desired          OneTimeProductOffer            `json:"desiredOffer"`
+	Offer            *OneTimeProductOffer           `json:"offer,omitempty"`
+	Plan             OneTimeProductOfferCreatePlan  `json:"plan"`
 }
 
 type OneTimeProductOfferBatchDeletePlan struct {
@@ -940,6 +1147,51 @@ func BatchGetOneTimeProductOffers(ctx context.Context, getter OneTimeProductOffe
 		return OneTimeProductOfferBatchGetResult{}, fmt.Errorf("one-time product offer batch getter is required")
 	}
 	return getter.BatchGetOneTimeProductOffers(ctx, options)
+}
+
+func NewOneTimeProductOfferCreatePlan(options OneTimeProductOfferCreateOptions) (OneTimeProductOfferCreatePlan, error) {
+	if err := options.Validate(); err != nil {
+		return OneTimeProductOfferCreatePlan{}, err
+	}
+	return OneTimeProductOfferCreatePlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		OfferID:          options.OfferID,
+		RegionsVersion:   options.RegionsVersion,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            oneTimeProductOfferCreateSteps(options),
+	}, nil
+}
+
+func CreateOneTimeProductOffer(ctx context.Context, creator OneTimeProductOfferCreator, options OneTimeProductOfferCreateOptions) (OneTimeProductOfferCreateResult, error) {
+	plan, err := NewOneTimeProductOfferCreatePlan(options)
+	if err != nil {
+		return OneTimeProductOfferCreateResult{}, err
+	}
+	result := OneTimeProductOfferCreateResult{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		OfferID:          options.OfferID,
+		DryRun:           options.DryRun,
+		Desired:          oneTimeProductOfferCreateDesiredOffer(options),
+		Plan:             plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if creator == nil {
+		return OneTimeProductOfferCreateResult{}, fmt.Errorf("one-time product offer creator is required")
+	}
+	offer, err := creator.CreateOneTimeProductOffer(ctx, options)
+	if err != nil {
+		return OneTimeProductOfferCreateResult{}, err
+	}
+	result.Created = true
+	result.Offer = &offer
+	return result, nil
 }
 
 func BatchDeleteOneTimeProductOffers(ctx context.Context, deleter OneTimeProductOfferBatchDeleter, options OneTimeProductOfferBatchDeleteOptions) (OneTimeProductOfferBatchDeleteResult, error) {
@@ -1254,6 +1506,27 @@ func desiredOneTimeProductOffersForAbsoluteDiscountPatch(options OneTimeProductO
 	return offers
 }
 
+func oneTimeProductOfferCreateDesiredOffer(options OneTimeProductOfferCreateOptions) OneTimeProductOffer {
+	offer := options.Offer
+	offer.PackageName = options.PackageName
+	offer.ProductID = options.ProductID
+	offer.PurchaseOptionID = options.PurchaseOptionID
+	offer.OfferID = options.OfferID
+	offer.State = ""
+	offer.RegionsVersion = nil
+	if offer.RegionalConfigs == nil {
+		offer.RegionalConfigs = []OneTimeProductOfferRegion{}
+	}
+	return offer
+}
+
+func oneTimeProductOfferCreateSteps(options OneTimeProductOfferCreateOptions) []string {
+	if options.DryRun {
+		return []string{"plan one-time product offer create"}
+	}
+	return []string{"verify one-time product offer does not exist", "batch update one-time product offer with allowMissing=true"}
+}
+
 func oneTimeProductOfferBatchDeleteSteps(options OneTimeProductOfferBatchDeleteOptions) []string {
 	if options.DryRun {
 		return []string{"plan one-time product offer batch deletion"}
@@ -1275,6 +1548,8 @@ func oneTimeProductOfferBatchStateUpdateSteps(options OneTimeProductOfferBatchSt
 }
 
 const oneTimeProductOfferRegionalConfigsUpdateMask = "regionalPricingAndAvailabilityConfigs"
+
+const oneTimeProductOfferCreateUpdateMask = "offerTags,discountedOffer,preOrderOffer,regionalPricingAndAvailabilityConfigs"
 
 const oneTimeProductOfferAvailabilityUpdateMask = oneTimeProductOfferRegionalConfigsUpdateMask
 

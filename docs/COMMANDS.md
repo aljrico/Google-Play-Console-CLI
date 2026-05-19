@@ -1340,6 +1340,7 @@ gpc one-time-product-offers
 - `gpc one-time-product-offers batch-patch-availability`: Batch patch one-time product offer regional availability
 - `gpc one-time-product-offers batch-patch-relative-discounts`: Batch patch one-time product offer relative discounts
 - `gpc one-time-product-offers cancel`: cancel a one-time product offer
+- `gpc one-time-product-offers create`: Create a one-time product offer
 - `gpc one-time-product-offers deactivate`: deactivate a one-time product offer
 - `gpc one-time-product-offers get`: Get a one-time product offer
 - `gpc one-time-product-offers list`: List one-time product offers
@@ -1513,6 +1514,25 @@ gpc one-time-product-offers cancel [flags]
 - `--offer-id`: One-time product offer ID
 - `--product-id`: Parent one-time product ID
 - `--purchase-option-id`: Parent one-time product purchase option ID
+
+#### gpc one-time-product-offers create
+
+Create a one-time product offer
+
+```sh
+gpc one-time-product-offers create [flags]
+```
+
+##### Flags
+
+- `--confirm`: Create the one-time product offer (default `false`)
+- `--dry-run`: Print the planned one-time product offer creation without calling Google Play (default `false`)
+- `--from-json`: Path to a Google Play API or gpc JSON one-time product offer body
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--offer-id`: One-time product offer ID
+- `--product-id`: Parent one-time product ID
+- `--purchase-option-id`: Parent one-time product purchase option ID
+- `--regions-version`: Google Play regions version required by oneTimeProductOffers.batchUpdate
 
 #### gpc one-time-product-offers deactivate
 

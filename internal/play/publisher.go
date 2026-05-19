@@ -976,6 +976,43 @@ func (p GooglePublisher) BatchGetOneTimeProductOffers(ctx context.Context, optio
 	return oneTimeProductOfferBatchGetResultFromAPI(options, response), nil
 }
 
+func (p GooglePublisher) CreateOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferCreateOptions) (OneTimeProductOffer, error) {
+	if err := options.ValidateLive(); err != nil {
+		return OneTimeProductOffer{}, err
+	}
+	exists, err := p.oneTimeProductOfferExists(ctx, options.PackageName, options.ProductID, options.PurchaseOptionID, options.OfferID)
+	if err != nil {
+		return OneTimeProductOffer{}, err
+	}
+	if exists {
+		return OneTimeProductOffer{}, fmt.Errorf("one-time product offer %s for %s/%s/%s already exists; use batch-patch-* or state commands for updates", options.OfferID, options.PackageName, options.ProductID, options.PurchaseOptionID)
+	}
+	request := &androidpublisher.BatchUpdateOneTimeProductOffersRequest{
+		Requests: []*androidpublisher.UpdateOneTimeProductOfferRequest{{
+			OneTimeProductOffer: oneTimeProductOfferToAPI(oneTimeProductOfferCreateDesiredOffer(options)),
+			UpdateMask:          oneTimeProductOfferCreateUpdateMask,
+			RegionsVersion:      &androidpublisher.RegionsVersion{Version: options.RegionsVersion},
+			AllowMissing:        true,
+			LatencyTolerance:    productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+			ForceSendFields:     []string{"AllowMissing"},
+		}},
+	}
+	response, err := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.BatchUpdate(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.PurchaseOptionID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return OneTimeProductOffer{}, fmt.Errorf("create one-time product offer %s for %s/%s/%s: %w", options.OfferID, options.PackageName, options.ProductID, options.PurchaseOptionID, err)
+	}
+	offers := oneTimeProductOffersFromBatchUpdateResponse(response)
+	if len(offers) == 0 {
+		return OneTimeProductOffer{}, fmt.Errorf("create one-time product offer %s for %s/%s/%s returned no offers", options.OfferID, options.PackageName, options.ProductID, options.PurchaseOptionID)
+	}
+	return offers[0], nil
+}
+
 func (p GooglePublisher) BatchDeleteOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchDeleteOptions) error {
 	if err := options.ValidateLive(); err != nil {
 		return err
@@ -1212,6 +1249,24 @@ func (p GooglePublisher) getOneTimeProductOfferForRegionalPatch(ctx context.Cont
 		return nil, fmt.Errorf("get one-time product offer %s for %s/%s/%s before %s patch: empty response", offerID, packageName, productID, purchaseOptionID, patchKind)
 	}
 	return response.OneTimeProductOffers[0], nil
+}
+
+func (p GooglePublisher) oneTimeProductOfferExists(ctx context.Context, packageName PackageName, productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, offerID OneTimeProductOfferID) (bool, error) {
+	request := batchGetOneTimeProductOffersRequestToAPI(packageName, []OneTimeProductOfferBatchGetRequest{{
+		ProductID:        productID,
+		PurchaseOptionID: purchaseOptionID,
+		OfferID:          offerID,
+	}})
+	response, err := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.BatchGet(
+		packageName.String(),
+		productID.String(),
+		purchaseOptionID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return false, fmt.Errorf("check one-time product offer %s for %s/%s/%s before create: %w", offerID, packageName, productID, purchaseOptionID, err)
+	}
+	return response != nil && len(response.OneTimeProductOffers) > 0, nil
 }
 
 func (p GooglePublisher) UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error) {
@@ -4410,6 +4465,24 @@ func oneTimeProductOfferFromAPI(apiOffer *androidpublisher.OneTimeProductOffer) 
 	return offer
 }
 
+func oneTimeProductOfferToAPI(offer OneTimeProductOffer) *androidpublisher.OneTimeProductOffer {
+	apiOffer := &androidpublisher.OneTimeProductOffer{
+		PackageName:                           offer.PackageName.String(),
+		ProductId:                             offer.ProductID.String(),
+		PurchaseOptionId:                      offer.PurchaseOptionID.String(),
+		OfferId:                               offer.OfferID.String(),
+		OfferTags:                             offerTagsToAPI(offer.OfferTags),
+		RegionalPricingAndAvailabilityConfigs: oneTimeProductOfferRegionsToAPI(offer.RegionalConfigs),
+	}
+	switch offer.Type {
+	case OneTimeProductOfferTypeDiscounted:
+		apiOffer.DiscountedOffer = oneTimeProductDiscountedOfferToAPI(offer.DiscountedOffer)
+	case OneTimeProductOfferTypePreOrder:
+		apiOffer.PreOrderOffer = oneTimeProductPreOrderOfferToAPI(offer.PreOrderOffer)
+	}
+	return apiOffer
+}
+
 func oneTimeProductDiscountedOfferFromAPI(apiOffer *androidpublisher.OneTimeProductDiscountedOffer) *OneTimeProductDiscountedOffer {
 	if apiOffer == nil {
 		return nil
@@ -4421,6 +4494,21 @@ func oneTimeProductDiscountedOfferFromAPI(apiOffer *androidpublisher.OneTimeProd
 	}
 }
 
+func oneTimeProductDiscountedOfferToAPI(offer *OneTimeProductDiscountedOffer) *androidpublisher.OneTimeProductDiscountedOffer {
+	if offer == nil {
+		return nil
+	}
+	apiOffer := &androidpublisher.OneTimeProductDiscountedOffer{
+		StartTime:       offer.StartTime,
+		EndTime:         offer.EndTime,
+		RedemptionLimit: offer.RedemptionLimit,
+	}
+	if offer.RedemptionLimit != 0 {
+		apiOffer.ForceSendFields = append(apiOffer.ForceSendFields, "RedemptionLimit")
+	}
+	return apiOffer
+}
+
 func oneTimeProductPreOrderOfferFromAPI(apiOffer *androidpublisher.OneTimeProductPreOrderOffer) *OneTimeProductPreOrderOffer {
 	if apiOffer == nil {
 		return nil
@@ -4430,6 +4518,18 @@ func oneTimeProductPreOrderOfferFromAPI(apiOffer *androidpublisher.OneTimeProduc
 		EndTime:             apiOffer.EndTime,
 		ReleaseTime:         apiOffer.ReleaseTime,
 		PriceChangeBehavior: apiOffer.PriceChangeBehavior,
+	}
+}
+
+func oneTimeProductPreOrderOfferToAPI(offer *OneTimeProductPreOrderOffer) *androidpublisher.OneTimeProductPreOrderOffer {
+	if offer == nil {
+		return nil
+	}
+	return &androidpublisher.OneTimeProductPreOrderOffer{
+		StartTime:           offer.StartTime,
+		EndTime:             offer.EndTime,
+		ReleaseTime:         offer.ReleaseTime,
+		PriceChangeBehavior: offer.PriceChangeBehavior,
 	}
 }
 

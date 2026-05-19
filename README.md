@@ -142,6 +142,7 @@ gpc one-time-products purchase-option deactivate --package com.example.app --pro
 gpc one-time-product-offers list --package com.example.app --product-id coins_100 --purchase-option-id buy
 gpc one-time-product-offers get --package com.example.app --product-id coins_100 --purchase-option-id buy --offer-id intro
 gpc one-time-product-offers batch-get --package com.example.app --product-id - --purchase-option-id - --offer coins_100/buy/intro --offer coins_500/buy/preorder
+gpc one-time-product-offers create --package com.example.app --product-id coins_100 --purchase-option-id buy --offer-id intro --from-json one-time-product-offer.json --regions-version 2026/05 --dry-run
 gpc one-time-product-offers batch-delete --package com.example.app --offer coins_100/buy/intro --offer coins_500/rent/preorder --dry-run
 gpc one-time-product-offers batch-patch-availability --package com.example.app --availability coins_100/buy/intro/US:noLongerAvailable --availability coins_100/buy/intro/BR:available --regions-version 2026/05 --dry-run
 gpc one-time-product-offers batch-patch-relative-discounts --package com.example.app --relative-discount coins_100/buy/intro/US:0.75 --regions-version 2026/05 --dry-run
@@ -249,6 +250,23 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
       "usdPrice": {"currencyCode": "USD", "units": "1"},
       "eurPrice": {"currencyCode": "EUR", "units": "1"}
     }
+  }]
+}
+```
+
+`one-time-product-offers create --from-json` accepts either Google Play API `OneTimeProductOffer` JSON or `gpc one-time-product-offers get --output json` shape. The `--package`, `--product-id`, `--purchase-option-id`, and `--offer-id` flags override immutable IDs in the file, and output-only `state` and `regionsVersion` are ignored. The command uses Google's `batchUpdate` with `allowMissing=true`, but live create first verifies the offer does not already exist. The JSON body must include exactly one offer type (`discountedOffer` or `preOrderOffer`) and regional configs with one price mode per region (`absoluteDiscount`, `relativeDiscount`, or `noOverride`). Example:
+
+```json
+{
+  "discountedOffer": {
+    "startTime": "2026-06-01T00:00:00Z",
+    "endTime": "2026-07-01T00:00:00Z",
+    "redemptionLimit": "5"
+  },
+  "regionalPricingAndAvailabilityConfigs": [{
+    "regionCode": "US",
+    "availability": "AVAILABLE",
+    "relativeDiscount": 0.5
   }]
 }
 ```

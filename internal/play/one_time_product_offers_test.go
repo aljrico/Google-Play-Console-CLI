@@ -220,6 +220,166 @@ func TestBatchGetOneTimeProductOffersRejectsDuplicates(t *testing.T) {
 	}
 }
 
+func TestCreateOneTimeProductOfferDryRunBuildsPlanWithoutCreator(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := CreateOneTimeProductOffer(context.Background(), nil, OneTimeProductOfferCreateOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		OfferID:          "intro",
+		Offer:            validOneTimeProductOfferForCreate(),
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("CreateOneTimeProductOffer() error = %v", err)
+	}
+	if !result.DryRun || result.Created {
+		t.Fatalf("result = %#v, want dry-run create plan", result)
+	}
+	if result.Desired.ProductID != "coins_100" || result.Desired.PurchaseOptionID != "buy" || result.Desired.OfferID != "intro" {
+		t.Fatalf("desired = %#v, want flag IDs", result.Desired)
+	}
+	if result.Desired.State != "" || result.Desired.RegionsVersion != nil {
+		t.Fatalf("desired = %#v, want output-only fields cleared", result.Desired)
+	}
+}
+
+func TestCreateOneTimeProductOfferPassesOptionsToCreator(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	creator := &fakeOneTimeProductOfferClient{offer: OneTimeProductOffer{OfferID: "intro"}}
+
+	result, err := CreateOneTimeProductOffer(context.Background(), creator, OneTimeProductOfferCreateOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		OfferID:          "intro",
+		Offer:            validOneTimeProductOfferForCreate(),
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateOneTimeProductOffer() error = %v", err)
+	}
+	if !result.Created {
+		t.Fatal("Created = false, want true")
+	}
+	if creator.createOptions.OfferID != "intro" {
+		t.Fatalf("createOptions = %#v, want intro", creator.createOptions)
+	}
+}
+
+func TestDecodeOneTimeProductOfferCreateJSONAcceptsAPIShape(t *testing.T) {
+	offer, err := DecodeOneTimeProductOfferCreateJSON([]byte(`{
+		"packageName":"ignored.by.flags",
+		"productId":"ignored_by_flags",
+		"purchaseOptionId":"ignored",
+		"offerId":"ignored",
+		"state":"ACTIVE",
+		"discountedOffer":{"startTime":"2026-06-01T00:00:00Z","endTime":"2026-07-01T00:00:00Z","redemptionLimit":"5"},
+		"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","relativeDiscount":0.5}]
+	}`))
+	if err != nil {
+		t.Fatalf("DecodeOneTimeProductOfferCreateJSON() error = %v", err)
+	}
+	if offer.Type != OneTimeProductOfferTypeDiscounted || offer.DiscountedOffer == nil {
+		t.Fatalf("offer = %#v, want discounted offer", offer)
+	}
+	if offer.RegionalConfigs[0].RelativeDiscount != 0.5 {
+		t.Fatalf("RegionalConfigs = %#v, want relative discount", offer.RegionalConfigs)
+	}
+}
+
+func TestDecodeOneTimeProductOfferCreateJSONRejectsNestedUnknownField(t *testing.T) {
+	_, err := DecodeOneTimeProductOfferCreateJSON([]byte(`{
+		"discountedOffer":{"startTime":"2026-06-01T00:00:00Z","bad":true},
+		"regionalConfigs":[{"regionCode":"US","availability":"available","relativeDiscount":0.5}]
+	}`))
+	if err == nil {
+		t.Fatal("expected unknown field error")
+	}
+}
+
+func TestDecodeOneTimeProductOfferCreateJSONRejectsMultipleOfferTypes(t *testing.T) {
+	_, err := DecodeOneTimeProductOfferCreateJSON([]byte(`{
+		"discountedOffer":{"startTime":"2026-06-01T00:00:00Z"},
+		"preOrderOffer":{"startTime":"2026-06-01T00:00:00Z"},
+		"regionalConfigs":[{"regionCode":"US","availability":"available","relativeDiscount":0.5}]
+	}`))
+	if err == nil {
+		t.Fatal("expected offer type union validation error")
+	}
+}
+
+func TestCreateOneTimeProductOfferRejectsInvalidBody(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	tests := []struct {
+		name  string
+		offer OneTimeProductOffer
+	}{
+		{name: "missing type", offer: OneTimeProductOffer{RegionalConfigs: validOneTimeProductOfferForCreate().RegionalConfigs}},
+		{name: "missing regions", offer: OneTimeProductOffer{Type: OneTimeProductOfferTypeDiscounted, DiscountedOffer: &OneTimeProductDiscountedOffer{}}},
+		{
+			name: "bad relative discount",
+			offer: func() OneTimeProductOffer {
+				offer := validOneTimeProductOfferForCreate()
+				offer.RegionalConfigs[0].RelativeDiscount = 1
+				return offer
+			}(),
+		},
+		{
+			name: "multiple price modes",
+			offer: func() OneTimeProductOffer {
+				offer := validOneTimeProductOfferForCreate()
+				offer.RegionalConfigs[0].NoOverride = true
+				return offer
+			}(),
+		},
+		{
+			name: "bad preorder behavior",
+			offer: OneTimeProductOffer{
+				Type: OneTimeProductOfferTypePreOrder,
+				PreOrderOffer: &OneTimeProductPreOrderOffer{
+					StartTime:           "2026-06-01T00:00:00Z",
+					EndTime:             "2026-07-01T00:00:00Z",
+					ReleaseTime:         "2026-08-01T00:00:00Z",
+					PriceChangeBehavior: "NOPE",
+				},
+				RegionalConfigs: validOneTimeProductOfferForCreate().RegionalConfigs,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := CreateOneTimeProductOffer(context.Background(), nil, OneTimeProductOfferCreateOptions{
+				PackageName:      packageName,
+				ProductID:        "coins_100",
+				PurchaseOptionID: "buy",
+				OfferID:          "intro",
+				Offer:            test.offer,
+				RegionsVersion:   "2026/05",
+				LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+				DryRun:           true,
+			})
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
 func TestBatchDeleteOneTimeProductOffersDryRunBuildsPlanWithoutDeleter(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -793,11 +953,29 @@ func TestUpdateOneTimeProductOfferStatePassesOptionsToUpdater(t *testing.T) {
 	}
 }
 
+func validOneTimeProductOfferForCreate() OneTimeProductOffer {
+	return OneTimeProductOffer{
+		Type:      OneTimeProductOfferTypeDiscounted,
+		OfferTags: []string{"public"},
+		DiscountedOffer: &OneTimeProductDiscountedOffer{
+			StartTime:       "2026-06-01T00:00:00Z",
+			EndTime:         "2026-07-01T00:00:00Z",
+			RedemptionLimit: 5,
+		},
+		RegionalConfigs: []OneTimeProductOfferRegion{{
+			RegionCode:       "US",
+			Availability:     "available",
+			RelativeDiscount: 0.5,
+		}},
+	}
+}
+
 type fakeOneTimeProductOfferClient struct {
 	listOptions                  OneTimeProductOfferListOptions
 	listResult                   OneTimeProductOfferListResult
 	batchOptions                 OneTimeProductOfferBatchGetOptions
 	batchResult                  OneTimeProductOfferBatchGetResult
+	createOptions                OneTimeProductOfferCreateOptions
 	batchDeleteOptions           OneTimeProductOfferBatchDeleteOptions
 	batchStateOptions            OneTimeProductOfferBatchStateUpdateOptions
 	batchStateResult             OneTimeProductOfferBatchStateUpdateResult
@@ -825,6 +1003,11 @@ func (c *fakeOneTimeProductOfferClient) GetOneTimeProductOffer(ctx context.Conte
 func (c *fakeOneTimeProductOfferClient) BatchGetOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchGetOptions) (OneTimeProductOfferBatchGetResult, error) {
 	c.batchOptions = options
 	return c.batchResult, nil
+}
+
+func (c *fakeOneTimeProductOfferClient) CreateOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferCreateOptions) (OneTimeProductOffer, error) {
+	c.createOptions = options
+	return c.offer, nil
 }
 
 func (c *fakeOneTimeProductOfferClient) BatchDeleteOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchDeleteOptions) error {

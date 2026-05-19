@@ -4012,6 +4012,99 @@ func TestGetOneTimeProductOfferUsesBatchGetEndpoint(t *testing.T) {
 	}
 }
 
+func TestGooglePublisherCreateOneTimeProductOfferUsesAllowMissingBatchUpdate(t *testing.T) {
+	var calls []string
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.URL.Path)
+		switch r.URL.Path {
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchGet", r.Method)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProductOffers":[]}`)
+		case "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchUpdate":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method = %s, want POST batchUpdate", r.Method)
+			}
+			var request androidpublisher.BatchUpdateOneTimeProductOffersRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatalf("Decode() error = %v", err)
+			}
+			if len(request.Requests) != 1 {
+				t.Fatalf("len(Requests) = %d, want 1", len(request.Requests))
+			}
+			update := request.Requests[0]
+			if !update.AllowMissing {
+				t.Fatal("AllowMissing = false, want true")
+			}
+			if update.UpdateMask != oneTimeProductOfferCreateUpdateMask {
+				t.Fatalf("UpdateMask = %q, want create mask", update.UpdateMask)
+			}
+			if update.RegionsVersion == nil || update.RegionsVersion.Version != "2026/05" {
+				t.Fatalf("RegionsVersion = %#v, want 2026/05", update.RegionsVersion)
+			}
+			if update.OneTimeProductOffer.ProductId != "coins_100" || update.OneTimeProductOffer.PurchaseOptionId != "buy" || update.OneTimeProductOffer.OfferId != "intro" {
+				t.Fatalf("offer IDs = %#v, want create IDs", update.OneTimeProductOffer)
+			}
+			if update.OneTimeProductOffer.State != "" {
+				t.Fatalf("State = %q, want omitted output-only state", update.OneTimeProductOffer.State)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro","discountedOffer":{"startTime":"2026-06-01T00:00:00Z"},"regionalPricingAndAvailabilityConfigs":[{"regionCode":"US","availability":"AVAILABLE","relativeDiscount":0.5}]}]}`)
+		default:
+			t.Fatalf("path = %q, want offer batchGet or batchUpdate", r.URL.Path)
+		}
+	}))
+
+	offer, err := publisher.CreateOneTimeProductOffer(context.Background(), OneTimeProductOfferCreateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		OfferID:          "intro",
+		Offer:            validOneTimeProductOfferForCreate(),
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("CreateOneTimeProductOffer() error = %v", err)
+	}
+	if offer.OfferID != "intro" {
+		t.Fatalf("OfferID = %q, want intro", offer.OfferID)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("calls = %#v, want preflight then create", calls)
+	}
+}
+
+func TestGooglePublisherCreateOneTimeProductOfferRejectsExistingOffer(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet" {
+			t.Fatalf("path = %q, want offer batchGet", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro"}]}`)
+	}))
+
+	_, err := publisher.CreateOneTimeProductOffer(context.Background(), OneTimeProductOfferCreateOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		OfferID:          "intro",
+		Offer:            validOneTimeProductOfferForCreate(),
+		RegionsVersion:   "2026/05",
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected existing offer error")
+	}
+	if !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("error = %v, want already exists", err)
+	}
+}
+
 func TestBatchPatchPurchaseOptionAvailabilityMergesAndBatchUpdates(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

@@ -23,6 +23,7 @@ func newOneTimeProductOffersCommand(out io.Writer, options *globalOptions) *cobr
 		newOneTimeProductOffersListCommand(out, options, &packageName),
 		newOneTimeProductOffersGetCommand(out, options, &packageName),
 		newOneTimeProductOffersBatchGetCommand(out, options, &packageName),
+		newOneTimeProductOffersCreateCommand(out, options, &packageName),
 		newOneTimeProductOffersBatchDeleteCommand(out, options, &packageName),
 		newOneTimeProductOffersBatchPatchAvailabilityCommand(out, options, &packageName),
 		newOneTimeProductOffersBatchPatchRelativeDiscountsCommand(out, options, &packageName),
@@ -35,6 +36,107 @@ func newOneTimeProductOffersCommand(out io.Writer, options *globalOptions) *cobr
 		newOneTimeProductOffersStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionCancel),
 	)
 	return cmd
+}
+
+func newOneTimeProductOffersCreateCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID        string
+		purchaseOptionID string
+		offerID          string
+		fromJSON         string
+		regionsVersion   string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a one-time product offer",
+		Long: "Create a one-time product offer from a Google Play API OneTimeProductOffer JSON body or gpc one-time product offer JSON output. " +
+			"Parent IDs come from flags and override the JSON body; output-only state and regionsVersion are ignored.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedProductID, err := play.NewOneTimeProductID(productID)
+			if err != nil {
+				return err
+			}
+			typedPurchaseOptionID, err := play.NewOneTimeProductPurchaseOptionID(purchaseOptionID)
+			if err != nil {
+				return err
+			}
+			typedOfferID, err := play.NewOneTimeProductOfferID(offerID)
+			if err != nil {
+				return err
+			}
+			offer, err := readOneTimeProductOfferJSON(fromJSON)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			createOptions := play.OneTimeProductOfferCreateOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				PurchaseOptionID: typedPurchaseOptionID,
+				OfferID:          typedOfferID,
+				Offer:            offer,
+				RegionsVersion:   regionsVersion,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.CreateOneTimeProductOffer(cmd.Context(), nil, createOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if err := createOptions.Validate(); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.CreateOneTimeProductOffer(cmd.Context(), publisher, createOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&productID, "product-id", "", "Parent one-time product ID")
+	cmd.Flags().StringVar(&purchaseOptionID, "purchase-option-id", "", "Parent one-time product purchase option ID")
+	cmd.Flags().StringVar(&offerID, "offer-id", "", "One-time product offer ID")
+	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or gpc JSON one-time product offer body")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by oneTimeProductOffers.batchUpdate")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Create the one-time product offer")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned one-time product offer creation without calling Google Play")
+	return cmd
+}
+
+func readOneTimeProductOfferJSON(path string) (play.OneTimeProductOffer, error) {
+	if strings.TrimSpace(path) == "" {
+		return play.OneTimeProductOffer{}, fmt.Errorf("one-time product offer create requires --from-json")
+	}
+	data, err := osReadFile(path)
+	if err != nil {
+		return play.OneTimeProductOffer{}, fmt.Errorf("read one-time product offer JSON %s: %w", path, err)
+	}
+	offer, err := play.DecodeOneTimeProductOfferCreateJSON(data)
+	if err != nil {
+		return play.OneTimeProductOffer{}, fmt.Errorf("parse one-time product offer JSON %s: %w", path, err)
+	}
+	return offer, nil
 }
 
 func newOneTimeProductOffersBatchPatchAvailabilityCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
