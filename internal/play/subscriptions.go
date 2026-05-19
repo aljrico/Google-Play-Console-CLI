@@ -940,6 +940,13 @@ type BasePlanPriceMigrationRequest struct {
 	Regions    []BasePlanPriceMigrationConfig `json:"regions"`
 }
 
+type BasePlanPricePatchRequest struct {
+	ProductID  SubscriptionProductID  `json:"productId"`
+	BasePlanID SubscriptionBasePlanID `json:"basePlanId"`
+	RegionCode string                 `json:"regionCode"`
+	Price      Money                  `json:"price"`
+}
+
 type BasePlanBatchPriceMigrationOptions struct {
 	PackageName      PackageName                     `json:"packageName"`
 	ProductID        SubscriptionProductID           `json:"productId"`
@@ -948,6 +955,16 @@ type BasePlanBatchPriceMigrationOptions struct {
 	LatencyTolerance ProductUpdateLatencyTolerance   `json:"latencyTolerance"`
 	Confirm          bool                            `json:"confirm"`
 	DryRun           bool                            `json:"dryRun"`
+}
+
+type BasePlanBatchPatchPriceOptions struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        SubscriptionProductID         `json:"productId"`
+	RegionsVersion   string                        `json:"regionsVersion"`
+	Requests         []BasePlanPricePatchRequest   `json:"requests"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	DryRun           bool                          `json:"dryRun"`
 }
 
 type SubscriptionPatchOptions struct {
@@ -1292,6 +1309,85 @@ func (o BasePlanBatchPriceMigrationOptions) ValidateLive() error {
 	return nil
 }
 
+func (o BasePlanBatchPatchPriceOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionBasePlanBatchProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	if len(o.Requests) == 0 {
+		return fmt.Errorf("at least one subscription base plan price patch is required")
+	}
+	seenRegions := map[string]struct{}{}
+	seenProducts := map[SubscriptionProductID]struct{}{}
+	for _, request := range o.Requests {
+		if _, err := NewSubscriptionProductID(request.ProductID.String()); err != nil {
+			return err
+		}
+		if _, err := NewSubscriptionBasePlanID(request.BasePlanID.String()); err != nil {
+			return err
+		}
+		if o.ProductID.String() != SubscriptionOfferWildcardID && request.ProductID != o.ProductID {
+			return fmt.Errorf("subscription base plan %s/%s does not match parent product ID %s", request.ProductID, request.BasePlanID, o.ProductID)
+		}
+		if !isValidRegionCode(request.RegionCode) {
+			return fmt.Errorf("subscription base plan price region must be a two-letter ISO 3166 code")
+		}
+		if err := validateMoney(request.Price); err != nil {
+			return fmt.Errorf("subscription base plan price for %s/%s/%s: %w", request.ProductID, request.BasePlanID, request.RegionCode, err)
+		}
+		key := subscriptionBasePlanPricePatchKey(request.ProductID, request.BasePlanID, request.RegionCode)
+		if _, ok := seenRegions[key]; ok {
+			return fmt.Errorf("subscription base plan price %s is duplicated", key)
+		}
+		seenRegions[key] = struct{}{}
+		seenProducts[request.ProductID] = struct{}{}
+	}
+	if len(seenProducts) > 100 {
+		return fmt.Errorf("subscription base plan price batch patch cannot exceed 100 subscriptions")
+	}
+	if len(seenProducts) == 1 && o.ProductID.String() == SubscriptionOfferWildcardID {
+		return fmt.Errorf("single-product base plan price patch requires parent product ID, not %q", SubscriptionOfferWildcardID)
+	}
+	if len(seenProducts) > 1 && o.ProductID.String() != SubscriptionOfferWildcardID {
+		return fmt.Errorf("multi-product base plan price patch requires parent product ID %q", SubscriptionOfferWildcardID)
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("base plan price batch patch requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o BasePlanBatchPatchPriceOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live base plan price batch patch cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live base plan price batch patch requires --confirm")
+	}
+	return nil
+}
+
+func subscriptionBasePlanPricePatchKey(productID SubscriptionProductID, basePlanID SubscriptionBasePlanID, regionCode string) string {
+	return productID.String() + "/" + basePlanID.String() + "/" + regionCode
+}
+
 func (c BasePlanPriceMigrationConfig) Validate() error {
 	if !isValidRegionCode(c.RegionCode) {
 		return fmt.Errorf("invalid region code %q", c.RegionCode)
@@ -1387,6 +1483,44 @@ type BasePlanBatchPriceMigrationResult struct {
 	Plan        BasePlanBatchPriceMigrationPlan  `json:"plan"`
 }
 
+type BasePlanBatchPatchPricePlan struct {
+	PackageName      PackageName                   `json:"packageName"`
+	ProductID        SubscriptionProductID         `json:"productId"`
+	RegionsVersion   string                        `json:"regionsVersion"`
+	Requests         []BasePlanPricePatchRequest   `json:"requests"`
+	UpdateMask       string                        `json:"updateMask"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	Steps            []string                      `json:"steps"`
+}
+
+type BasePlanBatchPatchPriceDesiredSubscription struct {
+	PackageName PackageName                          `json:"packageName"`
+	ProductID   SubscriptionProductID                `json:"productId"`
+	BasePlans   []BasePlanBatchPatchPriceDesiredPlan `json:"basePlans"`
+}
+
+type BasePlanBatchPatchPriceDesiredPlan struct {
+	BasePlanID      SubscriptionBasePlanID                 `json:"basePlanId"`
+	RegionalConfigs []BasePlanBatchPatchPriceDesiredRegion `json:"regionalConfigs"`
+}
+
+type BasePlanBatchPatchPriceDesiredRegion struct {
+	RegionCode string `json:"regionCode"`
+	Price      Money  `json:"price"`
+}
+
+type BasePlanBatchPatchPriceResult struct {
+	PackageName   PackageName                                  `json:"packageName"`
+	ProductID     SubscriptionProductID                        `json:"productId"`
+	Requests      []BasePlanPricePatchRequest                  `json:"requests"`
+	DryRun        bool                                         `json:"dryRun"`
+	Applied       bool                                         `json:"applied"`
+	Desired       []BasePlanBatchPatchPriceDesiredSubscription `json:"desiredSubscriptions"`
+	Subscriptions []Subscription                               `json:"subscriptions,omitempty"`
+	Plan          BasePlanBatchPatchPricePlan                  `json:"plan"`
+}
+
 type SubscriptionPatchPlan struct {
 	PackageName      PackageName                   `json:"packageName"`
 	ProductID        SubscriptionProductID         `json:"productId"`
@@ -1439,6 +1573,10 @@ type BasePlanBatchStateUpdater interface {
 
 type BasePlanBatchPriceMigrator interface {
 	BatchMigrateBasePlanPrices(ctx context.Context, options BasePlanBatchPriceMigrationOptions) (BasePlanBatchPriceMigrationResult, error)
+}
+
+type BasePlanBatchPricePatcher interface {
+	BatchPatchBasePlanPrices(ctx context.Context, options BasePlanBatchPatchPriceOptions) (BasePlanBatchPatchPriceResult, error)
 }
 
 type SubscriptionPatcher interface {
@@ -1703,6 +1841,89 @@ func BatchMigrateBasePlanPrices(ctx context.Context, migrator BasePlanBatchPrice
 	return liveResult, nil
 }
 
+func NewBasePlanBatchPatchPricePlan(options BasePlanBatchPatchPriceOptions) (BasePlanBatchPatchPricePlan, error) {
+	if err := options.Validate(); err != nil {
+		return BasePlanBatchPatchPricePlan{}, err
+	}
+	return BasePlanBatchPatchPricePlan{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		RegionsVersion:   options.RegionsVersion,
+		Requests:         append([]BasePlanPricePatchRequest(nil), options.Requests...),
+		UpdateMask:       subscriptionBasePlanPatchUpdateMask,
+		LatencyTolerance: options.LatencyTolerance,
+		Confirm:          options.Confirm,
+		Steps:            basePlanBatchPatchPriceSteps(options),
+	}, nil
+}
+
+func BatchPatchBasePlanPrices(ctx context.Context, patcher BasePlanBatchPricePatcher, options BasePlanBatchPatchPriceOptions) (BasePlanBatchPatchPriceResult, error) {
+	plan, err := NewBasePlanBatchPatchPricePlan(options)
+	if err != nil {
+		return BasePlanBatchPatchPriceResult{}, err
+	}
+	requests := append([]BasePlanPricePatchRequest(nil), options.Requests...)
+	result := BasePlanBatchPatchPriceResult{
+		PackageName: options.PackageName,
+		ProductID:   options.ProductID,
+		Requests:    requests,
+		DryRun:      options.DryRun,
+		Desired:     desiredSubscriptionsForBasePlanPricePatch(options),
+		Plan:        plan,
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if patcher == nil {
+		return BasePlanBatchPatchPriceResult{}, fmt.Errorf("base plan price batch patcher is required")
+	}
+	updated, err := patcher.BatchPatchBasePlanPrices(ctx, options)
+	if err != nil {
+		return BasePlanBatchPatchPriceResult{}, err
+	}
+	updated.PackageName = options.PackageName
+	updated.ProductID = options.ProductID
+	updated.Requests = requests
+	updated.DryRun = false
+	updated.Applied = true
+	updated.Desired = result.Desired
+	updated.Plan = plan
+	return updated, nil
+}
+
+func desiredSubscriptionsForBasePlanPricePatch(options BasePlanBatchPatchPriceOptions) []BasePlanBatchPatchPriceDesiredSubscription {
+	byProduct := map[SubscriptionProductID]int{}
+	byBasePlan := map[string]int{}
+	subscriptions := make([]BasePlanBatchPatchPriceDesiredSubscription, 0)
+	for _, request := range options.Requests {
+		productIndex, ok := byProduct[request.ProductID]
+		if !ok {
+			byProduct[request.ProductID] = len(subscriptions)
+			subscriptions = append(subscriptions, BasePlanBatchPatchPriceDesiredSubscription{
+				PackageName: options.PackageName,
+				ProductID:   request.ProductID,
+				BasePlans:   []BasePlanBatchPatchPriceDesiredPlan{},
+			})
+			productIndex = len(subscriptions) - 1
+		}
+		basePlanKey := request.ProductID.String() + "/" + request.BasePlanID.String()
+		basePlanIndex, ok := byBasePlan[basePlanKey]
+		if !ok {
+			byBasePlan[basePlanKey] = len(subscriptions[productIndex].BasePlans)
+			subscriptions[productIndex].BasePlans = append(subscriptions[productIndex].BasePlans, BasePlanBatchPatchPriceDesiredPlan{
+				BasePlanID:      request.BasePlanID,
+				RegionalConfigs: []BasePlanBatchPatchPriceDesiredRegion{},
+			})
+			basePlanIndex = len(subscriptions[productIndex].BasePlans) - 1
+		}
+		subscriptions[productIndex].BasePlans[basePlanIndex].RegionalConfigs = append(subscriptions[productIndex].BasePlans[basePlanIndex].RegionalConfigs, BasePlanBatchPatchPriceDesiredRegion{
+			RegionCode: request.RegionCode,
+			Price:      request.Price,
+		})
+	}
+	return subscriptions
+}
+
 func basePlanStateUpdateSteps(options BasePlanStateUpdateOptions) []string {
 	if options.DryRun {
 		return []string{fmt.Sprintf("plan %s base plan", options.Action)}
@@ -1724,6 +1945,13 @@ func basePlanBatchPriceMigrationSteps(options BasePlanBatchPriceMigrationOptions
 	return []string{"batch migrate base plan prices"}
 }
 
+func basePlanBatchPatchPriceSteps(options BasePlanBatchPatchPriceOptions) []string {
+	if options.DryRun {
+		return []string{"plan base plan price batch patch"}
+	}
+	return []string{"fetch current subscriptions", "merge base plan regional prices", "batch patch base plan prices"}
+}
+
 func subscriptionCreateSteps(dryRun bool) []string {
 	if dryRun {
 		return []string{"plan subscription create"}
@@ -1732,6 +1960,7 @@ func subscriptionCreateSteps(dryRun bool) []string {
 }
 
 const subscriptionPatchUpdateMask = "listings"
+const subscriptionBasePlanPatchUpdateMask = "basePlans"
 
 func subscriptionPatchSteps(options SubscriptionPatchOptions) []string {
 	if options.DryRun {

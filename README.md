@@ -162,6 +162,7 @@ gpc subscriptions base-plan deactivate --package com.example.app --product-id pr
 gpc subscriptions base-plan batch-deactivate --package com.example.app --product-id premium_monthly --base-plan-id monthly --base-plan-id annual --dry-run
 gpc subscriptions base-plan batch-activate --package com.example.app --base-plan premium_monthly/monthly --base-plan premium_yearly/annual --dry-run
 gpc subscriptions base-plan batch-migrate-prices --package com.example.app --regions-version 2026/05 --migration premium_monthly/monthly/US/2026-05-01T00:00:00Z --price-increase-type optOut --dry-run
+gpc subscriptions base-plan batch-patch-prices --package com.example.app --regions-version 2026/05 --price premium_monthly/monthly/US:USD:4:990000000 --dry-run
 gpc subscription-offers list --package com.example.app --product-id premium_monthly --base-plan-id monthly
 gpc subscription-offers get --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro
 gpc subscription-offers create --package com.example.app --product-id premium_monthly --base-plan-id monthly --offer-id intro --from-json offer.json --regions-version 2026/05 --dry-run

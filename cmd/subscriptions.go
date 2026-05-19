@@ -231,6 +231,7 @@ func newSubscriptionsBasePlanCommand(out io.Writer, options *globalOptions, pack
 		newSubscriptionsBasePlanBatchStateCommand(out, options, packageName, play.BasePlanStateActionActivate),
 		newSubscriptionsBasePlanBatchStateCommand(out, options, packageName, play.BasePlanStateActionDeactivate),
 		newSubscriptionsBasePlanBatchMigratePricesCommand(out, options, packageName),
+		newSubscriptionsBasePlanBatchPatchPricesCommand(out, options, packageName),
 	)
 	return cmd
 }
@@ -427,6 +428,141 @@ func inferBasePlanPriceMigrationProductID(productID string, requests []play.Base
 		}
 	}
 	return firstProductID
+}
+
+func newSubscriptionsBasePlanBatchPatchPricesCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID        string
+		prices           []string
+		regionsVersion   string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-patch-prices",
+		Short: "Batch patch subscription base plan regional prices",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			resolvedProductID, requests, err := parseBasePlanPricePatches(productID, prices)
+			if err != nil {
+				return err
+			}
+			typedProductID, err := play.NewSubscriptionBasePlanBatchProductID(resolvedProductID)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			patchOptions := play.BasePlanBatchPatchPriceOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				RegionsVersion:   regionsVersion,
+				Requests:         requests,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.BatchPatchBasePlanPrices(cmd.Context(), nil, patchOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if _, err := play.NewBasePlanBatchPatchPricePlan(patchOptions); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchPatchBasePlanPrices(cmd.Context(), publisher, patchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID, or - for price patches across subscriptions; inferred from --price values")
+	cmd.Flags().StringArrayVar(&prices, "price", nil, "Regional price patch as productId/basePlanId/REGION:CURRENCY:UNITS[:NANOS]; repeatable")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by subscriptions.batchUpdate")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the base plan price batch patch")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned base plan price batch patch without calling Google Play")
+	return cmd
+}
+
+func parseBasePlanPricePatches(productID string, values []string) (string, []play.BasePlanPricePatchRequest, error) {
+	requests := make([]play.BasePlanPricePatchRequest, 0, len(values))
+	for _, value := range values {
+		request, err := parseBasePlanPricePatch(value)
+		if err != nil {
+			return "", nil, err
+		}
+		requests = append(requests, request)
+	}
+	return inferBasePlanPricePatchProductID(productID, requests), requests, nil
+}
+
+func parseBasePlanPricePatch(value string) (play.BasePlanPricePatchRequest, error) {
+	path, priceValue, ok := strings.Cut(value, ":")
+	if !ok {
+		return play.BasePlanPricePatchRequest{}, errBasePlanPricePatchFormat()
+	}
+	parts := strings.Split(path, "/")
+	if len(parts) != 3 {
+		return play.BasePlanPricePatchRequest{}, errBasePlanPricePatchFormat()
+	}
+	productID, err := play.NewSubscriptionProductID(parts[0])
+	if err != nil {
+		return play.BasePlanPricePatchRequest{}, err
+	}
+	basePlanID, err := play.NewSubscriptionBasePlanID(parts[1])
+	if err != nil {
+		return play.BasePlanPricePatchRequest{}, err
+	}
+	price, err := parseBasePlanPatchMoney(priceValue)
+	if err != nil {
+		return play.BasePlanPricePatchRequest{}, err
+	}
+	return play.BasePlanPricePatchRequest{
+		ProductID:  productID,
+		BasePlanID: basePlanID,
+		RegionCode: strings.ToUpper(parts[2]),
+		Price:      price,
+	}, nil
+}
+
+func parseBasePlanPatchMoney(value string) (play.Money, error) {
+	return parseRegionalPricePatchMoney(value, errBasePlanPricePatchFormat)
+}
+
+func inferBasePlanPricePatchProductID(productID string, requests []play.BasePlanPricePatchRequest) string {
+	if productID != "" {
+		return productID
+	}
+	if len(requests) == 0 {
+		return productID
+	}
+	firstProductID := requests[0].ProductID.String()
+	for _, request := range requests[1:] {
+		if request.ProductID.String() != firstProductID {
+			return play.SubscriptionOfferWildcardID
+		}
+	}
+	return firstProductID
+}
+
+func errBasePlanPricePatchFormat() error {
+	return fmt.Errorf("base plan price must use productId/basePlanId/REGION:CURRENCY:UNITS[:NANOS]")
 }
 
 func newSubscriptionsBasePlanBatchStateCommand(out io.Writer, options *globalOptions, packageName *string, action play.BasePlanStateAction) *cobra.Command {

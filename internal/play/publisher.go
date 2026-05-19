@@ -1633,6 +1633,26 @@ func subscriptionBatchListingPatchRequestsByProduct(requests []SubscriptionBatch
 	return products
 }
 
+type basePlanPricePatchProduct struct {
+	ProductID SubscriptionProductID
+	Requests  []BasePlanPricePatchRequest
+}
+
+func basePlanPricePatchRequestsByProduct(requests []BasePlanPricePatchRequest) []basePlanPricePatchProduct {
+	byProduct := map[SubscriptionProductID]int{}
+	products := make([]basePlanPricePatchProduct, 0)
+	for _, request := range requests {
+		index, ok := byProduct[request.ProductID]
+		if !ok {
+			byProduct[request.ProductID] = len(products)
+			products = append(products, basePlanPricePatchProduct{ProductID: request.ProductID})
+			index = len(products) - 1
+		}
+		products[index].Requests = append(products[index].Requests, request)
+	}
+	return products
+}
+
 func (p GooglePublisher) UpdateBasePlanState(ctx context.Context, options BasePlanStateUpdateOptions) (Subscription, error) {
 	if err := options.ValidateLive(); err != nil {
 		return Subscription{}, err
@@ -1737,6 +1757,55 @@ func (p GooglePublisher) BatchMigrateBasePlanPrices(ctx context.Context, options
 		DryRun:      false,
 		Applied:     true,
 		Responses:   responses,
+	}, nil
+}
+
+func (p GooglePublisher) BatchPatchBasePlanPrices(ctx context.Context, options BasePlanBatchPatchPriceOptions) (BasePlanBatchPatchPriceResult, error) {
+	if err := options.ValidateLive(); err != nil {
+		return BasePlanBatchPatchPriceResult{}, err
+	}
+	requestsByProduct := basePlanPricePatchRequestsByProduct(options.Requests)
+	request := &androidpublisher.BatchUpdateSubscriptionsRequest{
+		Requests: make([]*androidpublisher.UpdateSubscriptionRequest, 0, len(requestsByProduct)),
+	}
+	for _, productPatch := range requestsByProduct {
+		current, err := p.service.Monetization.Subscriptions.Get(options.PackageName.String(), productPatch.ProductID.String()).Context(ctx).Do()
+		if err != nil {
+			return BasePlanBatchPatchPriceResult{}, fmt.Errorf("get subscription %s for %s before base plan price patch: %w", productPatch.ProductID, options.PackageName, err)
+		}
+		currentSubscription := subscriptionFromAPI(current)
+		mergedBasePlans, err := mergeBasePlanPricePatches(currentSubscription.BasePlans, productPatch.Requests)
+		if err != nil {
+			return BasePlanBatchPatchPriceResult{}, err
+		}
+		request.Requests = append(request.Requests, &androidpublisher.UpdateSubscriptionRequest{
+			Subscription: &androidpublisher.Subscription{
+				PackageName: options.PackageName.String(),
+				ProductId:   productPatch.ProductID.String(),
+				BasePlans:   subscriptionBasePlansToAPI(mergedBasePlans),
+			},
+			UpdateMask:       subscriptionBasePlanPatchUpdateMask,
+			RegionsVersion:   &androidpublisher.RegionsVersion{Version: options.RegionsVersion},
+			LatencyTolerance: productUpdateLatencyToleranceToAPI(options.LatencyTolerance),
+		})
+	}
+	response, err := p.service.Monetization.Subscriptions.BatchUpdate(options.PackageName.String(), request).Context(ctx).Do()
+	if err != nil {
+		return BasePlanBatchPatchPriceResult{}, fmt.Errorf("batch patch base plan prices for %s: %w", options.PackageName, err)
+	}
+	subscriptions := make([]Subscription, 0)
+	if response != nil {
+		subscriptions = make([]Subscription, 0, len(response.Subscriptions))
+		for _, apiSubscription := range response.Subscriptions {
+			subscriptions = append(subscriptions, subscriptionFromAPI(apiSubscription))
+		}
+	}
+	return BasePlanBatchPatchPriceResult{
+		PackageName:   options.PackageName,
+		ProductID:     options.ProductID,
+		DryRun:        false,
+		Applied:       true,
+		Subscriptions: subscriptions,
 	}, nil
 }
 
@@ -4989,6 +5058,54 @@ func subscriptionRegionalConfigsToAPI(configs []SubscriptionRegionalConfig) []*a
 		apiConfigs = append(apiConfigs, apiConfig)
 	}
 	return apiConfigs
+}
+
+func mergeBasePlanPricePatches(current []SubscriptionBasePlan, patches []BasePlanPricePatchRequest) ([]SubscriptionBasePlan, error) {
+	merged := append([]SubscriptionBasePlan(nil), current...)
+	for _, patch := range patches {
+		next, err := mergeBasePlanPricePatch(merged, patch)
+		if err != nil {
+			return nil, err
+		}
+		merged = next
+	}
+	return merged, nil
+}
+
+func mergeBasePlanPricePatch(current []SubscriptionBasePlan, patch BasePlanPricePatchRequest) ([]SubscriptionBasePlan, error) {
+	merged := make([]SubscriptionBasePlan, 0, len(current))
+	for _, basePlan := range current {
+		if basePlan.BasePlanID != patch.BasePlanID.String() {
+			merged = append(merged, basePlan)
+			continue
+		}
+		regionalConfigs, err := mergeBasePlanRegionalPricePatch(basePlan.RegionalConfigs, patch)
+		if err != nil {
+			return nil, err
+		}
+		basePlan.RegionalConfigs = regionalConfigs
+		merged = append(merged, basePlan)
+		return append(merged, current[len(merged):]...), nil
+	}
+	return nil, fmt.Errorf("base plan price patch for %s/%s references a base plan that is not already configured", patch.ProductID, patch.BasePlanID)
+}
+
+func mergeBasePlanRegionalPricePatch(current []SubscriptionRegionalConfig, patch BasePlanPricePatchRequest) ([]SubscriptionRegionalConfig, error) {
+	merged := make([]SubscriptionRegionalConfig, 0, len(current))
+	for _, region := range current {
+		if region.RegionCode != patch.RegionCode {
+			merged = append(merged, region)
+			continue
+		}
+		region.Price = &Money{
+			CurrencyCode: patch.Price.CurrencyCode,
+			Units:        patch.Price.Units,
+			Nanos:        patch.Price.Nanos,
+		}
+		merged = append(merged, region)
+		return append(merged, current[len(merged):]...), nil
+	}
+	return nil, fmt.Errorf("base plan price patch for %s/%s/%s references a region that is not already configured; price patches cannot add regional availability", patch.ProductID, patch.BasePlanID, patch.RegionCode)
 }
 
 func subscriptionOtherRegionsConfigFromAPI(apiConfig *androidpublisher.OtherRegionsBasePlanConfig) *SubscriptionOtherRegionsConfig {

@@ -6234,6 +6234,99 @@ func TestBatchMigrateBasePlanPricesRejectsDryRunBeforeRequest(t *testing.T) {
 	}
 }
 
+func TestBatchPatchBasePlanPricesFetchesMergesAndBatchUpdates(t *testing.T) {
+	var seenGet bool
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/androidpublisher/v3/applications/com.example.app/subscriptions/premium":
+			seenGet = true
+			_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","listings":[{"languageCode":"en-US","title":"Premium"}],"basePlans":[{"basePlanId":"monthly","state":"ACTIVE","autoRenewingBasePlanType":{"billingPeriodDuration":"P1M"},"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"2"}},{"regionCode":"BR","newSubscriberAvailability":true,"price":{"currencyCode":"BRL","units":"9"}}]},{"basePlanId":"annual","state":"ACTIVE","autoRenewingBasePlanType":{"billingPeriodDuration":"P1Y"},"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"20"}}]}]}`)
+		case "/androidpublisher/v3/applications/com.example.app/subscriptions:batchUpdate":
+			if !seenGet {
+				t.Fatal("batch update happened before get")
+			}
+			var request androidpublisher.BatchUpdateSubscriptionsRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Fatalf("Decode() error = %v", err)
+			}
+			if len(request.Requests) != 1 {
+				t.Fatalf("len(Requests) = %d, want 1", len(request.Requests))
+			}
+			update := request.Requests[0]
+			if update.UpdateMask != subscriptionBasePlanPatchUpdateMask {
+				t.Fatalf("UpdateMask = %q, want %q", update.UpdateMask, subscriptionBasePlanPatchUpdateMask)
+			}
+			if update.RegionsVersion == nil || update.RegionsVersion.Version != "2026/05" {
+				t.Fatalf("RegionsVersion = %#v, want 2026/05", update.RegionsVersion)
+			}
+			if update.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+				t.Fatalf("LatencyTolerance = %q, want tolerant", update.LatencyTolerance)
+			}
+			if update.Subscription == nil || len(update.Subscription.BasePlans) != 2 {
+				t.Fatalf("Subscription = %#v, want preserved base plans", update.Subscription)
+			}
+			monthly := update.Subscription.BasePlans[0]
+			if monthly.BasePlanId != "monthly" || len(monthly.RegionalConfigs) != 2 {
+				t.Fatalf("monthly = %#v, want two regions", monthly)
+			}
+			if monthly.RegionalConfigs[0].Price == nil || monthly.RegionalConfigs[0].Price.Units != 4 || monthly.RegionalConfigs[0].Price.Nanos != 990000000 {
+				t.Fatalf("US price = %#v, want patched 4.99", monthly.RegionalConfigs[0].Price)
+			}
+			if monthly.RegionalConfigs[1].Price == nil || monthly.RegionalConfigs[1].Price.Units != 9 {
+				t.Fatalf("BR price = %#v, want preserved 9", monthly.RegionalConfigs[1].Price)
+			}
+			_, _ = io.WriteString(w, `{"subscriptions":[{"packageName":"com.example.app","productId":"premium","basePlans":[{"basePlanId":"monthly","state":"ACTIVE","autoRenewingBasePlanType":{"billingPeriodDuration":"P1M"},"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"4","nanos":990000000}}]}]}]}`)
+		default:
+			t.Fatalf("unexpected path = %q", r.URL.Path)
+		}
+	}))
+
+	result, err := publisher.BatchPatchBasePlanPrices(context.Background(), BasePlanBatchPatchPriceOptions{
+		PackageName:    "com.example.app",
+		ProductID:      "premium",
+		RegionsVersion: "2026/05",
+		Requests: []BasePlanPricePatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", RegionCode: "US", Price: Money{CurrencyCode: "USD", Units: 4, Nanos: 990000000}},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchPatchBasePlanPrices() error = %v", err)
+	}
+	if !result.Applied || len(result.Subscriptions) != 1 || result.Subscriptions[0].BasePlans[0].RegionalConfigs[0].Price.Units != 4 {
+		t.Fatalf("result = %#v, want applied subscription with patched price", result)
+	}
+}
+
+func TestBatchPatchBasePlanPricesRejectsMissingRegion(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions/premium" {
+			t.Fatalf("path = %q, want subscription get only", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","basePlans":[{"basePlanId":"monthly","autoRenewingBasePlanType":{"billingPeriodDuration":"P1M"},"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"2"}}]}]}`)
+	}))
+
+	_, err := publisher.BatchPatchBasePlanPrices(context.Background(), BasePlanBatchPatchPriceOptions{
+		PackageName:    "com.example.app",
+		ProductID:      "premium",
+		RegionsVersion: "2026/05",
+		Requests: []BasePlanPricePatchRequest{
+			{ProductID: "premium", BasePlanID: "monthly", RegionCode: "FR", Price: Money{CurrencyCode: "EUR", Units: 2}},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected missing region validation error")
+	}
+	if !strings.Contains(err.Error(), "not already configured") {
+		t.Fatalf("error = %v, want configured region message", err)
+	}
+}
+
 func newTestPublisher(t *testing.T, handler http.Handler) GooglePublisher {
 	t.Helper()
 	server := httptest.NewServer(handler)

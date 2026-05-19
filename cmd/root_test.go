@@ -4886,6 +4886,83 @@ func TestSubscriptionsBasePlanBatchMigratePricesRequiresConfirmOrDryRunBeforeAut
 	}
 }
 
+func TestSubscriptionsBasePlanBatchPatchPricesDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"base-plan",
+		"batch-patch-prices",
+		"--package",
+		"com.example.app",
+		"--regions-version",
+		"2026/05",
+		"--price",
+		"premium/monthly/US:USD:4:990000000",
+		"--price",
+		"premium/monthly/BR:BRL:19:990000000",
+		"--latency-tolerance",
+		"latencyTolerant",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"regionCode":"US"`,
+		`"currencyCode":"USD"`,
+		`"nanos":990000000`,
+		`"regionsVersion":"2026/05"`,
+		`"dryRun":true`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestSubscriptionsBasePlanBatchPatchPricesRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"base-plan",
+		"batch-patch-prices",
+		"--package",
+		"com.example.app",
+		"--regions-version",
+		"2026/05",
+		"--price",
+		"premium/monthly/US:USD:4:990000000",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirm or dry-run validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
+		t.Fatalf("error = %v, want confirmation gate", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth error", err)
+	}
+}
+
 func TestOneTimeProductsListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
