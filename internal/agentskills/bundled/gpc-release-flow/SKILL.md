@@ -1,3 +1,8 @@
+---
+name: gpc-release-flow
+description: Run Google Play release, track, rollout, promotion, and validation workflows with gpc.
+---
+
 # gpc Release Flow
 
 Use this skill for Google Play release, track, rollout, and validation workflows with `gpc`.
@@ -49,7 +54,7 @@ gpc releases promote \
 ```sh
 gpc releases halt --package com.example.app --track production --version-code 123 --dry-run
 gpc releases resume --package com.example.app --track production --version-code 123 --status inProgress --user-fraction 0.25 --dry-run
-gpc status --package com.example.app --include-drafts --output json
+gpc status --package com.example.app --include-draft --output json
 ```
 
 ## Guardrails

@@ -37,5 +37,17 @@ func newInstallSkillsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 	cmd.Flags().StringArrayVar(&skills, "skill", nil, "Install one bundled skill by name; repeat to install multiple")
 	cmd.Flags().BoolVar(&force, "force", false, "Overwrite existing skill files")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print planned skill installs without writing")
+	cmd.AddCommand(newInstallSkillsListCommand(out, options))
 	return cmd
+}
+
+func newInstallSkillsListCommand(out io.Writer, options *globalOptions) *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List bundled gpc agent skills",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return output.Write(out, options.output, options.pretty, agentskills.List())
+		},
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -39,8 +40,11 @@ func TestInstallDryRunDoesNotWriteFiles(t *testing.T) {
 	if len(result.Skills) != 1 {
 		t.Fatalf("len(result.Skills) = %d, want 1", len(result.Skills))
 	}
-	if !result.Skills[0].Written {
-		t.Fatalf("Written = false, want true for dry-run plan")
+	if !result.Skills[0].WouldWrite {
+		t.Fatalf("WouldWrite = false, want true for dry-run plan")
+	}
+	if result.Skills[0].Written {
+		t.Fatalf("Written = true, want false for dry-run plan")
 	}
 	if _, err := os.Stat(result.Skills[0].Path); !os.IsNotExist(err) {
 		t.Fatalf("skill file exists after dry-run or stat error = %v", err)
@@ -68,6 +72,9 @@ func TestInstallWritesSelectedSkill(t *testing.T) {
 	}
 	if len(content) == 0 {
 		t.Fatalf("installed skill is empty")
+	}
+	if !strings.HasPrefix(string(content), "---\n") {
+		t.Fatalf("installed skill missing frontmatter: %q", string(content[:20]))
 	}
 }
 
@@ -136,6 +143,9 @@ func TestInstallRejectsUnknownSkill(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Install() expected error")
 	}
+	if !strings.Contains(err.Error(), "gpc-cli-usage") {
+		t.Fatalf("error = %v, want valid skill names", err)
+	}
 }
 
 func TestInstallRejectsSymlinkDirectory(t *testing.T) {
@@ -151,5 +161,61 @@ func TestInstallRejectsSymlinkDirectory(t *testing.T) {
 	_, err := Install(context.Background(), InstallOptions{Directory: link})
 	if err == nil {
 		t.Fatalf("Install() expected error")
+	}
+}
+
+func TestInstallRejectsSymlinkSkillDirectory(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "skills")
+	if err := os.Mkdir(directory, 0o755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	target := filepath.Join(root, "outside")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	if err := os.Symlink(target, filepath.Join(directory, "gpc-cli-usage")); err != nil {
+		t.Fatalf("Symlink() error = %v", err)
+	}
+	_, err := Install(context.Background(), InstallOptions{
+		Directory: directory,
+		Skills:    []string{"gpc-cli-usage"},
+	})
+	if err == nil {
+		t.Fatalf("Install() expected error")
+	}
+	if _, err := os.Stat(filepath.Join(target, "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("wrote through symlink or stat error = %v", err)
+	}
+}
+
+func TestInstallPreflightsBeforeWriting(t *testing.T) {
+	root := t.TempDir()
+	directory := filepath.Join(root, "skills")
+	if err := os.Mkdir(directory, 0o755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	target := filepath.Join(root, "outside")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	if err := os.Symlink(target, filepath.Join(directory, "gpc-release-flow")); err != nil {
+		t.Fatalf("Symlink() error = %v", err)
+	}
+	_, err := Install(context.Background(), InstallOptions{
+		Directory: directory,
+		Skills:    []string{"gpc-cli-usage", "gpc-release-flow"},
+	})
+	if err == nil {
+		t.Fatalf("Install() expected error")
+	}
+	if _, err := os.Stat(filepath.Join(directory, "gpc-cli-usage", "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("first skill was written before preflight completed or stat error = %v", err)
+	}
+}
+
+func TestParseSkillMetadataRejectsMissingFrontmatter(t *testing.T) {
+	if _, err := parseSkillMetadata("# Missing\n"); err == nil {
+		t.Fatalf("parseSkillMetadata() expected error")
 	}
 }

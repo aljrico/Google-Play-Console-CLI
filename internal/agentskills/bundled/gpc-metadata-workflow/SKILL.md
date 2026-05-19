@@ -1,3 +1,8 @@
+---
+name: gpc-metadata-workflow
+description: Manage Google Play listings, images, app details, data safety, and review replies with gpc.
+---
+
 # gpc Metadata Workflow
 
 Use this skill for Google Play store listing, image, details, data-safety, and review workflows with `gpc`.

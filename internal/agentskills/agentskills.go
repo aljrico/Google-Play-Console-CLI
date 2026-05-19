@@ -39,11 +39,13 @@ type Skill struct {
 }
 
 type InstalledSkill struct {
-	Name      string `json:"name"`
-	Path      string `json:"path"`
-	Exists    bool   `json:"exists"`
-	Written   bool   `json:"written"`
-	Overwrote bool   `json:"overwrote"`
+	Name           string `json:"name"`
+	Path           string `json:"path"`
+	Exists         bool   `json:"exists"`
+	Written        bool   `json:"written"`
+	Overwrote      bool   `json:"overwrote"`
+	WouldWrite     bool   `json:"wouldWrite"`
+	WouldOverwrite bool   `json:"wouldOverwrite"`
 }
 
 type InstallResult struct {
@@ -57,6 +59,16 @@ type bundledSkill struct {
 	name        string
 	description string
 	content     string
+}
+
+type skillInstallPlan struct {
+	skill  bundledSkill
+	result InstalledSkill
+}
+
+type skillMetadata struct {
+	Name        string
+	Description string
 }
 
 func List() []Skill {
@@ -80,21 +92,34 @@ func Install(ctx context.Context, options InstallOptions) (InstallResult, error)
 	if err != nil {
 		return InstallResult{}, err
 	}
+	plans := make([]skillInstallPlan, 0, len(skills))
+	for _, skill := range skills {
+		plan, err := planSkillInstall(directory, skill, options)
+		if err != nil {
+			return InstallResult{}, err
+		}
+		plans = append(plans, plan)
+	}
+
 	result := InstallResult{
 		Directory: directory,
 		Force:     options.Force,
 		DryRun:    options.DryRun,
-		Skills:    make([]InstalledSkill, 0, len(skills)),
+		Skills:    make([]InstalledSkill, 0, len(plans)),
 	}
-	for _, skill := range skills {
+	for _, plan := range plans {
 		select {
 		case <-ctx.Done():
 			return InstallResult{}, ctx.Err()
 		default:
 		}
-		installedSkill, err := installSkill(directory, skill, options)
-		if err != nil {
-			return InstallResult{}, err
+		installedSkill := plan.result
+		if !options.DryRun && installedSkill.WouldWrite {
+			writtenSkill, err := writeSkill(plan)
+			if err != nil {
+				return InstallResult{}, err
+			}
+			installedSkill = writtenSkill
 		}
 		result.Skills = append(result.Skills, installedSkill)
 	}
@@ -119,38 +144,86 @@ func validateDirectory(directory string) error {
 	}
 }
 
-func installSkill(directory string, skill bundledSkill, options InstallOptions) (InstalledSkill, error) {
+func planSkillInstall(directory string, skill bundledSkill, options InstallOptions) (skillInstallPlan, error) {
 	path := filepath.Join(directory, skill.name, "SKILL.md")
+	if err := validateSkillDirectory(filepath.Dir(path)); err != nil {
+		return skillInstallPlan{}, err
+	}
+
 	result := InstalledSkill{Name: skill.name, Path: path}
 	info, err := os.Lstat(path)
 	switch {
 	case err == nil:
 		if info.Mode()&os.ModeSymlink != 0 {
-			return InstalledSkill{}, fmt.Errorf("skill file cannot be a symlink: %s", path)
+			return skillInstallPlan{}, fmt.Errorf("skill file cannot be a symlink: %s", path)
 		}
 		if info.IsDir() {
-			return InstalledSkill{}, fmt.Errorf("skill file is a directory: %s", path)
+			return skillInstallPlan{}, fmt.Errorf("skill file is a directory: %s", path)
 		}
 		result.Exists = true
 	case os.IsNotExist(err):
 	default:
-		return InstalledSkill{}, fmt.Errorf("inspect %s: %w", path, err)
+		return skillInstallPlan{}, fmt.Errorf("inspect %s: %w", path, err)
 	}
 
 	if result.Exists && !options.Force {
-		return result, nil
+		return skillInstallPlan{skill: skill, result: result}, nil
 	}
-	if options.DryRun {
-		result.Written = !result.Exists || options.Force
-		result.Overwrote = result.Exists && options.Force
-		return result, nil
+	result.WouldWrite = true
+	result.WouldOverwrite = result.Exists && options.Force
+	return skillInstallPlan{skill: skill, result: result}, nil
+}
+
+func validateSkillDirectory(directory string) error {
+	info, err := os.Lstat(directory)
+	switch {
+	case err == nil:
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("skill directory cannot be a symlink: %s", directory)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("skill directory is not a directory: %s", directory)
+		}
+		return nil
+	case os.IsNotExist(err):
+		return nil
+	default:
+		return fmt.Errorf("inspect %s: %w", directory, err)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return InstalledSkill{}, fmt.Errorf("create %s: %w", filepath.Dir(path), err)
+}
+
+func writeSkill(plan skillInstallPlan) (InstalledSkill, error) {
+	path := plan.result.Path
+	directory := filepath.Dir(path)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return InstalledSkill{}, fmt.Errorf("create %s: %w", directory, err)
 	}
-	if err := os.WriteFile(path, []byte(skill.content), 0o644); err != nil {
+	if err := validateSkillDirectory(directory); err != nil {
+		return InstalledSkill{}, err
+	}
+
+	tempFile, err := os.CreateTemp(directory, ".SKILL.md.*")
+	if err != nil {
+		return InstalledSkill{}, fmt.Errorf("create temp skill file in %s: %w", directory, err)
+	}
+	tempPath := tempFile.Name()
+	defer os.Remove(tempPath)
+	if _, err := tempFile.WriteString(plan.skill.content); err != nil {
+		tempFile.Close()
+		return InstalledSkill{}, fmt.Errorf("write %s: %w", tempPath, err)
+	}
+	if err := tempFile.Chmod(0o644); err != nil {
+		tempFile.Close()
+		return InstalledSkill{}, fmt.Errorf("chmod %s: %w", tempPath, err)
+	}
+	if err := tempFile.Close(); err != nil {
+		return InstalledSkill{}, fmt.Errorf("close %s: %w", tempPath, err)
+	}
+	if err := os.Rename(tempPath, path); err != nil {
 		return InstalledSkill{}, fmt.Errorf("write %s: %w", path, err)
 	}
+
+	result := plan.result
 	result.Written = true
 	result.Overwrote = result.Exists
 	return result, nil
@@ -169,11 +242,20 @@ func selectedBundledSkills(names []string) ([]bundledSkill, error) {
 	for _, name := range names {
 		skill, ok := byName[name]
 		if !ok {
-			return nil, fmt.Errorf("unknown skill %q", name)
+			return nil, fmt.Errorf("unknown skill %q; valid skills: %s", name, strings.Join(skillNames(skills), ", "))
 		}
 		selected = append(selected, skill)
 	}
 	return selected, nil
+}
+
+func skillNames(skills []bundledSkill) []string {
+	names := make([]string, 0, len(skills))
+	for _, skill := range skills {
+		names = append(names, skill.name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func allBundledSkills() []bundledSkill {
@@ -191,9 +273,16 @@ func allBundledSkills() []bundledSkill {
 		if err != nil {
 			panic(fmt.Sprintf("read bundled skill %s: %v", name, err))
 		}
+		metadata, err := parseSkillMetadata(string(content))
+		if err != nil {
+			panic(fmt.Sprintf("parse bundled skill %s: %v", name, err))
+		}
+		if metadata.Name != name {
+			panic(fmt.Sprintf("bundled skill %s declares name %s", name, metadata.Name))
+		}
 		skills = append(skills, bundledSkill{
 			name:        name,
-			description: firstHeading(string(content)),
+			description: metadata.Description,
 			content:     string(content),
 		})
 	}
@@ -203,11 +292,39 @@ func allBundledSkills() []bundledSkill {
 	return skills
 }
 
-func firstHeading(content string) string {
-	for _, line := range strings.Split(content, "\n") {
-		if len(line) > 2 && line[0] == '#' && line[1] == ' ' {
-			return line[2:]
+func parseSkillMetadata(content string) (skillMetadata, error) {
+	lines := strings.Split(content, "\n")
+	if len(lines) < 4 || lines[0] != "---" {
+		return skillMetadata{}, fmt.Errorf("missing skill frontmatter")
+	}
+
+	metadata := skillMetadata{}
+	closed := false
+	for _, line := range lines[1:] {
+		if line == "---" {
+			closed = true
+			break
+		}
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		switch strings.TrimSpace(key) {
+		case "name":
+			metadata.Name = value
+		case "description":
+			metadata.Description = value
 		}
 	}
-	return ""
+	if !closed {
+		return skillMetadata{}, fmt.Errorf("unterminated skill frontmatter")
+	}
+	if metadata.Name == "" {
+		return skillMetadata{}, fmt.Errorf("skill frontmatter name is required")
+	}
+	if metadata.Description == "" {
+		return skillMetadata{}, fmt.Errorf("skill frontmatter description is required")
+	}
+	return metadata, nil
 }

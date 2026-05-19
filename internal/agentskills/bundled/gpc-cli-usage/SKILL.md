@@ -1,3 +1,8 @@
+---
+name: gpc-cli-usage
+description: Use gpc safely with explicit output formats, auth checks, command discovery, and dry-run-first behavior.
+---
+
 # gpc CLI Usage
 
 Use this skill when working with `gpc`, the Google Play Console CLI.

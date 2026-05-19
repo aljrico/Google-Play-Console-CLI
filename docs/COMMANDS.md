@@ -624,6 +624,10 @@ gpc install-skills [flags]
 - `--force`: Overwrite existing skill files (default `false`)
 - `--skill`: Install one bundled skill by name; repeat to install multiple (default `[]`)
 
+#### Commands
+
+- `gpc install-skills list`: List bundled gpc agent skills
+
 ### gpc internal-sharing
 
 Upload artifacts to Google Play internal app sharing
