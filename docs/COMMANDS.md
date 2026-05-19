@@ -424,7 +424,7 @@ gpc finance reports summarize [flags]
 
 ###### Flags
 
-- `--file`: Downloaded Google Play financial report CSV
+- `--file`: Downloaded Google Play earnings or estimated-sales CSV
 
 ### gpc generated-apks
 

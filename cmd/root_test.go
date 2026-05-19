@@ -756,7 +756,7 @@ func TestInsightsAnomaliesSummarizeOutputsCountsWithoutAuth(t *testing.T) {
 
 func TestFinanceReportsSummarizeOutputsTotalsWithoutAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
-	file := writeRootTestPathContent(t, filepath.Join(t.TempDir(), "sales.csv"), "Transaction Type,Merchant Currency Code,Merchant Currency\nCharge,USD,9.99\nCharge,USD,1.01\nGoogle fee,USD,-1.50\n")
+	file := writeRootTestPathContent(t, filepath.Join(t.TempDir(), "earnings.csv"), "Transaction Type,Merchant Currency,Amount (Merchant Currency)\nCharge,USD,9.99\nCharge,USD,1.01\nGoogle fee,USD,-1.50\n")
 
 	var buf bytes.Buffer
 	cmd := newRootCommand(&buf)
@@ -775,8 +775,9 @@ func TestFinanceReportsSummarizeOutputsTotalsWithoutAuth(t *testing.T) {
 	}
 	output := buf.String()
 	for _, want := range []string{
+		`"reportType":"earnings"`,
 		`"rows":3`,
-		`"amountColumn":"Merchant Currency"`,
+		`"amountColumn":"Amount (Merchant Currency)"`,
 		`"transactionType":"Charge","count":2,"total":"11","currency":"USD"`,
 		`"transactionType":"Google fee","count":1,"total":"-1.5","currency":"USD"`,
 	} {

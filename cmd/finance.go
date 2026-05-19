@@ -37,9 +37,14 @@ func newFinanceReportsSummarizeCommand(out io.Writer, options *globalOptions) *c
 			if err != nil {
 				return err
 			}
+			if options.output == output.Table || options.output == output.Markdown {
+				return output.Write(out, options.output, options.pretty, summary.TransactionTypes)
+			}
 			return output.Write(out, options.output, options.pretty, summary)
 		},
 	}
-	cmd.Flags().StringVar(&summaryOptions.File, "file", "", "Downloaded Google Play financial report CSV")
+	cmd.Flags().StringVar(&summaryOptions.File, "file", "", "Downloaded Google Play earnings or estimated-sales CSV")
+	_ = cmd.MarkFlagRequired("file")
+	_ = cmd.MarkFlagFilename("file", "csv")
 	return cmd
 }
