@@ -9619,6 +9619,67 @@ func TestSubscriptionOffersCreateBasicRelativeDiscountPhaseDryRunDoesNotRequireA
 	}
 }
 
+func TestSubscriptionOffersCreateBasicAbsoluteDiscountPhaseDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--offer-tag",
+		"absolute-intro",
+		"--absolute-discount",
+		"us:USD:1:990000000",
+		"--absolute-discount",
+		"FR:EUR:0:990000000",
+		"--phase-duration",
+		"P1M",
+		"--phase-recurrence",
+		"1",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"dryRun":true`,
+		`"created":false`,
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"offerId":"intro"`,
+		`"offerTags":["absolute-intro"]`,
+		`"regionCode":"US"`,
+		`"regionCode":"FR"`,
+		`"newSubscriberAvailability":true`,
+		`"duration":"P1M"`,
+		`"recurrenceCount":1`,
+		`"absoluteDiscount":{"currencyCode":"USD","units":1,"nanos":990000000}`,
+		`"absoluteDiscount":{"currencyCode":"EUR","nanos":990000000}`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestSubscriptionOffersCreateBasicFlagsRejectDuplicatePhaseRegionBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
@@ -9693,6 +9754,48 @@ func TestSubscriptionOffersCreateBasicFlagsRejectInvalidRelativeDiscountBeforeAu
 	}
 	if !strings.Contains(err.Error(), "subscription offer create relative discount must use REGION:0.5") {
 		t.Fatalf("error = %v, want relative discount format validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestSubscriptionOffersCreateBasicFlagsRejectMalformedAbsoluteDiscountBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer-id",
+		"intro",
+		"--absolute-discount",
+		"US:USD:not-a-number",
+		"--phase-duration",
+		"P1M",
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected absolute discount validation error")
+	}
+	if !strings.Contains(err.Error(), "subscription offer create absolute discount must use REGION:CURRENCY:UNITS[:NANOS]") {
+		t.Fatalf("error = %v, want absolute discount format validation", err)
+	}
+	if strings.Contains(err.Error(), "price units") {
+		t.Fatalf("error = %v, did not expect generic money parse error", err)
 	}
 	if strings.Contains(err.Error(), "no active auth profile") {
 		t.Fatalf("error = %v, did not expect auth", err)

@@ -2628,6 +2628,7 @@ gpc subscription-offers create [flags]
 
 ##### Flags
 
+- `--absolute-discount`: Basic create regional phase absolute discount as REGION:CURRENCY:UNITS[:NANOS]; repeatable (default `[]`)
 - `--base-plan-id`: Parent subscription base plan ID
 - `--confirm`: Create the draft subscription offer (default `false`)
 - `--dry-run`: Print the planned subscription offer creation without calling Google Play (default `false`)
