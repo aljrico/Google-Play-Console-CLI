@@ -37,7 +37,7 @@ func newOneTimeProductOffersBatchGetCommand(out io.Writer, options *globalOption
 	cmd := &cobra.Command{
 		Use:   "batch-get",
 		Short: "Get multiple one-time product offers",
-		Long:  "Get multiple one-time product offers. Use - for both --product-id and --purchase-option-id when the batch spans products or purchase options. Concrete parent IDs must match every --offer value.",
+		Long:  "Get multiple one-time product offers. Use --product-id - when the batch spans products, and --purchase-option-id - when it spans purchase options. Concrete parent IDs must match every --offer value.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typedPackageName, typedProductID, typedPurchaseOptionID, err := parseOneTimeProductOfferListParent(*packageName, productID, purchaseOptionID)

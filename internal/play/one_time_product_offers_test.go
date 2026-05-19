@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -151,6 +152,50 @@ func TestBatchGetOneTimeProductOffersRejectsParentProductMismatch(t *testing.T) 
 	})
 	if err == nil {
 		t.Fatal("expected parent product mismatch validation error")
+	}
+}
+
+func TestBatchGetOneTimeProductOffersRejectsParentPurchaseOptionMismatch(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchGetOneTimeProductOffers(context.Background(), nil, OneTimeProductOfferBatchGetOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Requests: []OneTimeProductOfferBatchGetRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "rent", OfferID: "intro"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected parent purchase option mismatch validation error")
+	}
+}
+
+func TestBatchGetOneTimeProductOffersRejectsMoreThanGoogleLimit(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	requests := make([]OneTimeProductOfferBatchGetRequest, 101)
+	for index := range requests {
+		requests[index] = OneTimeProductOfferBatchGetRequest{
+			ProductID:        "coins_100",
+			PurchaseOptionID: "buy",
+			OfferID:          OneTimeProductOfferID(fmt.Sprintf("offer-%d", index)),
+		}
+	}
+
+	_, err = BatchGetOneTimeProductOffers(context.Background(), nil, OneTimeProductOfferBatchGetOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Requests:         requests,
+	})
+	if err == nil {
+		t.Fatal("expected batch limit validation error")
 	}
 }
 
