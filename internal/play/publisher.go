@@ -435,6 +435,51 @@ func (p GooglePublisher) GetOneTimeProduct(ctx context.Context, packageName Pack
 	return oneTimeProductFromAPI(product), nil
 }
 
+func (p GooglePublisher) ListOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferListOptions) (OneTimeProductOfferListResult, error) {
+	call := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.List(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.PurchaseOptionID.String(),
+	).Context(ctx)
+	if options.PageSize > 0 {
+		call.PageSize(options.PageSize)
+	}
+	if options.PageToken != "" {
+		call.PageToken(options.PageToken)
+	}
+	response, err := call.Do()
+	if err != nil {
+		return OneTimeProductOfferListResult{}, fmt.Errorf("list one-time product offers for %s/%s/%s: %w", options.PackageName, options.ProductID, options.PurchaseOptionID, err)
+	}
+	return oneTimeProductOfferListResultFromAPI(options, response), nil
+}
+
+func (p GooglePublisher) GetOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error) {
+	request := &androidpublisher.BatchGetOneTimeProductOffersRequest{
+		Requests: []*androidpublisher.GetOneTimeProductOfferRequest{
+			{
+				PackageName:      options.PackageName.String(),
+				ProductId:        options.ProductID.String(),
+				PurchaseOptionId: options.PurchaseOptionID.String(),
+				OfferId:          options.OfferID.String(),
+			},
+		},
+	}
+	response, err := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.BatchGet(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.PurchaseOptionID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return OneTimeProductOffer{}, fmt.Errorf("get one-time product offer %s for %s/%s/%s: %w", options.OfferID, options.PackageName, options.ProductID, options.PurchaseOptionID, err)
+	}
+	if response == nil || len(response.OneTimeProductOffers) == 0 {
+		return OneTimeProductOffer{}, fmt.Errorf("get one-time product offer %s for %s/%s/%s: empty response", options.OfferID, options.PackageName, options.ProductID, options.PurchaseOptionID)
+	}
+	return oneTimeProductOfferFromAPI(response.OneTimeProductOffers[0]), nil
+}
+
 func (p GooglePublisher) ListSubscriptions(ctx context.Context, options SubscriptionListOptions) (SubscriptionListResult, error) {
 	call := p.service.Monetization.Subscriptions.List(options.PackageName.String()).Context(ctx)
 	if options.PageSize > 0 {
@@ -1642,6 +1687,99 @@ func oneTimeProductPurchaseOptionTaxComplianceSettingsFromAPI(apiSettings *rawPu
 }
 
 func regionsVersionFromAPI(apiVersion *rawRegionsVersion) *RegionsVersion {
+	if apiVersion == nil {
+		return nil
+	}
+	return &RegionsVersion{Version: apiVersion.Version}
+}
+
+func oneTimeProductOfferListResultFromAPI(options OneTimeProductOfferListOptions, response *androidpublisher.ListOneTimeProductOffersResponse) OneTimeProductOfferListResult {
+	result := OneTimeProductOfferListResult{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		Offers:           []OneTimeProductOffer{},
+		Options:          options,
+	}
+	if response == nil {
+		return result
+	}
+	result.NextPageToken = response.NextPageToken
+	for _, apiOffer := range response.OneTimeProductOffers {
+		result.Offers = append(result.Offers, oneTimeProductOfferFromAPI(apiOffer))
+	}
+	return result
+}
+
+func oneTimeProductOfferFromAPI(apiOffer *androidpublisher.OneTimeProductOffer) OneTimeProductOffer {
+	if apiOffer == nil {
+		return OneTimeProductOffer{}
+	}
+	offer := OneTimeProductOffer{
+		PackageName:      PackageName(apiOffer.PackageName),
+		ProductID:        OneTimeProductID(apiOffer.ProductId),
+		PurchaseOptionID: OneTimeProductPurchaseOptionID(apiOffer.PurchaseOptionId),
+		OfferID:          OneTimeProductOfferID(apiOffer.OfferId),
+		State:            apiOffer.State,
+		OfferTags:        offerTagsFromAPI(apiOffer.OfferTags),
+		RegionsVersion:   regionsVersionFromGeneratedAPI(apiOffer.RegionsVersion),
+		RegionalConfigs:  oneTimeProductOfferRegionsFromAPI(apiOffer.RegionalPricingAndAvailabilityConfigs),
+	}
+	switch {
+	case apiOffer.DiscountedOffer != nil:
+		offer.Type = OneTimeProductOfferTypeDiscounted
+		offer.DiscountedOffer = oneTimeProductDiscountedOfferFromAPI(apiOffer.DiscountedOffer)
+	case apiOffer.PreOrderOffer != nil:
+		offer.Type = OneTimeProductOfferTypePreOrder
+		offer.PreOrderOffer = oneTimeProductPreOrderOfferFromAPI(apiOffer.PreOrderOffer)
+	}
+	return offer
+}
+
+func oneTimeProductDiscountedOfferFromAPI(apiOffer *androidpublisher.OneTimeProductDiscountedOffer) *OneTimeProductDiscountedOffer {
+	if apiOffer == nil {
+		return nil
+	}
+	return &OneTimeProductDiscountedOffer{
+		StartTime:       apiOffer.StartTime,
+		EndTime:         apiOffer.EndTime,
+		RedemptionLimit: apiOffer.RedemptionLimit,
+	}
+}
+
+func oneTimeProductPreOrderOfferFromAPI(apiOffer *androidpublisher.OneTimeProductPreOrderOffer) *OneTimeProductPreOrderOffer {
+	if apiOffer == nil {
+		return nil
+	}
+	return &OneTimeProductPreOrderOffer{
+		StartTime:           apiOffer.StartTime,
+		EndTime:             apiOffer.EndTime,
+		ReleaseTime:         apiOffer.ReleaseTime,
+		PriceChangeBehavior: apiOffer.PriceChangeBehavior,
+	}
+}
+
+func oneTimeProductOfferRegionsFromAPI(apiConfigs []*androidpublisher.OneTimeProductOfferRegionalPricingAndAvailabilityConfig) []OneTimeProductOfferRegion {
+	if len(apiConfigs) == 0 {
+		return nil
+	}
+	regions := make([]OneTimeProductOfferRegion, 0, len(apiConfigs))
+	for _, apiConfig := range apiConfigs {
+		if apiConfig == nil {
+			continue
+		}
+		regions = append(regions, OneTimeProductOfferRegion{
+			RegionCode:       apiConfig.RegionCode,
+			Availability:     apiConfig.Availability,
+			AbsoluteDiscount: moneyFromAPI(apiConfig.AbsoluteDiscount),
+			RelativeDiscount: apiConfig.RelativeDiscount,
+			NoOverride:       apiConfig.NoOverride != nil,
+		})
+	}
+	return regions
+}
+
+func regionsVersionFromGeneratedAPI(apiVersion *androidpublisher.RegionsVersion) *RegionsVersion {
 	if apiVersion == nil {
 		return nil
 	}

@@ -2239,6 +2239,62 @@ func TestOneTimeProductsGetRejectsInvalidProductIDBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestOneTimeProductOffersListRejectsInvalidWildcardParentBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"list",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"-",
+		"--purchase-option-id",
+		"buy",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected wildcard validation error")
+	}
+	if !strings.Contains(err.Error(), "purchase option ID") {
+		t.Fatalf("error = %v, want purchase option validation", err)
+	}
+}
+
+func TestOneTimeProductOffersGetRejectsInvalidOfferIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer-id",
+		"Intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected offer ID validation error")
+	}
+	if !strings.Contains(err.Error(), "one-time product offer ID") {
+		t.Fatalf("error = %v, want offer ID validation", err)
+	}
+}
+
 func TestSubscriptionsGetRejectsInvalidProductIDBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

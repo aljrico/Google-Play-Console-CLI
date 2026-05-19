@@ -2380,6 +2380,142 @@ func TestGetOneTimeProductUsesMonetizationEndpoint(t *testing.T) {
 	}
 }
 
+func TestListOneTimeProductOffersUsesMonetizationEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers" {
+			t.Fatalf("path = %q, want one-time product offers list endpoint", r.URL.Path)
+		}
+		assertQueryValue(t, r.URL.Query(), "pageSize", "50")
+		assertQueryValue(t, r.URL.Query(), "pageToken", "next")
+		_, _ = w.Write([]byte(`{
+			"nextPageToken": "later",
+			"oneTimeProductOffers": [
+				{
+					"packageName": "com.example.app",
+					"productId": "coins_100",
+					"purchaseOptionId": "buy",
+					"offerId": "intro",
+					"state": "ACTIVE",
+					"offerTags": [{"tag": "welcome"}],
+					"regionsVersion": {"version": "2026/05"},
+					"discountedOffer": {
+						"startTime": "2026-05-01T00:00:00Z",
+						"endTime": "2026-06-01T00:00:00Z",
+						"redemptionLimit": "10"
+					},
+					"regionalPricingAndAvailabilityConfigs": [
+						{
+							"regionCode": "US",
+							"availability": "AVAILABLE",
+							"absoluteDiscount": {"currencyCode": "USD", "units": "1"},
+							"relativeDiscount": 0.5
+						},
+						{
+							"regionCode": "CA",
+							"availability": "AVAILABLE",
+							"noOverride": {}
+						}
+					]
+				}
+			]
+		}`))
+	}))
+
+	result, err := publisher.ListOneTimeProductOffers(context.Background(), OneTimeProductOfferListOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		PageSize:         50,
+		PageToken:        "next",
+	})
+	if err != nil {
+		t.Fatalf("ListOneTimeProductOffers() error = %v", err)
+	}
+	if result.NextPageToken != "later" {
+		t.Fatalf("NextPageToken = %q, want later", result.NextPageToken)
+	}
+	if len(result.Offers) != 1 {
+		t.Fatalf("len(Offers) = %d, want 1", len(result.Offers))
+	}
+	offer := result.Offers[0]
+	if offer.OfferID != "intro" {
+		t.Fatalf("OfferID = %q, want intro", offer.OfferID)
+	}
+	if offer.Type != OneTimeProductOfferTypeDiscounted {
+		t.Fatalf("Type = %q, want discounted", offer.Type)
+	}
+	if offer.DiscountedOffer == nil || offer.DiscountedOffer.RedemptionLimit != 10 {
+		t.Fatalf("DiscountedOffer = %#v, want redemption limit 10", offer.DiscountedOffer)
+	}
+	if offer.RegionsVersion == nil || offer.RegionsVersion.Version != "2026/05" {
+		t.Fatalf("RegionsVersion = %#v, want 2026/05", offer.RegionsVersion)
+	}
+	if offer.RegionalConfigs[0].AbsoluteDiscount == nil || offer.RegionalConfigs[0].AbsoluteDiscount.Units != 1 {
+		t.Fatalf("AbsoluteDiscount = %#v, want one unit", offer.RegionalConfigs[0].AbsoluteDiscount)
+	}
+	if !offer.RegionalConfigs[1].NoOverride {
+		t.Fatalf("second regional config = %#v, want no override", offer.RegionalConfigs[1])
+	}
+}
+
+func TestGetOneTimeProductOfferUsesBatchGetEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/coins_100/purchaseOptions/buy/offers:batchGet" {
+			t.Fatalf("path = %q, want one-time product offers batchGet endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		var body struct {
+			Requests []struct {
+				PackageName      string `json:"packageName"`
+				ProductID        string `json:"productId"`
+				PurchaseOptionID string `json:"purchaseOptionId"`
+				OfferID          string `json:"offerId"`
+			} `json:"requests"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		if len(body.Requests) != 1 || body.Requests[0].OfferID != "preorder" {
+			t.Fatalf("body = %#v, want one preorder request", body)
+		}
+		_, _ = w.Write([]byte(`{
+			"oneTimeProductOffers": [
+				{
+					"packageName": "com.example.app",
+					"productId": "coins_100",
+					"purchaseOptionId": "buy",
+					"offerId": "preorder",
+					"state": "DRAFT",
+					"preOrderOffer": {
+						"startTime": "2026-05-01T00:00:00Z",
+						"endTime": "2026-06-01T00:00:00Z",
+						"releaseTime": "2026-06-15T00:00:00Z",
+						"priceChangeBehavior": "PRE_ORDER_PRICE_CHANGE_BEHAVIOR_NEW_ORDERS_ONLY"
+					}
+				}
+			]
+		}`))
+	}))
+
+	offer, err := publisher.GetOneTimeProductOffer(context.Background(), OneTimeProductOfferGetOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		OfferID:          "preorder",
+	})
+	if err != nil {
+		t.Fatalf("GetOneTimeProductOffer() error = %v", err)
+	}
+	if offer.Type != OneTimeProductOfferTypePreOrder {
+		t.Fatalf("Type = %q, want preOrder", offer.Type)
+	}
+	if offer.PreOrderOffer == nil || offer.PreOrderOffer.ReleaseTime != "2026-06-15T00:00:00Z" {
+		t.Fatalf("PreOrderOffer = %#v, want release time", offer.PreOrderOffer)
+	}
+}
+
 func newTestPublisher(t *testing.T, handler http.Handler) GooglePublisher {
 	t.Helper()
 	server := httptest.NewServer(handler)

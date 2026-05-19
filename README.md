@@ -77,6 +77,8 @@ gpc in-app-products list --package com.example.app
 gpc in-app-products get --package com.example.app --sku coins_100
 gpc one-time-products list --package com.example.app --page-size 50
 gpc one-time-products get --package com.example.app --product-id coins_100
+gpc one-time-product-offers list --package com.example.app --product-id coins_100 --purchase-option-id buy
+gpc one-time-product-offers get --package com.example.app --product-id coins_100 --purchase-option-id buy --offer-id intro
 gpc subscriptions list --package com.example.app --page-size 50
 gpc subscriptions get --package com.example.app --product-id premium_monthly
 gpc subscription-offers list --package com.example.app --product-id premium_monthly --base-plan-id monthly

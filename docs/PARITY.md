@@ -79,7 +79,7 @@ Sources:
 | `asc` family | Closest `gpc` family | Google Play API coverage | Status | Notes |
 | --- | --- | --- | --- | --- |
 | `iap` | `in-app-products` | `inappproducts` | tested | `gpc in-app-products list` and `get` cover read-only legacy catalog inspection. Mutations remain planned. |
-| `iap` | `one-time-products` | `monetization.onetimeproducts` | tested | `gpc one-time-products list` and `get` cover read-only modern one-time product inspection, including purchase options and regional pricing. Mutations remain planned. |
+| `iap` | `one-time-products` / `one-time-product-offers` | `monetization.onetimeproducts` | tested | `gpc one-time-products list` and `get` cover read-only modern one-time product inspection; `gpc one-time-product-offers list` and `get` inspect discounted and pre-order offers. Mutations remain planned. |
 | `subscriptions` | `subscriptions` | `monetization.subscriptions`, `basePlans` | tested | `gpc subscriptions list` and `get` cover read-only subscriptions and embedded base plans. Mutations remain planned. |
 | `subscriptions` | `subscription-offers` | `monetization.subscriptions.basePlans.offers` | tested | `gpc subscription-offers list` and `get` cover read-only offer inspection, including Google wildcard list parents. Batch-get and mutations remain planned. |
 | `pricing` | `pricing` | `monetization.convertRegionPrices`, product/subscription pricing APIs | tested | `gpc pricing convert-region-prices` calculates Play regional prices from an explicit source price. Product and subscription price mutations remain planned. |
