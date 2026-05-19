@@ -102,6 +102,36 @@ func TestUpdateTestersRequiresConfirmOrDryRun(t *testing.T) {
 	}
 }
 
+func TestUpdateTestersRejectsConfirmAndDryRunTogether(t *testing.T) {
+	packageName := mustPackageName(t, "com.example.app")
+	_, err := UpdateTesters(context.Background(), nil, TestersUpdateOptions{
+		PackageName:  packageName,
+		Track:        TrackInternal,
+		GoogleGroups: []TesterGoogleGroup{"qa@example.com"},
+		Confirm:      true,
+		DryRun:       true,
+	})
+	if err == nil {
+		t.Fatal("UpdateTesters() error = nil, want confirm and dry-run conflict")
+	}
+}
+
+func TestUpdateTestersRejectsCanonicalDuplicateGroups(t *testing.T) {
+	packageName := mustPackageName(t, "com.example.app")
+	_, err := UpdateTesters(context.Background(), nil, TestersUpdateOptions{
+		PackageName: packageName,
+		Track:       TrackInternal,
+		GoogleGroups: []TesterGoogleGroup{
+			" qa@example.com ",
+			"QA@example.com",
+		},
+		DryRun: true,
+	})
+	if err == nil {
+		t.Fatal("UpdateTesters() error = nil, want duplicate group error")
+	}
+}
+
 func mustPackageName(t *testing.T, value string) PackageName {
 	t.Helper()
 	packageName, err := NewPackageName(value)

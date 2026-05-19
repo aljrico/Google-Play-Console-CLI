@@ -152,6 +152,83 @@ func TestAppendTrackReleaseSendsReleaseNotes(t *testing.T) {
 	}
 }
 
+func TestGetTestersUsesTrackTesterEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/edits/edit-123/testers/internal" {
+			t.Fatalf("path = %q, want tester endpoint", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"googleGroups":["qa@example.com"]}`))
+	}))
+
+	testers, err := publisher.GetTesters(context.Background(), "com.example.app", "edit-123", TrackInternal)
+	if err != nil {
+		t.Fatalf("GetTesters() error = %v", err)
+	}
+	if len(testers.GoogleGroups) != 1 || testers.GoogleGroups[0] != "qa@example.com" {
+		t.Fatalf("GoogleGroups = %#v, want qa@example.com", testers.GoogleGroups)
+	}
+}
+
+func TestUpdateTestersUsesTrackTesterEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			t.Fatalf("method = %s, want PUT", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/edits/edit-123/testers/beta" {
+			t.Fatalf("path = %q, want tester endpoint", r.URL.Path)
+		}
+		var apiTesters androidpublisher.Testers
+		if err := json.NewDecoder(r.Body).Decode(&apiTesters); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if !reflect.DeepEqual(apiTesters.GoogleGroups, []string{"alpha@example.com", "qa@example.com"}) {
+			t.Fatalf("GoogleGroups body = %#v, want sorted groups", apiTesters.GoogleGroups)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"googleGroups":["alpha@example.com","qa@example.com"]}`))
+	}))
+
+	testers, err := publisher.UpdateTesters(context.Background(), "com.example.app", "edit-123", TrackBeta, []TesterGoogleGroup{
+		"qa@example.com",
+		"alpha@example.com",
+	})
+	if err != nil {
+		t.Fatalf("UpdateTesters() error = %v", err)
+	}
+	if !reflect.DeepEqual(testers.GoogleGroups, []TesterGoogleGroup{"alpha@example.com", "qa@example.com"}) {
+		t.Fatalf("GoogleGroups = %#v, want sorted groups", testers.GoogleGroups)
+	}
+}
+
+func TestUpdateTestersForceSendsEmptyGoogleGroups(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			t.Fatalf("method = %s, want PUT", r.Method)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		if !strings.Contains(string(body), `"googleGroups":[]`) {
+			t.Fatalf("body = %s, want empty googleGroups array", string(body))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"googleGroups":[]}`))
+	}))
+
+	testers, err := publisher.UpdateTesters(context.Background(), "com.example.app", "edit-123", TrackInternal, nil)
+	if err != nil {
+		t.Fatalf("UpdateTesters() error = %v", err)
+	}
+	if len(testers.GoogleGroups) != 0 {
+		t.Fatalf("GoogleGroups = %#v, want empty", testers.GoogleGroups)
+	}
+}
+
 func TestUploadInternalSharingBundleUsesUploadEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/upload/androidpublisher/v3/applications/internalappsharing/com.example.app/artifacts/bundle" {

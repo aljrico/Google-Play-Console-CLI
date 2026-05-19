@@ -80,6 +80,9 @@ func (o TestersUpdateOptions) Validate() error {
 	if err := validateTesterGoogleGroups(o.GoogleGroups); err != nil {
 		return err
 	}
+	if o.DryRun && o.Confirm {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
 	if !o.DryRun && !o.Confirm {
 		return fmt.Errorf("testers update requires --confirm or --dry-run")
 	}
@@ -196,9 +199,6 @@ func UpdateTesters(ctx context.Context, updater TestersUpdater, options TestersU
 	if err := updater.ValidateEdit(ctx, options.PackageName, edit.ID); err != nil {
 		return TestersUpdateResult{}, err
 	}
-	if !options.Confirm {
-		return result, nil
-	}
 	committedEdit, err := updater.CommitEdit(ctx, options.PackageName, edit.ID)
 	if err != nil {
 		return TestersUpdateResult{}, err
@@ -216,10 +216,8 @@ func NewTestersUpdatePlan(options TestersUpdateOptions) (TestersUpdatePlan, erro
 	steps := []string{"insert edit", fmt.Sprintf("replace %s tester Google Groups", options.Track), "validate edit"}
 	if options.DryRun {
 		steps = []string{fmt.Sprintf("plan %s tester Google Group replacement", options.Track)}
-	} else if options.Confirm {
-		steps = append(steps, "commit edit")
 	} else {
-		steps = append(steps, "delete uncommitted edit")
+		steps = append(steps, "commit edit")
 	}
 	return TestersUpdatePlan{
 		PackageName:  options.PackageName,
@@ -234,10 +232,11 @@ func NewTestersUpdatePlan(options TestersUpdateOptions) (TestersUpdatePlan, erro
 func validateTesterGoogleGroups(googleGroups []TesterGoogleGroup) error {
 	seen := map[TesterGoogleGroup]struct{}{}
 	for _, googleGroup := range googleGroups {
-		if err := googleGroup.Validate(); err != nil {
+		canonicalGoogleGroup, err := NewTesterGoogleGroup(googleGroup.String())
+		if err != nil {
 			return err
 		}
-		normalized := TesterGoogleGroup(strings.ToLower(googleGroup.String()))
+		normalized := TesterGoogleGroup(strings.ToLower(canonicalGoogleGroup.String()))
 		if _, ok := seen[normalized]; ok {
 			return fmt.Errorf("tester Google Group %q is duplicated", googleGroup)
 		}
