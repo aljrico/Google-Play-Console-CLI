@@ -427,6 +427,40 @@ func TestNewRegionalProductPriceRejectsInvalidRegion(t *testing.T) {
 	}
 }
 
+func TestNewRegionalProductTaxTierParsesRegionAndTier(t *testing.T) {
+	tier, err := NewRegionalProductTaxTier("us:TAX_TIER_NEWS_1")
+	if err != nil {
+		t.Fatalf("NewRegionalProductTaxTier() error = %v", err)
+	}
+	if tier.RegionCode != "US" || tier.TaxTier != "TAX_TIER_NEWS_1" {
+		t.Fatalf("tier = %#v, want US news tier", tier)
+	}
+}
+
+func TestNewRegionalProductTaxTierRejectsUnsupportedTier(t *testing.T) {
+	_, err := NewRegionalProductTaxTier("US:TAX_TIER_UNKNOWN")
+	if err == nil {
+		t.Fatal("expected tax tier validation error")
+	}
+}
+
+func TestNewRegionalProductStreamingTaxParsesUSType(t *testing.T) {
+	tax, err := NewRegionalProductStreamingTax("us:STREAMING_TAX_TYPE_TELCO_VIDEO_SALES")
+	if err != nil {
+		t.Fatalf("NewRegionalProductStreamingTax() error = %v", err)
+	}
+	if tax.RegionCode != "US" || tax.StreamingTaxType != "STREAMING_TAX_TYPE_TELCO_VIDEO_SALES" {
+		t.Fatalf("tax = %#v, want US video sales", tax)
+	}
+}
+
+func TestNewRegionalProductStreamingTaxRejectsNonUSRegion(t *testing.T) {
+	_, err := NewRegionalProductStreamingTax("FR:STREAMING_TAX_TYPE_TELCO_VIDEO_SALES")
+	if err == nil {
+		t.Fatal("expected non-US streaming tax validation error")
+	}
+}
+
 func TestCreateInAppProductDryRunBuildsManagedProductPlan(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -691,6 +725,46 @@ func TestPatchInAppProductDryRunBuildsRegionalPricePlan(t *testing.T) {
 	}
 }
 
+func TestPatchInAppProductDryRunBuildsTaxCompliancePlan(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	tokenizedDigitalAsset := false
+
+	result, err := PatchInAppProduct(context.Background(), nil, InAppProductPatchOptions{
+		PackageName: packageName,
+		SKU:         "coins_100",
+		TaxComplianceSettings: &ProductTaxComplianceSettings{
+			EEAWithdrawalRightType:  "WITHDRAWAL_RIGHT_DIGITAL_CONTENT",
+			IsTokenizedDigitalAsset: &tokenizedDigitalAsset,
+			TaxRateInfoByRegionCode: map[string]RegionalTaxRateInfo{
+				"FR": {TaxTier: "TAX_TIER_NEWS_1"},
+				"US": {EligibleForStreamingServiceTaxRate: true, StreamingTaxType: "STREAMING_TAX_TYPE_TELCO_VIDEO_SALES"},
+			},
+		},
+		DryRun: true,
+	})
+	if err != nil {
+		t.Fatalf("PatchInAppProduct() error = %v", err)
+	}
+	if result.Desired.ManagedProductTaxAndComplianceSettings == nil {
+		t.Fatal("ManagedProductTaxAndComplianceSettings = nil, want tax settings")
+	}
+	if result.Desired.ManagedProductTaxAndComplianceSettings.IsTokenizedDigitalAsset == nil || *result.Desired.ManagedProductTaxAndComplianceSettings.IsTokenizedDigitalAsset {
+		t.Fatalf("IsTokenizedDigitalAsset = %#v, want explicit false", result.Desired.ManagedProductTaxAndComplianceSettings.IsTokenizedDigitalAsset)
+	}
+	if result.Plan.TaxComplianceSettings == nil || result.Plan.TaxComplianceSettings.EEAWithdrawalRightType != "WITHDRAWAL_RIGHT_DIGITAL_CONTENT" {
+		t.Fatalf("Plan = %#v, want tax compliance settings", result.Plan)
+	}
+	if result.Plan.TaxComplianceSettings.TaxRateInfoByRegionCode["FR"].TaxTier != "TAX_TIER_NEWS_1" {
+		t.Fatalf("TaxRateInfoByRegionCode = %#v, want FR tax tier", result.Plan.TaxComplianceSettings.TaxRateInfoByRegionCode)
+	}
+	if result.Plan.TaxComplianceSettings.TaxRateInfoByRegionCode["US"].StreamingTaxType != "STREAMING_TAX_TYPE_TELCO_VIDEO_SALES" {
+		t.Fatalf("TaxRateInfoByRegionCode = %#v, want US streaming tax", result.Plan.TaxComplianceSettings.TaxRateInfoByRegionCode)
+	}
+}
+
 func TestPatchInAppProductRequiresConfirmOrDryRun(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -704,6 +778,59 @@ func TestPatchInAppProductRequiresConfirmOrDryRun(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected confirmation validation error")
+	}
+}
+
+func TestPatchInAppProductRejectsUnsupportedWithdrawalRightType(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = PatchInAppProduct(context.Background(), nil, InAppProductPatchOptions{
+		PackageName: packageName,
+		SKU:         "coins_100",
+		TaxComplianceSettings: &ProductTaxComplianceSettings{
+			EEAWithdrawalRightType: "WITHDRAWAL_RIGHT_UNKNOWN",
+		},
+		DryRun: true,
+	})
+	if err == nil {
+		t.Fatal("expected withdrawal right type validation error")
+	}
+}
+
+func TestRegionalProductTaxTiersToTaxRateInfoRejectsDuplicateRegion(t *testing.T) {
+	frTier, err := NewRegionalProductTaxTier("FR:TAX_TIER_NEWS_1")
+	if err != nil {
+		t.Fatalf("NewRegionalProductTaxTier() error = %v", err)
+	}
+
+	_, err = RegionalProductTaxTiersToTaxRateInfo([]RegionalProductTaxTier{frTier, frTier})
+	if err == nil {
+		t.Fatal("expected duplicate regional tax tier validation error")
+	}
+}
+
+func TestRegionalProductStreamingTaxesToTaxRateInfoRejectsDuplicateRegion(t *testing.T) {
+	usTax, err := NewRegionalProductStreamingTax("US:STREAMING_TAX_TYPE_TELCO_VIDEO_SALES")
+	if err != nil {
+		t.Fatalf("NewRegionalProductStreamingTax() error = %v", err)
+	}
+
+	_, err = RegionalProductStreamingTaxesToTaxRateInfo([]RegionalProductStreamingTax{usTax, usTax})
+	if err == nil {
+		t.Fatal("expected duplicate regional streaming tax validation error")
+	}
+}
+
+func TestMergeRegionalTaxRateInfoMergesTierAndStreamingTax(t *testing.T) {
+	merged := MergeRegionalTaxRateInfo(
+		map[string]RegionalTaxRateInfo{"FR": {TaxTier: "TAX_TIER_NEWS_1"}},
+		map[string]RegionalTaxRateInfo{"US": {EligibleForStreamingServiceTaxRate: true, StreamingTaxType: "STREAMING_TAX_TYPE_TELCO_VIDEO_SALES"}},
+	)
+	if merged["FR"].TaxTier != "TAX_TIER_NEWS_1" || merged["US"].StreamingTaxType != "STREAMING_TAX_TYPE_TELCO_VIDEO_SALES" {
+		t.Fatalf("merged = %#v, want FR tier and US streaming tax", merged)
 	}
 }
 

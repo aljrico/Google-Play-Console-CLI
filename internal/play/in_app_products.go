@@ -152,7 +152,7 @@ type InAppProduct struct {
 
 type ProductTaxComplianceSettings struct {
 	EEAWithdrawalRightType  string                         `json:"eeaWithdrawalRightType,omitempty"`
-	IsTokenizedDigitalAsset bool                           `json:"isTokenizedDigitalAsset,omitempty"`
+	IsTokenizedDigitalAsset *bool                          `json:"isTokenizedDigitalAsset,omitempty"`
 	TaxRateInfoByRegionCode map[string]RegionalTaxRateInfo `json:"taxRateInfoByRegionCode,omitempty"`
 }
 
@@ -160,6 +160,70 @@ type RegionalTaxRateInfo struct {
 	EligibleForStreamingServiceTaxRate bool   `json:"eligibleForStreamingServiceTaxRate,omitempty"`
 	StreamingTaxType                   string `json:"streamingTaxType,omitempty"`
 	TaxTier                            string `json:"taxTier,omitempty"`
+}
+
+type RegionalProductTaxTier struct {
+	RegionCode string `json:"regionCode"`
+	TaxTier    string `json:"taxTier"`
+}
+
+type RegionalProductStreamingTax struct {
+	RegionCode       string `json:"regionCode"`
+	StreamingTaxType string `json:"streamingTaxType"`
+}
+
+func NewRegionalProductTaxTier(value string) (RegionalProductTaxTier, error) {
+	region, taxTier, ok := strings.Cut(strings.TrimSpace(value), ":")
+	if !ok {
+		return RegionalProductTaxTier{}, fmt.Errorf("regional tax tier must be formatted as REGION:TAX_TIER")
+	}
+	regionalTaxTier := RegionalProductTaxTier{
+		RegionCode: strings.ToUpper(strings.TrimSpace(region)),
+		TaxTier:    strings.TrimSpace(taxTier),
+	}
+	if err := regionalTaxTier.Validate(); err != nil {
+		return RegionalProductTaxTier{}, err
+	}
+	return regionalTaxTier, nil
+}
+
+func (t RegionalProductTaxTier) Validate() error {
+	if !isValidRegionCode(t.RegionCode) {
+		return fmt.Errorf("regional tax tier region must be a two-letter ISO 3166 code")
+	}
+	switch t.TaxTier {
+	case "TAX_TIER_BOOKS_1", "TAX_TIER_NEWS_1", "TAX_TIER_NEWS_2", "TAX_TIER_MUSIC_OR_AUDIO_1", "TAX_TIER_LIVE_OR_BROADCAST_1":
+		return nil
+	default:
+		return fmt.Errorf("unsupported regional tax tier %q", t.TaxTier)
+	}
+}
+
+func NewRegionalProductStreamingTax(value string) (RegionalProductStreamingTax, error) {
+	region, streamingTaxType, ok := strings.Cut(strings.TrimSpace(value), ":")
+	if !ok {
+		return RegionalProductStreamingTax{}, fmt.Errorf("regional streaming tax must be formatted as REGION:STREAMING_TAX_TYPE")
+	}
+	regionalStreamingTax := RegionalProductStreamingTax{
+		RegionCode:       strings.ToUpper(strings.TrimSpace(region)),
+		StreamingTaxType: strings.TrimSpace(streamingTaxType),
+	}
+	if err := regionalStreamingTax.Validate(); err != nil {
+		return RegionalProductStreamingTax{}, err
+	}
+	return regionalStreamingTax, nil
+}
+
+func (t RegionalProductStreamingTax) Validate() error {
+	if t.RegionCode != "US" {
+		return fmt.Errorf("regional streaming tax currently supports region US only")
+	}
+	switch t.StreamingTaxType {
+	case "STREAMING_TAX_TYPE_TELCO_VIDEO_RENTAL", "STREAMING_TAX_TYPE_TELCO_VIDEO_SALES", "STREAMING_TAX_TYPE_TELCO_VIDEO_MULTI_CHANNEL", "STREAMING_TAX_TYPE_TELCO_AUDIO_RENTAL", "STREAMING_TAX_TYPE_TELCO_AUDIO_SALES", "STREAMING_TAX_TYPE_TELCO_AUDIO_MULTI_CHANNEL":
+		return nil
+	default:
+		return fmt.Errorf("unsupported regional streaming tax type %q", t.StreamingTaxType)
+	}
 }
 
 type InAppProductPagination struct {
@@ -672,17 +736,18 @@ func validateInAppProductsBatchDeletePreflight(requestedSKUs []InAppProductSKU, 
 }
 
 type InAppProductPatchOptions struct {
-	PackageName              PackageName            `json:"packageName"`
-	SKU                      InAppProductSKU        `json:"sku"`
-	Status                   ProductStatus          `json:"status,omitempty"`
-	DefaultLanguage          ListingLanguage        `json:"defaultLanguage,omitempty"`
-	DefaultPrice             *ProductPrice          `json:"defaultPrice,omitempty"`
-	RegionalPrices           []RegionalProductPrice `json:"regionalPrices,omitempty"`
-	ListingLanguage          ListingLanguage        `json:"listingLanguage,omitempty"`
-	Listing                  *InAppProductListing   `json:"listing,omitempty"`
-	AutoConvertMissingPrices bool                   `json:"autoConvertMissingPrices"`
-	Confirm                  bool                   `json:"confirm"`
-	DryRun                   bool                   `json:"dryRun"`
+	PackageName              PackageName                   `json:"packageName"`
+	SKU                      InAppProductSKU               `json:"sku"`
+	Status                   ProductStatus                 `json:"status,omitempty"`
+	DefaultLanguage          ListingLanguage               `json:"defaultLanguage,omitempty"`
+	DefaultPrice             *ProductPrice                 `json:"defaultPrice,omitempty"`
+	RegionalPrices           []RegionalProductPrice        `json:"regionalPrices,omitempty"`
+	TaxComplianceSettings    *ProductTaxComplianceSettings `json:"taxComplianceSettings,omitempty"`
+	ListingLanguage          ListingLanguage               `json:"listingLanguage,omitempty"`
+	Listing                  *InAppProductListing          `json:"listing,omitempty"`
+	AutoConvertMissingPrices bool                          `json:"autoConvertMissingPrices"`
+	Confirm                  bool                          `json:"confirm"`
+	DryRun                   bool                          `json:"dryRun"`
 }
 
 func (o InAppProductPatchOptions) Validate() error {
@@ -710,6 +775,11 @@ func (o InAppProductPatchOptions) Validate() error {
 	if err := validateRegionalProductPrices(o.RegionalPrices); err != nil {
 		return err
 	}
+	if o.TaxComplianceSettings != nil {
+		if err := validateProductTaxComplianceSettings(*o.TaxComplianceSettings); err != nil {
+			return err
+		}
+	}
 	if o.ListingLanguage != "" {
 		if _, err := NewListingLanguage(o.ListingLanguage.String()); err != nil {
 			return err
@@ -726,7 +796,7 @@ func (o InAppProductPatchOptions) Validate() error {
 		return fmt.Errorf("--listing-language requires --title and --description")
 	}
 	if !o.HasMutation() {
-		return fmt.Errorf("in-app product patch requires at least one of --status, --default-price, --regional-price, --default-language, --listing-language, --title, or --description")
+		return fmt.Errorf("in-app product patch requires at least one of --status, --default-price, --regional-price, --eea-withdrawal-right-type, --tokenized-digital-asset, --regional-tax-tier, --regional-streaming-tax, --default-language, --listing-language, --title, or --description")
 	}
 	if o.DryRun && o.Confirm {
 		return fmt.Errorf("--confirm and --dry-run cannot be used together")
@@ -738,7 +808,7 @@ func (o InAppProductPatchOptions) Validate() error {
 }
 
 func (o InAppProductPatchOptions) HasMutation() bool {
-	return o.Status != "" || o.DefaultPrice != nil || len(o.RegionalPrices) > 0 || o.DefaultLanguage != "" || o.ListingLanguage != "" || o.Listing != nil
+	return o.Status != "" || o.DefaultPrice != nil || len(o.RegionalPrices) > 0 || o.TaxComplianceSettings != nil || o.DefaultLanguage != "" || o.ListingLanguage != "" || o.Listing != nil
 }
 
 func (o InAppProductPatchOptions) ValidateLive() error {
@@ -755,18 +825,19 @@ func (o InAppProductPatchOptions) ValidateLive() error {
 }
 
 type InAppProductPatchPlan struct {
-	Action                   string                 `json:"action"`
-	PackageName              PackageName            `json:"packageName"`
-	SKU                      InAppProductSKU        `json:"sku"`
-	Status                   ProductStatus          `json:"status,omitempty"`
-	DefaultLanguage          ListingLanguage        `json:"defaultLanguage,omitempty"`
-	DefaultPrice             *ProductPrice          `json:"defaultPrice,omitempty"`
-	RegionalPrices           []RegionalProductPrice `json:"regionalPrices,omitempty"`
-	ListingLanguage          ListingLanguage        `json:"listingLanguage,omitempty"`
-	Listing                  *InAppProductListing   `json:"listing,omitempty"`
-	AutoConvertMissingPrices bool                   `json:"autoConvertMissingPrices"`
-	Confirm                  bool                   `json:"confirm"`
-	Steps                    []string               `json:"steps"`
+	Action                   string                        `json:"action"`
+	PackageName              PackageName                   `json:"packageName"`
+	SKU                      InAppProductSKU               `json:"sku"`
+	Status                   ProductStatus                 `json:"status,omitempty"`
+	DefaultLanguage          ListingLanguage               `json:"defaultLanguage,omitempty"`
+	DefaultPrice             *ProductPrice                 `json:"defaultPrice,omitempty"`
+	RegionalPrices           []RegionalProductPrice        `json:"regionalPrices,omitempty"`
+	TaxComplianceSettings    *ProductTaxComplianceSettings `json:"taxComplianceSettings,omitempty"`
+	ListingLanguage          ListingLanguage               `json:"listingLanguage,omitempty"`
+	Listing                  *InAppProductListing          `json:"listing,omitempty"`
+	AutoConvertMissingPrices bool                          `json:"autoConvertMissingPrices"`
+	Confirm                  bool                          `json:"confirm"`
+	Steps                    []string                      `json:"steps"`
 }
 
 type InAppProductPatchResult struct {
@@ -799,6 +870,7 @@ func PatchInAppProduct(ctx context.Context, patcher InAppProductPatcher, options
 			DefaultLanguage:          options.DefaultLanguage,
 			DefaultPrice:             options.DefaultPrice,
 			RegionalPrices:           append([]RegionalProductPrice(nil), options.RegionalPrices...),
+			TaxComplianceSettings:    cloneProductTaxComplianceSettings(options.TaxComplianceSettings),
 			ListingLanguage:          options.ListingLanguage,
 			Listing:                  options.Listing,
 			AutoConvertMissingPrices: shouldAutoConvertInAppProductPatchPrices(options),
@@ -854,6 +926,9 @@ func inAppProductPatchDesiredProduct(options InAppProductPatchOptions) InAppProd
 	if len(options.RegionalPrices) > 0 {
 		product.Prices = regionalProductPricesToMap(options.RegionalPrices)
 	}
+	if options.TaxComplianceSettings != nil {
+		product.ManagedProductTaxAndComplianceSettings = cloneProductTaxComplianceSettings(options.TaxComplianceSettings)
+	}
 	if options.Listing != nil {
 		product.Listings = map[string]InAppProductListing{
 			options.ListingLanguage.String(): *options.Listing,
@@ -862,8 +937,123 @@ func inAppProductPatchDesiredProduct(options InAppProductPatchOptions) InAppProd
 	return product
 }
 
+func cloneProductTaxComplianceSettings(settings *ProductTaxComplianceSettings) *ProductTaxComplianceSettings {
+	if settings == nil {
+		return nil
+	}
+	cloned := *settings
+	if settings.IsTokenizedDigitalAsset != nil {
+		tokenized := *settings.IsTokenizedDigitalAsset
+		cloned.IsTokenizedDigitalAsset = &tokenized
+	}
+	if len(settings.TaxRateInfoByRegionCode) > 0 {
+		cloned.TaxRateInfoByRegionCode = make(map[string]RegionalTaxRateInfo, len(settings.TaxRateInfoByRegionCode))
+		for region, info := range settings.TaxRateInfoByRegionCode {
+			cloned.TaxRateInfoByRegionCode[region] = info
+		}
+	}
+	return &cloned
+}
+
 func shouldAutoConvertInAppProductPatchPrices(options InAppProductPatchOptions) bool {
 	return options.DefaultPrice != nil || len(options.RegionalPrices) > 0
+}
+
+func validateProductTaxComplianceSettings(settings ProductTaxComplianceSettings) error {
+	if settings.EEAWithdrawalRightType != "" {
+		switch settings.EEAWithdrawalRightType {
+		case "WITHDRAWAL_RIGHT_DIGITAL_CONTENT", "WITHDRAWAL_RIGHT_SERVICE":
+		default:
+			return fmt.Errorf("unsupported EEA withdrawal right type %q; supported values: WITHDRAWAL_RIGHT_DIGITAL_CONTENT, WITHDRAWAL_RIGHT_SERVICE", settings.EEAWithdrawalRightType)
+		}
+	}
+	if settings.EEAWithdrawalRightType == "" && settings.IsTokenizedDigitalAsset == nil && len(settings.TaxRateInfoByRegionCode) == 0 {
+		return fmt.Errorf("tax compliance patch requires at least one tax compliance field")
+	}
+	if err := validateRegionalTaxRateInfo(settings.TaxRateInfoByRegionCode); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateRegionalTaxRateInfo(regionalTaxRateInfo map[string]RegionalTaxRateInfo) error {
+	for regionCode, taxRateInfo := range regionalTaxRateInfo {
+		if taxRateInfo.TaxTier != "" {
+			regionalTaxTier := RegionalProductTaxTier{RegionCode: regionCode, TaxTier: taxRateInfo.TaxTier}
+			if err := regionalTaxTier.Validate(); err != nil {
+				return err
+			}
+		}
+		if taxRateInfo.StreamingTaxType != "" || taxRateInfo.EligibleForStreamingServiceTaxRate {
+			regionalStreamingTax := RegionalProductStreamingTax{RegionCode: regionCode, StreamingTaxType: taxRateInfo.StreamingTaxType}
+			if err := regionalStreamingTax.Validate(); err != nil {
+				return err
+			}
+		}
+		if taxRateInfo.TaxTier == "" && taxRateInfo.StreamingTaxType == "" && !taxRateInfo.EligibleForStreamingServiceTaxRate {
+			return fmt.Errorf("regional tax info for region %q requires a tax tier or streaming tax type", regionCode)
+		}
+	}
+	return nil
+}
+
+func RegionalProductTaxTiersToTaxRateInfo(tiers []RegionalProductTaxTier) (map[string]RegionalTaxRateInfo, error) {
+	if len(tiers) == 0 {
+		return nil, nil
+	}
+	taxRateInfo := make(map[string]RegionalTaxRateInfo, len(tiers))
+	for _, tier := range tiers {
+		if err := tier.Validate(); err != nil {
+			return nil, err
+		}
+		if _, ok := taxRateInfo[tier.RegionCode]; ok {
+			return nil, fmt.Errorf("regional tax tier for region %q is duplicated", tier.RegionCode)
+		}
+		taxRateInfo[tier.RegionCode] = RegionalTaxRateInfo{TaxTier: tier.TaxTier}
+	}
+	return taxRateInfo, nil
+}
+
+func RegionalProductStreamingTaxesToTaxRateInfo(taxes []RegionalProductStreamingTax) (map[string]RegionalTaxRateInfo, error) {
+	if len(taxes) == 0 {
+		return nil, nil
+	}
+	taxRateInfo := make(map[string]RegionalTaxRateInfo, len(taxes))
+	for _, tax := range taxes {
+		if err := tax.Validate(); err != nil {
+			return nil, err
+		}
+		if _, ok := taxRateInfo[tax.RegionCode]; ok {
+			return nil, fmt.Errorf("regional streaming tax for region %q is duplicated", tax.RegionCode)
+		}
+		taxRateInfo[tax.RegionCode] = RegionalTaxRateInfo{
+			EligibleForStreamingServiceTaxRate: true,
+			StreamingTaxType:                   tax.StreamingTaxType,
+		}
+	}
+	return taxRateInfo, nil
+}
+
+func MergeRegionalTaxRateInfo(target map[string]RegionalTaxRateInfo, source map[string]RegionalTaxRateInfo) map[string]RegionalTaxRateInfo {
+	if len(target) == 0 && len(source) == 0 {
+		return nil
+	}
+	merged := make(map[string]RegionalTaxRateInfo, len(target)+len(source))
+	for region, info := range target {
+		merged[region] = info
+	}
+	for region, sourceInfo := range source {
+		info := merged[region]
+		if sourceInfo.TaxTier != "" {
+			info.TaxTier = sourceInfo.TaxTier
+		}
+		if sourceInfo.StreamingTaxType != "" || sourceInfo.EligibleForStreamingServiceTaxRate {
+			info.StreamingTaxType = sourceInfo.StreamingTaxType
+			info.EligibleForStreamingServiceTaxRate = sourceInfo.EligibleForStreamingServiceTaxRate
+		}
+		merged[region] = info
+	}
+	return merged
 }
 
 func validateRegionalProductPrices(prices []RegionalProductPrice) error {

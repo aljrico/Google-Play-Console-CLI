@@ -2545,6 +2545,9 @@ func inAppProductPatchToAPI(options InAppProductPatchOptions) *androidpublisher.
 	if len(options.RegionalPrices) > 0 {
 		product.Prices = productPricesToAPI(regionalProductPricesToMap(options.RegionalPrices))
 	}
+	if options.TaxComplianceSettings != nil {
+		product.ManagedProductTaxesAndComplianceSettings = managedProductTaxComplianceSettingsToAPI(options.TaxComplianceSettings)
+	}
 	if options.Listing != nil {
 		product.Listings = map[string]androidpublisher.InAppProductListing{
 			options.ListingLanguage.String(): {
@@ -2577,6 +2580,38 @@ func productPricesToAPI(prices map[string]ProductPrice) map[string]androidpublis
 		apiPrices[region] = androidpublisher.Price{Currency: price.Currency, PriceMicros: price.PriceMicros}
 	}
 	return apiPrices
+}
+
+func managedProductTaxComplianceSettingsToAPI(settings *ProductTaxComplianceSettings) *androidpublisher.ManagedProductTaxAndComplianceSettings {
+	if settings == nil {
+		return nil
+	}
+	apiSettings := &androidpublisher.ManagedProductTaxAndComplianceSettings{
+		EeaWithdrawalRightType: settings.EEAWithdrawalRightType,
+	}
+	if settings.IsTokenizedDigitalAsset != nil {
+		apiSettings.IsTokenizedDigitalAsset = *settings.IsTokenizedDigitalAsset
+		apiSettings.ForceSendFields = append(apiSettings.ForceSendFields, "IsTokenizedDigitalAsset")
+	}
+	if len(settings.TaxRateInfoByRegionCode) > 0 {
+		apiSettings.TaxRateInfoByRegionCode = regionalTaxRateInfoToAPI(settings.TaxRateInfoByRegionCode)
+	}
+	return apiSettings
+}
+
+func regionalTaxRateInfoToAPI(taxRateInfo map[string]RegionalTaxRateInfo) map[string]androidpublisher.RegionalTaxRateInfo {
+	if len(taxRateInfo) == 0 {
+		return nil
+	}
+	apiTaxRateInfo := make(map[string]androidpublisher.RegionalTaxRateInfo, len(taxRateInfo))
+	for region, info := range taxRateInfo {
+		apiTaxRateInfo[region] = androidpublisher.RegionalTaxRateInfo{
+			EligibleForStreamingServiceTaxRate: info.EligibleForStreamingServiceTaxRate,
+			StreamingTaxType:                   info.StreamingTaxType,
+			TaxTier:                            info.TaxTier,
+		}
+	}
+	return apiTaxRateInfo
 }
 
 func productPricesFromAPI(apiPrices map[string]androidpublisher.Price) map[string]ProductPrice {
@@ -3188,9 +3223,10 @@ func managedProductTaxComplianceSettingsFromAPI(apiSettings *androidpublisher.Ma
 	if apiSettings == nil {
 		return nil
 	}
+	tokenizedDigitalAsset := apiSettings.IsTokenizedDigitalAsset
 	return &ProductTaxComplianceSettings{
 		EEAWithdrawalRightType:  apiSettings.EeaWithdrawalRightType,
-		IsTokenizedDigitalAsset: apiSettings.IsTokenizedDigitalAsset,
+		IsTokenizedDigitalAsset: &tokenizedDigitalAsset,
 		TaxRateInfoByRegionCode: regionalTaxRateInfoFromAPI(apiSettings.TaxRateInfoByRegionCode),
 	}
 }
@@ -3199,9 +3235,10 @@ func subscriptionTaxComplianceSettingsFromAPI(apiSettings *androidpublisher.Subs
 	if apiSettings == nil {
 		return nil
 	}
+	tokenizedDigitalAsset := apiSettings.IsTokenizedDigitalAsset
 	return &ProductTaxComplianceSettings{
 		EEAWithdrawalRightType:  apiSettings.EeaWithdrawalRightType,
-		IsTokenizedDigitalAsset: apiSettings.IsTokenizedDigitalAsset,
+		IsTokenizedDigitalAsset: &tokenizedDigitalAsset,
 		TaxRateInfoByRegionCode: regionalTaxRateInfoFromAPI(apiSettings.TaxRateInfoByRegionCode),
 	}
 }

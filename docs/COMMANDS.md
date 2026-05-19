@@ -843,11 +843,15 @@ gpc in-app-products patch [flags]
 - `--default-price`: Default checkout price as CURRENCY:MICROS, for example USD:1990000
 - `--description`: Default listing description
 - `--dry-run`: Print the planned managed in-app product patch without calling Google Play (default `false`)
+- `--eea-withdrawal-right-type`: EEA withdrawal right type: WITHDRAWAL_RIGHT_DIGITAL_CONTENT or WITHDRAWAL_RIGHT_SERVICE
 - `--listing-language`: BCP-47 listing language to update when --title and --description are set
 - `--regional-price`: Regional checkout price as REGION:CURRENCY:MICROS, for example US:USD:2990000; repeatable (default `[]`)
+- `--regional-streaming-tax`: US streaming tax type as US:STREAMING_TAX_TYPE, for example US:STREAMING_TAX_TYPE_TELCO_VIDEO_SALES; repeatable (default `[]`)
+- `--regional-tax-tier`: Regional reduced tax tier as REGION:TAX_TIER, for example FR:TAX_TIER_NEWS_1; repeatable (default `[]`)
 - `--sku`: In-app product SKU
 - `--status`: Product status: active or inactive
 - `--title`: Default listing title
+- `--tokenized-digital-asset`: Whether the managed product represents a tokenized digital asset: true or false
 
 ### gpc init
 

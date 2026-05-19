@@ -555,7 +555,7 @@ func TestInAppProductFromAPIMapsCatalogFields(t *testing.T) {
 	if product.ManagedProductTaxAndComplianceSettings == nil {
 		t.Fatal("ManagedProductTaxAndComplianceSettings = nil, want settings")
 	}
-	if !product.ManagedProductTaxAndComplianceSettings.IsTokenizedDigitalAsset {
+	if product.ManagedProductTaxAndComplianceSettings.IsTokenizedDigitalAsset == nil || !*product.ManagedProductTaxAndComplianceSettings.IsTokenizedDigitalAsset {
 		t.Fatal("IsTokenizedDigitalAsset = false, want true")
 	}
 	if product.ManagedProductTaxAndComplianceSettings.TaxRateInfoByRegionCode["US"].TaxTier != "TAX_TIER_NEWS_1" {
@@ -716,8 +716,12 @@ func TestGooglePublisherPatchInAppProductSendsStatusPatch(t *testing.T) {
 		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/inappproducts/coins_100" {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
 		var request androidpublisher.InAppProduct
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		if err := json.Unmarshal(body, &request); err != nil {
 			t.Fatalf("Decode() error = %v", err)
 		}
 		if request.Status != "inactive" || request.Sku != "coins_100" || request.PackageName != "com.example.app" {
@@ -752,8 +756,12 @@ func TestGooglePublisherPatchInAppProductSendsPriceAndListingPatch(t *testing.T)
 		if got := r.URL.Query().Get("autoConvertMissingPrices"); got != "true" {
 			t.Fatalf("autoConvertMissingPrices = %q, want true", got)
 		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
 		var request androidpublisher.InAppProduct
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		if err := json.Unmarshal(body, &request); err != nil {
 			t.Fatalf("Decode() error = %v", err)
 		}
 		if request.DefaultPrice == nil || request.DefaultPrice.PriceMicros != "2990000" {
@@ -833,6 +841,76 @@ func TestGooglePublisherPatchInAppProductSendsRegionalPricesPatch(t *testing.T) 
 	}
 	if product.Prices["BR"].PriceMicros != "9990000" {
 		t.Fatalf("product = %#v, want patched regional prices", product)
+	}
+}
+
+func TestGooglePublisherPatchInAppProductSendsTaxCompliancePatch(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Fatalf("method = %s, want PATCH", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/inappproducts/coins_100" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("autoConvertMissingPrices"); got != "" {
+			t.Fatalf("autoConvertMissingPrices = %q, want omitted", got)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		var request androidpublisher.InAppProduct
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		settings := request.ManagedProductTaxesAndComplianceSettings
+		if settings == nil {
+			t.Fatal("ManagedProductTaxesAndComplianceSettings = nil, want settings")
+		}
+		if settings.EeaWithdrawalRightType != "WITHDRAWAL_RIGHT_SERVICE" {
+			t.Fatalf("settings = %#v, want withdrawal type", settings)
+		}
+		if settings.IsTokenizedDigitalAsset {
+			t.Fatal("IsTokenizedDigitalAsset = true, want explicit false")
+		}
+		if settings.TaxRateInfoByRegionCode["FR"].TaxTier != "TAX_TIER_NEWS_1" {
+			t.Fatalf("TaxRateInfoByRegionCode = %#v, want FR tax tier", settings.TaxRateInfoByRegionCode)
+		}
+		if !settings.TaxRateInfoByRegionCode["US"].EligibleForStreamingServiceTaxRate || settings.TaxRateInfoByRegionCode["US"].StreamingTaxType != "STREAMING_TAX_TYPE_TELCO_VIDEO_SALES" {
+			t.Fatalf("TaxRateInfoByRegionCode = %#v, want US streaming tax", settings.TaxRateInfoByRegionCode)
+		}
+		if !strings.Contains(string(body), `"isTokenizedDigitalAsset":false`) {
+			t.Fatalf("body = %s, want explicit false tokenized field", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","sku":"coins_100","managedProductTaxesAndComplianceSettings":{"eeaWithdrawalRightType":"WITHDRAWAL_RIGHT_SERVICE","isTokenizedDigitalAsset":false,"taxRateInfoByRegionCode":{"FR":{"taxTier":"TAX_TIER_NEWS_1"},"US":{"eligibleForStreamingServiceTaxRate":true,"streamingTaxType":"STREAMING_TAX_TYPE_TELCO_VIDEO_SALES"}}}}`)
+	}))
+	tokenizedDigitalAsset := false
+
+	product, err := publisher.PatchInAppProduct(context.Background(), InAppProductPatchOptions{
+		PackageName: "com.example.app",
+		SKU:         "coins_100",
+		TaxComplianceSettings: &ProductTaxComplianceSettings{
+			EEAWithdrawalRightType:  "WITHDRAWAL_RIGHT_SERVICE",
+			IsTokenizedDigitalAsset: &tokenizedDigitalAsset,
+			TaxRateInfoByRegionCode: map[string]RegionalTaxRateInfo{
+				"FR": {TaxTier: "TAX_TIER_NEWS_1"},
+				"US": {EligibleForStreamingServiceTaxRate: true, StreamingTaxType: "STREAMING_TAX_TYPE_TELCO_VIDEO_SALES"},
+			},
+		},
+		Confirm: true,
+	})
+	if err != nil {
+		t.Fatalf("PatchInAppProduct() error = %v", err)
+	}
+	if product.ManagedProductTaxAndComplianceSettings == nil || product.ManagedProductTaxAndComplianceSettings.EEAWithdrawalRightType != "WITHDRAWAL_RIGHT_SERVICE" {
+		t.Fatalf("product = %#v, want tax settings", product)
+	}
+	if product.ManagedProductTaxAndComplianceSettings.TaxRateInfoByRegionCode["FR"].TaxTier != "TAX_TIER_NEWS_1" {
+		t.Fatalf("TaxRateInfoByRegionCode = %#v, want FR tax tier", product.ManagedProductTaxAndComplianceSettings.TaxRateInfoByRegionCode)
+	}
+	if product.ManagedProductTaxAndComplianceSettings.TaxRateInfoByRegionCode["US"].StreamingTaxType != "STREAMING_TAX_TYPE_TELCO_VIDEO_SALES" {
+		t.Fatalf("TaxRateInfoByRegionCode = %#v, want US streaming tax", product.ManagedProductTaxAndComplianceSettings.TaxRateInfoByRegionCode)
 	}
 }
 
@@ -1034,7 +1112,7 @@ func TestSubscriptionFromAPIMapsListingsAndBasePlans(t *testing.T) {
 	if len(subscription.RestrictedCountries) != 2 {
 		t.Fatalf("RestrictedCountries = %#v, want two countries", subscription.RestrictedCountries)
 	}
-	if subscription.TaxAndComplianceSettings == nil || !subscription.TaxAndComplianceSettings.IsTokenizedDigitalAsset {
+	if subscription.TaxAndComplianceSettings == nil || subscription.TaxAndComplianceSettings.IsTokenizedDigitalAsset == nil || !*subscription.TaxAndComplianceSettings.IsTokenizedDigitalAsset {
 		t.Fatalf("TaxAndComplianceSettings = %#v, want tokenized settings", subscription.TaxAndComplianceSettings)
 	}
 }

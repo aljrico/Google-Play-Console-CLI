@@ -3984,6 +3984,80 @@ func TestInAppProductsPatchRegionalPricesDryRunDoesNotRequireAuth(t *testing.T) 
 	}
 }
 
+func TestInAppProductsPatchTaxComplianceDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"patch",
+		"--package",
+		"com.example.app",
+		"--sku",
+		"coins_100",
+		"--eea-withdrawal-right-type",
+		"WITHDRAWAL_RIGHT_DIGITAL_CONTENT",
+		"--tokenized-digital-asset",
+		"false",
+		"--regional-tax-tier",
+		"FR:TAX_TIER_NEWS_1",
+		"--regional-streaming-tax",
+		"US:STREAMING_TAX_TYPE_TELCO_VIDEO_SALES",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"eeaWithdrawalRightType":"WITHDRAWAL_RIGHT_DIGITAL_CONTENT"`,
+		`"isTokenizedDigitalAsset":false`,
+		`"taxTier":"TAX_TIER_NEWS_1"`,
+		`"streamingTaxType":"STREAMING_TAX_TYPE_TELCO_VIDEO_SALES"`,
+		`"dryRun":true`,
+		`"applied":false`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
+func TestInAppProductsPatchRejectsBadTokenizedDigitalAssetBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"patch",
+		"--package",
+		"com.example.app",
+		"--sku",
+		"coins_100",
+		"--tokenized-digital-asset",
+		"maybe",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected tokenized digital asset validation error")
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
 func TestInAppProductsPatchRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

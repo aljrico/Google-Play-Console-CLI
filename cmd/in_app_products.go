@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"io"
+	"strconv"
 
 	"github.com/aljrico/Google-Play-Console-CLI/internal/output"
 	"github.com/aljrico/Google-Play-Console-CLI/internal/play"
@@ -354,16 +355,20 @@ func runInAppProductCreate(cmd *cobra.Command, out io.Writer, options *globalOpt
 
 func newInAppProductsPatchCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	var (
-		sku             string
-		status          string
-		defaultLanguage string
-		listingLanguage string
-		defaultPrice    string
-		regionalPrices  []string
-		title           string
-		description     string
-		confirm         bool
-		dryRun          bool
+		sku                    string
+		status                 string
+		defaultLanguage        string
+		listingLanguage        string
+		defaultPrice           string
+		regionalPrices         []string
+		regionalTaxTiers       []string
+		regionalStreamingTaxes []string
+		eeaWithdrawalRightType string
+		tokenizedDigitalAsset  string
+		title                  string
+		description            string
+		confirm                bool
+		dryRun                 bool
 	)
 
 	cmd := &cobra.Command{
@@ -420,6 +425,36 @@ func newInAppProductsPatchCommand(out io.Writer, options *globalOptions, package
 				}
 				patchOptions.RegionalPrices = append(patchOptions.RegionalPrices, typedRegionalPrice)
 			}
+			if eeaWithdrawalRightType != "" || tokenizedDigitalAsset != "" || len(regionalTaxTiers) > 0 || len(regionalStreamingTaxes) > 0 {
+				taxSettings := play.ProductTaxComplianceSettings{
+					EEAWithdrawalRightType: eeaWithdrawalRightType,
+				}
+				if tokenizedDigitalAsset != "" {
+					parsedTokenizedDigitalAsset, err := strconv.ParseBool(tokenizedDigitalAsset)
+					if err != nil {
+						return err
+					}
+					taxSettings.IsTokenizedDigitalAsset = &parsedTokenizedDigitalAsset
+				}
+				typedRegionalTaxTiers, err := parseRegionalProductTaxTiers(regionalTaxTiers)
+				if err != nil {
+					return err
+				}
+				taxRateInfo, err := play.RegionalProductTaxTiersToTaxRateInfo(typedRegionalTaxTiers)
+				if err != nil {
+					return err
+				}
+				typedRegionalStreamingTaxes, err := parseRegionalProductStreamingTaxes(regionalStreamingTaxes)
+				if err != nil {
+					return err
+				}
+				streamingTaxRateInfo, err := play.RegionalProductStreamingTaxesToTaxRateInfo(typedRegionalStreamingTaxes)
+				if err != nil {
+					return err
+				}
+				taxSettings.TaxRateInfoByRegionCode = play.MergeRegionalTaxRateInfo(taxRateInfo, streamingTaxRateInfo)
+				patchOptions.TaxComplianceSettings = &taxSettings
+			}
 			if title != "" || description != "" {
 				patchOptions.Listing = &play.InAppProductListing{
 					Title:       title,
@@ -435,11 +470,39 @@ func newInAppProductsPatchCommand(out io.Writer, options *globalOptions, package
 	cmd.Flags().StringVar(&listingLanguage, "listing-language", "", "BCP-47 listing language to update when --title and --description are set")
 	cmd.Flags().StringVar(&defaultPrice, "default-price", "", "Default checkout price as CURRENCY:MICROS, for example USD:1990000")
 	cmd.Flags().StringArrayVar(&regionalPrices, "regional-price", nil, "Regional checkout price as REGION:CURRENCY:MICROS, for example US:USD:2990000; repeatable")
+	cmd.Flags().StringArrayVar(&regionalTaxTiers, "regional-tax-tier", nil, "Regional reduced tax tier as REGION:TAX_TIER, for example FR:TAX_TIER_NEWS_1; repeatable")
+	cmd.Flags().StringArrayVar(&regionalStreamingTaxes, "regional-streaming-tax", nil, "US streaming tax type as US:STREAMING_TAX_TYPE, for example US:STREAMING_TAX_TYPE_TELCO_VIDEO_SALES; repeatable")
+	cmd.Flags().StringVar(&eeaWithdrawalRightType, "eea-withdrawal-right-type", "", "EEA withdrawal right type: WITHDRAWAL_RIGHT_DIGITAL_CONTENT or WITHDRAWAL_RIGHT_SERVICE")
+	cmd.Flags().StringVar(&tokenizedDigitalAsset, "tokenized-digital-asset", "", "Whether the managed product represents a tokenized digital asset: true or false")
 	cmd.Flags().StringVar(&title, "title", "", "Default listing title")
 	cmd.Flags().StringVar(&description, "description", "", "Default listing description")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the managed in-app product patch")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned managed in-app product patch without calling Google Play")
 	return cmd
+}
+
+func parseRegionalProductTaxTiers(values []string) ([]play.RegionalProductTaxTier, error) {
+	tiers := make([]play.RegionalProductTaxTier, 0, len(values))
+	for _, value := range values {
+		tier, err := play.NewRegionalProductTaxTier(value)
+		if err != nil {
+			return nil, err
+		}
+		tiers = append(tiers, tier)
+	}
+	return tiers, nil
+}
+
+func parseRegionalProductStreamingTaxes(values []string) ([]play.RegionalProductStreamingTax, error) {
+	taxes := make([]play.RegionalProductStreamingTax, 0, len(values))
+	for _, value := range values {
+		tax, err := play.NewRegionalProductStreamingTax(value)
+		if err != nil {
+			return nil, err
+		}
+		taxes = append(taxes, tax)
+	}
+	return taxes, nil
 }
 
 func runInAppProductPatch(cmd *cobra.Command, out io.Writer, options *globalOptions, patchOptions play.InAppProductPatchOptions) error {
