@@ -409,12 +409,11 @@ func (p GooglePublisher) PatchInAppProduct(ctx context.Context, options InAppPro
 	if err := options.ValidateLive(); err != nil {
 		return InAppProduct{}, err
 	}
-	request := &androidpublisher.InAppProduct{
-		PackageName: options.PackageName.String(),
-		Sku:         options.SKU.String(),
-		Status:      options.Status.String(),
+	call := p.service.Inappproducts.Patch(options.PackageName.String(), options.SKU.String(), inAppProductPatchToAPI(options))
+	if options.DefaultPrice != nil {
+		call.AutoConvertMissingPrices(true)
 	}
-	product, err := p.service.Inappproducts.Patch(options.PackageName.String(), options.SKU.String(), request).Context(ctx).Do()
+	product, err := call.Context(ctx).Do()
 	if err != nil {
 		return InAppProduct{}, fmt.Errorf("patch in-app product %s for %s: %w", options.SKU, options.PackageName, err)
 	}
@@ -1803,6 +1802,32 @@ func inAppProductCreateToAPI(options InAppProductCreateOptions) *androidpublishe
 			},
 		},
 	}
+}
+
+func inAppProductPatchToAPI(options InAppProductPatchOptions) *androidpublisher.InAppProduct {
+	product := &androidpublisher.InAppProduct{
+		PackageName: options.PackageName.String(),
+		Sku:         options.SKU.String(),
+	}
+	if options.Status != "" {
+		product.Status = options.Status.String()
+	}
+	if options.DefaultLanguage != "" {
+		product.DefaultLanguage = options.DefaultLanguage.String()
+	}
+	if options.DefaultPrice != nil {
+		product.DefaultPrice = productPriceToAPI(*options.DefaultPrice)
+	}
+	if options.Listing != nil {
+		product.Listings = map[string]androidpublisher.InAppProductListing{
+			options.ListingLanguage.String(): {
+				Title:       options.Listing.Title,
+				Description: options.Listing.Description,
+				Benefits:    options.Listing.Benefits,
+			},
+		}
+	}
+	return product
 }
 
 func productPriceFromAPI(apiPrice *androidpublisher.Price) *ProductPrice {

@@ -794,9 +794,14 @@ gpc in-app-products patch [flags]
 ##### Flags
 
 - `--confirm`: Apply the managed in-app product patch (default `false`)
+- `--default-language`: Default BCP-47 listing language to set on the product
+- `--default-price`: Default checkout price as CURRENCY:MICROS, for example USD:1990000
+- `--description`: Default listing description
 - `--dry-run`: Print the planned managed in-app product patch without calling Google Play (default `false`)
+- `--listing-language`: BCP-47 listing language to update when --title and --description are set
 - `--sku`: In-app product SKU
 - `--status`: Product status: active or inactive
+- `--title`: Default listing title
 
 ### gpc init
 

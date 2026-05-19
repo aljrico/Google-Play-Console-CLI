@@ -619,6 +619,54 @@ func TestGooglePublisherPatchInAppProductSendsStatusPatch(t *testing.T) {
 	}
 }
 
+func TestGooglePublisherPatchInAppProductSendsPriceAndListingPatch(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Fatalf("method = %s, want PATCH", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/inappproducts/coins_100" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("autoConvertMissingPrices"); got != "true" {
+			t.Fatalf("autoConvertMissingPrices = %q, want true", got)
+		}
+		var request androidpublisher.InAppProduct
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if request.DefaultPrice == nil || request.DefaultPrice.PriceMicros != "2990000" {
+			t.Fatalf("DefaultPrice = %#v, want 2990000 micros", request.DefaultPrice)
+		}
+		if request.DefaultLanguage != "" {
+			t.Fatalf("DefaultLanguage = %q, want omitted", request.DefaultLanguage)
+		}
+		if request.Listings["en-US"].Description != "A better coin pack." {
+			t.Fatalf("request = %#v, want default listing patch", request)
+		}
+		if request.Status != "" {
+			t.Fatalf("Status = %q, want omitted", request.Status)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","sku":"coins_100","defaultPrice":{"currency":"USD","priceMicros":"2990000"},"listings":{"en-US":{"title":"100 coins","description":"A better coin pack."}}}`)
+	}))
+	price := ProductPrice{Currency: "USD", PriceMicros: "2990000"}
+
+	product, err := publisher.PatchInAppProduct(context.Background(), InAppProductPatchOptions{
+		PackageName:     "com.example.app",
+		SKU:             "coins_100",
+		ListingLanguage: "en-US",
+		DefaultPrice:    &price,
+		Listing:         &InAppProductListing{Title: "100 coins", Description: "A better coin pack."},
+		Confirm:         true,
+	})
+	if err != nil {
+		t.Fatalf("PatchInAppProduct() error = %v", err)
+	}
+	if product.DefaultPrice == nil || product.DefaultPrice.PriceMicros != "2990000" {
+		t.Fatalf("product = %#v, want patched price", product)
+	}
+}
+
 func TestGooglePublisherCreateInAppProductSendsManagedProduct(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

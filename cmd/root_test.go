@@ -3495,6 +3495,51 @@ func TestInAppProductsPatchDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestInAppProductsPatchPriceAndListingDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"patch",
+		"--package",
+		"com.example.app",
+		"--sku",
+		"coins_100",
+		"--listing-language",
+		"en-US",
+		"--default-price",
+		"USD:2990000",
+		"--title",
+		"100 coins",
+		"--description",
+		"A better coin pack.",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"action":"patch"`,
+		`"dryRun":true`,
+		`"priceMicros":"2990000"`,
+		`"autoConvertMissingPrices":true`,
+		`"description":"A better coin pack."`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect auth", output)
+	}
+}
+
 func TestInAppProductsPatchRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
@@ -3519,6 +3564,92 @@ func TestInAppProductsPatchRequiresDryRunOrConfirmBeforeAuth(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "requires --confirm or --dry-run") {
 		t.Fatalf("error = %v, want confirmation validation", err)
+	}
+}
+
+func TestInAppProductsPatchRejectsMissingMutationBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"patch",
+		"--package",
+		"com.example.app",
+		"--sku",
+		"coins_100",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected mutation validation error")
+	}
+	if !strings.Contains(err.Error(), "requires at least one") {
+		t.Fatalf("error = %v, want mutation validation", err)
+	}
+}
+
+func TestInAppProductsPatchRejectsListingWithoutLanguageBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"patch",
+		"--package",
+		"com.example.app",
+		"--sku",
+		"coins_100",
+		"--title",
+		"100 coins",
+		"--description",
+		"A better coin pack.",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected listing language validation error")
+	}
+	if !strings.Contains(err.Error(), "requires --listing-language") {
+		t.Fatalf("error = %v, want default language validation", err)
+	}
+}
+
+func TestInAppProductsPatchRejectsPartialListingBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"in-app-products",
+		"patch",
+		"--package",
+		"com.example.app",
+		"--sku",
+		"coins_100",
+		"--listing-language",
+		"en-US",
+		"--title",
+		"100 coins",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected partial listing validation error")
+	}
+	if !strings.Contains(err.Error(), "listing description is required") {
+		t.Fatalf("error = %v, want listing description validation", err)
 	}
 }
 

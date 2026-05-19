@@ -118,6 +118,7 @@ gpc in-app-products list --package com.example.app
 gpc in-app-products get --package com.example.app --sku coins_100
 gpc in-app-products create --package com.example.app --sku coins_100 --default-language en-US --default-price USD:1990000 --title "100 coins" --description "A small coin pack." --dry-run
 gpc in-app-products patch --package com.example.app --sku coins_100 --status inactive --dry-run
+gpc in-app-products patch --package com.example.app --sku coins_100 --listing-language en-US --default-price USD:2990000 --title "100 coins" --description "A better coin pack." --dry-run
 gpc one-time-products list --package com.example.app --page-size 50
 gpc one-time-products get --package com.example.app --product-id coins_100
 gpc one-time-products purchase-option deactivate --package com.example.app --product-id coins_100 --purchase-option-id buy --dry-run
@@ -190,7 +191,7 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 
 `finance reports download` and `analytics stats download` fetch report objects from the Google Play reports Cloud Storage bucket. Use the bucket ID shown in Play Console, usually shaped like `pubsite_prod_rev_0123456789`, and pass the exact object path for the report you want. Financial reports are ZIP files; statistics reports are CSV files.
 
-`in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `create` builds managed products only and asks Google to auto-convert missing regional prices from the default price, while live status patches reject legacy subscription SKUs. `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources.
+`in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `create` builds managed products only and asks Google to auto-convert missing regional prices from the default price, while live patches reject legacy subscription SKUs. Price patches also request regional auto-conversion. `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources.
 
 ### First Publish Flow
 

@@ -292,6 +292,38 @@ func TestPatchInAppProductDryRunBuildsPlanWithoutPatcher(t *testing.T) {
 	}
 }
 
+func TestPatchInAppProductDryRunBuildsPriceAndListingPlan(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	price, err := NewProductPrice("USD:2990000")
+	if err != nil {
+		t.Fatalf("NewProductPrice() error = %v", err)
+	}
+
+	result, err := PatchInAppProduct(context.Background(), nil, InAppProductPatchOptions{
+		PackageName:     packageName,
+		SKU:             "coins_100",
+		ListingLanguage: "en-US",
+		DefaultPrice:    &price,
+		Listing:         &InAppProductListing{Title: "100 coins", Description: "A better coin pack."},
+		DryRun:          true,
+	})
+	if err != nil {
+		t.Fatalf("PatchInAppProduct() error = %v", err)
+	}
+	if result.Desired.DefaultPrice == nil || result.Desired.DefaultPrice.PriceMicros != "2990000" {
+		t.Fatalf("DefaultPrice = %#v, want 2990000 micros", result.Desired.DefaultPrice)
+	}
+	if result.Desired.Listings["en-US"].Description != "A better coin pack." {
+		t.Fatalf("Listings = %#v, want patched listing", result.Desired.Listings)
+	}
+	if !result.Plan.AutoConvertMissingPrices {
+		t.Fatal("AutoConvertMissingPrices = false, want true")
+	}
+}
+
 func TestPatchInAppProductRequiresConfirmOrDryRun(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -305,6 +337,57 @@ func TestPatchInAppProductRequiresConfirmOrDryRun(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected confirmation validation error")
+	}
+}
+
+func TestPatchInAppProductRequiresMutation(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = PatchInAppProduct(context.Background(), nil, InAppProductPatchOptions{
+		PackageName: packageName,
+		SKU:         "coins_100",
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected mutation validation error")
+	}
+}
+
+func TestPatchInAppProductListingRequiresListingLanguage(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = PatchInAppProduct(context.Background(), nil, InAppProductPatchOptions{
+		PackageName: packageName,
+		SKU:         "coins_100",
+		Listing:     &InAppProductListing{Title: "100 coins", Description: "A small coin pack."},
+		DryRun:      true,
+	})
+	if err == nil {
+		t.Fatal("expected listing language validation error")
+	}
+}
+
+func TestPatchInAppProductRejectsPartialListing(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = PatchInAppProduct(context.Background(), nil, InAppProductPatchOptions{
+		PackageName:     packageName,
+		SKU:             "coins_100",
+		ListingLanguage: "en-US",
+		Listing:         &InAppProductListing{Title: "100 coins"},
+		DryRun:          true,
+	})
+	if err == nil {
+		t.Fatal("expected full listing validation error")
 	}
 }
 

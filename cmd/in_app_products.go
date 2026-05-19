@@ -181,10 +181,15 @@ func runInAppProductCreate(cmd *cobra.Command, out io.Writer, options *globalOpt
 
 func newInAppProductsPatchCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
 	var (
-		sku     string
-		status  string
-		confirm bool
-		dryRun  bool
+		sku             string
+		status          string
+		defaultLanguage string
+		listingLanguage string
+		defaultPrice    string
+		title           string
+		description     string
+		confirm         bool
+		dryRun          bool
 	)
 
 	cmd := &cobra.Command{
@@ -200,22 +205,56 @@ func newInAppProductsPatchCommand(out io.Writer, options *globalOptions, package
 			if err != nil {
 				return err
 			}
-			typedStatus, err := play.NewProductStatus(status)
-			if err != nil {
-				return err
-			}
 			patchOptions := play.InAppProductPatchOptions{
 				PackageName: typedPackageName,
 				SKU:         typedSKU,
-				Status:      typedStatus,
 				Confirm:     confirm,
 				DryRun:      dryRun,
+			}
+			if status != "" {
+				typedStatus, err := play.NewProductStatus(status)
+				if err != nil {
+					return err
+				}
+				patchOptions.Status = typedStatus
+			}
+			if defaultLanguage != "" {
+				typedDefaultLanguage, err := play.NewListingLanguage(defaultLanguage)
+				if err != nil {
+					return err
+				}
+				patchOptions.DefaultLanguage = typedDefaultLanguage
+			}
+			if listingLanguage != "" {
+				typedListingLanguage, err := play.NewListingLanguage(listingLanguage)
+				if err != nil {
+					return err
+				}
+				patchOptions.ListingLanguage = typedListingLanguage
+			}
+			if defaultPrice != "" {
+				typedDefaultPrice, err := play.NewProductPrice(defaultPrice)
+				if err != nil {
+					return err
+				}
+				patchOptions.DefaultPrice = &typedDefaultPrice
+			}
+			if title != "" || description != "" {
+				patchOptions.Listing = &play.InAppProductListing{
+					Title:       title,
+					Description: description,
+				}
 			}
 			return runInAppProductPatch(cmd, out, options, patchOptions)
 		},
 	}
 	cmd.Flags().StringVar(&sku, "sku", "", "In-app product SKU")
 	cmd.Flags().StringVar(&status, "status", "", "Product status: active or inactive")
+	cmd.Flags().StringVar(&defaultLanguage, "default-language", "", "Default BCP-47 listing language to set on the product")
+	cmd.Flags().StringVar(&listingLanguage, "listing-language", "", "BCP-47 listing language to update when --title and --description are set")
+	cmd.Flags().StringVar(&defaultPrice, "default-price", "", "Default checkout price as CURRENCY:MICROS, for example USD:1990000")
+	cmd.Flags().StringVar(&title, "title", "", "Default listing title")
+	cmd.Flags().StringVar(&description, "description", "", "Default listing description")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Apply the managed in-app product patch")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned managed in-app product patch without calling Google Play")
 	return cmd

@@ -192,17 +192,8 @@ func (o InAppProductCreateOptions) Validate() error {
 	if err := o.DefaultPrice.Validate(); err != nil {
 		return err
 	}
-	if strings.TrimSpace(o.Listing.Title) == "" {
-		return fmt.Errorf("listing title is required")
-	}
-	if utf8.RuneCountInString(o.Listing.Title) > inAppProductListingTitleLimit {
-		return fmt.Errorf("listing title must be %d characters or fewer", inAppProductListingTitleLimit)
-	}
-	if strings.TrimSpace(o.Listing.Description) == "" {
-		return fmt.Errorf("listing description is required")
-	}
-	if utf8.RuneCountInString(o.Listing.Description) > inAppProductListingDescriptionLimit {
-		return fmt.Errorf("listing description must be %d characters or fewer", inAppProductListingDescriptionLimit)
+	if err := validateRequiredInAppProductListing(o.Listing); err != nil {
+		return err
 	}
 	if o.DryRun && o.Confirm {
 		return fmt.Errorf("--confirm and --dry-run cannot be used together")
@@ -365,11 +356,16 @@ func GetInAppProduct(ctx context.Context, getter InAppProductGetter, options InA
 }
 
 type InAppProductPatchOptions struct {
-	PackageName PackageName     `json:"packageName"`
-	SKU         InAppProductSKU `json:"sku"`
-	Status      ProductStatus   `json:"status"`
-	Confirm     bool            `json:"confirm"`
-	DryRun      bool            `json:"dryRun"`
+	PackageName              PackageName          `json:"packageName"`
+	SKU                      InAppProductSKU      `json:"sku"`
+	Status                   ProductStatus        `json:"status,omitempty"`
+	DefaultLanguage          ListingLanguage      `json:"defaultLanguage,omitempty"`
+	DefaultPrice             *ProductPrice        `json:"defaultPrice,omitempty"`
+	ListingLanguage          ListingLanguage      `json:"listingLanguage,omitempty"`
+	Listing                  *InAppProductListing `json:"listing,omitempty"`
+	AutoConvertMissingPrices bool                 `json:"autoConvertMissingPrices"`
+	Confirm                  bool                 `json:"confirm"`
+	DryRun                   bool                 `json:"dryRun"`
 }
 
 func (o InAppProductPatchOptions) Validate() error {
@@ -379,8 +375,38 @@ func (o InAppProductPatchOptions) Validate() error {
 	if _, err := NewInAppProductSKU(o.SKU.String()); err != nil {
 		return err
 	}
-	if err := o.Status.Validate(); err != nil {
-		return err
+	if o.Status != "" {
+		if err := o.Status.Validate(); err != nil {
+			return err
+		}
+	}
+	if o.DefaultLanguage != "" {
+		if _, err := NewListingLanguage(o.DefaultLanguage.String()); err != nil {
+			return err
+		}
+	}
+	if o.DefaultPrice != nil {
+		if err := o.DefaultPrice.Validate(); err != nil {
+			return err
+		}
+	}
+	if o.ListingLanguage != "" {
+		if _, err := NewListingLanguage(o.ListingLanguage.String()); err != nil {
+			return err
+		}
+	}
+	if o.Listing != nil {
+		if o.ListingLanguage == "" {
+			return fmt.Errorf("listing patch requires --listing-language")
+		}
+		if err := validateRequiredInAppProductListing(*o.Listing); err != nil {
+			return err
+		}
+	} else if o.ListingLanguage != "" {
+		return fmt.Errorf("--listing-language requires --title and --description")
+	}
+	if !o.HasMutation() {
+		return fmt.Errorf("in-app product patch requires at least one of --status, --default-price, --default-language, --listing-language, --title, or --description")
 	}
 	if o.DryRun && o.Confirm {
 		return fmt.Errorf("--confirm and --dry-run cannot be used together")
@@ -389,6 +415,10 @@ func (o InAppProductPatchOptions) Validate() error {
 		return fmt.Errorf("in-app product patch requires --confirm or --dry-run")
 	}
 	return nil
+}
+
+func (o InAppProductPatchOptions) HasMutation() bool {
+	return o.Status != "" || o.DefaultPrice != nil || o.DefaultLanguage != "" || o.ListingLanguage != "" || o.Listing != nil
 }
 
 func (o InAppProductPatchOptions) ValidateLive() error {
@@ -405,12 +435,17 @@ func (o InAppProductPatchOptions) ValidateLive() error {
 }
 
 type InAppProductPatchPlan struct {
-	Action      string          `json:"action"`
-	PackageName PackageName     `json:"packageName"`
-	SKU         InAppProductSKU `json:"sku"`
-	Status      ProductStatus   `json:"status"`
-	Confirm     bool            `json:"confirm"`
-	Steps       []string        `json:"steps"`
+	Action                   string               `json:"action"`
+	PackageName              PackageName          `json:"packageName"`
+	SKU                      InAppProductSKU      `json:"sku"`
+	Status                   ProductStatus        `json:"status,omitempty"`
+	DefaultLanguage          ListingLanguage      `json:"defaultLanguage,omitempty"`
+	DefaultPrice             *ProductPrice        `json:"defaultPrice,omitempty"`
+	ListingLanguage          ListingLanguage      `json:"listingLanguage,omitempty"`
+	Listing                  *InAppProductListing `json:"listing,omitempty"`
+	AutoConvertMissingPrices bool                 `json:"autoConvertMissingPrices"`
+	Confirm                  bool                 `json:"confirm"`
+	Steps                    []string             `json:"steps"`
 }
 
 type InAppProductPatchResult struct {
@@ -430,22 +465,23 @@ func PatchInAppProduct(ctx context.Context, patcher InAppProductPatcher, options
 	if err := options.Validate(); err != nil {
 		return InAppProductPatchResult{}, err
 	}
-	desired := InAppProduct{
-		PackageName: options.PackageName,
-		SKU:         options.SKU,
-		Status:      options.Status,
-	}
+	desired := inAppProductPatchDesiredProduct(options)
 	result := InAppProductPatchResult{
 		Action:  "patch",
 		DryRun:  options.DryRun,
 		Desired: desired,
 		Plan: InAppProductPatchPlan{
-			Action:      "patch",
-			PackageName: options.PackageName,
-			SKU:         options.SKU,
-			Status:      options.Status,
-			Confirm:     options.Confirm,
-			Steps:       inAppProductPatchSteps(options.DryRun),
+			Action:                   "patch",
+			PackageName:              options.PackageName,
+			SKU:                      options.SKU,
+			Status:                   options.Status,
+			DefaultLanguage:          options.DefaultLanguage,
+			DefaultPrice:             options.DefaultPrice,
+			ListingLanguage:          options.ListingLanguage,
+			Listing:                  options.Listing,
+			AutoConvertMissingPrices: options.DefaultPrice != nil,
+			Confirm:                  options.Confirm,
+			Steps:                    inAppProductPatchSteps(options.DryRun),
 		},
 	}
 	if options.DryRun {
@@ -479,4 +515,40 @@ func inAppProductPatchSteps(dryRun bool) []string {
 		return []string{"plan in-app product patch"}
 	}
 	return []string{"patch in-app product"}
+}
+
+func inAppProductPatchDesiredProduct(options InAppProductPatchOptions) InAppProduct {
+	product := InAppProduct{
+		PackageName: options.PackageName,
+		SKU:         options.SKU,
+		Status:      options.Status,
+	}
+	if options.DefaultLanguage != "" {
+		product.DefaultLanguage = options.DefaultLanguage.String()
+	}
+	if options.DefaultPrice != nil {
+		product.DefaultPrice = options.DefaultPrice
+	}
+	if options.Listing != nil {
+		product.Listings = map[string]InAppProductListing{
+			options.ListingLanguage.String(): *options.Listing,
+		}
+	}
+	return product
+}
+
+func validateRequiredInAppProductListing(listing InAppProductListing) error {
+	if strings.TrimSpace(listing.Title) == "" {
+		return fmt.Errorf("listing title is required")
+	}
+	if utf8.RuneCountInString(listing.Title) > inAppProductListingTitleLimit {
+		return fmt.Errorf("listing title must be %d characters or fewer", inAppProductListingTitleLimit)
+	}
+	if strings.TrimSpace(listing.Description) == "" {
+		return fmt.Errorf("listing description is required")
+	}
+	if utf8.RuneCountInString(listing.Description) > inAppProductListingDescriptionLimit {
+		return fmt.Errorf("listing description must be %d characters or fewer", inAppProductListingDescriptionLimit)
+	}
+	return nil
 }
