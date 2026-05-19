@@ -102,6 +102,78 @@ func TestGetOneTimeProductOfferPassesOptionsToGetter(t *testing.T) {
 	}
 }
 
+func TestBatchGetOneTimeProductOffersPassesOptionsToGetter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	getter := &fakeOneTimeProductOfferClient{
+		batchResult: OneTimeProductOfferBatchGetResult{
+			PackageName: packageName,
+			ProductID:   "coins_100",
+			Offers:      []OneTimeProductOffer{{OfferID: "intro"}},
+		},
+	}
+	options := OneTimeProductOfferBatchGetOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "buy",
+		Requests: []OneTimeProductOfferBatchGetRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro"},
+		},
+	}
+
+	result, err := BatchGetOneTimeProductOffers(context.Background(), getter, options)
+	if err != nil {
+		t.Fatalf("BatchGetOneTimeProductOffers() error = %v", err)
+	}
+	if len(result.Offers) != 1 {
+		t.Fatalf("len(Offers) = %d, want 1", len(result.Offers))
+	}
+	if !reflect.DeepEqual(getter.batchOptions, options) {
+		t.Fatalf("batchOptions = %#v, want %#v", getter.batchOptions, options)
+	}
+}
+
+func TestBatchGetOneTimeProductOffersRejectsParentProductMismatch(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchGetOneTimeProductOffers(context.Background(), nil, OneTimeProductOfferBatchGetOptions{
+		PackageName:      packageName,
+		ProductID:        "coins_100",
+		PurchaseOptionID: "-",
+		Requests: []OneTimeProductOfferBatchGetRequest{
+			{ProductID: "coins_500", PurchaseOptionID: "buy", OfferID: "intro"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected parent product mismatch validation error")
+	}
+}
+
+func TestBatchGetOneTimeProductOffersRejectsDuplicates(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchGetOneTimeProductOffers(context.Background(), nil, OneTimeProductOfferBatchGetOptions{
+		PackageName:      packageName,
+		ProductID:        "-",
+		PurchaseOptionID: "-",
+		Requests: []OneTimeProductOfferBatchGetRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro"},
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected duplicate validation error")
+	}
+}
+
 func TestUpdateOneTimeProductOfferStateDryRunBuildsPlanWithoutUpdater(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -182,6 +254,8 @@ func TestUpdateOneTimeProductOfferStatePassesOptionsToUpdater(t *testing.T) {
 type fakeOneTimeProductOfferClient struct {
 	listOptions  OneTimeProductOfferListOptions
 	listResult   OneTimeProductOfferListResult
+	batchOptions OneTimeProductOfferBatchGetOptions
+	batchResult  OneTimeProductOfferBatchGetResult
 	getOptions   OneTimeProductOfferGetOptions
 	stateOptions OneTimeProductOfferStateUpdateOptions
 	offer        OneTimeProductOffer
@@ -195,6 +269,11 @@ func (c *fakeOneTimeProductOfferClient) ListOneTimeProductOffers(ctx context.Con
 func (c *fakeOneTimeProductOfferClient) GetOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error) {
 	c.getOptions = options
 	return c.offer, nil
+}
+
+func (c *fakeOneTimeProductOfferClient) BatchGetOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchGetOptions) (OneTimeProductOfferBatchGetResult, error) {
+	c.batchOptions = options
+	return c.batchResult, nil
 }
 
 func (c *fakeOneTimeProductOfferClient) UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error) {

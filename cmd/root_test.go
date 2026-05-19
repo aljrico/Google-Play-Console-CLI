@@ -4345,6 +4345,100 @@ func TestOneTimeProductOffersGetRejectsInvalidOfferIDBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestOneTimeProductOffersBatchGetRejectsMissingOfferBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"-",
+		"--purchase-option-id",
+		"-",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected offer validation error")
+	}
+	if !strings.Contains(err.Error(), "at least one one-time product offer") {
+		t.Fatalf("error = %v, want missing offer validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestOneTimeProductOffersBatchGetRejectsParentMismatchBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"coins_100",
+		"--purchase-option-id",
+		"buy",
+		"--offer",
+		"coins_500/buy/intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected parent mismatch validation error")
+	}
+	if !strings.Contains(err.Error(), "does not match parent product ID") {
+		t.Fatalf("error = %v, want parent product validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestOneTimeProductOffersBatchGetRejectsInvalidOfferIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"one-time-product-offers",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"-",
+		"--purchase-option-id",
+		"-",
+		"--offer",
+		"coins_100/buy/Intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected offer ID validation error")
+	}
+	if !strings.Contains(err.Error(), "one-time product offer ID") {
+		t.Fatalf("error = %v, want offer ID validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
 func TestOneTimeProductOffersDeactivateDryRunPrintsPlanBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

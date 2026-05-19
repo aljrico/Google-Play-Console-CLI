@@ -3,6 +3,7 @@ package play
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 const OneTimeProductOfferWildcardID = "-"
@@ -193,6 +194,39 @@ type OneTimeProductOfferGetOptions struct {
 	OfferID          OneTimeProductOfferID          `json:"offerId"`
 }
 
+type OneTimeProductOfferBatchGetRequest struct {
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+	OfferID          OneTimeProductOfferID          `json:"offerId"`
+}
+
+func NewOneTimeProductOfferBatchGetRequest(value string) (OneTimeProductOfferBatchGetRequest, error) {
+	parts := strings.Split(strings.TrimSpace(value), "/")
+	if len(parts) != 3 {
+		return OneTimeProductOfferBatchGetRequest{}, fmt.Errorf("one-time product offer must use productId/purchaseOptionId/offerId")
+	}
+	productID, err := NewOneTimeProductID(parts[0])
+	if err != nil {
+		return OneTimeProductOfferBatchGetRequest{}, err
+	}
+	purchaseOptionID, err := NewOneTimeProductPurchaseOptionID(parts[1])
+	if err != nil {
+		return OneTimeProductOfferBatchGetRequest{}, err
+	}
+	offerID, err := NewOneTimeProductOfferID(parts[2])
+	if err != nil {
+		return OneTimeProductOfferBatchGetRequest{}, err
+	}
+	return OneTimeProductOfferBatchGetRequest{ProductID: productID, PurchaseOptionID: purchaseOptionID, OfferID: offerID}, nil
+}
+
+type OneTimeProductOfferBatchGetOptions struct {
+	PackageName      PackageName                          `json:"packageName"`
+	ProductID        OneTimeProductID                     `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID       `json:"purchaseOptionId"`
+	Requests         []OneTimeProductOfferBatchGetRequest `json:"requests"`
+}
+
 func (o OneTimeProductOfferGetOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
@@ -209,8 +243,65 @@ func (o OneTimeProductOfferGetOptions) Validate() error {
 	return nil
 }
 
+func (o OneTimeProductOfferBatchGetOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductOfferListProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductOfferListPurchaseOptionID(o.PurchaseOptionID.String()); err != nil {
+		return err
+	}
+	if o.ProductID.String() == OneTimeProductOfferWildcardID && o.PurchaseOptionID.String() != OneTimeProductOfferWildcardID {
+		return fmt.Errorf("one-time product purchase option ID must be %q when product ID is %q", OneTimeProductOfferWildcardID, OneTimeProductOfferWildcardID)
+	}
+	if len(o.Requests) == 0 {
+		return fmt.Errorf("at least one one-time product offer is required")
+	}
+	if len(o.Requests) > 100 {
+		return fmt.Errorf("one-time product offer batch-get cannot exceed 100 offers")
+	}
+	seen := map[string]struct{}{}
+	for _, request := range o.Requests {
+		if _, err := NewOneTimeProductID(request.ProductID.String()); err != nil {
+			return err
+		}
+		if _, err := NewOneTimeProductPurchaseOptionID(request.PurchaseOptionID.String()); err != nil {
+			return err
+		}
+		if _, err := NewOneTimeProductOfferID(request.OfferID.String()); err != nil {
+			return err
+		}
+		if o.ProductID.String() != OneTimeProductOfferWildcardID && request.ProductID != o.ProductID {
+			return fmt.Errorf("one-time product offer %s/%s/%s does not match parent product ID %s", request.ProductID, request.PurchaseOptionID, request.OfferID, o.ProductID)
+		}
+		if o.PurchaseOptionID.String() != OneTimeProductOfferWildcardID && request.PurchaseOptionID != o.PurchaseOptionID {
+			return fmt.Errorf("one-time product offer %s/%s/%s does not match parent purchase option ID %s", request.ProductID, request.PurchaseOptionID, request.OfferID, o.PurchaseOptionID)
+		}
+		key := oneTimeProductOfferKey(request.ProductID, request.PurchaseOptionID, request.OfferID)
+		if _, ok := seen[key]; ok {
+			return fmt.Errorf("one-time product offer %s is duplicated", key)
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
+}
+
 type OneTimeProductOfferGetter interface {
 	GetOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error)
+}
+
+type OneTimeProductOfferBatchGetter interface {
+	BatchGetOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchGetOptions) (OneTimeProductOfferBatchGetResult, error)
+}
+
+type OneTimeProductOfferBatchGetResult struct {
+	PackageName      PackageName                        `json:"packageName"`
+	ProductID        OneTimeProductID                   `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID     `json:"purchaseOptionId"`
+	Offers           []OneTimeProductOffer              `json:"offers"`
+	Options          OneTimeProductOfferBatchGetOptions `json:"options"`
 }
 
 func GetOneTimeProductOffer(ctx context.Context, getter OneTimeProductOfferGetter, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error) {
@@ -221,6 +312,16 @@ func GetOneTimeProductOffer(ctx context.Context, getter OneTimeProductOfferGette
 		return OneTimeProductOffer{}, fmt.Errorf("one-time product offer getter is required")
 	}
 	return getter.GetOneTimeProductOffer(ctx, options)
+}
+
+func BatchGetOneTimeProductOffers(ctx context.Context, getter OneTimeProductOfferBatchGetter, options OneTimeProductOfferBatchGetOptions) (OneTimeProductOfferBatchGetResult, error) {
+	if err := options.Validate(); err != nil {
+		return OneTimeProductOfferBatchGetResult{}, err
+	}
+	if getter == nil {
+		return OneTimeProductOfferBatchGetResult{}, fmt.Errorf("one-time product offer batch getter is required")
+	}
+	return getter.BatchGetOneTimeProductOffers(ctx, options)
 }
 
 type OneTimeProductOfferStateUpdateOptions struct {

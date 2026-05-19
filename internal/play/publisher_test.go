@@ -3351,6 +3351,71 @@ func TestGetOneTimeProductOfferUsesBatchGetEndpoint(t *testing.T) {
 	}
 }
 
+func TestBatchGetOneTimeProductOffersUsesBatchGetEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/-/purchaseOptions/-/offers:batchGet" {
+			t.Fatalf("path = %q, want one-time product offers batchGet endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		var request androidpublisher.BatchGetOneTimeProductOffersRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if len(request.Requests) != 2 {
+			t.Fatalf("len(Requests) = %d, want 2", len(request.Requests))
+		}
+		if request.Requests[1].ProductId != "coins_500" || request.Requests[1].PurchaseOptionId != "buy" || request.Requests[1].OfferId != "preorder" {
+			t.Fatalf("Requests[1] = %#v", request.Requests[1])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"oneTimeProductOffers":[{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro"}]}`)
+	}))
+
+	result, err := publisher.BatchGetOneTimeProductOffers(context.Background(), OneTimeProductOfferBatchGetOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "-",
+		PurchaseOptionID: "-",
+		Requests: []OneTimeProductOfferBatchGetRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro"},
+			{ProductID: "coins_500", PurchaseOptionID: "buy", OfferID: "preorder"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetOneTimeProductOffers() error = %v", err)
+	}
+	if len(result.Offers) != 1 || result.Offers[0].OfferID != "intro" {
+		t.Fatalf("Offers = %#v, want intro offer", result.Offers)
+	}
+}
+
+func TestBatchGetOneTimeProductOffersOrdersOutputByRequestOrder(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"oneTimeProductOffers":[
+			{"packageName":"com.example.app","productId":"coins_500","purchaseOptionId":"buy","offerId":"preorder"},
+			{"packageName":"com.example.app","productId":"coins_100","purchaseOptionId":"buy","offerId":"intro"}
+		]}`)
+	}))
+
+	result, err := publisher.BatchGetOneTimeProductOffers(context.Background(), OneTimeProductOfferBatchGetOptions{
+		PackageName:      "com.example.app",
+		ProductID:        "-",
+		PurchaseOptionID: "-",
+		Requests: []OneTimeProductOfferBatchGetRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy", OfferID: "intro"},
+			{ProductID: "coins_500", PurchaseOptionID: "buy", OfferID: "preorder"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetOneTimeProductOffers() error = %v", err)
+	}
+	if len(result.Offers) != 2 || result.Offers[0].OfferID != "intro" || result.Offers[1].OfferID != "preorder" {
+		t.Fatalf("Offers = %#v, want request order", result.Offers)
+	}
+}
+
 func TestUpdateOneTimeProductOfferStateUsesDeactivateEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

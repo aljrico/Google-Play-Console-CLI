@@ -19,10 +19,63 @@ func newOneTimeProductOffersCommand(out io.Writer, options *globalOptions) *cobr
 	cmd.AddCommand(
 		newOneTimeProductOffersListCommand(out, options, &packageName),
 		newOneTimeProductOffersGetCommand(out, options, &packageName),
+		newOneTimeProductOffersBatchGetCommand(out, options, &packageName),
 		newOneTimeProductOffersStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionActivate),
 		newOneTimeProductOffersStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionDeactivate),
 		newOneTimeProductOffersStateCommand(out, options, &packageName, play.OneTimeProductOfferStateActionCancel),
 	)
+	return cmd
+}
+
+func newOneTimeProductOffersBatchGetCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID        string
+		purchaseOptionID string
+		offers           []string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-get",
+		Short: "Get multiple one-time product offers",
+		Long:  "Get multiple one-time product offers. Use - for both --product-id and --purchase-option-id when the batch spans products or purchase options. Concrete parent IDs must match every --offer value.",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, typedProductID, typedPurchaseOptionID, err := parseOneTimeProductOfferListParent(*packageName, productID, purchaseOptionID)
+			if err != nil {
+				return err
+			}
+			requests, err := parseOneTimeProductOfferBatchRequests(offers)
+			if err != nil {
+				return err
+			}
+			batchOptions := play.OneTimeProductOfferBatchGetOptions{
+				PackageName:      typedPackageName,
+				ProductID:        typedProductID,
+				PurchaseOptionID: typedPurchaseOptionID,
+				Requests:         requests,
+			}
+			if err := batchOptions.Validate(); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchGetOneTimeProductOffers(cmd.Context(), publisher, batchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	addOneTimeProductOfferParentFlags(
+		cmd,
+		&productID,
+		&purchaseOptionID,
+		"Parent one-time product ID, or - for offers across products",
+		"Parent one-time product purchase option ID, or - for offers across purchase options",
+	)
+	cmd.Flags().StringArrayVar(&offers, "offer", nil, "Offer to fetch as productId/purchaseOptionId/offerId; repeatable, up to 100")
 	return cmd
 }
 
@@ -228,4 +281,16 @@ func parseOneTimeProductOfferGetParent(packageName string, productID string, pur
 		return "", "", "", err
 	}
 	return typedPackageName, typedProductID, typedPurchaseOptionID, nil
+}
+
+func parseOneTimeProductOfferBatchRequests(values []string) ([]play.OneTimeProductOfferBatchGetRequest, error) {
+	requests := make([]play.OneTimeProductOfferBatchGetRequest, 0, len(values))
+	for _, value := range values {
+		request, err := play.NewOneTimeProductOfferBatchGetRequest(value)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, nil
 }

@@ -1260,6 +1260,7 @@ gpc one-time-product-offers
 #### Commands
 
 - `gpc one-time-product-offers activate`: activate a one-time product offer
+- `gpc one-time-product-offers batch-get`: Get multiple one-time product offers
 - `gpc one-time-product-offers cancel`: cancel a one-time product offer
 - `gpc one-time-product-offers deactivate`: deactivate a one-time product offer
 - `gpc one-time-product-offers get`: Get a one-time product offer
@@ -1281,6 +1282,20 @@ gpc one-time-product-offers activate [flags]
 - `--offer-id`: One-time product offer ID
 - `--product-id`: Parent one-time product ID
 - `--purchase-option-id`: Parent one-time product purchase option ID
+
+#### gpc one-time-product-offers batch-get
+
+Get multiple one-time product offers
+
+```sh
+gpc one-time-product-offers batch-get [flags]
+```
+
+##### Flags
+
+- `--offer`: Offer to fetch as productId/purchaseOptionId/offerId; repeatable, up to 100 (default `[]`)
+- `--product-id`: Parent one-time product ID, or - for offers across products
+- `--purchase-option-id`: Parent one-time product purchase option ID, or - for offers across purchase options
 
 #### gpc one-time-product-offers cancel
 

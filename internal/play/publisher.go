@@ -572,16 +572,11 @@ func (p GooglePublisher) ListOneTimeProductOffers(ctx context.Context, options O
 }
 
 func (p GooglePublisher) GetOneTimeProductOffer(ctx context.Context, options OneTimeProductOfferGetOptions) (OneTimeProductOffer, error) {
-	request := &androidpublisher.BatchGetOneTimeProductOffersRequest{
-		Requests: []*androidpublisher.GetOneTimeProductOfferRequest{
-			{
-				PackageName:      options.PackageName.String(),
-				ProductId:        options.ProductID.String(),
-				PurchaseOptionId: options.PurchaseOptionID.String(),
-				OfferId:          options.OfferID.String(),
-			},
-		},
-	}
+	request := batchGetOneTimeProductOffersRequestToAPI(options.PackageName, []OneTimeProductOfferBatchGetRequest{{
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		OfferID:          options.OfferID,
+	}})
 	response, err := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.BatchGet(
 		options.PackageName.String(),
 		options.ProductID.String(),
@@ -595,6 +590,20 @@ func (p GooglePublisher) GetOneTimeProductOffer(ctx context.Context, options One
 		return OneTimeProductOffer{}, fmt.Errorf("get one-time product offer %s for %s/%s/%s: empty response", options.OfferID, options.PackageName, options.ProductID, options.PurchaseOptionID)
 	}
 	return oneTimeProductOfferFromAPI(response.OneTimeProductOffers[0]), nil
+}
+
+func (p GooglePublisher) BatchGetOneTimeProductOffers(ctx context.Context, options OneTimeProductOfferBatchGetOptions) (OneTimeProductOfferBatchGetResult, error) {
+	request := batchGetOneTimeProductOffersRequestToAPI(options.PackageName, options.Requests)
+	response, err := p.service.Monetization.Onetimeproducts.PurchaseOptions.Offers.BatchGet(
+		options.PackageName.String(),
+		options.ProductID.String(),
+		options.PurchaseOptionID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return OneTimeProductOfferBatchGetResult{}, fmt.Errorf("batch get one-time product offers for %s/%s/%s: %w", options.PackageName, options.ProductID, options.PurchaseOptionID, err)
+	}
+	return oneTimeProductOfferBatchGetResultFromAPI(options, response), nil
 }
 
 func (p GooglePublisher) UpdateOneTimeProductOfferState(ctx context.Context, options OneTimeProductOfferStateUpdateOptions) (OneTimeProductOffer, error) {
@@ -2332,6 +2341,67 @@ func oneTimeProductOfferListResultFromAPI(options OneTimeProductOfferListOptions
 		result.Offers = append(result.Offers, oneTimeProductOfferFromAPI(apiOffer))
 	}
 	return result
+}
+
+func oneTimeProductOfferBatchGetResultFromAPI(options OneTimeProductOfferBatchGetOptions, response *androidpublisher.BatchGetOneTimeProductOffersResponse) OneTimeProductOfferBatchGetResult {
+	result := OneTimeProductOfferBatchGetResult{
+		PackageName:      options.PackageName,
+		ProductID:        options.ProductID,
+		PurchaseOptionID: options.PurchaseOptionID,
+		Offers:           []OneTimeProductOffer{},
+		Options:          options,
+	}
+	if response == nil {
+		return result
+	}
+	byKey := make(map[string]OneTimeProductOffer, len(response.OneTimeProductOffers))
+	extras := make([]OneTimeProductOffer, 0)
+	for _, apiOffer := range response.OneTimeProductOffers {
+		offer := oneTimeProductOfferFromAPI(apiOffer)
+		key := oneTimeProductOfferKey(offer.ProductID, offer.PurchaseOptionID, offer.OfferID)
+		if key == "//" {
+			continue
+		}
+		if _, ok := byKey[key]; ok {
+			extras = append(extras, offer)
+			continue
+		}
+		byKey[key] = offer
+	}
+	for _, request := range options.Requests {
+		key := oneTimeProductOfferKey(request.ProductID, request.PurchaseOptionID, request.OfferID)
+		if offer, ok := byKey[key]; ok {
+			result.Offers = append(result.Offers, offer)
+			delete(byKey, key)
+		}
+	}
+	for _, offer := range byKey {
+		extras = append(extras, offer)
+	}
+	sort.Slice(extras, func(i, j int) bool {
+		return oneTimeProductOfferKey(extras[i].ProductID, extras[i].PurchaseOptionID, extras[i].OfferID) < oneTimeProductOfferKey(extras[j].ProductID, extras[j].PurchaseOptionID, extras[j].OfferID)
+	})
+	result.Offers = append(result.Offers, extras...)
+	return result
+}
+
+func batchGetOneTimeProductOffersRequestToAPI(packageName PackageName, requests []OneTimeProductOfferBatchGetRequest) *androidpublisher.BatchGetOneTimeProductOffersRequest {
+	apiRequest := &androidpublisher.BatchGetOneTimeProductOffersRequest{
+		Requests: make([]*androidpublisher.GetOneTimeProductOfferRequest, 0, len(requests)),
+	}
+	for _, request := range requests {
+		apiRequest.Requests = append(apiRequest.Requests, &androidpublisher.GetOneTimeProductOfferRequest{
+			PackageName:      packageName.String(),
+			ProductId:        request.ProductID.String(),
+			PurchaseOptionId: request.PurchaseOptionID.String(),
+			OfferId:          request.OfferID.String(),
+		})
+	}
+	return apiRequest
+}
+
+func oneTimeProductOfferKey(productID OneTimeProductID, purchaseOptionID OneTimeProductPurchaseOptionID, offerID OneTimeProductOfferID) string {
+	return productID.String() + "/" + purchaseOptionID.String() + "/" + offerID.String()
 }
 
 func oneTimeProductOfferFromAPI(apiOffer *androidpublisher.OneTimeProductOffer) OneTimeProductOffer {
