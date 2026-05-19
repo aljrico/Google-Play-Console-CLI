@@ -46,6 +46,7 @@ gpc [flags]
 - `gpc reviews`: Read and reply to Google Play reviews
 - `gpc schema`: Print the Google Play discovery schema
 - `gpc search`: Search gpc commands and flags
+- `gpc snitch`: Report gpc friction
 - `gpc status`: Summarize Google Play release status
 - `gpc subscription-offers`: Inspect Google Play subscription offers
 - `gpc subscriptions`: Inspect Google Play monetization subscriptions
@@ -1337,6 +1338,34 @@ gpc search QUERY... [flags]
 #### Flags
 
 - `--limit`: Maximum number of matches; 0 returns all matches (default `20`)
+
+### gpc snitch
+
+Report gpc friction
+
+```sh
+gpc snitch
+```
+
+#### Commands
+
+- `gpc snitch report`: Generate a GitHub issue URL for CLI friction
+
+#### gpc snitch report
+
+Generate a GitHub issue URL for CLI friction
+
+```sh
+gpc snitch report [flags]
+```
+
+##### Flags
+
+- `--body`: Issue body
+- `--command`: gpc command or workflow that caused friction
+- `--label`: GitHub issue label; repeatable (default `[]`)
+- `--repo`: GitHub repository as owner/name (default `aljrico/Google-Play-Console-CLI`)
+- `--title`: Short issue title
 
 ### gpc status
 

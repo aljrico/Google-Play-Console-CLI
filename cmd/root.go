@@ -60,6 +60,7 @@ func newRootCommand(out io.Writer) *cobra.Command {
 		newReviewsCommand(out, options),
 		newSchemaCommand(out, options),
 		newSearchCommand(out, options),
+		newSnitchCommand(out, options),
 		newInternalSharingCommand(out, options),
 		newGeneratedAPKsCommand(out, options),
 		newSystemAPKsCommand(out, options),
