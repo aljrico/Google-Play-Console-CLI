@@ -5502,6 +5502,56 @@ func TestBatchPatchSubscriptionOfferPhasePricesRejectsMissingPhaseOrRegion(t *te
 	}
 }
 
+func TestCreateSubscriptionSendsTypedSubscriptionBody(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions" {
+			t.Fatalf("path = %q, want subscription create endpoint", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("productId"); got != "premium" {
+			t.Fatalf("productId query = %q, want premium", got)
+		}
+		if got := r.URL.Query().Get("regionsVersion.version"); got != "2026/05" {
+			t.Fatalf("regionsVersion.version query = %q, want 2026/05", got)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("ReadAll() error = %v", err)
+		}
+		var request androidpublisher.Subscription
+		if err := json.Unmarshal(body, &request); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if request.PackageName != "com.example.app" || request.ProductId != "premium" {
+			t.Fatalf("request IDs = %#v, want create IDs", request)
+		}
+		if len(request.Listings) != 1 || request.Listings[0].Title != "Premium" {
+			t.Fatalf("Listings = %#v, want listing", request.Listings)
+		}
+		if len(request.BasePlans) != 1 || request.BasePlans[0].AutoRenewingBasePlanType == nil || request.BasePlans[0].RegionalConfigs[0].Price == nil {
+			t.Fatalf("BasePlans = %#v, want typed base plan", request.BasePlans)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"packageName":"com.example.app","productId":"premium","listings":[{"languageCode":"en-US","title":"Premium"}],"basePlans":[{"basePlanId":"monthly","state":"DRAFT","autoRenewingBasePlanType":{"billingPeriodDuration":"P1M"},"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"4","nanos":990000000}}]}]}`)
+	}))
+
+	result, err := publisher.CreateSubscription(context.Background(), SubscriptionCreateOptions{
+		PackageName:    "com.example.app",
+		ProductID:      "premium",
+		Subscription:   validSubscriptionForCreate(),
+		RegionsVersion: "2026/05",
+		Confirm:        true,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubscription() error = %v", err)
+	}
+	if result.ProductID != "premium" || len(result.BasePlans) != 1 || result.BasePlans[0].State != SubscriptionStateDraft {
+		t.Fatalf("result = %#v, want created draft subscription", result)
+	}
+}
+
 func TestCreateSubscriptionOfferSendsTypedOfferBody(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

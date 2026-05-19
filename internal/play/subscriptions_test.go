@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -134,6 +135,288 @@ func TestBatchGetSubscriptionsRejectsDuplicates(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected duplicate product ID validation error")
+	}
+}
+
+func TestCreateSubscriptionDryRunBuildsPlanWithoutCreator(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	subscription := validSubscriptionForCreate()
+	subscription.Archived = true
+	subscription.BasePlans[0].State = SubscriptionStateActive
+
+	result, err := CreateSubscription(context.Background(), nil, SubscriptionCreateOptions{
+		PackageName:    packageName,
+		ProductID:      "premium",
+		Subscription:   subscription,
+		RegionsVersion: "2026/05",
+		DryRun:         true,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubscription() error = %v", err)
+	}
+	if !result.DryRun || result.Created {
+		t.Fatalf("result = %#v, want dry-run create", result)
+	}
+	if result.Desired.PackageName != packageName || result.Desired.ProductID != "premium" || result.Desired.Archived || result.Desired.BasePlans[0].State != "" {
+		t.Fatalf("Desired = %#v, want normalized create subscription", result.Desired)
+	}
+	if result.Desired.Listings[0].LanguageCode != "en-US" {
+		t.Fatalf("Desired listing language = %q, want canonical en-US", result.Desired.Listings[0].LanguageCode)
+	}
+}
+
+func TestDecodeSubscriptionCreateJSONAcceptsGooglePlayAPIJSON(t *testing.T) {
+	subscription, err := DecodeSubscriptionCreateJSON([]byte(`{
+		"packageName":"ignored",
+		"productId":"ignored",
+		"listings":[{"languageCode":"en-US","title":"Premium","description":"Full access"}],
+		"basePlans":[{
+			"basePlanId":"monthly",
+			"state":"ACTIVE",
+			"autoRenewingBasePlanType":{"billingPeriodDuration":"P1M","legacyCompatible":true},
+			"offerTags":[{"tag":"public"}],
+			"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"4","nanos":990000000}}],
+			"otherRegionsConfig":{"newSubscriberAvailability":true,"usdPrice":{"currencyCode":"USD","units":"4"},"eurPrice":{"currencyCode":"EUR","units":"4"}}
+		}]
+	}`))
+	if err != nil {
+		t.Fatalf("DecodeSubscriptionCreateJSON() error = %v", err)
+	}
+	if subscription.BasePlans[0].Type != SubscriptionBasePlanTypeAutoRenewing || !subscription.BasePlans[0].LegacyCompatible {
+		t.Fatalf("BasePlans = %#v, want decoded auto-renewing plan", subscription.BasePlans)
+	}
+	if subscription.BasePlans[0].OfferTags[0] != "public" || subscription.BasePlans[0].RegionalConfigs[0].Price.Units != 4 {
+		t.Fatalf("BasePlan = %#v, want decoded API tags and price", subscription.BasePlans[0])
+	}
+}
+
+func TestDecodeSubscriptionCreateJSONRejectsNestedUnknownFields(t *testing.T) {
+	_, err := DecodeSubscriptionCreateJSON([]byte(`{"listings":[],"basePlans":[{"basePlanId":"monthly","autoRenewingBasePlanType":{"billingPeriodDuration":"P1M","typo":true}}]}`))
+	if err == nil {
+		t.Fatal("expected nested unknown field validation error")
+	}
+}
+
+func TestDecodeSubscriptionCreateJSONRejectsMultipleBasePlanTypeObjects(t *testing.T) {
+	_, err := DecodeSubscriptionCreateJSON([]byte(`{
+		"listings":[{"languageCode":"en-US","title":"Premium"}],
+		"basePlans":[{
+			"basePlanId":"monthly",
+			"autoRenewingBasePlanType":{"billingPeriodDuration":"P1M"},
+			"prepaidBasePlanType":{"billingPeriodDuration":"P1M"}
+		}]
+	}`))
+	if err == nil {
+		t.Fatal("expected base plan type union validation error")
+	}
+}
+
+func TestCreateSubscriptionRejectsInvalidBody(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	tests := []struct {
+		name         string
+		subscription Subscription
+	}{
+		{name: "missing listings", subscription: Subscription{BasePlans: validSubscriptionForCreate().BasePlans}},
+		{name: "missing base plans", subscription: Subscription{Listings: validSubscriptionForCreate().Listings}},
+		{
+			name: "bad tag",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].OfferTags = []string{"Bad"}
+				return subscription
+			}(),
+		},
+		{
+			name: "bad duration",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].BillingPeriodDuration = "P1MT"
+				return subscription
+			}(),
+		},
+		{
+			name: "overlong description",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.Listings[0].Description = strings.Repeat("x", 81)
+				return subscription
+			}(),
+		},
+		{
+			name: "too many benefits",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.Listings[0].Benefits = []string{"a", "b", "c", "d", "e"}
+				return subscription
+			}(),
+		},
+		{
+			name: "bad installment renewal type",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].Type = SubscriptionBasePlanTypeInstallments
+				subscription.BasePlans[0].CommittedPaymentsCount = 3
+				subscription.BasePlans[0].RenewalType = ""
+				return subscription
+			}(),
+		},
+		{
+			name: "bad proration mode",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].ProrationMode = "NOPE"
+				return subscription
+			}(),
+		},
+		{
+			name: "bad grace period unit",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].GracePeriodDuration = "P1M"
+				return subscription
+			}(),
+		},
+		{
+			name: "mixed day duration",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].GracePeriodDuration = "P1M1D"
+				return subscription
+			}(),
+		},
+		{
+			name: "account hold above range",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].AccountHoldDuration = "P61D"
+				return subscription
+			}(),
+		},
+		{
+			name: "grace and hold sum below range",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].GracePeriodDuration = "P1D"
+				subscription.BasePlans[0].AccountHoldDuration = "P1D"
+				return subscription
+			}(),
+		},
+		{
+			name: "unsupported billing period",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].BillingPeriodDuration = "P2M"
+				return subscription
+			}(),
+		},
+		{
+			name: "mixed billing period duration",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].BillingPeriodDuration = "P1M1D"
+				return subscription
+			}(),
+		},
+		{
+			name: "weekly grace period above billing period",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].BillingPeriodDuration = "P1W"
+				subscription.BasePlans[0].GracePeriodDuration = "P30D"
+				return subscription
+			}(),
+		},
+		{
+			name: "bad base plan ID",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].BasePlanID = "monthly-"
+				return subscription
+			}(),
+		},
+		{
+			name: "bad legacy compatible offer ID",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].LegacyCompatibleSubscriptionOfferID = "intro-"
+				return subscription
+			}(),
+		},
+		{
+			name: "multiple legacy compatible base plans",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				secondBasePlan := subscription.BasePlans[0]
+				secondBasePlan.BasePlanID = "annual"
+				secondBasePlan.BillingPeriodDuration = "P1Y"
+				subscription.BasePlans[0].LegacyCompatible = true
+				secondBasePlan.LegacyCompatible = true
+				subscription.BasePlans = append(subscription.BasePlans, secondBasePlan)
+				return subscription
+			}(),
+		},
+		{
+			name: "ignored prepaid field on auto renewing",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].TimeExtension = "TIME_EXTENSION_ACTIVE"
+				return subscription
+			}(),
+		},
+		{
+			name: "ignored auto renewing field on prepaid",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].Type = SubscriptionBasePlanTypePrepaid
+				subscription.BasePlans[0].GracePeriodDuration = "P7D"
+				return subscription
+			}(),
+		},
+		{
+			name: "bad restricted country",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.RestrictedCountries = []string{"USA"}
+				return subscription
+			}(),
+		},
+		{
+			name: "empty tax settings",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.TaxAndComplianceSettings = &ProductTaxComplianceSettings{}
+				return subscription
+			}(),
+		},
+		{
+			name: "available region missing price",
+			subscription: func() Subscription {
+				subscription := validSubscriptionForCreate()
+				subscription.BasePlans[0].RegionalConfigs[0].Price = nil
+				return subscription
+			}(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := CreateSubscription(context.Background(), nil, SubscriptionCreateOptions{
+				PackageName:    packageName,
+				ProductID:      "premium",
+				Subscription:   test.subscription,
+				RegionsVersion: "2026/05",
+				DryRun:         true,
+			})
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
 	}
 }
 
@@ -811,6 +1094,7 @@ type fakeSubscriptionClient struct {
 	listResult                SubscriptionListResult
 	batchOptions              SubscriptionBatchGetOptions
 	batchResult               SubscriptionBatchGetResult
+	createOptions             SubscriptionCreateOptions
 	deleteOptions             SubscriptionDeleteOptions
 	patchOptions              SubscriptionPatchOptions
 	batchPatchListingsOptions SubscriptionBatchPatchListingsOptions
@@ -838,6 +1122,11 @@ func (c *fakeSubscriptionClient) GetSubscription(ctx context.Context, packageNam
 func (c *fakeSubscriptionClient) BatchGetSubscriptions(ctx context.Context, options SubscriptionBatchGetOptions) (SubscriptionBatchGetResult, error) {
 	c.batchOptions = options
 	return c.batchResult, nil
+}
+
+func (c *fakeSubscriptionClient) CreateSubscription(ctx context.Context, options SubscriptionCreateOptions) (Subscription, error) {
+	c.createOptions = options
+	return c.subscription, nil
 }
 
 func (c *fakeSubscriptionClient) DeleteSubscription(ctx context.Context, options SubscriptionDeleteOptions) error {
@@ -873,4 +1162,19 @@ func (c *fakeSubscriptionClient) PatchSubscription(ctx context.Context, options 
 func (c *fakeSubscriptionClient) BatchPatchSubscriptionListings(ctx context.Context, options SubscriptionBatchPatchListingsOptions) (SubscriptionBatchPatchListingsResult, error) {
 	c.batchPatchListingsOptions = options
 	return c.batchPatchListingsResult, nil
+}
+
+func validSubscriptionForCreate() Subscription {
+	return Subscription{
+		Listings: []SubscriptionListing{{LanguageCode: "en-US", Title: "Premium", Description: "Full access"}},
+		BasePlans: []SubscriptionBasePlan{{
+			BasePlanID:            "monthly",
+			Type:                  SubscriptionBasePlanTypeAutoRenewing,
+			BillingPeriodDuration: "P1M",
+			GracePeriodDuration:   "P7D",
+			OfferTags:             []string{"public"},
+			RegionalConfigs:       []SubscriptionRegionalConfig{{RegionCode: "US", NewSubscriberAvailability: true, Price: &Money{CurrencyCode: "USD", Units: 4, Nanos: 990000000}}},
+			OtherRegionsConfig:    &SubscriptionOtherRegionsConfig{NewSubscriberAvailability: true, USDPrice: &Money{CurrencyCode: "USD", Units: 4}, EURPrice: &Money{CurrencyCode: "EUR", Units: 4}},
+		}},
+	}
 }

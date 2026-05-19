@@ -22,6 +22,7 @@ func newSubscriptionsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 	cmd.AddCommand(
 		newSubscriptionsListCommand(out, options, &packageName),
 		newSubscriptionsGetCommand(out, options, &packageName),
+		newSubscriptionsCreateCommand(out, options, &packageName),
 		newSubscriptionsBatchGetCommand(out, options, &packageName),
 		newSubscriptionsPatchCommand(out, options, &packageName),
 		newSubscriptionsBatchPatchListingsCommand(out, options, &packageName),
@@ -29,6 +30,86 @@ func newSubscriptionsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 		newSubscriptionsBasePlanCommand(out, options, &packageName),
 	)
 	return cmd
+}
+
+func newSubscriptionsCreateCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		productID      string
+		fromJSON       string
+		regionsVersion string
+		confirm        bool
+		dryRun         bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a draft subscription",
+		Long: "Create a draft subscription from a Google Play API Subscription JSON body or gpc subscription JSON output. " +
+			"Immutable package and product IDs come from flags and override the JSON body; output-only subscription and base-plan state is ignored.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedProductID, err := play.NewSubscriptionProductID(productID)
+			if err != nil {
+				return err
+			}
+			subscription, err := readSubscriptionJSON(fromJSON)
+			if err != nil {
+				return err
+			}
+			createOptions := play.SubscriptionCreateOptions{
+				PackageName:    typedPackageName,
+				ProductID:      typedProductID,
+				Subscription:   subscription,
+				RegionsVersion: regionsVersion,
+				Confirm:        confirm,
+				DryRun:         dryRun,
+			}
+			if dryRun {
+				result, err := play.CreateSubscription(cmd.Context(), nil, createOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if err := createOptions.Validate(); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.CreateSubscription(cmd.Context(), publisher, createOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID")
+	cmd.Flags().StringVar(&fromJSON, "from-json", "", "Path to a Google Play API or gpc JSON subscription body")
+	cmd.Flags().StringVar(&regionsVersion, "regions-version", "", "Google Play regions version required by subscriptions.create")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Create the draft subscription")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned subscription creation without calling Google Play")
+	return cmd
+}
+
+func readSubscriptionJSON(path string) (play.Subscription, error) {
+	if strings.TrimSpace(path) == "" {
+		return play.Subscription{}, fmt.Errorf("subscription create requires --from-json")
+	}
+	data, err := osReadFile(path)
+	if err != nil {
+		return play.Subscription{}, fmt.Errorf("read subscription JSON %s: %w", path, err)
+	}
+	subscription, err := play.DecodeSubscriptionCreateJSON(data)
+	if err != nil {
+		return play.Subscription{}, fmt.Errorf("parse subscription JSON %s: %w", path, err)
+	}
+	return subscription, nil
 }
 
 func newSubscriptionsBatchPatchListingsCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {

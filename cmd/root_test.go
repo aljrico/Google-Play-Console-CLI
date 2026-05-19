@@ -4355,6 +4355,104 @@ func TestSubscriptionsBasePlanActivateDryRunDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
+func TestSubscriptionsCreateDryRunDoesNotRequireAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "subscription.json")
+	if err := os.WriteFile(bodyPath, []byte(`{
+		"packageName":"ignored",
+		"productId":"ignored",
+		"listings":[{"languageCode":"en-US","title":"Premium","description":"Full access"}],
+		"basePlans":[{
+			"basePlanId":"monthly",
+			"state":"ACTIVE",
+			"autoRenewingBasePlanType":{"billingPeriodDuration":"P1M"},
+			"offerTags":[{"tag":"public"}],
+			"regionalConfigs":[{"regionCode":"US","newSubscriberAvailability":true,"price":{"currencyCode":"USD","units":"4","nanos":990000000}}],
+			"otherRegionsConfig":{"newSubscriberAvailability":true,"usdPrice":{"currencyCode":"USD","units":"4"},"eurPrice":{"currencyCode":"EUR","units":"4"}}
+		}]
+	}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--from-json",
+		bodyPath,
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`"action":"create"`,
+		`"dryRun":true`,
+		`"created":false`,
+		`"packageName":"com.example.app"`,
+		`"productId":"premium"`,
+		`"basePlanId":"monthly"`,
+		`"regionsVersion":"2026/05"`,
+		`"currencyCode":"USD"`,
+		`"nanos":990000000`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output = %s, want %s", output, want)
+		}
+	}
+	if strings.Contains(output, `"state":"ACTIVE"`) || strings.Contains(output, "no active auth profile") {
+		t.Fatalf("output = %s, did not expect state or auth", output)
+	}
+}
+
+func TestSubscriptionsCreateRejectsInvalidBodyBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	bodyPath := filepath.Join(t.TempDir(), "subscription.json")
+	if err := os.WriteFile(bodyPath, []byte(`{"listings":[{"languageCode":"en-US","title":"Premium"}]}`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"create",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--from-json",
+		bodyPath,
+		"--regions-version",
+		"2026/05",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected body validation error")
+	}
+	if !strings.Contains(err.Error(), "requires at least one base plan") {
+		t.Fatalf("error = %v, want base plan validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
 func TestSubscriptionsBasePlanRequiresConfirmOrDryRunBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 

@@ -1398,6 +1398,24 @@ func (p GooglePublisher) GetSubscription(ctx context.Context, packageName Packag
 	return subscriptionFromAPI(subscription), nil
 }
 
+func (p GooglePublisher) CreateSubscription(ctx context.Context, options SubscriptionCreateOptions) (Subscription, error) {
+	if err := options.ValidateLive(); err != nil {
+		return Subscription{}, err
+	}
+	subscription, err := p.service.Monetization.Subscriptions.Create(
+		options.PackageName.String(),
+		subscriptionCreateToAPI(options),
+	).
+		ProductId(options.ProductID.String()).
+		RegionsVersionVersion(options.RegionsVersion).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return Subscription{}, fmt.Errorf("create subscription %s for %s: %w", options.ProductID, options.PackageName, err)
+	}
+	return subscriptionFromAPI(subscription), nil
+}
+
 func (p GooglePublisher) BatchGetSubscriptions(ctx context.Context, options SubscriptionBatchGetOptions) (SubscriptionBatchGetResult, error) {
 	productIDs := make([]string, 0, len(options.ProductIDs))
 	for _, productID := range options.ProductIDs {
@@ -3543,6 +3561,23 @@ func managedProductTaxComplianceSettingsToAPI(settings *ProductTaxComplianceSett
 	return apiSettings
 }
 
+func subscriptionTaxComplianceSettingsToAPI(settings *ProductTaxComplianceSettings) *androidpublisher.SubscriptionTaxAndComplianceSettings {
+	if settings == nil {
+		return nil
+	}
+	apiSettings := &androidpublisher.SubscriptionTaxAndComplianceSettings{
+		EeaWithdrawalRightType: settings.EEAWithdrawalRightType,
+	}
+	if settings.IsTokenizedDigitalAsset != nil {
+		apiSettings.IsTokenizedDigitalAsset = *settings.IsTokenizedDigitalAsset
+		apiSettings.ForceSendFields = append(apiSettings.ForceSendFields, "IsTokenizedDigitalAsset")
+	}
+	if len(settings.TaxRateInfoByRegionCode) > 0 {
+		apiSettings.TaxRateInfoByRegionCode = regionalTaxRateInfoToAPI(settings.TaxRateInfoByRegionCode)
+	}
+	return apiSettings
+}
+
 func regionalTaxRateInfoToAPI(taxRateInfo map[string]RegionalTaxRateInfo) map[string]androidpublisher.RegionalTaxRateInfo {
 	if len(taxRateInfo) == 0 {
 		return nil
@@ -4554,6 +4589,18 @@ func subscriptionFromAPI(apiSubscription *androidpublisher.Subscription) Subscri
 	}
 }
 
+func subscriptionCreateToAPI(options SubscriptionCreateOptions) *androidpublisher.Subscription {
+	subscription := subscriptionCreateDesiredSubscription(options)
+	return &androidpublisher.Subscription{
+		PackageName:                subscription.PackageName.String(),
+		ProductId:                  subscription.ProductID.String(),
+		Listings:                   subscriptionListingsToAPI(subscription.Listings),
+		BasePlans:                  subscriptionBasePlansToAPI(subscription.BasePlans),
+		RestrictedPaymentCountries: restrictedCountriesToAPI(subscription.RestrictedCountries),
+		TaxAndComplianceSettings:   subscriptionTaxComplianceSettingsToAPI(subscription.TaxAndComplianceSettings),
+	}
+}
+
 func subscriptionListingsFromAPI(apiListings []*androidpublisher.SubscriptionListing) []SubscriptionListing {
 	listings := make([]SubscriptionListing, 0, len(apiListings))
 	for _, apiListing := range apiListings {
@@ -4689,6 +4736,54 @@ func subscriptionBasePlanFromAPI(apiBasePlan *androidpublisher.BasePlan) Subscri
 	return basePlan
 }
 
+func subscriptionBasePlansToAPI(basePlans []SubscriptionBasePlan) []*androidpublisher.BasePlan {
+	apiBasePlans := make([]*androidpublisher.BasePlan, 0, len(basePlans))
+	for _, basePlan := range basePlans {
+		apiBasePlans = append(apiBasePlans, subscriptionBasePlanToAPI(basePlan))
+	}
+	return apiBasePlans
+}
+
+func subscriptionBasePlanToAPI(basePlan SubscriptionBasePlan) *androidpublisher.BasePlan {
+	apiBasePlan := &androidpublisher.BasePlan{
+		BasePlanId:         basePlan.BasePlanID,
+		OfferTags:          offerTagsToAPI(basePlan.OfferTags),
+		RegionalConfigs:    subscriptionRegionalConfigsToAPI(basePlan.RegionalConfigs),
+		OtherRegionsConfig: subscriptionOtherRegionsConfigToAPI(basePlan.OtherRegionsConfig),
+	}
+	switch basePlan.Type {
+	case SubscriptionBasePlanTypeAutoRenewing:
+		apiBasePlan.AutoRenewingBasePlanType = &androidpublisher.AutoRenewingBasePlanType{
+			BillingPeriodDuration:               basePlan.BillingPeriodDuration,
+			GracePeriodDuration:                 basePlan.GracePeriodDuration,
+			AccountHoldDuration:                 basePlan.AccountHoldDuration,
+			LegacyCompatible:                    basePlan.LegacyCompatible,
+			LegacyCompatibleSubscriptionOfferId: basePlan.LegacyCompatibleSubscriptionOfferID,
+			ProrationMode:                       basePlan.ProrationMode,
+			ResubscribeState:                    basePlan.ResubscribeState,
+		}
+		if basePlan.LegacyCompatible {
+			apiBasePlan.AutoRenewingBasePlanType.ForceSendFields = append(apiBasePlan.AutoRenewingBasePlanType.ForceSendFields, "LegacyCompatible")
+		}
+	case SubscriptionBasePlanTypePrepaid:
+		apiBasePlan.PrepaidBasePlanType = &androidpublisher.PrepaidBasePlanType{
+			BillingPeriodDuration: basePlan.BillingPeriodDuration,
+			TimeExtension:         basePlan.TimeExtension,
+		}
+	case SubscriptionBasePlanTypeInstallments:
+		apiBasePlan.InstallmentsBasePlanType = &androidpublisher.InstallmentsBasePlanType{
+			BillingPeriodDuration:  basePlan.BillingPeriodDuration,
+			GracePeriodDuration:    basePlan.GracePeriodDuration,
+			AccountHoldDuration:    basePlan.AccountHoldDuration,
+			CommittedPaymentsCount: basePlan.CommittedPaymentsCount,
+			ProrationMode:          basePlan.ProrationMode,
+			RenewalType:            basePlan.RenewalType,
+			ResubscribeState:       basePlan.ResubscribeState,
+		}
+	}
+	return apiBasePlan
+}
+
 func subscriptionRegionalConfigsFromAPI(apiConfigs []*androidpublisher.RegionalBasePlanConfig) []SubscriptionRegionalConfig {
 	if len(apiConfigs) == 0 {
 		return nil
@@ -4707,6 +4802,20 @@ func subscriptionRegionalConfigsFromAPI(apiConfigs []*androidpublisher.RegionalB
 	return configs
 }
 
+func subscriptionRegionalConfigsToAPI(configs []SubscriptionRegionalConfig) []*androidpublisher.RegionalBasePlanConfig {
+	apiConfigs := make([]*androidpublisher.RegionalBasePlanConfig, 0, len(configs))
+	for _, config := range configs {
+		apiConfig := &androidpublisher.RegionalBasePlanConfig{
+			RegionCode:                config.RegionCode,
+			NewSubscriberAvailability: config.NewSubscriberAvailability,
+			Price:                     moneyToAPI(config.Price),
+		}
+		apiConfig.ForceSendFields = append(apiConfig.ForceSendFields, "NewSubscriberAvailability")
+		apiConfigs = append(apiConfigs, apiConfig)
+	}
+	return apiConfigs
+}
+
 func subscriptionOtherRegionsConfigFromAPI(apiConfig *androidpublisher.OtherRegionsBasePlanConfig) *SubscriptionOtherRegionsConfig {
 	if apiConfig == nil {
 		return nil
@@ -4716,6 +4825,19 @@ func subscriptionOtherRegionsConfigFromAPI(apiConfig *androidpublisher.OtherRegi
 		USDPrice:                  moneyFromAPI(apiConfig.UsdPrice),
 		EURPrice:                  moneyFromAPI(apiConfig.EurPrice),
 	}
+}
+
+func subscriptionOtherRegionsConfigToAPI(config *SubscriptionOtherRegionsConfig) *androidpublisher.OtherRegionsBasePlanConfig {
+	if config == nil {
+		return nil
+	}
+	apiConfig := &androidpublisher.OtherRegionsBasePlanConfig{
+		NewSubscriberAvailability: config.NewSubscriberAvailability,
+		UsdPrice:                  moneyToAPI(config.USDPrice),
+		EurPrice:                  moneyToAPI(config.EURPrice),
+	}
+	apiConfig.ForceSendFields = append(apiConfig.ForceSendFields, "NewSubscriberAvailability")
+	return apiConfig
 }
 
 func moneyFromAPI(apiMoney *androidpublisher.Money) *Money {
@@ -4770,6 +4892,13 @@ func restrictedCountriesFromAPI(apiCountries *androidpublisher.RestrictedPayment
 		return nil
 	}
 	return apiCountries.RegionCodes
+}
+
+func restrictedCountriesToAPI(countries []string) *androidpublisher.RestrictedPaymentCountries {
+	if len(countries) == 0 {
+		return nil
+	}
+	return &androidpublisher.RestrictedPaymentCountries{RegionCodes: append([]string(nil), countries...)}
 }
 
 func rawRestrictedCountriesFromAPI(apiCountries *rawRestrictedPaymentCountries) []string {

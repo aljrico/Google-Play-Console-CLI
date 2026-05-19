@@ -3,6 +3,7 @@ package play
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -210,6 +211,15 @@ type SubscriptionBatchGetOptions struct {
 	ProductIDs  []SubscriptionProductID `json:"productIds"`
 }
 
+type SubscriptionCreateOptions struct {
+	PackageName    PackageName           `json:"packageName"`
+	ProductID      SubscriptionProductID `json:"productId"`
+	Subscription   Subscription          `json:"subscription"`
+	RegionsVersion string                `json:"regionsVersion"`
+	Confirm        bool                  `json:"confirm"`
+	DryRun         bool                  `json:"dryRun"`
+}
+
 func (o SubscriptionBatchGetOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
@@ -233,6 +243,381 @@ func (o SubscriptionBatchGetOptions) Validate() error {
 	return nil
 }
 
+func (o SubscriptionCreateOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewSubscriptionProductID(o.ProductID.String()); err != nil {
+		return err
+	}
+	if strings.TrimSpace(o.RegionsVersion) == "" {
+		return fmt.Errorf("regions version is required")
+	}
+	if strings.TrimSpace(o.RegionsVersion) != o.RegionsVersion {
+		return fmt.Errorf("regions version cannot have leading or trailing whitespace")
+	}
+	if err := validateSubscriptionForCreate(subscriptionCreateDesiredSubscription(o)); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("subscription create requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o SubscriptionCreateOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live subscription create cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live subscription create requires --confirm")
+	}
+	return nil
+}
+
+func validateSubscriptionForCreate(subscription Subscription) error {
+	if len(subscription.Listings) == 0 {
+		return fmt.Errorf("subscription create requires at least one listing")
+	}
+	seenListings := map[string]struct{}{}
+	for _, listing := range subscription.Listings {
+		language, err := NewListingLanguage(listing.LanguageCode)
+		if err != nil {
+			return err
+		}
+		if err := validateSubscriptionListing(SubscriptionListing{
+			LanguageCode: language.String(),
+			Title:        listing.Title,
+			Description:  listing.Description,
+			Benefits:     listing.Benefits,
+		}); err != nil {
+			return err
+		}
+		if _, ok := seenListings[language.String()]; ok {
+			return fmt.Errorf("subscription create listing %s is duplicated", language)
+		}
+		seenListings[language.String()] = struct{}{}
+	}
+	if len(subscription.BasePlans) == 0 {
+		return fmt.Errorf("subscription create requires at least one base plan")
+	}
+	if err := validateSubscriptionRestrictedCountriesForCreate(subscription.RestrictedCountries); err != nil {
+		return err
+	}
+	if subscription.TaxAndComplianceSettings != nil {
+		if err := validateProductTaxComplianceSettings(*subscription.TaxAndComplianceSettings); err != nil {
+			return err
+		}
+	}
+	seenBasePlans := map[string]struct{}{}
+	legacyCompatibleBasePlanCount := 0
+	for _, basePlan := range subscription.BasePlans {
+		if _, err := NewSubscriptionBasePlanID(basePlan.BasePlanID); err != nil {
+			return err
+		}
+		if _, ok := seenBasePlans[basePlan.BasePlanID]; ok {
+			return fmt.Errorf("subscription create base plan %s is duplicated", basePlan.BasePlanID)
+		}
+		seenBasePlans[basePlan.BasePlanID] = struct{}{}
+		if err := validateSubscriptionBasePlanForCreate(basePlan); err != nil {
+			return fmt.Errorf("subscription create base plan %s: %w", basePlan.BasePlanID, err)
+		}
+		if basePlan.LegacyCompatible {
+			legacyCompatibleBasePlanCount++
+			if legacyCompatibleBasePlanCount > 1 {
+				return fmt.Errorf("subscription create can set at most one legacy-compatible base plan")
+			}
+		}
+	}
+	return nil
+}
+
+func validateSubscriptionBasePlanForCreate(basePlan SubscriptionBasePlan) error {
+	if len(basePlan.OfferTags) > 20 {
+		return fmt.Errorf("supports at most 20 offer tags")
+	}
+	seenTags := map[string]struct{}{}
+	for _, tag := range basePlan.OfferTags {
+		if err := validateSubscriptionOfferTag(tag); err != nil {
+			return err
+		}
+		if _, ok := seenTags[tag]; ok {
+			return fmt.Errorf("offer tag %q is duplicated", tag)
+		}
+		seenTags[tag] = struct{}{}
+	}
+	switch basePlan.Type {
+	case SubscriptionBasePlanTypeAutoRenewing:
+		if basePlan.TimeExtension != "" || basePlan.CommittedPaymentsCount != 0 || basePlan.RenewalType != "" {
+			return fmt.Errorf("auto-renewing base plans cannot set prepaid or installment fields")
+		}
+		if err := validateBasePlanBillingPeriod("auto-renewing billing period duration", basePlan.BillingPeriodDuration); err != nil {
+			return err
+		}
+		if err := validateOptionalBasePlanGracePeriod("auto-renewing grace period duration", basePlan.GracePeriodDuration, basePlan.BillingPeriodDuration); err != nil {
+			return err
+		}
+		if err := validateOptionalISODayDurationRange("auto-renewing account hold duration", basePlan.AccountHoldDuration, 0, 60); err != nil {
+			return err
+		}
+		if err := validateOptionalGraceAndHoldSum("auto-renewing", basePlan.GracePeriodDuration, basePlan.AccountHoldDuration); err != nil {
+			return err
+		}
+		if basePlan.LegacyCompatibleSubscriptionOfferID != "" {
+			if _, err := NewSubscriptionOfferID(basePlan.LegacyCompatibleSubscriptionOfferID); err != nil {
+				return err
+			}
+		}
+		if err := validateBasePlanProrationMode(basePlan.ProrationMode); err != nil {
+			return err
+		}
+		if err := validateBasePlanResubscribeState(basePlan.ResubscribeState); err != nil {
+			return err
+		}
+	case SubscriptionBasePlanTypePrepaid:
+		if basePlan.GracePeriodDuration != "" || basePlan.AccountHoldDuration != "" || basePlan.LegacyCompatible || basePlan.LegacyCompatibleSubscriptionOfferID != "" || basePlan.ProrationMode != "" || basePlan.ResubscribeState != "" || basePlan.CommittedPaymentsCount != 0 || basePlan.RenewalType != "" {
+			return fmt.Errorf("prepaid base plans cannot set auto-renewing or installment fields")
+		}
+		if err := validateBasePlanBillingPeriod("prepaid billing period duration", basePlan.BillingPeriodDuration); err != nil {
+			return err
+		}
+		if err := validateBasePlanTimeExtension(basePlan.TimeExtension); err != nil {
+			return err
+		}
+	case SubscriptionBasePlanTypeInstallments:
+		if basePlan.TimeExtension != "" || basePlan.LegacyCompatible || basePlan.LegacyCompatibleSubscriptionOfferID != "" {
+			return fmt.Errorf("installments base plans cannot set prepaid or legacy-compatible auto-renewing fields")
+		}
+		if err := validateBasePlanBillingPeriod("installments billing period duration", basePlan.BillingPeriodDuration); err != nil {
+			return err
+		}
+		if err := validateOptionalBasePlanGracePeriod("installments grace period duration", basePlan.GracePeriodDuration, basePlan.BillingPeriodDuration); err != nil {
+			return err
+		}
+		if err := validateOptionalISODayDurationRange("installments account hold duration", basePlan.AccountHoldDuration, 0, 60); err != nil {
+			return err
+		}
+		if err := validateOptionalGraceAndHoldSum("installments", basePlan.GracePeriodDuration, basePlan.AccountHoldDuration); err != nil {
+			return err
+		}
+		if basePlan.CommittedPaymentsCount <= 0 {
+			return fmt.Errorf("committed payments count must be greater than 0")
+		}
+		if err := validateBasePlanProrationMode(basePlan.ProrationMode); err != nil {
+			return err
+		}
+		if err := validateBasePlanResubscribeState(basePlan.ResubscribeState); err != nil {
+			return err
+		}
+		if err := validateBasePlanRenewalType(basePlan.RenewalType); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("base plan type must be auto-renewing, prepaid, or installments")
+	}
+	if len(basePlan.RegionalConfigs) == 0 {
+		return fmt.Errorf("requires at least one regional config")
+	}
+	seenRegions := map[string]struct{}{}
+	for _, config := range basePlan.RegionalConfigs {
+		if !isValidRegionCode(config.RegionCode) {
+			return fmt.Errorf("regional config region must be a two-letter ISO 3166 code")
+		}
+		if _, ok := seenRegions[config.RegionCode]; ok {
+			return fmt.Errorf("regional config %s is duplicated", config.RegionCode)
+		}
+		seenRegions[config.RegionCode] = struct{}{}
+		if config.NewSubscriberAvailability && config.Price == nil {
+			return fmt.Errorf("regional config %s requires price when available to new subscribers", config.RegionCode)
+		}
+		if config.Price != nil {
+			if err := validateMoney(*config.Price); err != nil {
+				return fmt.Errorf("regional config %s: %w", config.RegionCode, err)
+			}
+		}
+	}
+	if basePlan.OtherRegionsConfig != nil {
+		if err := validateSubscriptionOtherRegionsConfigForCreate(*basePlan.OtherRegionsConfig); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateOptionalISODuration(fieldName, value string) error {
+	if value == "" {
+		return nil
+	}
+	return validateISODuration(fieldName, value)
+}
+
+func validateBasePlanBillingPeriod(fieldName, value string) error {
+	if err := validateISODuration(fieldName, value); err != nil {
+		return err
+	}
+	switch value {
+	case "P1W", "P4W", "P1M", "P3M", "P6M", "P1Y":
+		return nil
+	default:
+		return fmt.Errorf("%s must be one of P1W, P4W, P1M, P3M, P6M, or P1Y", fieldName)
+	}
+}
+
+func validateOptionalISODayDurationRange(fieldName, value string, minimumDays, maximumDays int) error {
+	if value == "" {
+		return nil
+	}
+	days, err := parseISODayDuration(fieldName, value)
+	if err != nil {
+		return err
+	}
+	if days < minimumDays || days > maximumDays {
+		return fmt.Errorf("%s must be between P%dD and P%dD", fieldName, minimumDays, maximumDays)
+	}
+	return nil
+}
+
+func validateOptionalBasePlanGracePeriod(fieldName, gracePeriodDuration, billingPeriodDuration string) error {
+	maximumDays := maximumGracePeriodDaysForBillingPeriod(billingPeriodDuration)
+	if maximumDays == 0 {
+		maximumDays = 30
+	}
+	return validateOptionalISODayDurationRange(fieldName, gracePeriodDuration, 0, maximumDays)
+}
+
+func maximumGracePeriodDaysForBillingPeriod(billingPeriodDuration string) int {
+	switch billingPeriodDuration {
+	case "P1W":
+		return 7
+	case "P4W":
+		return 28
+	case "P1M", "P3M", "P6M", "P1Y":
+		return 30
+	default:
+		return 0
+	}
+}
+
+func validateOptionalGraceAndHoldSum(planType, gracePeriodDuration, accountHoldDuration string) error {
+	if gracePeriodDuration == "" || accountHoldDuration == "" {
+		return nil
+	}
+	graceDays, err := parseISODayDuration(planType+" grace period duration", gracePeriodDuration)
+	if err != nil {
+		return err
+	}
+	holdDays, err := parseISODayDuration(planType+" account hold duration", accountHoldDuration)
+	if err != nil {
+		return err
+	}
+	total := graceDays + holdDays
+	if total < 30 || total > 60 {
+		return fmt.Errorf("%s grace period duration plus account hold duration must be between P30D and P60D", planType)
+	}
+	return nil
+}
+
+func parseISODayDuration(fieldName, value string) (int, error) {
+	if strings.TrimSpace(value) != value || !strings.HasPrefix(value, "P") || !strings.HasSuffix(value, "D") || strings.Contains(value, "T") {
+		return 0, fmt.Errorf("%s must be an ISO 8601 day duration", fieldName)
+	}
+	rawDays := strings.TrimSuffix(strings.TrimPrefix(value, "P"), "D")
+	if rawDays == "" || strings.ContainsAny(rawDays, "YMW.,") {
+		return 0, fmt.Errorf("%s must be an ISO 8601 day duration", fieldName)
+	}
+	days, err := strconv.Atoi(rawDays)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be an ISO 8601 day duration", fieldName)
+	}
+	return days, nil
+}
+
+func validateBasePlanProrationMode(value string) error {
+	if value == "" {
+		return nil
+	}
+	switch value {
+	case "SUBSCRIPTION_PRORATION_MODE_CHARGE_ON_NEXT_BILLING_DATE", "SUBSCRIPTION_PRORATION_MODE_CHARGE_FULL_PRICE_IMMEDIATELY":
+		return nil
+	default:
+		return fmt.Errorf("unsupported proration mode %q", value)
+	}
+}
+
+func validateBasePlanResubscribeState(value string) error {
+	if value == "" {
+		return nil
+	}
+	switch value {
+	case "RESUBSCRIBE_STATE_ACTIVE", "RESUBSCRIBE_STATE_INACTIVE":
+		return nil
+	default:
+		return fmt.Errorf("unsupported resubscribe state %q", value)
+	}
+}
+
+func validateBasePlanTimeExtension(value string) error {
+	if value == "" {
+		return nil
+	}
+	switch value {
+	case "TIME_EXTENSION_ACTIVE", "TIME_EXTENSION_INACTIVE":
+		return nil
+	default:
+		return fmt.Errorf("unsupported time extension %q", value)
+	}
+}
+
+func validateBasePlanRenewalType(value string) error {
+	switch value {
+	case "RENEWAL_TYPE_RENEWS_WITHOUT_COMMITMENT", "RENEWAL_TYPE_RENEWS_WITH_COMMITMENT":
+		return nil
+	case "":
+		return fmt.Errorf("installments renewal type is required")
+	default:
+		return fmt.Errorf("unsupported renewal type %q", value)
+	}
+}
+
+func validateSubscriptionRestrictedCountriesForCreate(countries []string) error {
+	seen := map[string]struct{}{}
+	for _, country := range countries {
+		if !isValidRegionCode(country) {
+			return fmt.Errorf("restricted country must be a two-letter ISO 3166 code")
+		}
+		if _, ok := seen[country]; ok {
+			return fmt.Errorf("restricted country %s is duplicated", country)
+		}
+		seen[country] = struct{}{}
+	}
+	return nil
+}
+
+func validateSubscriptionOtherRegionsConfigForCreate(config SubscriptionOtherRegionsConfig) error {
+	if config.USDPrice == nil || config.EURPrice == nil {
+		return fmt.Errorf("other regions config requires usdPrice and eurPrice")
+	}
+	if config.USDPrice.CurrencyCode != "USD" {
+		return fmt.Errorf("other regions usdPrice currencyCode must be USD")
+	}
+	if config.EURPrice.CurrencyCode != "EUR" {
+		return fmt.Errorf("other regions eurPrice currencyCode must be EUR")
+	}
+	if err := validateMoney(*config.USDPrice); err != nil {
+		return err
+	}
+	if err := validateMoney(*config.EURPrice); err != nil {
+		return err
+	}
+	return nil
+}
+
 type SubscriptionBatchGetResult struct {
 	PackageName   PackageName                 `json:"packageName"`
 	Subscriptions []Subscription              `json:"subscriptions"`
@@ -247,6 +632,10 @@ type SubscriptionDeleter interface {
 	DeleteSubscription(ctx context.Context, options SubscriptionDeleteOptions) error
 }
 
+type SubscriptionCreator interface {
+	CreateSubscription(ctx context.Context, options SubscriptionCreateOptions) (Subscription, error)
+}
+
 func BatchGetSubscriptions(ctx context.Context, getter SubscriptionBatchGetter, options SubscriptionBatchGetOptions) (SubscriptionBatchGetResult, error) {
 	if err := options.Validate(); err != nil {
 		return SubscriptionBatchGetResult{}, err
@@ -255,6 +644,73 @@ func BatchGetSubscriptions(ctx context.Context, getter SubscriptionBatchGetter, 
 		return SubscriptionBatchGetResult{}, fmt.Errorf("subscription batch getter is required")
 	}
 	return getter.BatchGetSubscriptions(ctx, options)
+}
+
+type SubscriptionCreatePlan struct {
+	Action         string                `json:"action"`
+	PackageName    PackageName           `json:"packageName"`
+	ProductID      SubscriptionProductID `json:"productId"`
+	RegionsVersion string                `json:"regionsVersion"`
+	Confirm        bool                  `json:"confirm"`
+	Steps          []string              `json:"steps"`
+}
+
+type SubscriptionCreateResult struct {
+	Action       string                 `json:"action"`
+	DryRun       bool                   `json:"dryRun"`
+	Created      bool                   `json:"created"`
+	Subscription *Subscription          `json:"subscription,omitempty"`
+	Desired      Subscription           `json:"desiredSubscription"`
+	Plan         SubscriptionCreatePlan `json:"plan"`
+}
+
+func CreateSubscription(ctx context.Context, creator SubscriptionCreator, options SubscriptionCreateOptions) (SubscriptionCreateResult, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionCreateResult{}, err
+	}
+	desired := subscriptionCreateDesiredSubscription(options)
+	result := SubscriptionCreateResult{
+		Action:  "create",
+		DryRun:  options.DryRun,
+		Desired: desired,
+		Plan: SubscriptionCreatePlan{
+			Action:         "create",
+			PackageName:    options.PackageName,
+			ProductID:      options.ProductID,
+			RegionsVersion: options.RegionsVersion,
+			Confirm:        options.Confirm,
+			Steps:          subscriptionCreateSteps(options.DryRun),
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if creator == nil {
+		return SubscriptionCreateResult{}, fmt.Errorf("subscription creator is required")
+	}
+	subscription, err := creator.CreateSubscription(ctx, options)
+	if err != nil {
+		return SubscriptionCreateResult{}, err
+	}
+	result.Created = true
+	result.Subscription = &subscription
+	return result, nil
+}
+
+func subscriptionCreateDesiredSubscription(options SubscriptionCreateOptions) Subscription {
+	subscription := options.Subscription
+	subscription.PackageName = options.PackageName
+	subscription.ProductID = options.ProductID
+	subscription.Archived = false
+	for index := range subscription.Listings {
+		if language, err := NewListingLanguage(subscription.Listings[index].LanguageCode); err == nil {
+			subscription.Listings[index].LanguageCode = language.String()
+		}
+	}
+	for index := range subscription.BasePlans {
+		subscription.BasePlans[index].State = ""
+	}
+	return subscription
 }
 
 type SubscriptionDeleteOptions struct {
@@ -1266,6 +1722,13 @@ func basePlanBatchPriceMigrationSteps(options BasePlanBatchPriceMigrationOptions
 		return []string{"plan batch base plan price migration"}
 	}
 	return []string{"batch migrate base plan prices"}
+}
+
+func subscriptionCreateSteps(dryRun bool) []string {
+	if dryRun {
+		return []string{"plan subscription create"}
+	}
+	return []string{"create subscription"}
 }
 
 const subscriptionPatchUpdateMask = "listings"

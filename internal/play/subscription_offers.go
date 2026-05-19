@@ -53,6 +53,10 @@ func isValidSubscriptionBasePlanID(value string) bool {
 	if !isASCIILower(first) && !isASCIIDigit(first) {
 		return false
 	}
+	last := value[len(value)-1]
+	if !isASCIILower(last) && !isASCIIDigit(last) {
+		return false
+	}
 	for i := 1; i < len(value); i++ {
 		character := value[i]
 		if !isASCIILower(character) && !isASCIIDigit(character) && character != '-' {

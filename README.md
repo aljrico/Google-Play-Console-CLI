@@ -151,6 +151,7 @@ gpc one-time-product-offers cancel --package com.example.app --product-id coins_
 gpc subscriptions list --package com.example.app --page-size 50
 gpc subscriptions get --package com.example.app --product-id premium_monthly
 gpc subscriptions batch-get --package com.example.app --product-id premium_monthly --product-id premium_yearly
+gpc subscriptions create --package com.example.app --product-id premium_monthly --from-json subscription.json --regions-version 2026/05 --dry-run
 gpc subscriptions patch --package com.example.app --product-id premium_monthly --listing-language en-US --title "Premium" --description "Full access" --regions-version 2022/02 --dry-run
 gpc subscriptions batch-patch-listings --package com.example.app --listing 'premium_monthly,en-US,Premium,Full access' --listing 'premium_yearly,en-US,Premium Yearly,Full access for a year' --regions-version 2026/05 --dry-run
 gpc subscriptions delete --package com.example.app --product-id premium_draft --dry-run
@@ -239,6 +240,23 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
     "duration": "P1M",
     "recurrenceCount": 1,
     "regionalConfigs": [{"regionCode": "US", "free": {}}]
+  }]
+}
+```
+
+`subscriptions create --from-json` accepts either Google Play API `Subscription` JSON or `gpc subscriptions get --output json` shape. The `--package` and `--product-id` flags override immutable IDs in the file, and output-only archived/base-plan state is ignored because Play creates draft base plans. The JSON body must include at least one listing and at least one base plan with regional configs. Example:
+
+```json
+{
+  "listings": [{"languageCode": "en-US", "title": "Premium"}],
+  "basePlans": [{
+    "basePlanId": "monthly",
+    "autoRenewingBasePlanType": {"billingPeriodDuration": "P1M"},
+    "regionalConfigs": [{
+      "regionCode": "US",
+      "newSubscriberAvailability": true,
+      "price": {"currencyCode": "USD", "units": "4", "nanos": 990000000}
+    }]
   }]
 }
 ```
