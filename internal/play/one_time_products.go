@@ -3,6 +3,7 @@ package play
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 type OneTimeProductID string
@@ -461,6 +462,183 @@ func BatchDeleteOneTimeProducts(ctx context.Context, deleter OneTimeProductBatch
 	}
 	result.Deleted = true
 	return result, nil
+}
+
+const OneTimeProductWildcardID = "-"
+
+type OneTimeProductBatchParentProductID string
+
+func NewOneTimeProductBatchParentProductID(value string) (OneTimeProductBatchParentProductID, error) {
+	if value == OneTimeProductWildcardID {
+		return OneTimeProductBatchParentProductID(value), nil
+	}
+	if _, err := NewOneTimeProductID(value); err != nil {
+		return "", err
+	}
+	return OneTimeProductBatchParentProductID(value), nil
+}
+
+func (p OneTimeProductBatchParentProductID) String() string {
+	return string(p)
+}
+
+func (p OneTimeProductBatchParentProductID) IsWildcard() bool {
+	return p == OneTimeProductBatchParentProductID(OneTimeProductWildcardID)
+}
+
+type PurchaseOptionBatchDeleteRequest struct {
+	ProductID        OneTimeProductID               `json:"productId"`
+	PurchaseOptionID OneTimeProductPurchaseOptionID `json:"purchaseOptionId"`
+}
+
+func NewPurchaseOptionBatchDeleteRequest(value string) (PurchaseOptionBatchDeleteRequest, error) {
+	productIDValue, purchaseOptionIDValue, ok := strings.Cut(value, "/")
+	if !ok {
+		return PurchaseOptionBatchDeleteRequest{}, fmt.Errorf("purchase option must be formatted as productId/purchaseOptionId")
+	}
+	productID, err := NewOneTimeProductID(productIDValue)
+	if err != nil {
+		return PurchaseOptionBatchDeleteRequest{}, err
+	}
+	purchaseOptionID, err := NewOneTimeProductPurchaseOptionID(purchaseOptionIDValue)
+	if err != nil {
+		return PurchaseOptionBatchDeleteRequest{}, err
+	}
+	return PurchaseOptionBatchDeleteRequest{ProductID: productID, PurchaseOptionID: purchaseOptionID}, nil
+}
+
+type PurchaseOptionBatchDeleteOptions struct {
+	PackageName      PackageName                        `json:"packageName"`
+	ParentProductID  OneTimeProductBatchParentProductID `json:"parentProductId"`
+	Requests         []PurchaseOptionBatchDeleteRequest `json:"requests"`
+	LatencyTolerance ProductUpdateLatencyTolerance      `json:"latencyTolerance"`
+	Force            bool                               `json:"force"`
+	Confirm          bool                               `json:"confirm"`
+	DryRun           bool                               `json:"dryRun"`
+}
+
+func (o PurchaseOptionBatchDeleteOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if _, err := NewOneTimeProductBatchParentProductID(o.ParentProductID.String()); err != nil {
+		return err
+	}
+	if len(o.Requests) == 0 {
+		return fmt.Errorf("at least one purchase option is required")
+	}
+	if len(o.Requests) > 100 {
+		return fmt.Errorf("purchase option batch-delete cannot exceed 100 purchase options")
+	}
+	seenRequests := map[PurchaseOptionBatchDeleteRequest]struct{}{}
+	seenProducts := map[OneTimeProductID]struct{}{}
+	for _, request := range o.Requests {
+		if _, err := NewOneTimeProductID(request.ProductID.String()); err != nil {
+			return err
+		}
+		if _, err := NewOneTimeProductPurchaseOptionID(request.PurchaseOptionID.String()); err != nil {
+			return err
+		}
+		if !o.ParentProductID.IsWildcard() && request.ProductID.String() != o.ParentProductID.String() {
+			return fmt.Errorf("purchase option %s/%s does not match parent product ID %q", request.ProductID, request.PurchaseOptionID, o.ParentProductID)
+		}
+		if _, ok := seenRequests[request]; ok {
+			return fmt.Errorf("purchase option %s/%s is duplicated", request.ProductID, request.PurchaseOptionID)
+		}
+		seenRequests[request] = struct{}{}
+		if _, ok := seenProducts[request.ProductID]; ok {
+			return fmt.Errorf("purchase option batch-delete accepts at most one request per one-time product; product %q is repeated", request.ProductID)
+		}
+		seenProducts[request.ProductID] = struct{}{}
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("purchase option batch deletion requires --confirm or --dry-run")
+	}
+	return nil
+}
+
+func (o PurchaseOptionBatchDeleteOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live purchase option batch deletion cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live purchase option batch deletion requires --confirm")
+	}
+	return nil
+}
+
+type PurchaseOptionBatchDeletePlan struct {
+	PackageName      PackageName                        `json:"packageName"`
+	ParentProductID  OneTimeProductBatchParentProductID `json:"parentProductId"`
+	Requests         []PurchaseOptionBatchDeleteRequest `json:"requests"`
+	LatencyTolerance ProductUpdateLatencyTolerance      `json:"latencyTolerance"`
+	Force            bool                               `json:"force"`
+	Confirm          bool                               `json:"confirm"`
+	Steps            []string                           `json:"steps"`
+}
+
+type PurchaseOptionBatchDeleteResult struct {
+	PackageName     PackageName                        `json:"packageName"`
+	ParentProductID OneTimeProductBatchParentProductID `json:"parentProductId"`
+	Requests        []PurchaseOptionBatchDeleteRequest `json:"requests"`
+	Force           bool                               `json:"force"`
+	DryRun          bool                               `json:"dryRun"`
+	Deleted         bool                               `json:"deleted"`
+	Plan            PurchaseOptionBatchDeletePlan      `json:"plan"`
+}
+
+type PurchaseOptionBatchDeleter interface {
+	BatchDeletePurchaseOptions(ctx context.Context, options PurchaseOptionBatchDeleteOptions) error
+}
+
+func BatchDeletePurchaseOptions(ctx context.Context, deleter PurchaseOptionBatchDeleter, options PurchaseOptionBatchDeleteOptions) (PurchaseOptionBatchDeleteResult, error) {
+	if err := options.Validate(); err != nil {
+		return PurchaseOptionBatchDeleteResult{}, err
+	}
+	requests := append([]PurchaseOptionBatchDeleteRequest(nil), options.Requests...)
+	result := PurchaseOptionBatchDeleteResult{
+		PackageName:     options.PackageName,
+		ParentProductID: options.ParentProductID,
+		Requests:        requests,
+		Force:           options.Force,
+		DryRun:          options.DryRun,
+		Plan: PurchaseOptionBatchDeletePlan{
+			PackageName:      options.PackageName,
+			ParentProductID:  options.ParentProductID,
+			Requests:         requests,
+			LatencyTolerance: options.LatencyTolerance,
+			Force:            options.Force,
+			Confirm:          options.Confirm,
+			Steps:            purchaseOptionBatchDeleteSteps(options),
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if deleter == nil {
+		return PurchaseOptionBatchDeleteResult{}, fmt.Errorf("purchase option batch deleter is required")
+	}
+	if err := deleter.BatchDeletePurchaseOptions(ctx, options); err != nil {
+		return PurchaseOptionBatchDeleteResult{}, err
+	}
+	result.Deleted = true
+	return result, nil
+}
+
+func purchaseOptionBatchDeleteSteps(options PurchaseOptionBatchDeleteOptions) []string {
+	if options.DryRun {
+		return []string{"plan purchase option batch deletion"}
+	}
+	return []string{"batch delete purchase options"}
 }
 
 type PurchaseOptionStateUpdateOptions struct {

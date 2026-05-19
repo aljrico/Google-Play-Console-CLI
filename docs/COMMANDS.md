@@ -1504,6 +1504,7 @@ gpc one-time-products purchase-option
 ##### Commands
 
 - `gpc one-time-products purchase-option activate`: activate a one-time product purchase option
+- `gpc one-time-products purchase-option batch-delete`: Delete one-time product purchase options
 - `gpc one-time-products purchase-option deactivate`: deactivate a one-time product purchase option
 
 ##### gpc one-time-products purchase-option activate
@@ -1521,6 +1522,23 @@ gpc one-time-products purchase-option activate [flags]
 - `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
 - `--product-id`: One-time product ID
 - `--purchase-option-id`: One-time product purchase option ID
+
+##### gpc one-time-products purchase-option batch-delete
+
+Delete one-time product purchase options
+
+```sh
+gpc one-time-products purchase-option batch-delete [flags]
+```
+
+###### Flags
+
+- `--confirm`: Apply the purchase option batch deletion (default `false`)
+- `--dry-run`: Print the planned purchase option batch deletion without calling Google Play (default `false`)
+- `--force`: Also delete associated offers under each purchase option (default `false`)
+- `--latency-tolerance`: Propagation latency: latencySensitive or latencyTolerant (default `latencySensitive`)
+- `--product-id`: Parent one-time product ID, or - when deleting across products (default `-`)
+- `--purchase-option`: Purchase option to delete as productId/purchaseOptionId; repeatable, up to 100 (default `[]`)
 
 ##### gpc one-time-products purchase-option deactivate
 

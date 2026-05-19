@@ -574,6 +574,38 @@ func (p GooglePublisher) BatchDeleteOneTimeProducts(ctx context.Context, options
 	return nil
 }
 
+func (p GooglePublisher) BatchDeletePurchaseOptions(ctx context.Context, options PurchaseOptionBatchDeleteOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	request := &androidpublisher.BatchDeletePurchaseOptionsRequest{
+		Requests: make([]*androidpublisher.DeletePurchaseOptionRequest, 0, len(options.Requests)),
+	}
+	latencyTolerance := productUpdateLatencyToleranceToAPI(options.LatencyTolerance)
+	for _, item := range options.Requests {
+		apiRequest := &androidpublisher.DeletePurchaseOptionRequest{
+			PackageName:      options.PackageName.String(),
+			ProductId:        item.ProductID.String(),
+			PurchaseOptionId: item.PurchaseOptionID.String(),
+			LatencyTolerance: latencyTolerance,
+		}
+		if options.Force {
+			apiRequest.Force = true
+			apiRequest.ForceSendFields = []string{"Force"}
+		}
+		request.Requests = append(request.Requests, apiRequest)
+	}
+	err := p.service.Monetization.Onetimeproducts.PurchaseOptions.BatchDelete(
+		options.PackageName.String(),
+		options.ParentProductID.String(),
+		request,
+	).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("batch delete purchase options for %s/%s: %w", options.PackageName, options.ParentProductID, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) UpdatePurchaseOptionState(ctx context.Context, options PurchaseOptionStateUpdateOptions) (OneTimeProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return OneTimeProduct{}, err

@@ -3217,6 +3217,67 @@ func TestGooglePublisherBatchDeleteOneTimeProductsRejectsDryRunBeforeRequest(t *
 	}
 }
 
+func TestGooglePublisherBatchDeletePurchaseOptionsUsesBatchDeleteEndpoint(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/oneTimeProducts/-/purchaseOptions:batchDelete" {
+			t.Fatalf("path = %q, want purchase options batch-delete endpoint", r.URL.Path)
+		}
+		var request androidpublisher.BatchDeletePurchaseOptionsRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("Decode() error = %v", err)
+		}
+		if len(request.Requests) != 2 {
+			t.Fatalf("len(Requests) = %d, want 2", len(request.Requests))
+		}
+		first := request.Requests[0]
+		if first.PackageName != "com.example.app" || first.ProductId != "coins_100" || first.PurchaseOptionId != "buy" {
+			t.Fatalf("first request = %#v, want identifiers", first)
+		}
+		if !first.Force {
+			t.Fatal("Force = false, want true")
+		}
+		if first.LatencyTolerance != "PRODUCT_UPDATE_LATENCY_TOLERANCE_LATENCY_TOLERANT" {
+			t.Fatalf("LatencyTolerance = %q, want tolerant enum", first.LatencyTolerance)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	err := publisher.BatchDeletePurchaseOptions(context.Background(), PurchaseOptionBatchDeleteOptions{
+		PackageName:     "com.example.app",
+		ParentProductID: OneTimeProductBatchParentProductID(OneTimeProductWildcardID),
+		Requests: []PurchaseOptionBatchDeleteRequest{
+			{ProductID: "coins_100", PurchaseOptionID: "buy"},
+			{ProductID: "coins_500", PurchaseOptionID: "rent"},
+		},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		Force:            true,
+		Confirm:          true,
+	})
+	if err != nil {
+		t.Fatalf("BatchDeletePurchaseOptions() error = %v", err)
+	}
+}
+
+func TestGooglePublisherBatchDeletePurchaseOptionsRejectsDryRunBeforeRequest(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+
+	err := publisher.BatchDeletePurchaseOptions(context.Background(), PurchaseOptionBatchDeleteOptions{
+		PackageName:      "com.example.app",
+		ParentProductID:  OneTimeProductBatchParentProductID(OneTimeProductWildcardID),
+		Requests:         []PurchaseOptionBatchDeleteRequest{{ProductID: "coins_100", PurchaseOptionID: "buy"}},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected live validation error")
+	}
+}
+
 func TestUpdatePurchaseOptionStateUsesBatchUpdateStatesEndpoint(t *testing.T) {
 	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
