@@ -84,6 +84,6 @@ func newMetadataApplyCommand(out io.Writer, options *globalOptions, packageName 
 	cmd.Flags().StringVar(&filePath, "file", "", "Path to metadata JSON")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned metadata update without calling Google Play")
-	cmd.Flags().BoolVar(&changesNotSentForReview, "changes-not-sent-for-review", false, "Skip auto-review on commit; changes must be sent for review from the Play Console UI (required for apps under review-only commit policies)")
+	cmd.Flags().BoolVar(&changesNotSentForReview, "changes-not-sent-for-review", false, "Commit without sending changes for review (required when the app is in an enforcement-required state)")
 	return cmd
 }

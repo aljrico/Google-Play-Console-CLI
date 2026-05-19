@@ -55,13 +55,13 @@ func ParseMetadataFile(path string, content []byte) (MetadataFile, error) {
 }
 
 type MetadataApplyOptions struct {
-	PackageName              PackageName `json:"packageName"`
-	FilePath                 string      `json:"filePath"`
-	Details                  *AppDetails `json:"details,omitempty"`
-	Listings                 []Listing   `json:"listings,omitempty"`
-	Confirm                  bool        `json:"confirm"`
-	DryRun                   bool        `json:"dryRun"`
-	ChangesNotSentForReview  bool        `json:"changesNotSentForReview,omitempty"`
+	PackageName             PackageName `json:"packageName"`
+	FilePath                string      `json:"filePath"`
+	Details                 *AppDetails `json:"details,omitempty"`
+	Listings                []Listing   `json:"listings,omitempty"`
+	Confirm                 bool        `json:"confirm"`
+	DryRun                  bool        `json:"dryRun"`
+	ChangesNotSentForReview bool        `json:"changesNotSentForReview,omitempty"`
 }
 
 func (o MetadataApplyOptions) Validate() error {
@@ -116,11 +116,11 @@ func (o MetadataApplyOptions) ValidateRequest() error {
 }
 
 type MetadataApplyPlan struct {
-	PackageName              PackageName `json:"packageName"`
-	FilePath                 string      `json:"filePath"`
-	Confirm                  bool        `json:"confirm"`
-	ChangesNotSentForReview  bool        `json:"changesNotSentForReview,omitempty"`
-	Steps                    []string    `json:"steps"`
+	PackageName             PackageName `json:"packageName"`
+	FilePath                string      `json:"filePath"`
+	Confirm                 bool        `json:"confirm"`
+	ChangesNotSentForReview bool        `json:"changesNotSentForReview,omitempty"`
+	Steps                   []string    `json:"steps"`
 }
 
 type MetadataApplyResult struct {
@@ -139,8 +139,7 @@ type MetadataApplier interface {
 	PatchAppDetails(ctx context.Context, packageName PackageName, editID string, details AppDetails) (AppDetails, error)
 	PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error)
 	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
-	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
-	CommitEditNoReview(ctx context.Context, packageName PackageName, editID string) (Edit, error)
+	CommitEditWithOptions(ctx context.Context, packageName PackageName, editID string, opts CommitEditOptions) (Edit, error)
 	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
 }
 
@@ -236,6 +235,8 @@ func ApplyMetadata(ctx context.Context, applier MetadataApplier, options Metadat
 	}
 	result.Listings = appliedListings
 
+	// edits.validate rejects the same enforcement state that edits.commit hits, so skip it
+	// when the caller already accepts the no-auto-review path.
 	if !normalizedOptions.ChangesNotSentForReview {
 		if err := applier.ValidateEdit(ctx, normalizedOptions.PackageName, edit.ID); err != nil {
 			return MetadataApplyResult{}, err
@@ -244,12 +245,8 @@ func ApplyMetadata(ctx context.Context, applier MetadataApplier, options Metadat
 	if !normalizedOptions.Confirm {
 		return result, nil
 	}
-	var committedEdit Edit
-	if normalizedOptions.ChangesNotSentForReview {
-		committedEdit, err = applier.CommitEditNoReview(ctx, normalizedOptions.PackageName, edit.ID)
-	} else {
-		committedEdit, err = applier.CommitEdit(ctx, normalizedOptions.PackageName, edit.ID)
-	}
+	commitOpts := CommitEditOptions{ChangesNotSentForReview: normalizedOptions.ChangesNotSentForReview}
+	committedEdit, err := applier.CommitEditWithOptions(ctx, normalizedOptions.PackageName, edit.ID, commitOpts)
 	if err != nil {
 		return MetadataApplyResult{}, err
 	}

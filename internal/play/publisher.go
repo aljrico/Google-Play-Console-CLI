@@ -157,18 +157,22 @@ func (p GooglePublisher) ValidateEdit(ctx context.Context, packageName PackageNa
 	return nil
 }
 
-func (p GooglePublisher) CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error) {
-	edit, err := p.service.Edits.Commit(packageName.String(), editID).Context(ctx).Do()
-	if err != nil {
-		return Edit{}, fmt.Errorf("commit edit %s for %s: %w", editID, packageName, err)
-	}
-	return Edit{ID: edit.Id, ExpiryTimeSeconds: edit.ExpiryTimeSeconds}, nil
+type CommitEditOptions struct {
+	ChangesNotSentForReview bool
 }
 
-func (p GooglePublisher) CommitEditNoReview(ctx context.Context, packageName PackageName, editID string) (Edit, error) {
-	edit, err := p.service.Edits.Commit(packageName.String(), editID).ChangesNotSentForReview(true).Context(ctx).Do()
+func (p GooglePublisher) CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error) {
+	return p.CommitEditWithOptions(ctx, packageName, editID, CommitEditOptions{})
+}
+
+func (p GooglePublisher) CommitEditWithOptions(ctx context.Context, packageName PackageName, editID string, opts CommitEditOptions) (Edit, error) {
+	call := p.service.Edits.Commit(packageName.String(), editID).Context(ctx)
+	if opts.ChangesNotSentForReview {
+		call = call.ChangesNotSentForReview(true)
+	}
+	edit, err := call.Do()
 	if err != nil {
-		return Edit{}, fmt.Errorf("commit edit %s for %s (changes not sent for review): %w", editID, packageName, err)
+		return Edit{}, fmt.Errorf("commit edit %s for %s: %w", editID, packageName, err)
 	}
 	return Edit{ID: edit.Id, ExpiryTimeSeconds: edit.ExpiryTimeSeconds}, nil
 }

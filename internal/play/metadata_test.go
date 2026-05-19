@@ -270,13 +270,12 @@ func (a *fakeMetadataApplier) ValidateEdit(ctx context.Context, packageName Pack
 	return nil
 }
 
-func (a *fakeMetadataApplier) CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error) {
-	a.calls = append(a.calls, "commit")
-	return Edit{ID: editID}, nil
-}
-
-func (a *fakeMetadataApplier) CommitEditNoReview(ctx context.Context, packageName PackageName, editID string) (Edit, error) {
-	a.calls = append(a.calls, "commit-no-review")
+func (a *fakeMetadataApplier) CommitEditWithOptions(ctx context.Context, packageName PackageName, editID string, opts CommitEditOptions) (Edit, error) {
+	if opts.ChangesNotSentForReview {
+		a.calls = append(a.calls, "commit-no-review")
+	} else {
+		a.calls = append(a.calls, "commit")
+	}
 	return Edit{ID: editID}, nil
 }
 
