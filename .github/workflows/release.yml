@@ -1,6 +1,8 @@
 name: Release
 
 on:
+  pull_request:
+  workflow_dispatch:
   push:
     tags:
       - "v*"
@@ -9,9 +11,77 @@ permissions:
   contents: write
 
 jobs:
+  packaging-check:
+    name: Packaging Check
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify module files are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Check GoReleaser config
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check
+
+      - name: Build snapshot release
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish
+
+      - name: Smoke test generated Homebrew formula
+        run: |
+          formula_file="$(find dist -path '*/Formula/gpc.rb' -print -quit)"
+          test -n "$formula_file"
+          ruby - "$formula_file" "$PWD/dist" <<'RUBY'
+          formula_file, dist_dir = ARGV
+          content = File.read(formula_file)
+          content.gsub!(%r{https://github.com/aljrico/Google-Play-Console-CLI/releases/download/v[^/]+/([^"]+)}) do
+            "file://#{File.expand_path(File.join(dist_dir, Regexp.last_match(1)))}"
+          end
+          File.write(formula_file, content)
+          RUBY
+          tap_name="gpc/local"
+          brew untap "$tap_name" >/dev/null 2>&1 || true
+          cleanup() {
+            brew uninstall --formula --force "$tap_name/gpc" >/dev/null 2>&1 || true
+            brew untap "$tap_name" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          brew tap-new "$tap_name" --no-git
+          tap_dir="$(brew --repo "$tap_name")"
+          mkdir -p "$tap_dir/Formula"
+          cp "$formula_file" "$tap_dir/Formula/gpc.rb"
+          brew audit --formula "$tap_name/gpc"
+          brew install --formula "$tap_name/gpc"
+          brew test "$tap_name/gpc"
+          gpc version
+
   goreleaser:
     name: GoReleaser
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - packaging-check
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -26,6 +96,16 @@ jobs:
 
       - name: Run tests
         run: go test ./...
+
+      - name: Verify module files are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Require Homebrew tap token
+        run: test -n "$HOMEBREW_TAP_GITHUB_TOKEN"
+        env:
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6

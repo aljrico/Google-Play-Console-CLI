@@ -3,10 +3,6 @@ version: 2
 
 project_name: gpc
 
-before:
-  hooks:
-    - go mod tidy
-
 builds:
   - id: gpc
     main: .
@@ -65,7 +61,7 @@ release:
     owner: aljrico
     name: Google-Play-Console-CLI
 
-homebrew_casks:
+brews:
   - name: gpc
     ids:
       - gpc
@@ -73,22 +69,9 @@ homebrew_casks:
       owner: aljrico
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
     homepage: https://github.com/aljrico/Google-Play-Console-CLI
     description: Fast, scriptable CLI for the Google Play Developer API
     license: MIT
-    binaries:
-      - gpc
-    generate_completions_from_executable:
-      executable: bin/gpc
-      shell_parameter_format: cobra
-      shells:
-        - bash
-        - zsh
-        - fish
-        - pwsh
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/gpc"], must_succeed: false
-          end
+    test: |
+      system "#{bin}/gpc", "version"
