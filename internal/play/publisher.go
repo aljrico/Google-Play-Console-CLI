@@ -507,6 +507,21 @@ func (p GooglePublisher) GetSubscription(ctx context.Context, packageName Packag
 	return subscriptionFromAPI(subscription), nil
 }
 
+func (p GooglePublisher) BatchGetSubscriptions(ctx context.Context, options SubscriptionBatchGetOptions) (SubscriptionBatchGetResult, error) {
+	productIDs := make([]string, 0, len(options.ProductIDs))
+	for _, productID := range options.ProductIDs {
+		productIDs = append(productIDs, productID.String())
+	}
+	response, err := p.service.Monetization.Subscriptions.BatchGet(options.PackageName.String()).
+		ProductIds(productIDs...).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return SubscriptionBatchGetResult{}, fmt.Errorf("batch get subscriptions for %s: %w", options.PackageName, err)
+	}
+	return subscriptionBatchGetResultFromAPI(options, response), nil
+}
+
 func (p GooglePublisher) ListSubscriptionOffers(ctx context.Context, options SubscriptionOfferListOptions) (SubscriptionOfferListResult, error) {
 	call := p.service.Monetization.Subscriptions.BasePlans.Offers.List(
 		options.PackageName.String(),
@@ -524,6 +539,21 @@ func (p GooglePublisher) ListSubscriptionOffers(ctx context.Context, options Sub
 		return SubscriptionOfferListResult{}, fmt.Errorf("list subscription offers for %s/%s/%s: %w", options.PackageName, options.ProductID, options.BasePlanID, err)
 	}
 	return subscriptionOfferListResultFromAPI(options, response), nil
+}
+
+func subscriptionBatchGetResultFromAPI(options SubscriptionBatchGetOptions, response *androidpublisher.BatchGetSubscriptionsResponse) SubscriptionBatchGetResult {
+	result := SubscriptionBatchGetResult{
+		PackageName:   options.PackageName,
+		Subscriptions: []Subscription{},
+		Options:       options,
+	}
+	if response == nil {
+		return result
+	}
+	for _, apiSubscription := range response.Subscriptions {
+		result.Subscriptions = append(result.Subscriptions, subscriptionFromAPI(apiSubscription))
+	}
+	return result
 }
 
 func (p GooglePublisher) ListUsers(ctx context.Context, options UserListOptions) (UserListResult, error) {
@@ -906,7 +936,6 @@ func subscriptionOfferBatchGetResultFromAPI(options SubscriptionOfferBatchGetOpt
 		BasePlanID:  options.BasePlanID,
 		Offers:      []SubscriptionOffer{},
 		Options:     options,
-		Requests:    append([]SubscriptionOfferBatchGetRequest(nil), options.Requests...),
 	}
 	if response == nil {
 		return result

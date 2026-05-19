@@ -1575,9 +1575,9 @@ gpc subscription-offers batch-get [flags]
 
 ##### Flags
 
-- `--base-plan-id`: Parent subscription base plan ID
+- `--base-plan-id`: Parent subscription base plan ID, or - for offers across base plans
 - `--offer`: Offer to fetch as productId/basePlanId/offerId; repeatable, up to 100 (default `[]`)
-- `--product-id`: Parent subscription product ID
+- `--product-id`: Parent subscription product ID, or - for offers across products
 
 #### gpc subscription-offers get
 
@@ -1603,10 +1603,10 @@ gpc subscription-offers list [flags]
 
 ##### Flags
 
-- `--base-plan-id`: Parent subscription base plan ID
+- `--base-plan-id`: Parent subscription base plan ID, or - for all base plans
 - `--page-size`: Maximum offers to return, capped at 1000 (default `0`)
 - `--page-token`: Pagination token from a previous response
-- `--product-id`: Parent subscription product ID
+- `--product-id`: Parent subscription product ID, or - for all products
 
 ### gpc subscriptions
 
@@ -1622,8 +1622,21 @@ gpc subscriptions
 
 #### Commands
 
+- `gpc subscriptions batch-get`: Get multiple monetization subscriptions
 - `gpc subscriptions get`: Get one monetization subscription
 - `gpc subscriptions list`: List monetization subscriptions
+
+#### gpc subscriptions batch-get
+
+Get multiple monetization subscriptions
+
+```sh
+gpc subscriptions batch-get [flags]
+```
+
+##### Flags
+
+- `--product-id`: Subscription product ID; repeatable, up to 100 (default `[]`)
 
 #### gpc subscriptions get
 

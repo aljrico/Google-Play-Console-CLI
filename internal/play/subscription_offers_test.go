@@ -135,6 +135,17 @@ func TestGetSubscriptionOfferPassesIDsToGetter(t *testing.T) {
 	}
 }
 
+func TestSubscriptionOfferIDValidatesGoogleShape(t *testing.T) {
+	if _, err := NewSubscriptionOfferID("intro-offer-1"); err != nil {
+		t.Fatalf("NewSubscriptionOfferID() error = %v", err)
+	}
+	for _, value := range []string{"", "Intro", "intro_offer", "intro offer"} {
+		if _, err := NewSubscriptionOfferID(value); err == nil {
+			t.Fatalf("NewSubscriptionOfferID(%q) succeeded, want error", value)
+		}
+	}
+}
+
 func TestBatchGetSubscriptionOffersPassesOptionsToGetter(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
@@ -164,6 +175,44 @@ func TestBatchGetSubscriptionOffersPassesOptionsToGetter(t *testing.T) {
 	}
 	if !reflect.DeepEqual(getter.batchOptions, options) {
 		t.Fatalf("batchOptions = %#v, want %#v", getter.batchOptions, options)
+	}
+}
+
+func TestBatchGetSubscriptionOffersRejectsParentProductMismatch(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchGetSubscriptionOffers(context.Background(), nil, SubscriptionOfferBatchGetOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		Requests: []SubscriptionOfferBatchGetRequest{
+			{ProductID: "other", BasePlanID: "monthly", OfferID: "intro"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected parent product mismatch validation error")
+	}
+}
+
+func TestBatchGetSubscriptionOffersRejectsParentBasePlanMismatch(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchGetSubscriptionOffers(context.Background(), nil, SubscriptionOfferBatchGetOptions{
+		PackageName: packageName,
+		ProductID:   "premium",
+		BasePlanID:  "monthly",
+		Requests: []SubscriptionOfferBatchGetRequest{
+			{ProductID: "premium", BasePlanID: "annual", OfferID: "intro"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected parent base plan mismatch validation error")
 	}
 }
 

@@ -64,7 +64,13 @@ func newSubscriptionOffersBatchGetCommand(out io.Writer, options *globalOptions,
 			return output.Write(out, options.output, options.pretty, result)
 		},
 	}
-	addSubscriptionOfferParentFlags(cmd, &productID, &basePlanID)
+	addSubscriptionOfferParentFlags(
+		cmd,
+		&productID,
+		&basePlanID,
+		"Parent subscription product ID, or - for offers across products",
+		"Parent subscription base plan ID, or - for offers across base plans",
+	)
 	cmd.Flags().StringArrayVar(&offers, "offer", nil, "Offer to fetch as productId/basePlanId/offerId; repeatable, up to 100")
 	return cmd
 }
@@ -107,7 +113,13 @@ func newSubscriptionOffersListCommand(out io.Writer, options *globalOptions, pac
 			return output.Write(out, options.output, options.pretty, result)
 		},
 	}
-	addSubscriptionOfferParentFlags(cmd, &productID, &basePlanID)
+	addSubscriptionOfferParentFlags(
+		cmd,
+		&productID,
+		&basePlanID,
+		"Parent subscription product ID, or - for all products",
+		"Parent subscription base plan ID, or - for all base plans",
+	)
 	cmd.Flags().Int64Var(&pageSize, "page-size", 0, "Maximum offers to return, capped at 1000")
 	cmd.Flags().StringVar(&pageToken, "page-token", "", "Pagination token from a previous response")
 	return cmd
@@ -153,14 +165,20 @@ func newSubscriptionOffersGetCommand(out io.Writer, options *globalOptions, pack
 			return output.Write(out, options.output, options.pretty, offer)
 		},
 	}
-	addSubscriptionOfferParentFlags(cmd, &productID, &basePlanID)
+	addSubscriptionOfferParentFlags(
+		cmd,
+		&productID,
+		&basePlanID,
+		"Parent subscription product ID",
+		"Parent subscription base plan ID",
+	)
 	cmd.Flags().StringVar(&offerID, "offer-id", "", "Subscription offer ID")
 	return cmd
 }
 
-func addSubscriptionOfferParentFlags(cmd *cobra.Command, productID *string, basePlanID *string) {
-	cmd.Flags().StringVar(productID, "product-id", "", "Parent subscription product ID")
-	cmd.Flags().StringVar(basePlanID, "base-plan-id", "", "Parent subscription base plan ID")
+func addSubscriptionOfferParentFlags(cmd *cobra.Command, productID *string, basePlanID *string, productIDDescription string, basePlanIDDescription string) {
+	cmd.Flags().StringVar(productID, "product-id", "", productIDDescription)
+	cmd.Flags().StringVar(basePlanID, "base-plan-id", "", basePlanIDDescription)
 }
 
 func parseSubscriptionOfferListParent(packageName string, productID string, basePlanID string) (play.PackageName, play.SubscriptionProductID, play.SubscriptionBasePlanID, error) {

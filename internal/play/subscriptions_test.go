@@ -93,9 +93,54 @@ func TestGetSubscriptionPassesProductIDToGetter(t *testing.T) {
 	}
 }
 
+func TestBatchGetSubscriptionsPassesOptionsToGetter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	getter := &fakeSubscriptionClient{
+		batchResult: SubscriptionBatchGetResult{
+			PackageName:   packageName,
+			Subscriptions: []Subscription{{ProductID: "premium_monthly"}},
+		},
+	}
+	options := SubscriptionBatchGetOptions{
+		PackageName: packageName,
+		ProductIDs:  []SubscriptionProductID{"premium_monthly", "premium_yearly"},
+	}
+
+	result, err := BatchGetSubscriptions(context.Background(), getter, options)
+	if err != nil {
+		t.Fatalf("BatchGetSubscriptions() error = %v", err)
+	}
+	if len(result.Subscriptions) != 1 {
+		t.Fatalf("len(Subscriptions) = %d, want 1", len(result.Subscriptions))
+	}
+	if !reflect.DeepEqual(getter.batchOptions, options) {
+		t.Fatalf("batchOptions = %#v, want %#v", getter.batchOptions, options)
+	}
+}
+
+func TestBatchGetSubscriptionsRejectsDuplicates(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchGetSubscriptions(context.Background(), nil, SubscriptionBatchGetOptions{
+		PackageName: packageName,
+		ProductIDs:  []SubscriptionProductID{"premium_monthly", "premium_monthly"},
+	})
+	if err == nil {
+		t.Fatal("expected duplicate product ID validation error")
+	}
+}
+
 type fakeSubscriptionClient struct {
 	listOptions  SubscriptionListOptions
 	listResult   SubscriptionListResult
+	batchOptions SubscriptionBatchGetOptions
+	batchResult  SubscriptionBatchGetResult
 	productID    SubscriptionProductID
 	subscription Subscription
 }
@@ -108,4 +153,9 @@ func (c *fakeSubscriptionClient) ListSubscriptions(ctx context.Context, options 
 func (c *fakeSubscriptionClient) GetSubscription(ctx context.Context, packageName PackageName, productID SubscriptionProductID) (Subscription, error) {
 	c.productID = productID
 	return c.subscription, nil
+}
+
+func (c *fakeSubscriptionClient) BatchGetSubscriptions(ctx context.Context, options SubscriptionBatchGetOptions) (SubscriptionBatchGetResult, error) {
+	c.batchOptions = options
+	return c.batchResult, nil
 }

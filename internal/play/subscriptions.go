@@ -182,3 +182,51 @@ func GetSubscription(ctx context.Context, getter SubscriptionGetter, options Sub
 	}
 	return getter.GetSubscription(ctx, options.PackageName, options.ProductID)
 }
+
+type SubscriptionBatchGetOptions struct {
+	PackageName PackageName             `json:"packageName"`
+	ProductIDs  []SubscriptionProductID `json:"productIds"`
+}
+
+func (o SubscriptionBatchGetOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if len(o.ProductIDs) == 0 {
+		return fmt.Errorf("at least one subscription product ID is required")
+	}
+	if len(o.ProductIDs) > 100 {
+		return fmt.Errorf("subscription batch-get cannot exceed 100 product IDs")
+	}
+	seen := map[SubscriptionProductID]struct{}{}
+	for _, productID := range o.ProductIDs {
+		if _, err := NewSubscriptionProductID(productID.String()); err != nil {
+			return err
+		}
+		if _, ok := seen[productID]; ok {
+			return fmt.Errorf("subscription product ID %q is duplicated", productID)
+		}
+		seen[productID] = struct{}{}
+	}
+	return nil
+}
+
+type SubscriptionBatchGetResult struct {
+	PackageName   PackageName                 `json:"packageName"`
+	Subscriptions []Subscription              `json:"subscriptions"`
+	Options       SubscriptionBatchGetOptions `json:"options"`
+}
+
+type SubscriptionBatchGetter interface {
+	BatchGetSubscriptions(ctx context.Context, options SubscriptionBatchGetOptions) (SubscriptionBatchGetResult, error)
+}
+
+func BatchGetSubscriptions(ctx context.Context, getter SubscriptionBatchGetter, options SubscriptionBatchGetOptions) (SubscriptionBatchGetResult, error) {
+	if err := options.Validate(); err != nil {
+		return SubscriptionBatchGetResult{}, err
+	}
+	if getter == nil {
+		return SubscriptionBatchGetResult{}, fmt.Errorf("subscription batch getter is required")
+	}
+	return getter.BatchGetSubscriptions(ctx, options)
+}

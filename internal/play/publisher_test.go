@@ -2619,6 +2619,34 @@ func TestBatchGetSubscriptionOffersUsesBatchGetEndpoint(t *testing.T) {
 	}
 }
 
+func TestBatchGetSubscriptionsUsesRepeatedProductIDs(t *testing.T) {
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/subscriptions:batchGet" {
+			t.Fatalf("path = %q, want subscriptions batchGet endpoint", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		values := r.URL.Query()["productIds"]
+		if !reflect.DeepEqual(values, []string{"premium_monthly", "premium_yearly"}) {
+			t.Fatalf("productIds = %#v", values)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"subscriptions":[{"packageName":"com.example.app","productId":"premium_monthly"}]}`)
+	}))
+
+	result, err := publisher.BatchGetSubscriptions(context.Background(), SubscriptionBatchGetOptions{
+		PackageName: "com.example.app",
+		ProductIDs:  []SubscriptionProductID{"premium_monthly", "premium_yearly"},
+	})
+	if err != nil {
+		t.Fatalf("BatchGetSubscriptions() error = %v", err)
+	}
+	if len(result.Subscriptions) != 1 || result.Subscriptions[0].ProductID != "premium_monthly" {
+		t.Fatalf("Subscriptions = %#v, want premium_monthly", result.Subscriptions)
+	}
+}
+
 func newTestPublisher(t *testing.T, handler http.Handler) GooglePublisher {
 	t.Helper()
 	server := httptest.NewServer(handler)

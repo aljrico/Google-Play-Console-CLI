@@ -19,6 +19,7 @@ func newSubscriptionsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 	cmd.AddCommand(
 		newSubscriptionsListCommand(out, options, &packageName),
 		newSubscriptionsGetCommand(out, options, &packageName),
+		newSubscriptionsBatchGetCommand(out, options, &packageName),
 	)
 	return cmd
 }
@@ -97,4 +98,54 @@ func newSubscriptionsGetCommand(out io.Writer, options *globalOptions, packageNa
 	}
 	cmd.Flags().StringVar(&productID, "product-id", "", "Subscription product ID")
 	return cmd
+}
+
+func newSubscriptionsBatchGetCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var productIDs []string
+
+	cmd := &cobra.Command{
+		Use:   "batch-get",
+		Short: "Get multiple monetization subscriptions",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedProductIDs, err := parseSubscriptionProductIDs(productIDs)
+			if err != nil {
+				return err
+			}
+			batchOptions := play.SubscriptionBatchGetOptions{
+				PackageName: typedPackageName,
+				ProductIDs:  typedProductIDs,
+			}
+			if err := batchOptions.Validate(); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchGetSubscriptions(cmd.Context(), publisher, batchOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringArrayVar(&productIDs, "product-id", nil, "Subscription product ID; repeatable, up to 100")
+	return cmd
+}
+
+func parseSubscriptionProductIDs(values []string) ([]play.SubscriptionProductID, error) {
+	productIDs := make([]play.SubscriptionProductID, 0, len(values))
+	for _, value := range values {
+		productID, err := play.NewSubscriptionProductID(value)
+		if err != nil {
+			return nil, err
+		}
+		productIDs = append(productIDs, productID)
+	}
+	return productIDs, nil
 }

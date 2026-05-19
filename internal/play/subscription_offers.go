@@ -61,6 +61,9 @@ func NewSubscriptionOfferID(value string) (SubscriptionOfferID, error) {
 	if value == "" {
 		return "", fmt.Errorf("subscription offer ID is required")
 	}
+	if !isValidSubscriptionBasePlanID(value) {
+		return "", fmt.Errorf("invalid subscription offer ID %q", value)
+	}
 	return SubscriptionOfferID(value), nil
 }
 
@@ -300,6 +303,12 @@ func (o SubscriptionOfferBatchGetOptions) Validate() error {
 		if _, err := NewSubscriptionOfferID(request.OfferID.String()); err != nil {
 			return err
 		}
+		if o.ProductID.String() != SubscriptionOfferWildcardID && request.ProductID != o.ProductID {
+			return fmt.Errorf("subscription offer %s/%s/%s does not match parent product ID %s", request.ProductID, request.BasePlanID, request.OfferID, o.ProductID)
+		}
+		if o.BasePlanID.String() != SubscriptionOfferWildcardID && request.BasePlanID != o.BasePlanID {
+			return fmt.Errorf("subscription offer %s/%s/%s does not match parent base plan ID %s", request.ProductID, request.BasePlanID, request.OfferID, o.BasePlanID)
+		}
 		key := request.ProductID.String() + "/" + request.BasePlanID.String() + "/" + request.OfferID.String()
 		if _, ok := seen[key]; ok {
 			return fmt.Errorf("subscription offer %s is duplicated", key)
@@ -310,12 +319,11 @@ func (o SubscriptionOfferBatchGetOptions) Validate() error {
 }
 
 type SubscriptionOfferBatchGetResult struct {
-	PackageName PackageName                        `json:"packageName"`
-	ProductID   SubscriptionProductID              `json:"productId"`
-	BasePlanID  SubscriptionBasePlanID             `json:"basePlanId"`
-	Offers      []SubscriptionOffer                `json:"offers"`
-	Options     SubscriptionOfferBatchGetOptions   `json:"options"`
-	Requests    []SubscriptionOfferBatchGetRequest `json:"requests"`
+	PackageName PackageName                      `json:"packageName"`
+	ProductID   SubscriptionProductID            `json:"productId"`
+	BasePlanID  SubscriptionBasePlanID           `json:"basePlanId"`
+	Offers      []SubscriptionOffer              `json:"offers"`
+	Options     SubscriptionOfferBatchGetOptions `json:"options"`
 }
 
 type SubscriptionOfferBatchGetter interface {

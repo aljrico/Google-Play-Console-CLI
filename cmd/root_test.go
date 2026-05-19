@@ -3352,6 +3352,32 @@ func TestSubscriptionsGetRejectsInvalidProductIDBeforeAuth(t *testing.T) {
 	}
 }
 
+func TestSubscriptionsBatchGetRejectsMissingProductIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscriptions",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected product ID validation error")
+	}
+	if !strings.Contains(err.Error(), "at least one subscription product ID") {
+		t.Fatalf("error = %v, want missing product ID validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
 func TestSubscriptionOffersListRejectsInvalidPageSizeBeforeAuth(t *testing.T) {
 	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
 
@@ -3488,6 +3514,70 @@ func TestSubscriptionOffersBatchGetRejectsMissingOfferBeforeAuth(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "at least one subscription offer") {
 		t.Fatalf("error = %v, want missing offer validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestSubscriptionOffersBatchGetRejectsParentMismatchBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"premium",
+		"--base-plan-id",
+		"monthly",
+		"--offer",
+		"other/monthly/intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected parent mismatch validation error")
+	}
+	if !strings.Contains(err.Error(), "does not match parent product ID") {
+		t.Fatalf("error = %v, want parent product validation", err)
+	}
+	if strings.Contains(err.Error(), "no active auth profile") {
+		t.Fatalf("error = %v, did not expect auth", err)
+	}
+}
+
+func TestSubscriptionOffersBatchGetRejectsInvalidOfferIDBeforeAuth(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"subscription-offers",
+		"batch-get",
+		"--package",
+		"com.example.app",
+		"--product-id",
+		"-",
+		"--base-plan-id",
+		"-",
+		"--offer",
+		"premium/monthly/Intro",
+		"--output",
+		"json",
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected offer ID validation error")
+	}
+	if !strings.Contains(err.Error(), "subscription offer ID") {
+		t.Fatalf("error = %v, want offer ID validation", err)
 	}
 	if strings.Contains(err.Error(), "no active auth profile") {
 		t.Fatalf("error = %v, did not expect auth", err)
