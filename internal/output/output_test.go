@@ -27,6 +27,18 @@ func TestWriteJSONPretty(t *testing.T) {
 	}
 }
 
+func TestWriteJSONDoesNotEscapeURLSeparators(t *testing.T) {
+	var buf bytes.Buffer
+
+	err := Write(&buf, JSON, false, map[string]string{"issueUrl": "https://example.com/issues/new?title=One&labels=snitch"})
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	if strings.Contains(buf.String(), `\u0026`) || !strings.Contains(buf.String(), `&labels=snitch`) {
+		t.Fatalf("JSON output = %q, want literal URL separators", buf.String())
+	}
+}
+
 func TestWritePlainTableForStructSlice(t *testing.T) {
 	var buf bytes.Buffer
 
@@ -39,6 +51,19 @@ func TestWritePlainTableForStructSlice(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "name") || !strings.Contains(output, "internal") {
 		t.Fatalf("table output = %q", output)
+	}
+}
+
+func TestWritePlainTableFlattensMultilineCells(t *testing.T) {
+	var buf bytes.Buffer
+
+	err := Write(&buf, Table, false, sampleRow{Name: "internal\ntrack", Status: "needs | review"})
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	output := buf.String()
+	if strings.Contains(output, "internal\ntrack") || !strings.Contains(output, "internal track") {
+		t.Fatalf("table output = %q, want flattened cell", output)
 	}
 }
 
@@ -79,6 +104,19 @@ func TestWriteMarkdownTableForStruct(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "| name | status |") {
 		t.Fatalf("markdown output = %q", output)
+	}
+}
+
+func TestWriteMarkdownTableEscapesCellPipes(t *testing.T) {
+	var buf bytes.Buffer
+
+	err := Write(&buf, Markdown, false, sampleRow{Name: "internal\ntrack", Status: "needs | review"})
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, `needs \| review`) || strings.Contains(output, "internal\ntrack") {
+		t.Fatalf("markdown output = %q, want escaped flattened cell", output)
 	}
 }
 

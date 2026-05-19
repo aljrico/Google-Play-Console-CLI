@@ -663,6 +663,7 @@ func TestSnitchReportOutputsIssueURLWithoutAuth(t *testing.T) {
 		`"command":"gpc releases list --package com.example.app"`,
 		`"labels":["snitch","ux"]`,
 		`"issueUrl":"https://github.com/aljrico/Google-Play-Console-CLI/issues/new?`,
+		`&labels=snitch%2Cux&`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)

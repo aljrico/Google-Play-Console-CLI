@@ -46,10 +46,27 @@ func TestBuildReportValidatesTitle(t *testing.T) {
 }
 
 func TestBuildReportValidatesRepository(t *testing.T) {
-	for _, repository := range []string{"bad", "../owner/repo", "owner/repo/issues"} {
+	for _, repository := range []string{"bad", "../owner/repo", "owner/repo/issues", "./repo", "owner/.", "owner/..", "./."} {
 		_, err := BuildReport(ReportOptions{Repository: repository, Title: "Friction"})
 		if err == nil {
 			t.Fatalf("BuildReport(%q) error = nil, want repository validation", repository)
 		}
+	}
+}
+
+func TestBuildReportAllowsDottedRepositoryName(t *testing.T) {
+	report, err := BuildReport(ReportOptions{Repository: "owner/foo.bar", Title: "Friction"})
+	if err != nil {
+		t.Fatalf("BuildReport() error = %v", err)
+	}
+	if report.Repository != "owner/foo.bar" {
+		t.Fatalf("Repository = %q, want dotted repo", report.Repository)
+	}
+}
+
+func TestBuildReportRejectsCommaLabels(t *testing.T) {
+	_, err := BuildReport(ReportOptions{Title: "Friction", Labels: []string{"bug,security"}})
+	if err == nil {
+		t.Fatal("BuildReport() error = nil, want label validation")
 	}
 }

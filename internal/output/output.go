@@ -45,6 +45,7 @@ func Write(w io.Writer, format Format, pretty bool, value any) error {
 	switch format {
 	case JSON:
 		enc := json.NewEncoder(w)
+		enc.SetEscapeHTML(false)
 		if pretty {
 			enc.SetIndent("", "  ")
 		}
@@ -209,7 +210,7 @@ func writePlainRow(w io.Writer, row []string, widths []int) {
 		if i > 0 {
 			fmt.Fprint(w, "  ")
 		}
-		fmt.Fprintf(w, "%-*s", widths[i], value)
+		fmt.Fprintf(w, "%-*s", widths[i], plainCell(value))
 	}
 	fmt.Fprintln(w)
 }
@@ -227,20 +228,35 @@ func writeMarkdownTable(w io.Writer, rows tableRows) {
 }
 
 func writeMarkdownRow(w io.Writer, row []string) {
-	fmt.Fprintf(w, "| %s |\n", strings.Join(row, " | "))
+	values := make([]string, 0, len(row))
+	for _, value := range row {
+		values = append(values, markdownCell(value))
+	}
+	fmt.Fprintf(w, "| %s |\n", strings.Join(values, " | "))
 }
 
 func columnWidths(rows tableRows) []int {
 	widths := make([]int, len(rows.header))
 	for i, value := range rows.header {
-		widths[i] = len(value)
+		widths[i] = len(plainCell(value))
 	}
 	for _, row := range rows.values {
 		for i, value := range row {
+			value = plainCell(value)
 			if len(value) > widths[i] {
 				widths[i] = len(value)
 			}
 		}
 	}
 	return widths
+}
+
+func plainCell(value string) string {
+	return strings.Join(strings.Fields(value), " ")
+}
+
+func markdownCell(value string) string {
+	value = plainCell(value)
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	return strings.ReplaceAll(value, "|", `\|`)
 }

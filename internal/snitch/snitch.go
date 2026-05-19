@@ -1,16 +1,18 @@
 package snitch
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 const DefaultRepository = "aljrico/Google-Play-Console-CLI"
 
-var repositoryPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+var repositorySegmentPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 
 type ReportOptions struct {
 	Repository string   `json:"repository,omitempty"`
@@ -61,8 +63,42 @@ func (o ReportOptions) Validate() error {
 		return fmt.Errorf("repository cannot have leading or trailing whitespace")
 	}
 	repository := o.repository()
-	if !repositoryPattern.MatchString(repository) {
+	if err := validateRepository(repository); err != nil {
+		return err
+	}
+	for _, label := range o.Labels {
+		if err := validateLabel(label); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateRepository(repository string) error {
+	parts := strings.Split(repository, "/")
+	if len(parts) != 2 {
 		return fmt.Errorf("repository must use owner/name")
+	}
+	for _, part := range parts {
+		if part == "." || part == ".." || !repositorySegmentPattern.MatchString(part) {
+			return fmt.Errorf("repository must use owner/name")
+		}
+	}
+	return nil
+}
+
+func validateLabel(label string) error {
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return nil
+	}
+	if strings.Contains(label, ",") {
+		return fmt.Errorf("label %q cannot contain commas", label)
+	}
+	for _, r := range label {
+		if unicode.IsControl(r) {
+			return errors.New("label cannot contain control characters")
+		}
 	}
 	return nil
 }
