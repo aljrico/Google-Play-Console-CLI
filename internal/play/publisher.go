@@ -419,6 +419,27 @@ func (p GooglePublisher) DeleteInAppProduct(ctx context.Context, options InAppPr
 	return nil
 }
 
+func (p GooglePublisher) BatchDeleteInAppProducts(ctx context.Context, options InAppProductBatchDeleteOptions) error {
+	if err := options.ValidateLive(); err != nil {
+		return err
+	}
+	latencyTolerance := productUpdateLatencyToleranceToAPI(options.LatencyTolerance)
+	request := &androidpublisher.InappproductsBatchDeleteRequest{
+		Requests: make([]*androidpublisher.InappproductsDeleteRequest, 0, len(options.SKUs)),
+	}
+	for _, sku := range options.SKUs {
+		request.Requests = append(request.Requests, &androidpublisher.InappproductsDeleteRequest{
+			PackageName:      options.PackageName.String(),
+			Sku:              sku.String(),
+			LatencyTolerance: latencyTolerance,
+		})
+	}
+	if err := p.service.Inappproducts.BatchDelete(options.PackageName.String(), request).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("batch delete in-app products for %s: %w", options.PackageName, err)
+	}
+	return nil
+}
+
 func (p GooglePublisher) CreateInAppProduct(ctx context.Context, options InAppProductCreateOptions) (InAppProduct, error) {
 	if err := options.ValidateLive(); err != nil {
 		return InAppProduct{}, err

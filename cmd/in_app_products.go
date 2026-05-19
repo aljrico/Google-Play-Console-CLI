@@ -23,7 +23,68 @@ func newInAppProductsCommand(out io.Writer, options *globalOptions) *cobra.Comma
 		newInAppProductsCreateCommand(out, options, &packageName),
 		newInAppProductsPatchCommand(out, options, &packageName),
 		newInAppProductsDeleteCommand(out, options, &packageName),
+		newInAppProductsBatchDeleteCommand(out, options, &packageName),
 	)
+	return cmd
+}
+
+func newInAppProductsBatchDeleteCommand(out io.Writer, options *globalOptions, packageName *string) *cobra.Command {
+	var (
+		skus             []string
+		latencyTolerance string
+		confirm          bool
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "batch-delete",
+		Short: "Delete multiple legacy managed in-app products",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typedPackageName, err := play.NewPackageName(*packageName)
+			if err != nil {
+				return err
+			}
+			typedSKUs, err := parseInAppProductSKUs(skus)
+			if err != nil {
+				return err
+			}
+			typedLatencyTolerance, err := play.NewProductUpdateLatencyTolerance(latencyTolerance)
+			if err != nil {
+				return err
+			}
+			deleteOptions := play.InAppProductBatchDeleteOptions{
+				PackageName:      typedPackageName,
+				SKUs:             typedSKUs,
+				LatencyTolerance: typedLatencyTolerance,
+				Confirm:          confirm,
+				DryRun:           dryRun,
+			}
+			if dryRun {
+				result, err := play.BatchDeleteInAppProducts(cmd.Context(), nil, deleteOptions)
+				if err != nil {
+					return err
+				}
+				return output.Write(out, options.output, options.pretty, result)
+			}
+			if err := deleteOptions.Validate(); err != nil {
+				return err
+			}
+			publisher, err := play.NewPublisherFromActiveProfile(cmd.Context())
+			if err != nil {
+				return err
+			}
+			result, err := play.BatchDeleteInAppProducts(cmd.Context(), publisher, deleteOptions)
+			if err != nil {
+				return err
+			}
+			return output.Write(out, options.output, options.pretty, result)
+		},
+	}
+	cmd.Flags().StringArrayVar(&skus, "sku", nil, "In-app product SKU; repeatable, up to 100")
+	cmd.Flags().StringVar(&latencyTolerance, "latency-tolerance", play.ProductUpdateLatencyToleranceSensitive.String(), "Propagation latency: latencySensitive or latencyTolerant")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "Delete the managed in-app products")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned managed in-app product batch deletion without calling Google Play")
 	return cmd
 }
 

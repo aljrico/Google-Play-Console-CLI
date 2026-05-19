@@ -201,6 +201,14 @@ type InAppProductDeleteOptions struct {
 	DryRun           bool                          `json:"dryRun"`
 }
 
+type InAppProductBatchDeleteOptions struct {
+	PackageName      PackageName                   `json:"packageName"`
+	SKUs             []InAppProductSKU             `json:"skus"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	DryRun           bool                          `json:"dryRun"`
+}
+
 func (o InAppProductDeleteOptions) Validate() error {
 	if err := o.PackageName.Validate(); err != nil {
 		return err
@@ -220,6 +228,38 @@ func (o InAppProductDeleteOptions) Validate() error {
 	return nil
 }
 
+func (o InAppProductBatchDeleteOptions) Validate() error {
+	if err := o.PackageName.Validate(); err != nil {
+		return err
+	}
+	if len(o.SKUs) == 0 {
+		return fmt.Errorf("at least one in-app product SKU is required")
+	}
+	if len(o.SKUs) > 100 {
+		return fmt.Errorf("in-app product batch-delete cannot exceed 100 SKUs")
+	}
+	seen := map[InAppProductSKU]struct{}{}
+	for _, sku := range o.SKUs {
+		if _, err := NewInAppProductSKU(sku.String()); err != nil {
+			return err
+		}
+		if _, ok := seen[sku]; ok {
+			return fmt.Errorf("in-app product SKU %q is duplicated", sku)
+		}
+		seen[sku] = struct{}{}
+	}
+	if _, err := NewProductUpdateLatencyTolerance(o.LatencyTolerance.String()); err != nil {
+		return err
+	}
+	if o.Confirm && o.DryRun {
+		return fmt.Errorf("--confirm and --dry-run cannot be used together")
+	}
+	if !o.Confirm && !o.DryRun {
+		return fmt.Errorf("in-app product batch deletion requires --confirm or --dry-run")
+	}
+	return nil
+}
+
 func (o InAppProductDeleteOptions) ValidateLive() error {
 	if err := o.Validate(); err != nil {
 		return err
@@ -233,9 +273,30 @@ func (o InAppProductDeleteOptions) ValidateLive() error {
 	return nil
 }
 
+func (o InAppProductBatchDeleteOptions) ValidateLive() error {
+	if err := o.Validate(); err != nil {
+		return err
+	}
+	if o.DryRun {
+		return fmt.Errorf("live in-app product batch deletion cannot be a dry-run")
+	}
+	if !o.Confirm {
+		return fmt.Errorf("live in-app product batch deletion requires --confirm")
+	}
+	return nil
+}
+
 type InAppProductDeletePlan struct {
 	PackageName      PackageName                   `json:"packageName"`
 	SKU              InAppProductSKU               `json:"sku"`
+	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
+	Confirm          bool                          `json:"confirm"`
+	Steps            []string                      `json:"steps"`
+}
+
+type InAppProductBatchDeletePlan struct {
+	PackageName      PackageName                   `json:"packageName"`
+	SKUs             []InAppProductSKU             `json:"skus"`
 	LatencyTolerance ProductUpdateLatencyTolerance `json:"latencyTolerance"`
 	Confirm          bool                          `json:"confirm"`
 	Steps            []string                      `json:"steps"`
@@ -247,6 +308,14 @@ type InAppProductDeleteResult struct {
 	DryRun      bool                   `json:"dryRun"`
 	Deleted     bool                   `json:"deleted"`
 	Plan        InAppProductDeletePlan `json:"plan"`
+}
+
+type InAppProductBatchDeleteResult struct {
+	PackageName PackageName                 `json:"packageName"`
+	SKUs        []InAppProductSKU           `json:"skus"`
+	DryRun      bool                        `json:"dryRun"`
+	Deleted     bool                        `json:"deleted"`
+	Plan        InAppProductBatchDeletePlan `json:"plan"`
 }
 
 type InAppProductCreateOptions struct {
@@ -440,6 +509,10 @@ type InAppProductDeleter interface {
 	DeleteInAppProduct(ctx context.Context, options InAppProductDeleteOptions) error
 }
 
+type InAppProductBatchDeleter interface {
+	BatchDeleteInAppProducts(ctx context.Context, options InAppProductBatchDeleteOptions) error
+}
+
 func GetInAppProduct(ctx context.Context, getter InAppProductGetter, options InAppProductGetOptions) (InAppProduct, error) {
 	if err := options.Validate(); err != nil {
 		return InAppProduct{}, err
@@ -500,11 +573,81 @@ func DeleteInAppProduct(ctx context.Context, deleter InAppProductDeleter, option
 	return result, nil
 }
 
+func BatchDeleteInAppProducts(ctx context.Context, deleter InAppProductBatchDeleter, options InAppProductBatchDeleteOptions) (InAppProductBatchDeleteResult, error) {
+	if err := options.Validate(); err != nil {
+		return InAppProductBatchDeleteResult{}, err
+	}
+	skus := append([]InAppProductSKU(nil), options.SKUs...)
+	result := InAppProductBatchDeleteResult{
+		PackageName: options.PackageName,
+		SKUs:        skus,
+		DryRun:      options.DryRun,
+		Plan: InAppProductBatchDeletePlan{
+			PackageName:      options.PackageName,
+			SKUs:             skus,
+			LatencyTolerance: options.LatencyTolerance,
+			Confirm:          options.Confirm,
+			Steps:            inAppProductBatchDeleteSteps(options),
+		},
+	}
+	if options.DryRun {
+		return result, nil
+	}
+	if deleter == nil {
+		return InAppProductBatchDeleteResult{}, fmt.Errorf("in-app product batch deleter is required")
+	}
+	getter, ok := deleter.(InAppProductBatchGetter)
+	if !ok {
+		return InAppProductBatchDeleteResult{}, fmt.Errorf("in-app product batch getter is required for live batch deletion preflight")
+	}
+	products, err := getter.BatchGetInAppProducts(ctx, InAppProductBatchGetOptions{
+		PackageName: options.PackageName,
+		SKUs:        skus,
+	})
+	if err != nil {
+		return InAppProductBatchDeleteResult{}, err
+	}
+	if err := validateInAppProductsBatchDeletePreflight(skus, products.Products); err != nil {
+		return InAppProductBatchDeleteResult{}, err
+	}
+	if err := deleter.BatchDeleteInAppProducts(ctx, options); err != nil {
+		return InAppProductBatchDeleteResult{}, err
+	}
+	result.Deleted = true
+	return result, nil
+}
+
 func inAppProductDeleteSteps(options InAppProductDeleteOptions) []string {
 	if options.DryRun {
 		return []string{"plan in-app product deletion"}
 	}
 	return []string{"fetch current in-app product", "delete in-app product"}
+}
+
+func inAppProductBatchDeleteSteps(options InAppProductBatchDeleteOptions) []string {
+	if options.DryRun {
+		return []string{"plan in-app product batch deletion"}
+	}
+	return []string{"batch fetch current in-app products", "batch delete in-app products"}
+}
+
+func validateInAppProductsBatchDeletePreflight(requestedSKUs []InAppProductSKU, products []InAppProduct) error {
+	bySKU := make(map[InAppProductSKU]InAppProduct, len(products))
+	for _, product := range products {
+		if product.SKU != "" {
+			bySKU[product.SKU] = product
+		}
+	}
+	for _, sku := range requestedSKUs {
+		product, ok := bySKU[sku]
+		if !ok {
+			return fmt.Errorf("in-app product %q was not returned by live deletion preflight", sku)
+		}
+		if product.PurchaseType != ProductPurchaseTypeManagedUser {
+			return fmt.Errorf("only managed in-app products can be deleted with in-app-products; SKU %q has purchase type %q", sku, product.PurchaseType)
+		}
+	}
+	return nil
 }
 
 type InAppProductPatchOptions struct {

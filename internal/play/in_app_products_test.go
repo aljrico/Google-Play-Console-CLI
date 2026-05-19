@@ -2,6 +2,7 @@ package play
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -237,6 +238,158 @@ func TestDeleteInAppProductRejectsUnspecifiedPurchaseType(t *testing.T) {
 	}
 	if deleter.deleteOptions.SKU != "" {
 		t.Fatalf("deleteOptions = %#v, did not expect delete after preflight", deleter.deleteOptions)
+	}
+}
+
+func TestBatchDeleteInAppProductsDryRunBuildsPlanWithoutDeleter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	result, err := BatchDeleteInAppProducts(context.Background(), nil, InAppProductBatchDeleteOptions{
+		PackageName:      packageName,
+		SKUs:             []InAppProductSKU{"coins_100", "coins_500"},
+		LatencyTolerance: ProductUpdateLatencyToleranceTolerant,
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatalf("BatchDeleteInAppProducts() error = %v", err)
+	}
+	if !result.DryRun || result.Deleted {
+		t.Fatalf("result = %#v, want dry-run batch deletion plan", result)
+	}
+	wantSteps := []string{"plan in-app product batch deletion"}
+	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
+		t.Fatalf("steps = %#v, want %#v", result.Plan.Steps, wantSteps)
+	}
+}
+
+func TestBatchDeleteInAppProductsRejectsDuplicates(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+
+	_, err = BatchDeleteInAppProducts(context.Background(), nil, InAppProductBatchDeleteOptions{
+		PackageName:      packageName,
+		SKUs:             []InAppProductSKU{"coins_100", "coins_100"},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate SKU validation error")
+	}
+}
+
+func TestBatchDeleteInAppProductsRejectsMoreThanGoogleLimit(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	skus := make([]InAppProductSKU, 101)
+	for index := range skus {
+		skus[index] = InAppProductSKU(fmt.Sprintf("coins_%d", index))
+	}
+
+	_, err = BatchDeleteInAppProducts(context.Background(), nil, InAppProductBatchDeleteOptions{
+		PackageName:      packageName,
+		SKUs:             skus,
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		DryRun:           true,
+	})
+	if err == nil {
+		t.Fatal("expected batch limit validation error")
+	}
+}
+
+func TestBatchDeleteInAppProductsPassesOptionsToDeleter(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	deleter := &fakeInAppProductClient{
+		batchResult: InAppProductBatchGetResult{
+			PackageName: packageName,
+			Products: []InAppProduct{
+				{SKU: "coins_100", PurchaseType: ProductPurchaseTypeManagedUser},
+				{SKU: "coins_500", PurchaseType: ProductPurchaseTypeManagedUser},
+			},
+		},
+	}
+	options := InAppProductBatchDeleteOptions{
+		PackageName:      packageName,
+		SKUs:             []InAppProductSKU{"coins_100", "coins_500"},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	}
+
+	result, err := BatchDeleteInAppProducts(context.Background(), deleter, options)
+	if err != nil {
+		t.Fatalf("BatchDeleteInAppProducts() error = %v", err)
+	}
+	if !result.Deleted {
+		t.Fatal("Deleted = false, want true")
+	}
+	if !reflect.DeepEqual(deleter.batchDeleteOptions, options) {
+		t.Fatalf("batchDeleteOptions = %#v, want %#v", deleter.batchDeleteOptions, options)
+	}
+}
+
+func TestBatchDeleteInAppProductsRejectsMissingPreflightProduct(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	deleter := &fakeInAppProductClient{
+		batchResult: InAppProductBatchGetResult{
+			PackageName: packageName,
+			Products: []InAppProduct{
+				{SKU: "coins_100", PurchaseType: ProductPurchaseTypeManagedUser},
+			},
+		},
+	}
+
+	_, err = BatchDeleteInAppProducts(context.Background(), deleter, InAppProductBatchDeleteOptions{
+		PackageName:      packageName,
+		SKUs:             []InAppProductSKU{"coins_100", "coins_500"},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected missing preflight product validation error")
+	}
+	if len(deleter.batchDeleteOptions.SKUs) != 0 {
+		t.Fatalf("batchDeleteOptions = %#v, did not expect delete after preflight", deleter.batchDeleteOptions)
+	}
+}
+
+func TestBatchDeleteInAppProductsRejectsNonManagedPreflightProduct(t *testing.T) {
+	packageName, err := NewPackageName("com.example.app")
+	if err != nil {
+		t.Fatalf("NewPackageName() error = %v", err)
+	}
+	deleter := &fakeInAppProductClient{
+		batchResult: InAppProductBatchGetResult{
+			PackageName: packageName,
+			Products: []InAppProduct{
+				{SKU: "coins_100", PurchaseType: ProductPurchaseTypeManagedUser},
+				{SKU: "premium", PurchaseType: ProductPurchaseTypeSubscription},
+			},
+		},
+	}
+
+	_, err = BatchDeleteInAppProducts(context.Background(), deleter, InAppProductBatchDeleteOptions{
+		PackageName:      packageName,
+		SKUs:             []InAppProductSKU{"coins_100", "premium"},
+		LatencyTolerance: ProductUpdateLatencyToleranceSensitive,
+		Confirm:          true,
+	})
+	if err == nil {
+		t.Fatal("expected non-managed preflight product validation error")
+	}
+	if len(deleter.batchDeleteOptions.SKUs) != 0 {
+		t.Fatalf("batchDeleteOptions = %#v, did not expect delete after preflight", deleter.batchDeleteOptions)
 	}
 }
 
@@ -644,15 +797,16 @@ func TestPatchInAppProductRejectsLegacySubscription(t *testing.T) {
 }
 
 type fakeInAppProductClient struct {
-	listOptions   InAppProductListOptions
-	listResult    InAppProductListResult
-	batchOptions  InAppProductBatchGetOptions
-	batchResult   InAppProductBatchGetResult
-	createOptions InAppProductCreateOptions
-	deleteOptions InAppProductDeleteOptions
-	patchOptions  InAppProductPatchOptions
-	sku           InAppProductSKU
-	product       InAppProduct
+	listOptions        InAppProductListOptions
+	listResult         InAppProductListResult
+	batchOptions       InAppProductBatchGetOptions
+	batchResult        InAppProductBatchGetResult
+	batchDeleteOptions InAppProductBatchDeleteOptions
+	createOptions      InAppProductCreateOptions
+	deleteOptions      InAppProductDeleteOptions
+	patchOptions       InAppProductPatchOptions
+	sku                InAppProductSKU
+	product            InAppProduct
 }
 
 func (c *fakeInAppProductClient) ListInAppProducts(ctx context.Context, options InAppProductListOptions) (InAppProductListResult, error) {
@@ -677,6 +831,11 @@ func (c *fakeInAppProductClient) CreateInAppProduct(ctx context.Context, options
 
 func (c *fakeInAppProductClient) DeleteInAppProduct(ctx context.Context, options InAppProductDeleteOptions) error {
 	c.deleteOptions = options
+	return nil
+}
+
+func (c *fakeInAppProductClient) BatchDeleteInAppProducts(ctx context.Context, options InAppProductBatchDeleteOptions) error {
+	c.batchDeleteOptions = options
 	return nil
 }
 

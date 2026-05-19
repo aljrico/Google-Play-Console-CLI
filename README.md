@@ -123,6 +123,7 @@ gpc in-app-products create --package com.example.app --sku coins_100 --default-l
 gpc in-app-products patch --package com.example.app --sku coins_100 --status inactive --dry-run
 gpc in-app-products patch --package com.example.app --sku coins_100 --listing-language en-US --default-price USD:2990000 --title "100 coins" --description "A better coin pack." --dry-run
 gpc in-app-products delete --package com.example.app --sku coins_100 --dry-run
+gpc in-app-products batch-delete --package com.example.app --sku coins_100 --sku coins_500 --dry-run
 gpc one-time-products list --package com.example.app --page-size 50
 gpc one-time-products get --package com.example.app --product-id coins_100
 gpc one-time-products batch-get --package com.example.app --product-id coins_100 --product-id coins_500
@@ -202,7 +203,7 @@ Review APIs follow Google Play's limits: list responses are recent reviews with 
 
 `finance reports download` and `analytics stats download` fetch report objects from the Google Play reports Cloud Storage bucket. Use the bucket ID shown in Play Console, usually shaped like `pubsite_prod_rev_0123456789`, and pass the exact object path for the report you want. Financial reports are ZIP files; statistics reports are CSV files.
 
-`in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `create` builds managed products only and asks Google to auto-convert missing regional prices from the default price, while live patches and deletes reject legacy subscription SKUs. Price patches also request regional auto-conversion. `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources.
+`in-app-products` uses Google's legacy `inappproducts` API. Use it for managed products and catalog inspection; `create` builds managed products only and asks Google to auto-convert missing regional prices from the default price, while live patches and deletes reject legacy subscription SKUs. Batch deletes preflight every requested SKU and fail closed unless Google returns managed products for all of them. Price patches also request regional auto-conversion. `one-time-products`, `subscriptions`, and `subscription-offers` use the newer monetization resources.
 
 ### First Publish Flow
 
