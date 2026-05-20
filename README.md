@@ -18,11 +18,10 @@ make build
 make install PREFIX="$HOME/.local"
 ```
 
-From a Homebrew tap after a tagged release:
+From the Homebrew tap:
 
 ```sh
-brew tap aljrico/tap
-brew install gpc
+brew install aljrico/tap/gpc
 ```
 
 Or with the install script on macOS/Linux:
