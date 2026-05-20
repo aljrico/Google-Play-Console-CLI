@@ -71,7 +71,7 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: https://github.com/aljrico/Google-Play-Console-CLI
-    description: Fast, scriptable CLI for the Google Play Developer API
+    description: CLI for Google Play releases, monetization, reviews, and reports
     license: MIT
     test: |
       system "#{bin}/gpc", "version"

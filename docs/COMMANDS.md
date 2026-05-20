@@ -2,7 +2,7 @@
 
 ## gpc
 
-Fast, scriptable CLI for the Google Play Developer API
+CLI for Google Play releases, monetization, reviews, and reports
 
 ```sh
 gpc [flags]

@@ -24,7 +24,7 @@ func newRootCommand(out io.Writer) *cobra.Command {
 	options := &globalOptions{}
 	cmd := &cobra.Command{
 		Use:           "gpc",
-		Short:         "Fast, scriptable CLI for the Google Play Developer API",
+		Short:         "CLI for Google Play releases, monetization, reviews, and reports",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
