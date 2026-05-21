@@ -58,9 +58,12 @@ func TestInstallSkillsListOutputsBundledSkillNames(t *testing.T) {
 	}
 	output := buf.String()
 	for _, want := range []string{
+		`"name":"gpc-app-recovery"`,
 		`"name":"gpc-cli-usage"`,
+		`"name":"gpc-insights-pipeline"`,
 		`"name":"gpc-metadata-workflow"`,
 		`"name":"gpc-release-flow"`,
+		`"name":"gpc-rtdn-pipeline"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)

@@ -10,8 +10,8 @@ import (
 
 func TestListReturnsBundledSkills(t *testing.T) {
 	skills := List()
-	if len(skills) != 3 {
-		t.Fatalf("len(List()) = %d, want 3", len(skills))
+	if len(skills) != 6 {
+		t.Fatalf("len(List()) = %d, want 6", len(skills))
 	}
 	names := make(map[string]bool, len(skills))
 	for _, skill := range skills {
@@ -20,7 +20,14 @@ func TestListReturnsBundledSkills(t *testing.T) {
 			t.Fatalf("skill %s has empty description", skill.Name)
 		}
 	}
-	for _, want := range []string{"gpc-cli-usage", "gpc-metadata-workflow", "gpc-release-flow"} {
+	for _, want := range []string{
+		"gpc-app-recovery",
+		"gpc-cli-usage",
+		"gpc-insights-pipeline",
+		"gpc-metadata-workflow",
+		"gpc-release-flow",
+		"gpc-rtdn-pipeline",
+	} {
 		if !names[want] {
 			t.Fatalf("List() missing %s: %#v", want, skills)
 		}
