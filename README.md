@@ -4,11 +4,9 @@
 [![Build](https://github.com/aljrico/Google-Play-Console-CLI/actions/workflows/release.yml/badge.svg)](https://github.com/aljrico/Google-Play-Console-CLI/actions/workflows/release.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`gpc` is a Go CLI built from years of mobile games release and revenue-ops pain. Less Play Console clicking; stable JSON for scripts; mutations guarded by `--dry-run` and `--confirm`; commands that survive CI.
+`gpc` is a Go CLI for the Google Play Developer API. JSON output by default for stable script consumption, mutations guarded by `--dry-run` and `--confirm`, no interactive prompts unless explicitly requested.
 
-Coverage spans the Google Play Developer API surfaces mobile teams operate repeatedly: releases and tracks, store metadata, reviews, monetization catalogs (legacy IAP and the new one-time/subscription APIs), purchases and orders, financial and statistics reports, vitals, app recovery, and real-time developer notifications.
-
-Heavily inspired by [`rorkai/App-Store-Connect-CLI`](https://github.com/rorkai/App-Store-Connect-CLI), which is the north star for the kind of fast, scriptable workflow this CLI tries to make pleasant on the Google Play side.
+Coverage spans the API surfaces mobile teams operate repeatedly: releases and tracks, store metadata, reviews, monetization catalogs (legacy IAP and the new one-time/subscription APIs), purchases and orders, financial and statistics reports, vitals, app recovery, and real-time developer notifications.
 
 ## Install
 
@@ -207,3 +205,7 @@ git push origin vX.Y.Z
 Publishing the Homebrew formula requires `HOMEBREW_TAP_GITHUB_TOKEN` with write access to `aljrico/homebrew-tap`. Pull requests run a macOS packaging check that validates the GoReleaser config, builds a snapshot release, tests the checksum-verifying install script, audits the generated formula, and installs it locally.
 
 The install script supports `GPC_VERSION`, `GPC_INSTALL_DIR`, `GPC_REPO`, and `GPC_BASE_URL`, and verifies release archives against `checksums.txt` before installing.
+
+## Acknowledgments
+
+Inspired by [`rorkai/App-Store-Connect-CLI`](https://github.com/rorkai/App-Store-Connect-CLI).
