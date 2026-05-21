@@ -2,9 +2,12 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/aljrico/Google-Play-Console-CLI/internal/agentskills"
 )
 
 func TestInstallSkillsDryRunOutputsJSONWithoutWriting(t *testing.T) {
@@ -57,14 +60,8 @@ func TestInstallSkillsListOutputsBundledSkillNames(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	output := buf.String()
-	for _, want := range []string{
-		`"name":"gpc-app-recovery"`,
-		`"name":"gpc-cli-usage"`,
-		`"name":"gpc-insights-pipeline"`,
-		`"name":"gpc-metadata-workflow"`,
-		`"name":"gpc-release-flow"`,
-		`"name":"gpc-rtdn-pipeline"`,
-	} {
+	for _, name := range agentskills.BundledNames() {
+		want := fmt.Sprintf(`"name":%q`, name)
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)
 		}

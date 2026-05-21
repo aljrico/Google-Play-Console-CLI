@@ -31,7 +31,7 @@ gpc notifications pubsub setup \
   --output json
 ```
 
-Add `--confirm` to commit. After commit, configure the topic on the app in Play Console (Monetization setup → Real-time developer notifications) and send a test notification from there.
+Add `--confirm` to commit. Setup creates a pull subscription by default; pass `--push-endpoint https://your-handler.example.com` to create a push subscription instead. After commit, configure the topic on the app in Play Console (Monetization setup → Real-time developer notifications) and send a test notification from there.
 
 ## Pull And Decode
 

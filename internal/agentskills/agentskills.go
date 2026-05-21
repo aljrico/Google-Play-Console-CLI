@@ -80,6 +80,15 @@ func List() []Skill {
 	return result
 }
 
+func BundledNames() []string {
+	skills := allBundledSkills()
+	names := make([]string, 0, len(skills))
+	for _, skill := range skills {
+		names = append(names, skill.name)
+	}
+	return names
+}
+
 func Install(ctx context.Context, options InstallOptions) (InstallResult, error) {
 	directory, err := options.targetDirectory()
 	if err != nil {

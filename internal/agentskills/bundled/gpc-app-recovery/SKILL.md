@@ -21,7 +21,7 @@ gpc app-recovery list --package com.example.app --version-code 123 --output json
 
 ## Draft
 
-`create` drafts a remote in-app update recovery action for an explicit version code. Dry-run first:
+`create` drafts a remote in-app update recovery action. Target by exact version codes (`--version-code`, repeatable), a contiguous range (`--version-code-start`/`--version-code-end`), or `--all-users`. Layer audience targeting with `--region` (repeatable) or `--sdk-level` (repeatable). Dry-run first:
 
 ```sh
 gpc app-recovery create \
@@ -30,13 +30,21 @@ gpc app-recovery create \
   --region US \
   --dry-run \
   --output json
+
+gpc app-recovery create \
+  --package com.example.app \
+  --version-code-start 100 \
+  --version-code-end 122 \
+  --all-users \
+  --dry-run \
+  --output json
 ```
 
-Repeat `--region` for multiple regions. Drafted actions exist as IDs but are not deployed.
+Drafted actions exist as IDs but are not deployed.
 
 ## Targeting
 
-Add or update targeting on an existing draft:
+`add-targeting` extends an existing draft with audience criteria. Google Play accepts exactly one of `--all-users`, `--sdk-level`, or `--region` per call — pick one, then call again for the others if needed.
 
 ```sh
 gpc app-recovery add-targeting \

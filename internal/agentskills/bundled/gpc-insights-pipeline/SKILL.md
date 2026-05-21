@@ -44,7 +44,7 @@ Finance archives are ZIPs and must be extracted before `summarize`:
 unzip -o ./earnings_202605.zip -d ./earnings_202605
 ```
 
-Each ZIP contains one CSV per app and report type; pass the relevant CSV to `summarize`.
+Earnings reports are typically a single CSV per month covering all apps; estimated-sales archives may contain multiple CSVs. Inspect the extracted contents and pass the relevant CSV to `summarize`.
 
 ## Summarize One File
 
@@ -53,7 +53,7 @@ gpc finance reports summarize --file ./earnings_202605.csv --output json
 gpc analytics stats summarize --file ./store_performance.csv --output json
 ```
 
-`finance reports summarize` groups Play earnings or estimated-sales CSV by status, type, and currency amount. `analytics stats summarize` sums additive metrics and averages rate-like metrics.
+`finance reports summarize` groups rows by transaction type (or financial status for estimated-sales) and currency, summing the merchant-currency amount per group. `analytics stats summarize` sums additive metrics and averages rate-like metrics.
 
 ## Derived KPIs
 
