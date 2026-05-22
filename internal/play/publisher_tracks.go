@@ -147,6 +147,12 @@ func hasVersionCode(release *androidpublisher.TrackRelease, versionCode int64) b
 }
 
 func upsertTrackRelease(track *androidpublisher.Track, release *androidpublisher.TrackRelease) {
+	// Play allows only one completed release per track, so a new completed release
+	// must supersede any existing one rather than be appended alongside it. Staged
+	// (inProgress) releases legitimately coexist with the prior completed release.
+	if release.Status == string(ReleaseStatusCompleted) {
+		track.Releases = dropCompletedReleasesExcept(track.Releases, release)
+	}
 	for index, existingRelease := range track.Releases {
 		if releasesShareVersionCode(existingRelease, release) {
 			track.Releases[index] = release
@@ -154,6 +160,19 @@ func upsertTrackRelease(track *androidpublisher.Track, release *androidpublisher
 		}
 	}
 	track.Releases = append(track.Releases, release)
+}
+
+func dropCompletedReleasesExcept(releases []*androidpublisher.TrackRelease, keep *androidpublisher.TrackRelease) []*androidpublisher.TrackRelease {
+	retained := make([]*androidpublisher.TrackRelease, 0, len(releases))
+	for _, existingRelease := range releases {
+		if existingRelease != nil &&
+			existingRelease.Status == string(ReleaseStatusCompleted) &&
+			!releasesShareVersionCode(existingRelease, keep) {
+			continue
+		}
+		retained = append(retained, existingRelease)
+	}
+	return retained
 }
 
 func releasesShareVersionCode(left *androidpublisher.TrackRelease, right *androidpublisher.TrackRelease) bool {
