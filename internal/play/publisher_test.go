@@ -48,6 +48,77 @@ func TestUpsertTrackReleaseReplacesExistingVersionCode(t *testing.T) {
 	}
 }
 
+func TestUpsertTrackReleaseSupersedesExistingCompletedRelease(t *testing.T) {
+	track := &androidpublisher.Track{
+		Releases: []*androidpublisher.TrackRelease{
+			{Name: "old", Status: ReleaseStatusCompleted.String(), VersionCodes: googleapi.Int64s([]int64{57})},
+		},
+	}
+
+	upsertTrackRelease(track, &androidpublisher.TrackRelease{Name: "new", Status: ReleaseStatusCompleted.String(), VersionCodes: googleapi.Int64s([]int64{58})})
+
+	if len(track.Releases) != 1 {
+		t.Fatalf("len(Releases) = %d, want 1 (old completed release must be superseded)", len(track.Releases))
+	}
+	if got := track.Releases[0].VersionCodes; len(got) != 1 || got[0] != 58 {
+		t.Fatalf("remaining release version codes = %v, want [58]", got)
+	}
+}
+
+func TestUpsertTrackReleaseInProgressPreservesCompletedRelease(t *testing.T) {
+	track := &androidpublisher.Track{
+		Releases: []*androidpublisher.TrackRelease{
+			{Name: "live", Status: ReleaseStatusCompleted.String(), VersionCodes: googleapi.Int64s([]int64{57})},
+		},
+	}
+
+	upsertTrackRelease(track, &androidpublisher.TrackRelease{Name: "staged", Status: ReleaseStatusInProgress.String(), VersionCodes: googleapi.Int64s([]int64{58})})
+
+	if len(track.Releases) != 2 {
+		t.Fatalf("len(Releases) = %d, want 2 (staged rollout coexists with prior completed release)", len(track.Releases))
+	}
+}
+
+func TestUpsertTrackReleaseCompletedPreservesDraftAndHalted(t *testing.T) {
+	track := &androidpublisher.Track{
+		Releases: []*androidpublisher.TrackRelease{
+			{Name: "draft", Status: ReleaseStatusDraft.String(), VersionCodes: googleapi.Int64s([]int64{55})},
+			{Name: "halted", Status: ReleaseStatusHalted.String(), VersionCodes: googleapi.Int64s([]int64{56})},
+			{Name: "old-completed", Status: ReleaseStatusCompleted.String(), VersionCodes: googleapi.Int64s([]int64{57})},
+		},
+	}
+
+	upsertTrackRelease(track, &androidpublisher.TrackRelease{Name: "new-completed", Status: ReleaseStatusCompleted.String(), VersionCodes: googleapi.Int64s([]int64{58})})
+
+	statuses := map[string]bool{}
+	for _, release := range track.Releases {
+		statuses[release.Name] = true
+	}
+	if !statuses["draft"] || !statuses["halted"] || !statuses["new-completed"] {
+		t.Fatalf("releases = %v, want draft + halted + new-completed retained", statuses)
+	}
+	if statuses["old-completed"] {
+		t.Fatalf("old completed release was not superseded: %v", statuses)
+	}
+}
+
+func TestUpsertTrackReleaseReplacesCompletedReleaseSharingVersionCode(t *testing.T) {
+	track := &androidpublisher.Track{
+		Releases: []*androidpublisher.TrackRelease{
+			{Name: "old", Status: ReleaseStatusCompleted.String(), VersionCodes: googleapi.Int64s([]int64{58})},
+		},
+	}
+
+	upsertTrackRelease(track, &androidpublisher.TrackRelease{Name: "new", Status: ReleaseStatusCompleted.String(), VersionCodes: googleapi.Int64s([]int64{58})})
+
+	if len(track.Releases) != 1 {
+		t.Fatalf("len(Releases) = %d, want 1", len(track.Releases))
+	}
+	if track.Releases[0].Name != "new" {
+		t.Fatalf("release name = %q, want new", track.Releases[0].Name)
+	}
+}
+
 func TestSetReleaseStatusClearsUserFractionWhenCompleted(t *testing.T) {
 	release := &androidpublisher.TrackRelease{
 		Status:          ReleaseStatusInProgress.String(),
