@@ -10,6 +10,11 @@ on:
 permissions:
   contents: write
 
+# Node.js 20 is deprecated on GitHub-hosted runners (removed Sept 2026). Force
+# JavaScript actions (checkout, setup-go, goreleaser-action) onto Node.js 24.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   packaging-check:
     name: Packaging Check
