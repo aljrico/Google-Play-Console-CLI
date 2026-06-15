@@ -97,6 +97,15 @@ func (s ReleaseStatus) String() string {
 	return string(s)
 }
 
+// IsExclusivePerTrack reports whether a track may hold at most one release in
+// this status. Play allows one draft and one completed release per track, so a
+// new release in either status supersedes a prior one of that status;
+// inProgress/halted staged rollouts are not exclusive and coexist with the
+// completed release.
+func (s ReleaseStatus) IsExclusivePerTrack() bool {
+	return s == ReleaseStatusCompleted || s == ReleaseStatusDraft
+}
+
 type ArtifactKind string
 
 const (

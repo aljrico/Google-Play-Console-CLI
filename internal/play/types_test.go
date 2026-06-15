@@ -2,6 +2,20 @@ package play
 
 import "testing"
 
+func TestReleaseStatusIsExclusivePerTrack(t *testing.T) {
+	exclusive := map[ReleaseStatus]bool{
+		ReleaseStatusCompleted:  true,
+		ReleaseStatusDraft:      true,
+		ReleaseStatusInProgress: false,
+		ReleaseStatusHalted:     false,
+	}
+	for status, want := range exclusive {
+		if got := status.IsExclusivePerTrack(); got != want {
+			t.Fatalf("%s.IsExclusivePerTrack() = %v, want %v", status, got, want)
+		}
+	}
+}
+
 func TestNewPackageNameValidatesShape(t *testing.T) {
 	validValues := []string{
 		"com.example.app",

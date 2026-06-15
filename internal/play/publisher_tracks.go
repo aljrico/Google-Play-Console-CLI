@@ -78,14 +78,9 @@ func (p *GooglePublisher) UpdateTrackReleaseStatus(ctx context.Context, packageN
 		return TrackRelease{}, fmt.Errorf("find version code %d on %s track for %s: %w", versionCode, trackName, packageName, err)
 	}
 	setReleaseStatus(apiRelease, status, userFraction)
-	// A track allows only one release per exclusive status (completed, draft), so
-	// moving a release into one — e.g. resuming a staged rollout to completed
-	// while the prior version is still live, or completing a draft — must
-	// supersede the existing release of that status instead of leaving two behind
-	// (which the API rejects, e.g. "Only one completed release is allowed").
-	if isExclusiveStatusRelease(apiRelease) {
-		apiTrack.Releases = dropReleasesWithStatusExcept(apiTrack.Releases, apiRelease, apiRelease.Status)
-	}
+	// Completing a release in place (resuming a staged rollout, or releasing a
+	// draft) must drop the prior release of that exclusive status.
+	supersedeExclusiveStatus(apiTrack, apiRelease)
 
 	if _, err := p.service.Edits.Tracks.Update(packageName.String(), editID, trackName.String(), apiTrack).Context(ctx).Do(); err != nil {
 		return TrackRelease{}, fmt.Errorf("update rollout status for version code %d on %s track for %s: %w", versionCode, trackName, packageName, err)
@@ -155,15 +150,9 @@ func hasVersionCode(release *androidpublisher.TrackRelease, versionCode int64) b
 }
 
 func upsertTrackRelease(track *androidpublisher.Track, release *androidpublisher.TrackRelease) {
-	// Play allows only one release per exclusive status — one completed and one
-	// draft — per track. A new release in either status must therefore supersede
-	// an existing one of the same status rather than be appended alongside it
-	// (the API rejects the latter, e.g. "Only one draft release is allowed").
-	// Staged inProgress/halted releases legitimately coexist with the prior
-	// completed release, so they are left untouched.
-	if isExclusiveStatusRelease(release) {
-		track.Releases = dropReleasesWithStatusExcept(track.Releases, release, release.Status)
-	}
+	// A new completed/draft release supersedes any prior one of that status
+	// before we append or replace by version code.
+	supersedeExclusiveStatus(track, release)
 	for index, existingRelease := range track.Releases {
 		if releasesShareVersionCode(existingRelease, release) {
 			track.Releases[index] = release
@@ -173,24 +162,24 @@ func upsertTrackRelease(track *androidpublisher.Track, release *androidpublisher
 	track.Releases = append(track.Releases, release)
 }
 
-// isExclusiveStatusRelease reports whether a track may hold at most one release
-// in this release's status (completed or draft), so a new one must supersede an
-// existing one of that status. inProgress/halted staged rollouts are not
-// exclusive and coexist with a completed release.
-func isExclusiveStatusRelease(release *androidpublisher.TrackRelease) bool {
-	return release != nil &&
-		(release.Status == string(ReleaseStatusCompleted) || release.Status == string(ReleaseStatusDraft))
-}
-
-func dropReleasesWithStatusExcept(releases []*androidpublisher.TrackRelease, keep *androidpublisher.TrackRelease, status string) []*androidpublisher.TrackRelease {
-	retained := make([]*androidpublisher.TrackRelease, 0, len(releases))
-	for _, existingRelease := range releases {
-		if existingRelease != nil && existingRelease.Status == status && !releasesShareVersionCode(existingRelease, keep) {
+// supersedeExclusiveStatus enforces Play's "one release per exclusive status"
+// rule: a track allows at most one draft and one completed release, so a new
+// release in either status drops any prior release of that status rather than
+// leaving two behind (which the API rejects, e.g. "Only one draft release is
+// allowed"). inProgress/halted staged rollouts are not exclusive and coexist
+// with the completed release, so they are left untouched.
+func supersedeExclusiveStatus(track *androidpublisher.Track, release *androidpublisher.TrackRelease) {
+	if release == nil || !ReleaseStatus(release.Status).IsExclusivePerTrack() {
+		return
+	}
+	retained := make([]*androidpublisher.TrackRelease, 0, len(track.Releases))
+	for _, existing := range track.Releases {
+		if existing != nil && existing.Status == release.Status && !releasesShareVersionCode(existing, release) {
 			continue
 		}
-		retained = append(retained, existingRelease)
+		retained = append(retained, existing)
 	}
-	return retained
+	track.Releases = retained
 }
 
 func releasesShareVersionCode(left *androidpublisher.TrackRelease, right *androidpublisher.TrackRelease) bool {
