@@ -102,6 +102,38 @@ func TestUpsertTrackReleaseCompletedPreservesDraftAndHalted(t *testing.T) {
 	}
 }
 
+func TestUpsertTrackReleaseDraftSupersedesExistingDraft(t *testing.T) {
+	// A stale empty draft (no version codes) must not block a new draft: Play
+	// allows only one draft per track, so the new draft supersedes it while the
+	// live completed release is preserved.
+	track := &androidpublisher.Track{
+		Releases: []*androidpublisher.TrackRelease{
+			{Name: "stale-draft", Status: ReleaseStatusDraft.String()},
+			{Name: "live", Status: ReleaseStatusCompleted.String(), VersionCodes: googleapi.Int64s([]int64{23})},
+		},
+	}
+
+	upsertTrackRelease(track, &androidpublisher.TrackRelease{Name: "new-draft", Status: ReleaseStatusDraft.String(), VersionCodes: googleapi.Int64s([]int64{24})})
+
+	drafts := 0
+	statuses := map[string]bool{}
+	for _, release := range track.Releases {
+		statuses[release.Name] = true
+		if release.Status == ReleaseStatusDraft.String() {
+			drafts++
+		}
+	}
+	if drafts != 1 {
+		t.Fatalf("draft count = %d, want 1 (only one draft allowed per track)", drafts)
+	}
+	if statuses["stale-draft"] {
+		t.Fatalf("stale draft was not superseded: %v", statuses)
+	}
+	if !statuses["new-draft"] || !statuses["live"] {
+		t.Fatalf("releases = %v, want new-draft + live retained", statuses)
+	}
+}
+
 func TestUpsertTrackReleaseReplacesCompletedReleaseSharingVersionCode(t *testing.T) {
 	track := &androidpublisher.Track{
 		Releases: []*androidpublisher.TrackRelease{
