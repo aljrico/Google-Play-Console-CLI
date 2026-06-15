@@ -151,6 +151,45 @@ func TestUpsertTrackReleaseReplacesCompletedReleaseSharingVersionCode(t *testing
 	}
 }
 
+func TestUpdateTrackReleaseStatusCompletingSupersedesPriorCompleted(t *testing.T) {
+	// Completing a release (e.g. resuming a staged rollout, or releasing a draft)
+	// must drop the prior completed release rather than leave two behind.
+	var putBody androidpublisher.Track
+	sawUpdate := false
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/androidpublisher/v3/applications/com.example.app/edits/edit-123/tracks/production" {
+			t.Fatalf("path = %q, want production track endpoint", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method {
+		case http.MethodGet:
+			_, _ = w.Write([]byte(`{"track":"production","releases":[{"name":"new","status":"draft","versionCodes":["24"]},{"name":"live","status":"completed","versionCodes":["23"]}]}`))
+		case http.MethodPut:
+			sawUpdate = true
+			if err := json.NewDecoder(r.Body).Decode(&putBody); err != nil {
+				t.Fatalf("Decode() error = %v", err)
+			}
+			_, _ = w.Write([]byte(`{"track":"production","releases":[]}`))
+		default:
+			t.Fatalf("method = %s, want GET or PUT", r.Method)
+		}
+	}))
+
+	_, err := publisher.UpdateTrackReleaseStatus(context.Background(), "com.example.app", "edit-123", TrackProduction, 24, ReleaseStatusCompleted, nil)
+	if err != nil {
+		t.Fatalf("UpdateTrackReleaseStatus() error = %v", err)
+	}
+	if !sawUpdate {
+		t.Fatal("expected track update")
+	}
+	if len(putBody.Releases) != 1 {
+		t.Fatalf("PUT releases = %d, want 1 (prior completed superseded): %#v", len(putBody.Releases), putBody.Releases)
+	}
+	if got := putBody.Releases[0]; got.Status != "completed" || len(got.VersionCodes) != 1 || got.VersionCodes[0] != 24 {
+		t.Fatalf("remaining release = %#v, want completed vc24", got)
+	}
+}
+
 func TestSetReleaseStatusClearsUserFractionWhenCompleted(t *testing.T) {
 	release := &androidpublisher.TrackRelease{
 		Status:          ReleaseStatusInProgress.String(),

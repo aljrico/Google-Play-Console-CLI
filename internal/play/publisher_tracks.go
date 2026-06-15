@@ -78,6 +78,14 @@ func (p *GooglePublisher) UpdateTrackReleaseStatus(ctx context.Context, packageN
 		return TrackRelease{}, fmt.Errorf("find version code %d on %s track for %s: %w", versionCode, trackName, packageName, err)
 	}
 	setReleaseStatus(apiRelease, status, userFraction)
+	// A track allows only one release per exclusive status (completed, draft), so
+	// moving a release into one — e.g. resuming a staged rollout to completed
+	// while the prior version is still live, or completing a draft — must
+	// supersede the existing release of that status instead of leaving two behind
+	// (which the API rejects, e.g. "Only one completed release is allowed").
+	if isExclusiveStatusRelease(apiRelease) {
+		apiTrack.Releases = dropReleasesWithStatusExcept(apiTrack.Releases, apiRelease, apiRelease.Status)
+	}
 
 	if _, err := p.service.Edits.Tracks.Update(packageName.String(), editID, trackName.String(), apiTrack).Context(ctx).Do(); err != nil {
 		return TrackRelease{}, fmt.Errorf("update rollout status for version code %d on %s track for %s: %w", versionCode, trackName, packageName, err)
