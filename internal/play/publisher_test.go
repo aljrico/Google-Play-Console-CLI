@@ -7399,6 +7399,96 @@ func TestSubscriptionPurchaseFromAPIMapsLineItems(t *testing.T) {
 	}
 }
 
+func TestUpsertListingMergesExistingFieldsBeforePut(t *testing.T) {
+	var putBody androidpublisher.Listing
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		const path = "/androidpublisher/v3/applications/com.example.app/edits/edit-123/listings/en-US"
+		if r.URL.Path != path {
+			t.Fatalf("path = %q, want %q", r.URL.Path, path)
+		}
+		switch r.Method {
+		case http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"language": "en-US",
+				"title": "Old title",
+				"shortDescription": "Old short",
+				"fullDescription": "Old full",
+				"video": "https://youtu.be/old"
+			}`))
+		case http.MethodPut:
+			if err := json.NewDecoder(r.Body).Decode(&putBody); err != nil {
+				t.Fatalf("decode PUT body: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(putBody)
+		default:
+			t.Fatalf("method = %s, want GET or PUT", r.Method)
+		}
+	}))
+
+	updated, err := publisher.UpsertListing(context.Background(), "com.example.app", "edit-123", Listing{
+		Language: "en-US",
+		Title:    stringValue("New title"),
+	})
+	if err != nil {
+		t.Fatalf("UpsertListing() error = %v", err)
+	}
+	if putBody.Title != "New title" {
+		t.Fatalf("PUT Title = %q, want New title", putBody.Title)
+	}
+	if putBody.ShortDescription != "Old short" || putBody.FullDescription != "Old full" || putBody.Video != "https://youtu.be/old" {
+		t.Fatalf("PUT body did not preserve untouched fields: %#v", putBody)
+	}
+	if updated.Title == nil || *updated.Title != "New title" {
+		t.Fatalf("updated.Title = %v, want New title", updated.Title)
+	}
+	if updated.ShortDescription == nil || *updated.ShortDescription != "Old short" {
+		t.Fatalf("updated.ShortDescription = %v, want Old short", updated.ShortDescription)
+	}
+}
+
+func TestUpsertListingCreatesNewLocaleWhenGetReturnsNotFound(t *testing.T) {
+	var putBody androidpublisher.Listing
+	getCalled := false
+	publisher := newTestPublisher(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			getCalled = true
+			w.WriteHeader(http.StatusNotFound)
+		case http.MethodPut:
+			if err := json.NewDecoder(r.Body).Decode(&putBody); err != nil {
+				t.Fatalf("decode PUT body: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(putBody)
+		default:
+			t.Fatalf("method = %s, want GET or PUT", r.Method)
+		}
+	}))
+
+	updated, err := publisher.UpsertListing(context.Background(), "com.example.app", "edit-123", Listing{
+		Language:        "ca",
+		Title:           stringValue("Títol"),
+		FullDescription: stringValue("Descripció"),
+	})
+	if err != nil {
+		t.Fatalf("UpsertListing() error = %v", err)
+	}
+	if !getCalled {
+		t.Fatal("expected a GET probe before PUT")
+	}
+	if putBody.Title != "Títol" || putBody.FullDescription != "Descripció" {
+		t.Fatalf("PUT body = %#v, want caller fields", putBody)
+	}
+	if putBody.ShortDescription != "" || putBody.Video != "" {
+		t.Fatalf("PUT body should not invent fields: %#v", putBody)
+	}
+	if updated.Language != "ca" {
+		t.Fatalf("updated.Language = %q, want ca", updated.Language)
+	}
+}
+
 func containsField(fields []string, field string) bool {
 	for _, candidate := range fields {
 		if candidate == field {

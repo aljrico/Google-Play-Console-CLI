@@ -42,7 +42,7 @@ func TestMetadataApplyDryRunDoesNotRequireAuth(t *testing.T) {
 		`"dryRun":true`,
 		`"contactEmail":"support@example.com"`,
 		`"patch app details"`,
-		`"patch en-US listing"`,
+		`"update en-US listing"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output = %s, want %s", output, want)

@@ -27,13 +27,55 @@ func (p *GooglePublisher) GetListing(ctx context.Context, packageName PackageNam
 	return listingFromAPI(listing), nil
 }
 
-func (p *GooglePublisher) PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
-	apiListing := listingToAPI(listing)
-	updatedListing, err := p.service.Edits.Listings.Patch(packageName.String(), editID, listing.Language.String(), apiListing).Context(ctx).Do()
+// UpsertListing creates or updates a localized store listing. It calls
+// Edits.Listings.Update (HTTP PUT), which the Play API documents as
+// "Creates or updates a localized store listing". Unlike Patch (HTTP PATCH),
+// Update does not require the locale to already exist, so it can add new
+// languages as well as replace existing ones.
+//
+// Update is a full replace (PUT): any field absent from the request body is
+// cleared on the server. The caller only supplies the fields it wants to set,
+// so to preserve the partial-update ergonomics of the old Patch path we first
+// read the existing listing (when the locale already exists) and overlay the
+// caller's fields on top of it before sending the complete resource. When the
+// locale does not exist yet the read returns 404 and we create it from the
+// caller's fields alone.
+func (p *GooglePublisher) UpsertListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
+	existing, err := p.service.Edits.Listings.Get(packageName.String(), editID, listing.Language.String()).Context(ctx).Do()
 	if err != nil {
-		return Listing{}, fmt.Errorf("patch %s listing for %s: %w", listing.Language, packageName, err)
+		if !isGoogleNotFound(err) {
+			return Listing{}, fmt.Errorf("get %s listing for %s before update: %w", listing.Language, packageName, err)
+		}
+		existing = nil
+	}
+
+	apiListing := listingToAPI(mergeListing(listingFromAPI(existing), listing))
+	updatedListing, err := p.service.Edits.Listings.Update(packageName.String(), editID, listing.Language.String(), apiListing).Context(ctx).Do()
+	if err != nil {
+		return Listing{}, fmt.Errorf("update %s listing for %s: %w", listing.Language, packageName, err)
 	}
 	return listingFromAPI(updatedListing), nil
+}
+
+// mergeListing overlays the explicitly-set fields of override onto base,
+// keeping base's values for any field the caller did not provide. The override
+// language wins so the merged listing always targets the requested locale.
+func mergeListing(base Listing, override Listing) Listing {
+	merged := base
+	merged.Language = override.Language
+	if override.Title != nil {
+		merged.Title = override.Title
+	}
+	if override.ShortDescription != nil {
+		merged.ShortDescription = override.ShortDescription
+	}
+	if override.FullDescription != nil {
+		merged.FullDescription = override.FullDescription
+	}
+	if override.Video != nil {
+		merged.Video = override.Video
+	}
+	return merged
 }
 
 func (p *GooglePublisher) DeleteListing(ctx context.Context, packageName PackageName, editID string, language ListingLanguage) error {

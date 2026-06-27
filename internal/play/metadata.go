@@ -137,7 +137,7 @@ type MetadataApplyResult struct {
 type MetadataApplier interface {
 	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
 	PatchAppDetails(ctx context.Context, packageName PackageName, editID string, details AppDetails) (AppDetails, error)
-	PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error)
+	UpsertListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error)
 	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
 	CommitEditWithOptions(ctx context.Context, packageName PackageName, editID string, opts CommitEditOptions) (Edit, error)
 	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
@@ -153,7 +153,7 @@ func NewMetadataApplyPlan(options MetadataApplyOptions) (MetadataApplyPlan, erro
 		steps = append(steps, "patch app details")
 	}
 	for _, listing := range normalizedOptions.Listings {
-		steps = append(steps, fmt.Sprintf("patch %s listing", listing.Language))
+		steps = append(steps, fmt.Sprintf("update %s listing", listing.Language))
 	}
 	if !normalizedOptions.ChangesNotSentForReview {
 		steps = append(steps, "validate edit")
@@ -227,7 +227,7 @@ func ApplyMetadata(ctx context.Context, applier MetadataApplier, options Metadat
 	}
 	appliedListings := make([]Listing, 0, len(normalizedOptions.Listings))
 	for _, listing := range normalizedOptions.Listings {
-		appliedListing, err := applier.PatchListing(ctx, normalizedOptions.PackageName, edit.ID, listing)
+		appliedListing, err := applier.UpsertListing(ctx, normalizedOptions.PackageName, edit.ID, listing)
 		if err != nil {
 			return MetadataApplyResult{}, err
 		}

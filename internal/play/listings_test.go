@@ -252,7 +252,7 @@ func (c *fakeListingClient) GetListing(ctx context.Context, packageName PackageN
 	return c.listing, nil
 }
 
-func (c *fakeListingClient) PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
+func (c *fakeListingClient) UpsertListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
 	c.calls = append(c.calls, "update")
 	return listing, nil
 }

@@ -49,7 +49,7 @@ func TestMetadataApplyDryRunSortsListingsAndDoesNotRequireApplier(t *testing.T) 
 	if !result.DryRun {
 		t.Fatal("DryRun = false, want true")
 	}
-	wantSteps := []string{"insert edit", "patch en-US listing", "patch es-ES listing", "validate edit", "delete uncommitted edit"}
+	wantSteps := []string{"insert edit", "update en-US listing", "update es-ES listing", "validate edit", "delete uncommitted edit"}
 	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
 		t.Fatalf("steps = %#v, want %#v", result.Plan.Steps, wantSteps)
 	}
@@ -169,18 +169,18 @@ func TestMetadataApplyUsesSingleEditAndCommitsWhenConfirmed(t *testing.T) {
 	if !result.Committed {
 		t.Fatal("Committed = false, want true")
 	}
-	wantCalls := []string{"insert", "patch-details", "patch-listing:en-US", "patch-listing:es-ES", "validate", "commit"}
+	wantCalls := []string{"insert", "patch-details", "upsert-listing:en-US", "upsert-listing:es-ES", "validate", "commit"}
 	if !reflect.DeepEqual(applier.calls, wantCalls) {
 		t.Fatalf("calls = %#v, want %#v", applier.calls, wantCalls)
 	}
 }
 
-func TestMetadataApplyCleansUpWhenListingPatchFails(t *testing.T) {
+func TestMetadataApplyCleansUpWhenListingUpsertFails(t *testing.T) {
 	packageName, err := NewPackageName("com.example.app")
 	if err != nil {
 		t.Fatalf("NewPackageName() error = %v", err)
 	}
-	applier := &fakeMetadataApplier{patchListingErr: errors.New("patch failed")}
+	applier := &fakeMetadataApplier{upsertListingErr: errors.New("update failed")}
 
 	_, err = ApplyMetadata(context.Background(), applier, MetadataApplyOptions{
 		PackageName: packageName,
@@ -189,12 +189,12 @@ func TestMetadataApplyCleansUpWhenListingPatchFails(t *testing.T) {
 		Confirm:     true,
 	})
 	if err == nil {
-		t.Fatal("ApplyMetadata() error = nil, want patch error")
+		t.Fatal("ApplyMetadata() error = nil, want update error")
 	}
-	if !strings.Contains(err.Error(), "patch failed") {
-		t.Fatalf("error = %v, want patch failure", err)
+	if !strings.Contains(err.Error(), "update failed") {
+		t.Fatalf("error = %v, want update failure", err)
 	}
-	wantCalls := []string{"insert", "patch-listing:en-US", "delete"}
+	wantCalls := []string{"insert", "upsert-listing:en-US", "delete"}
 	if !reflect.DeepEqual(applier.calls, wantCalls) {
 		t.Fatalf("calls = %#v, want %#v", applier.calls, wantCalls)
 	}
@@ -243,8 +243,8 @@ func TestMetadataApplyRequiresConfirmOrDryRun(t *testing.T) {
 }
 
 type fakeMetadataApplier struct {
-	calls           []string
-	patchListingErr error
+	calls            []string
+	upsertListingErr error
 }
 
 func (a *fakeMetadataApplier) InsertEdit(ctx context.Context, packageName PackageName) (Edit, error) {
@@ -257,10 +257,10 @@ func (a *fakeMetadataApplier) PatchAppDetails(ctx context.Context, packageName P
 	return details, nil
 }
 
-func (a *fakeMetadataApplier) PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
-	a.calls = append(a.calls, "patch-listing:"+listing.Language.String())
-	if a.patchListingErr != nil {
-		return Listing{}, a.patchListingErr
+func (a *fakeMetadataApplier) UpsertListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error) {
+	a.calls = append(a.calls, "upsert-listing:"+listing.Language.String())
+	if a.upsertListingErr != nil {
+		return Listing{}, a.upsertListingErr
 	}
 	return listing, nil
 }

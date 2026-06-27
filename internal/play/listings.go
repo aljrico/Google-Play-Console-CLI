@@ -95,7 +95,7 @@ func GetListing(ctx context.Context, reader ListingReader, packageName PackageNa
 
 type ListingUpdater interface {
 	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
-	PatchListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error)
+	UpsertListing(ctx context.Context, packageName PackageName, editID string, listing Listing) (Listing, error)
 	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
 	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
 	DeleteEdit(ctx context.Context, packageName PackageName, editID string) error
@@ -153,7 +153,7 @@ func NewUpdateListingPlan(options UpdateListingOptions) (UpdateListingPlan, erro
 	}
 	steps := []string{
 		"insert edit",
-		fmt.Sprintf("patch %s listing", options.Listing.Language),
+		fmt.Sprintf("update %s listing", options.Listing.Language),
 		"validate edit",
 	}
 	if options.Confirm {
@@ -207,7 +207,7 @@ func UpdateListing(ctx context.Context, updater ListingUpdater, options UpdateLi
 		}
 	}()
 
-	listing, err := updater.PatchListing(ctx, options.PackageName, edit.ID, options.Listing)
+	listing, err := updater.UpsertListing(ctx, options.PackageName, edit.ID, options.Listing)
 	if err != nil {
 		return UpdateListingResult{}, err
 	}
