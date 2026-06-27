@@ -59,6 +59,7 @@ gpc validate --package com.example.app
 gpc metadata apply --package com.example.app --file ./play-metadata.json --dry-run
 gpc listings update --package com.example.app --language en-US --title "Example" --dry-run
 gpc images upload --package com.example.app --language en-US --type featureGraphic --file ./feature.png --dry-run
+gpc images upload --package com.example.app --language es-ES --type phoneScreenshots --file ./01.jpg --file ./02.jpg --file ./03.jpg --replace --dry-run
 gpc details update --package com.example.app --contact-email support@example.com --dry-run
 ```
 

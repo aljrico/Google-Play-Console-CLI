@@ -97,6 +97,7 @@ type ImageDeleter interface {
 
 type ImageUploader interface {
 	InsertEdit(ctx context.Context, packageName PackageName) (Edit, error)
+	DeleteAllImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) ([]StoreImage, error)
 	UploadImage(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType, path string) (StoreImage, error)
 	ValidateEdit(ctx context.Context, packageName PackageName, editID string) error
 	CommitEdit(ctx context.Context, packageName PackageName, editID string) (Edit, error)
@@ -139,7 +140,8 @@ type ImageUploadOptions struct {
 	PackageName PackageName     `json:"packageName"`
 	Language    ListingLanguage `json:"language"`
 	Type        ImageType       `json:"type"`
-	Path        string          `json:"path"`
+	Paths       []string        `json:"paths"`
+	Replace     bool            `json:"replace"`
 	Confirm     bool            `json:"confirm"`
 	DryRun      bool            `json:"dryRun"`
 }
@@ -157,42 +159,72 @@ func (o ImageUploadOptions) Validate() error {
 	if o.Confirm && o.DryRun {
 		return fmt.Errorf("--confirm and --dry-run cannot be used together")
 	}
-	if o.Path == "" {
-		return fmt.Errorf("image path is required")
+	if len(o.Paths) == 0 {
+		return fmt.Errorf("at least one image path is required")
 	}
-	return validateImagePath(o.Path)
+	for _, path := range o.Paths {
+		if err := validateImagePath(path); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type ImageUploadPlan struct {
 	PackageName PackageName     `json:"packageName"`
 	Language    ListingLanguage `json:"language"`
 	Type        ImageType       `json:"type"`
-	Path        string          `json:"path"`
-	Confirm     bool            `json:"confirm"`
-	Steps       []string        `json:"steps"`
+	// Path mirrors the first element of Paths so single-file callers keep the
+	// pre-multi-file "path" JSON field. It is omitted when more than one file is
+	// uploaded, where Paths is the authoritative list.
+	Path    string   `json:"path,omitempty"`
+	Paths   []string `json:"paths"`
+	Replace bool     `json:"replace"`
+	Confirm bool     `json:"confirm"`
+	Steps   []string `json:"steps"`
 }
 
 type ImageUploadResult struct {
 	PackageName PackageName     `json:"packageName"`
 	Language    ListingLanguage `json:"language"`
 	Type        ImageType       `json:"type"`
-	Path        string          `json:"path"`
-	DryRun      bool            `json:"dryRun"`
-	Committed   bool            `json:"committed"`
-	Edit        *Edit           `json:"edit,omitempty"`
-	Image       *StoreImage     `json:"image,omitempty"`
-	Plan        ImageUploadPlan `json:"plan"`
+	// Path mirrors the single uploaded file; see ImageUploadPlan.Path. Kept for
+	// back-compat with scripts written against the single-file output.
+	Path      string       `json:"path,omitempty"`
+	Paths     []string     `json:"paths"`
+	Replace   bool         `json:"replace"`
+	DryRun    bool         `json:"dryRun"`
+	Committed bool         `json:"committed"`
+	Edit      *Edit        `json:"edit,omitempty"`
+	Deleted   []StoreImage `json:"deleted,omitempty"`
+	// Image mirrors the single uploaded image; see Path. Omitted for multi-file
+	// uploads, where Images is authoritative.
+	Image  *StoreImage     `json:"image,omitempty"`
+	Images []StoreImage    `json:"images"`
+	Plan   ImageUploadPlan `json:"plan"`
+}
+
+// singleFilePath returns the lone path when exactly one file is uploaded, so the
+// back-compat singular "path"/"image" fields are populated only in that case.
+func singleFilePath(paths []string) string {
+	if len(paths) == 1 {
+		return paths[0]
+	}
+	return ""
 }
 
 func NewImageUploadPlan(options ImageUploadOptions) (ImageUploadPlan, error) {
 	if err := options.Validate(); err != nil {
 		return ImageUploadPlan{}, err
 	}
-	steps := []string{
-		"insert edit",
-		fmt.Sprintf("upload %s image for %s", options.Type, options.Language),
-		"validate edit",
+	steps := []string{"insert edit"}
+	if options.Replace {
+		steps = append(steps, fmt.Sprintf("delete all %s images for %s", options.Type, options.Language))
 	}
+	for _, path := range options.Paths {
+		steps = append(steps, fmt.Sprintf("upload %s image %s for %s", options.Type, path, options.Language))
+	}
+	steps = append(steps, "validate edit")
 	if options.Confirm {
 		steps = append(steps, "commit edit")
 	} else {
@@ -202,13 +234,25 @@ func NewImageUploadPlan(options ImageUploadOptions) (ImageUploadPlan, error) {
 		PackageName: options.PackageName,
 		Language:    options.Language,
 		Type:        options.Type,
-		Path:        options.Path,
+		Path:        singleFilePath(options.Paths),
+		Paths:       append([]string(nil), options.Paths...),
+		Replace:     options.Replace,
 		Confirm:     options.Confirm,
 		Steps:       steps,
 	}, nil
 }
 
-func UploadImage(ctx context.Context, uploader ImageUploader, options ImageUploadOptions) (result ImageUploadResult, err error) {
+// UploadImages uploads one or more images of a single language and type within
+// one edit, then validates and (with --confirm) commits once. Doing every
+// upload in a single edit lets a brand-new locale satisfy Google Play's minimum
+// screenshot count: committing one image at a time fails because the listing
+// language has fewer than its minimum screenshots until the whole set lands.
+//
+// When Replace is set, all existing images of that language and type are
+// deleted first within the same edit, so re-running with the same files yields
+// the same result (the locale ends up holding exactly the provided files, in
+// upload order). Without Replace the uploads append to whatever already exists.
+func UploadImages(ctx context.Context, uploader ImageUploader, options ImageUploadOptions) (result ImageUploadResult, err error) {
 	plan, err := NewImageUploadPlan(options)
 	if err != nil {
 		return ImageUploadResult{}, err
@@ -217,16 +261,22 @@ func UploadImage(ctx context.Context, uploader ImageUploader, options ImageUploa
 		PackageName: options.PackageName,
 		Language:    options.Language,
 		Type:        options.Type,
-		Path:        options.Path,
+		Path:        singleFilePath(options.Paths),
+		Paths:       append([]string(nil), options.Paths...),
+		Replace:     options.Replace,
 		DryRun:      options.DryRun,
 		Committed:   false,
+		Deleted:     []StoreImage{},
+		Images:      []StoreImage{},
 		Plan:        plan,
 	}
 	if options.DryRun {
 		return result, nil
 	}
-	if err := ValidateReadableImageFile(options.Path); err != nil {
-		return ImageUploadResult{}, err
+	for _, path := range options.Paths {
+		if err := ValidateReadableImageFile(path); err != nil {
+			return ImageUploadResult{}, err
+		}
 	}
 	if uploader == nil {
 		return ImageUploadResult{}, fmt.Errorf("image uploader is required")
@@ -249,11 +299,27 @@ func UploadImage(ctx context.Context, uploader ImageUploader, options ImageUploa
 		}
 	}()
 
-	image, err := uploader.UploadImage(ctx, options.PackageName, edit.ID, options.Language, options.Type, options.Path)
-	if err != nil {
-		return ImageUploadResult{}, err
+	if options.Replace {
+		deleted, deleteErr := uploader.DeleteAllImages(ctx, options.PackageName, edit.ID, options.Language, options.Type)
+		if deleteErr != nil {
+			return ImageUploadResult{}, deleteErr
+		}
+		result.Deleted = deleted
 	}
-	result.Image = &image
+
+	images := make([]StoreImage, 0, len(options.Paths))
+	for _, path := range options.Paths {
+		image, uploadErr := uploader.UploadImage(ctx, options.PackageName, edit.ID, options.Language, options.Type, path)
+		if uploadErr != nil {
+			return ImageUploadResult{}, uploadErr
+		}
+		images = append(images, image)
+	}
+	result.Images = images
+	if len(images) == 1 {
+		result.Image = &images[0]
+	}
+
 	if err := uploader.ValidateEdit(ctx, options.PackageName, edit.ID); err != nil {
 		return ImageUploadResult{}, err
 	}

@@ -659,7 +659,7 @@ gpc images
 - `gpc images delete`: Delete one store image
 - `gpc images delete-all`: Delete all store images for one language and image type
 - `gpc images list`: List store images for one language and image type
-- `gpc images upload`: Upload one store image
+- `gpc images upload`: Upload one or more store images for a language and type in a single edit
 
 #### gpc images delete
 
@@ -707,7 +707,7 @@ gpc images list [flags]
 
 #### gpc images upload
 
-Upload one store image
+Upload one or more store images for a language and type in a single edit
 
 ```sh
 gpc images upload [flags]
@@ -717,8 +717,9 @@ gpc images upload [flags]
 
 - `--confirm`: Commit the edit after validation (default `false`)
 - `--dry-run`: Print the planned image upload without calling Google Play (default `false`)
-- `--file`: Path to a .jpg, .jpeg, or .png image
+- `--file`: Path to a .jpg, .jpeg, or .png image; repeatable to upload a full set in one edit, in order (default `[]`)
 - `--language`: BCP-47 listing language, for example en-US
+- `--replace`: Delete all existing images of this language and type before uploading (default `false`)
 - `--type`: Image type: icon, featureGraphic, phoneScreenshots, sevenInchScreenshots, tenInchScreenshots, tvBanner, tvScreenshots, wearScreenshots
 
 ### gpc in-app-products

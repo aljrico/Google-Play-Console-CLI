@@ -2,9 +2,11 @@ package play
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -49,37 +51,45 @@ func TestListImagesRejectsInvalidOptions(t *testing.T) {
 	}
 }
 
-func TestUploadImageDryRunDoesNotRequireUploader(t *testing.T) {
-	result, err := UploadImage(context.Background(), nil, ImageUploadOptions{
+func TestUploadImagesDryRunDoesNotRequireUploader(t *testing.T) {
+	result, err := UploadImages(context.Background(), nil, ImageUploadOptions{
 		PackageName: "com.example.app",
 		Language:    "en-US",
 		Type:        ImageTypeFeatureGraphic,
-		Path:        "feature.png",
+		Paths:       []string{"feature.png"},
 		DryRun:      true,
 	})
 	if err != nil {
-		t.Fatalf("UploadImage() error = %v", err)
+		t.Fatalf("UploadImages() error = %v", err)
 	}
-	if !result.DryRun || result.Path != "feature.png" {
+	if !result.DryRun || len(result.Paths) != 1 || result.Paths[0] != "feature.png" {
 		t.Fatalf("result = %#v, want dry-run image upload", result)
+	}
+	// Single-file back-compat: the singular path field mirrors the lone file.
+	if result.Path != "feature.png" || result.Plan.Path != "feature.png" {
+		t.Fatalf("result.Path = %q / plan.Path = %q, want feature.png back-compat", result.Path, result.Plan.Path)
 	}
 }
 
-func TestUploadImageCommitsWithConfirm(t *testing.T) {
+func TestUploadImagesCommitsSingleFileWithConfirm(t *testing.T) {
 	uploader := &fakeImageUploader{image: StoreImage{ID: "image-1"}}
 	path := writeTestImage(t, "feature.png")
-	result, err := UploadImage(context.Background(), uploader, ImageUploadOptions{
+	result, err := UploadImages(context.Background(), uploader, ImageUploadOptions{
 		PackageName: "com.example.app",
 		Language:    "en-US",
 		Type:        ImageTypeFeatureGraphic,
-		Path:        path,
+		Paths:       []string{path},
 		Confirm:     true,
 	})
 	if err != nil {
-		t.Fatalf("UploadImage() error = %v", err)
+		t.Fatalf("UploadImages() error = %v", err)
 	}
-	if !result.Committed || result.Image == nil || result.Image.ID != "image-1" {
+	if !result.Committed || len(result.Images) != 1 || result.Images[0].ID != "image-1" {
 		t.Fatalf("result = %#v, want committed upload result", result)
+	}
+	// Single-file back-compat: the singular image field is populated.
+	if result.Image == nil || result.Image.ID != "image-1" || result.Path != path {
+		t.Fatalf("result.Image = %v / Path = %q, want single-file back-compat fields", result.Image, result.Path)
 	}
 	wantCalls := []string{"insert", "upload", "validate", "commit"}
 	if !reflect.DeepEqual(uploader.calls, wantCalls) {
@@ -87,20 +97,106 @@ func TestUploadImageCommitsWithConfirm(t *testing.T) {
 	}
 }
 
-func TestUploadImageRejectsInvalidOptions(t *testing.T) {
+func TestUploadImagesUploadsFullSetInSingleEditPreservingOrder(t *testing.T) {
+	uploader := &fakeImageUploader{}
+	first := writeTestImage(t, "01.png")
+	second := writeTestImage(t, "02.png")
+	third := writeTestImage(t, "03.png")
+	result, err := UploadImages(context.Background(), uploader, ImageUploadOptions{
+		PackageName: "com.example.app",
+		Language:    "es-ES",
+		Type:        ImageTypePhoneScreenshots,
+		Paths:       []string{first, second, third},
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("UploadImages() error = %v", err)
+	}
+	if !result.Committed || len(result.Images) != 3 {
+		t.Fatalf("result = %#v, want three uploaded images committed", result)
+	}
+	// Multi-file: the singular back-compat fields are left empty.
+	if result.Path != "" || result.Image != nil || result.Plan.Path != "" {
+		t.Fatalf("result = %#v, want empty singular fields for multi-file", result)
+	}
+	// One insert, one validate, one commit: the whole set lands in a single edit.
+	wantCalls := []string{"insert", "upload", "upload", "upload", "validate", "commit"}
+	if !reflect.DeepEqual(uploader.calls, wantCalls) {
+		t.Fatalf("calls = %#v, want %#v", uploader.calls, wantCalls)
+	}
+	wantPaths := []string{first, second, third}
+	if !reflect.DeepEqual(uploader.uploadedPaths, wantPaths) {
+		t.Fatalf("uploaded paths = %#v, want %#v (CLI arg order)", uploader.uploadedPaths, wantPaths)
+	}
+}
+
+func TestUploadImagesReplaceDeletesThenUploadsWithinSameEdit(t *testing.T) {
+	uploader := &fakeImageUploader{}
+	first := writeTestImage(t, "01.png")
+	second := writeTestImage(t, "02.png")
+	result, err := UploadImages(context.Background(), uploader, ImageUploadOptions{
+		PackageName: "com.example.app",
+		Language:    "ca",
+		Type:        ImageTypePhoneScreenshots,
+		Paths:       []string{first, second},
+		Replace:     true,
+		Confirm:     true,
+	})
+	if err != nil {
+		t.Fatalf("UploadImages() error = %v", err)
+	}
+	if !result.Committed {
+		t.Fatalf("result = %#v, want committed", result)
+	}
+	// delete-all runs before any upload, all inside the one edit (single insert/validate/commit).
+	wantCalls := []string{"insert", "delete-all", "upload", "upload", "validate", "commit"}
+	if !reflect.DeepEqual(uploader.calls, wantCalls) {
+		t.Fatalf("calls = %#v, want %#v", uploader.calls, wantCalls)
+	}
+	if len(result.Deleted) != 1 || result.Deleted[0].ID != "image-1" {
+		t.Fatalf("deleted = %#v, want the prior image reported", result.Deleted)
+	}
+}
+
+func TestUploadImagesCleansUpEditWhenUploadFails(t *testing.T) {
+	uploader := &fakeImageUploader{uploadErr: errors.New("upload boom")}
+	first := writeTestImage(t, "01.png")
+	second := writeTestImage(t, "02.png")
+	_, err := UploadImages(context.Background(), uploader, ImageUploadOptions{
+		PackageName: "com.example.app",
+		Language:    "es-ES",
+		Type:        ImageTypePhoneScreenshots,
+		Paths:       []string{first, second},
+		Confirm:     true,
+	})
+	if err == nil {
+		t.Fatal("UploadImages() error = nil, want upload failure")
+	}
+	if !strings.Contains(err.Error(), "upload boom") {
+		t.Fatalf("error = %v, want upload failure", err)
+	}
+	// The uncommitted edit is torn down; no validate or commit happens.
+	wantCalls := []string{"insert", "upload", "delete-edit"}
+	if !reflect.DeepEqual(uploader.calls, wantCalls) {
+		t.Fatalf("calls = %#v, want %#v", uploader.calls, wantCalls)
+	}
+}
+
+func TestUploadImagesRejectsInvalidOptions(t *testing.T) {
 	tests := []ImageUploadOptions{
 		{},
-		{PackageName: "bad", Language: "en-US", Type: ImageTypeIcon, Path: "icon.png", DryRun: true},
-		{PackageName: "com.example.app", Type: ImageTypeIcon, Path: "icon.png", DryRun: true},
-		{PackageName: "com.example.app", Language: "en-US", Type: "bad", Path: "icon.png", DryRun: true},
+		{PackageName: "bad", Language: "en-US", Type: ImageTypeIcon, Paths: []string{"icon.png"}, DryRun: true},
+		{PackageName: "com.example.app", Type: ImageTypeIcon, Paths: []string{"icon.png"}, DryRun: true},
+		{PackageName: "com.example.app", Language: "en-US", Type: "bad", Paths: []string{"icon.png"}, DryRun: true},
 		{PackageName: "com.example.app", Language: "en-US", Type: ImageTypeIcon, DryRun: true},
-		{PackageName: "com.example.app", Language: "en-US", Type: ImageTypeIcon, Path: "icon.gif", DryRun: true},
-		{PackageName: "com.example.app", Language: "en-US", Type: ImageTypeIcon, Path: "icon.png", Confirm: true, DryRun: true},
+		{PackageName: "com.example.app", Language: "en-US", Type: ImageTypeIcon, Paths: []string{"icon.gif"}, DryRun: true},
+		{PackageName: "com.example.app", Language: "en-US", Type: ImageTypeIcon, Paths: []string{"a.png", "b.gif"}, DryRun: true},
+		{PackageName: "com.example.app", Language: "en-US", Type: ImageTypeIcon, Paths: []string{"icon.png"}, Confirm: true, DryRun: true},
 	}
 	for _, options := range tests {
-		_, err := UploadImage(context.Background(), nil, options)
+		_, err := UploadImages(context.Background(), nil, options)
 		if err == nil {
-			t.Fatalf("UploadImage(%#v) expected validation error", options)
+			t.Fatalf("UploadImages(%#v) expected validation error", options)
 		}
 	}
 }
@@ -207,8 +303,10 @@ type fakeImageDeleter struct {
 }
 
 type fakeImageUploader struct {
-	calls []string
-	image StoreImage
+	calls         []string
+	uploadedPaths []string
+	image         StoreImage
+	uploadErr     error
 }
 
 func (u *fakeImageUploader) InsertEdit(ctx context.Context, packageName PackageName) (Edit, error) {
@@ -216,8 +314,17 @@ func (u *fakeImageUploader) InsertEdit(ctx context.Context, packageName PackageN
 	return Edit{ID: "edit-123"}, nil
 }
 
+func (u *fakeImageUploader) DeleteAllImages(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType) ([]StoreImage, error) {
+	u.calls = append(u.calls, "delete-all")
+	return []StoreImage{{ID: "image-1"}}, nil
+}
+
 func (u *fakeImageUploader) UploadImage(ctx context.Context, packageName PackageName, editID string, language ListingLanguage, imageType ImageType, path string) (StoreImage, error) {
 	u.calls = append(u.calls, "upload")
+	u.uploadedPaths = append(u.uploadedPaths, path)
+	if u.uploadErr != nil {
+		return StoreImage{}, u.uploadErr
+	}
 	return u.image, nil
 }
 

@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -91,20 +92,97 @@ func TestImagesUploadDryRunDoesNotRequireAuth(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 	var result struct {
-		Path   string `json:"path"`
-		DryRun bool   `json:"dryRun"`
+		Path   string   `json:"path"`
+		Paths  []string `json:"paths"`
+		DryRun bool     `json:"dryRun"`
 		Plan   struct {
-			Path string `json:"path"`
+			Path  string   `json:"path"`
+			Paths []string `json:"paths"`
 		} `json:"plan"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
 		t.Fatalf("Unmarshal() error = %v; output = %s", err, buf.String())
 	}
-	if result.Path != imagePath || result.Plan.Path != imagePath || !result.DryRun {
+	wantPaths := []string{imagePath}
+	if !reflect.DeepEqual(result.Paths, wantPaths) || !reflect.DeepEqual(result.Plan.Paths, wantPaths) || !result.DryRun {
 		t.Fatalf("result = %#v, want image upload dry-run", result)
+	}
+	// Single-file back-compat: the singular "path" field is still present.
+	if result.Path != imagePath || result.Plan.Path != imagePath {
+		t.Fatalf("result.Path = %q / plan.Path = %q, want %q back-compat", result.Path, result.Plan.Path, imagePath)
 	}
 	if strings.Contains(buf.String(), "no active auth profile") {
 		t.Fatalf("output = %s, did not expect auth", buf.String())
+	}
+}
+
+func TestImagesUploadDryRunPlansFullSetInOneEdit(t *testing.T) {
+	t.Setenv("GPC_CONFIG", t.TempDir()+"/missing-config.json")
+	first := writeRootTestFile(t, "01.png")
+	second := writeRootTestFile(t, "02.png")
+	third := writeRootTestFile(t, "03.png")
+
+	var buf bytes.Buffer
+	cmd := newRootCommand(&buf)
+	cmd.SetArgs([]string{
+		"images",
+		"upload",
+		"--package",
+		"com.example.app",
+		"--language",
+		"es-ES",
+		"--type",
+		"phoneScreenshots",
+		"--file", first,
+		"--file", second,
+		"--file", third,
+		"--replace",
+		"--dry-run",
+		"--output",
+		"json",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	var result struct {
+		Path    string   `json:"path"`
+		Paths   []string `json:"paths"`
+		Replace bool     `json:"replace"`
+		DryRun  bool     `json:"dryRun"`
+		Plan    struct {
+			Path    string   `json:"path"`
+			Paths   []string `json:"paths"`
+			Replace bool     `json:"replace"`
+			Steps   []string `json:"steps"`
+		} `json:"plan"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v; output = %s", err, buf.String())
+	}
+	wantPaths := []string{first, second, third}
+	if !reflect.DeepEqual(result.Paths, wantPaths) || !reflect.DeepEqual(result.Plan.Paths, wantPaths) {
+		t.Fatalf("paths = %#v, want CLI arg order %#v", result.Paths, wantPaths)
+	}
+	// Multi-file: the singular "path" field is omitted to avoid implying a lone file.
+	if result.Path != "" || result.Plan.Path != "" {
+		t.Fatalf("result.Path = %q / plan.Path = %q, want empty for multi-file", result.Path, result.Plan.Path)
+	}
+	if !result.Replace || !result.Plan.Replace || !result.DryRun {
+		t.Fatalf("result = %#v, want replace dry-run", result)
+	}
+	// Exactly one insert/validate/commit framing the delete-all and three uploads.
+	wantSteps := []string{
+		"insert edit",
+		"delete all phoneScreenshots images for es-ES",
+		"upload phoneScreenshots image " + first + " for es-ES",
+		"upload phoneScreenshots image " + second + " for es-ES",
+		"upload phoneScreenshots image " + third + " for es-ES",
+		"validate edit",
+		"delete uncommitted edit",
+	}
+	if !reflect.DeepEqual(result.Plan.Steps, wantSteps) {
+		t.Fatalf("steps = %#v, want %#v", result.Plan.Steps, wantSteps)
 	}
 }
 

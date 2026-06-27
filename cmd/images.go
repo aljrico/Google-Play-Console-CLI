@@ -76,28 +76,39 @@ func newImagesUploadCommand(out io.Writer, options *globalOptions, packageName *
 	var (
 		language  string
 		imageType string
-		path      string
+		paths     []string
+		replace   bool
 		confirm   bool
 		dryRun    bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "upload",
-		Short: "Upload one store image",
-		Args:  cobra.NoArgs,
+		Short: "Upload one or more store images for a language and type in a single edit",
+		Long: "Upload one or more store images for a language and type in a single edit.\n\n" +
+			"Pass --file once per image; all files of the given --type are uploaded for the\n" +
+			"given --language within one edit and committed once, in the order given. A single\n" +
+			"--file behaves exactly as before. This lets a brand-new locale satisfy Google\n" +
+			"Play's minimum screenshot count, which rejects committing a listing language that\n" +
+			"holds fewer than its minimum images.\n\n" +
+			"--replace deletes every existing image of that language and type first (within the\n" +
+			"same edit), so re-running with the same files yields the same result.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			uploadOptions, err := imageUploadOptions(*packageName, language, imageType, path, confirm, dryRun)
+			uploadOptions, err := imageUploadOptions(*packageName, language, imageType, paths, replace, confirm, dryRun)
 			if err != nil {
 				return err
 			}
 			if err := uploadOptions.Validate(); err != nil {
 				return err
 			}
-			if err := play.ValidateReadableImageFile(path); err != nil {
-				return err
+			for _, path := range paths {
+				if err := play.ValidateReadableImageFile(path); err != nil {
+					return err
+				}
 			}
 			if dryRun {
-				result, err := play.UploadImage(cmd.Context(), nil, uploadOptions)
+				result, err := play.UploadImages(cmd.Context(), nil, uploadOptions)
 				if err != nil {
 					return err
 				}
@@ -107,7 +118,7 @@ func newImagesUploadCommand(out io.Writer, options *globalOptions, packageName *
 			if err != nil {
 				return err
 			}
-			result, err := play.UploadImage(cmd.Context(), publisher, uploadOptions)
+			result, err := play.UploadImages(cmd.Context(), publisher, uploadOptions)
 			if err != nil {
 				return err
 			}
@@ -116,7 +127,8 @@ func newImagesUploadCommand(out io.Writer, options *globalOptions, packageName *
 	}
 	cmd.Flags().StringVar(&language, "language", "", "BCP-47 listing language, for example en-US")
 	cmd.Flags().StringVar(&imageType, "type", "", "Image type: icon, featureGraphic, phoneScreenshots, sevenInchScreenshots, tenInchScreenshots, tvBanner, tvScreenshots, wearScreenshots")
-	cmd.Flags().StringVar(&path, "file", "", "Path to a .jpg, .jpeg, or .png image")
+	cmd.Flags().StringArrayVar(&paths, "file", nil, "Path to a .jpg, .jpeg, or .png image; repeatable to upload a full set in one edit, in order")
+	cmd.Flags().BoolVar(&replace, "replace", false, "Delete all existing images of this language and type before uploading")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "Commit the edit after validation")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the planned image upload without calling Google Play")
 	return cmd
@@ -238,7 +250,7 @@ func imageDeleteOptions(packageName string, language string, imageType string, i
 	}, nil
 }
 
-func imageUploadOptions(packageName string, language string, imageType string, path string, confirm bool, dryRun bool) (play.ImageUploadOptions, error) {
+func imageUploadOptions(packageName string, language string, imageType string, paths []string, replace bool, confirm bool, dryRun bool) (play.ImageUploadOptions, error) {
 	typedPackageName, err := play.NewPackageName(packageName)
 	if err != nil {
 		return play.ImageUploadOptions{}, err
@@ -255,7 +267,8 @@ func imageUploadOptions(packageName string, language string, imageType string, p
 		PackageName: typedPackageName,
 		Language:    typedLanguage,
 		Type:        typedImageType,
-		Path:        path,
+		Paths:       paths,
+		Replace:     replace,
 		Confirm:     confirm,
 		DryRun:      dryRun,
 	}, nil
